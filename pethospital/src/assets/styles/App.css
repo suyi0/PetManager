@@ -1,0 +1,243 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html,
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  color: #2c3e50;
+  line-height: 1.6;
+  overflow-x: hidden;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.app-container {
+  background-color: rgb(255, 255, 255);
+  background-size: cover;
+  background-position: center;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.app-navbar {
+  flex-shrink: 0; /* 保持导航栏在顶部，不随内容滚动 */
+  width: 100%;
+  height: 45px;
+  background-color: rgba(62, 76, 86, 0.3);
+  position: fixed; /* 添加此属性 */
+  top: 0; /* 固定在顶部 */
+  z-index: 1000; /* 确保在其他元素之上 */
+}
+.app-content {
+  flex: 1; /* 内容区域占据剩余空间 */
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box; /* 确保padding不会增加元素总宽度 */
+  padding: 45px 0 0 0; /* 为固定导航栏留出空间 */
+}
+
+a.home,
+a.about {
+  color: rgb(0, 0, 0);
+  display: absolute;
+  top: 10px;
+  font-size: 30px;
+  text-align: center;
+  width: 100px;
+  height: 30px;
+}
+.login,
+.onLine {
+  color: rgb(0, 0, 0);
+  top: 10px;
+  font-size: 34px;
+  font-weight: bold;
+  text-align: center;
+  width: 100px;
+  height: 30px;
+  text-decoration: none;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  position: absolute;
+  right: 0px;
+  background-color: rgba(255, 255, 255, 0);
+  border: none; /* 去除边框 */
+  cursor: pointer; /* 鼠标悬停时变为手型指针 */
+}
+.login-active2 {
+  color: #42b983;
+}
+a.home {
+  position: absolute;
+  left: 20px;
+}
+a.about {
+  position: absolute;
+  left: 120px;
+}
+
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: justify;
+  color: #2c3e50;
+  width: 100%;
+}
+
+nav {
+  padding: 0px;
+  display: flex;
+}
+
+.router-link-active,
+a {
+  text-decoration: none;
+  width: 100px;
+  height: 30px;
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+
+nav a {
+  font-weight: bold;
+}
+
+nav a.router-link-exact-active {
+  color: #42b983;
+}
+.onLine {
+    width: 200px;
+    height: 40px;
+}
+.onLine-line {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+.onLine-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 90px;
+}
+.onLine-pulldown {
+    display: flex;
+}
+.onLine-vertical {
+    width: 100px;
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+    cursor: default;
+}
+.onLine-vertical-container {
+    width: 200px;
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgb(255, 255, 255);
+    /* box-shadow: h-offset v-offset blur spread color inset; */
+    /*  h-offset（必需）：水平偏移量，正值向右，负值向左
+        v-offset（必需）：垂直偏移量，正值向下，负值向上
+        blur（可选）：模糊距离，值越大阴影越模糊
+        spread（可选）：阴影扩展半径，正值扩大阴影，负值缩小阴影
+        color（可选）：阴影颜色
+        inset（可选）：内部阴影关键字 */
+    box-shadow: 0px 0px 5px 2px rgba(0,0,0,0.3);
+    border-radius: 4px; /* 添加圆角 */
+    position: relative;
+}
+/* 上标箭头 */
+/* 添加了伪元素 ::before 来创建上标箭头
+使用CSS三角形技巧（border技术）创建箭头形状 */
+.onLine-vertical-container::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid rgb(255, 255, 255);
+    z-index: 1;
+    font-size: 15px;
+}
+.onLine-vertical-container-top {
+    width: 90%;
+    height: 100px;
+    position: relative;
+    font-size: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.onLine-vertical-container-top-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 90px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+.onLine-vertical-container-top-name {
+  width: 100%;
+  height: 40px;
+}
+.onLine-line-name {
+  width: 165px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.onLine-vertical-container-top::after,
+.onLine-vertical-container-main::after {
+    content: "";
+    display: inline-block;
+    width: 100%;
+    height: 1px;
+    position: absolute;
+    bottom: 1px;
+    left: 0px;
+    background-color: rgba(81, 77, 77,0.5);
+}
+.onLine-vertical-container-main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 90%;
+    height: 170px;
+    font-size: 16px;
+    position: relative;
+}
+.onLine-vertical-container-bottom {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    height: 30px;
+    position: relative;
+    background-color: rgba(167, 184, 187, 0.3);
+}
+.switch-account-button,
+.logout-button {
+  width: auto;
+  font-size: 12px;
+}
+.switch-account-button:active,
+.logout-button:active {
+    color: rgb(212, 21, 21);
+    transform: scale(0.98); /*点击时轻微缩小 */
+    box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.2); /* 内阴影效果 */
+}

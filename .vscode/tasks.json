@@ -1,0 +1,62 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "C/C++: clang++ (Crow & SSL)",
+            "command": "/bin/bash",
+            "args": [
+                "${workspaceFolder}/bin/build.sh"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "使用动态构建脚本编译所有源文件"
+        },
+        {
+            "type": "cppbuild",
+            "label": "C/C++: clang++ (Verification with CURL)",
+            "command": "/usr/bin/clang++",
+            "args": [
+                "-std=c++20",
+                "-I/opt/homebrew/include",
+                "-I/opt/homebrew/opt/openssl/include",
+                "-I${workspaceFolder}/pethospital/src/api/include",
+                "-Wall",
+                "-Werror",
+                "-g",
+                "-fcolor-diagnostics",
+                "-fansi-escape-codes",
+                "${file}",
+                "${workspaceFolder}/pethospital/src/api/src/Verification.cpp",
+                "-o",
+                "${fileDirname}/${fileBasenameNoExtension}",
+                "-L/opt/homebrew/lib",
+                "-L/opt/homebrew/opt/openssl/lib",
+                "-lcurl",
+                "-lssl",
+                "-lcrypto"
+            ],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build",
+            "detail": "编译器: Clang++ (支持 Verification.cpp 和 CURL)"
+        }
+    ]
+}
