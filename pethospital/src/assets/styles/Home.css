@@ -1,0 +1,180 @@
+.home{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.about-title{
+    color: #000;
+    font-size: 25px;
+    font-style: italic;
+    font-weight: 520;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    text-align: center;
+    width: 100%;
+    height: 50px;
+    line-height: 50px;
+    position: absolute;
+}
+
+@keyframes spin3D{
+    from {
+        transform: rotate3d(.5,.5,.5,360deg);
+    } to {
+        transform: rotate3d(0deg);
+    }
+}
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #1d2630;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.spinner-box {
+    width: 200px;
+    height: 200px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: transparent;
+    background-color: rgb(0, 0, 0);
+    border-radius: 50px;
+    margin-bottom: 20px;
+}
+
+.leo {
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+}
+
+.blue-orbit {
+    width: 165px;
+    height: 165px;
+    border: 1px solid #91daffa5;
+    -webkit-animation: spin3D 3s linear 0.2s infinite;
+}
+
+.green-orbit {
+    width: 120px;
+    height: 120px;
+    border: 1px solid #91ffbfa5;
+    -webkit-animation: spin3D 2s linear 0s infinite;
+}
+
+.red-orbit {
+    width: 90px;
+    height: 90px;
+    border: 1px solid #ffca91a5;
+    -webkit-animation: spin3D 1s linear 0s infinite;
+}
+
+.white-orbit {
+    width: 60px;
+    height: 60px;
+    border: 2px solid #ffffff;
+    -webkit-animation: spin3D 10s linear 0s infinite;
+}
+
+.w1 {
+    transform: rotate3d(1,1,1,90deg);
+}
+.w2 {
+    transform: rotate3d(1,2,5,90deg);
+}
+.w3 {
+    transform: rotate3d(0.5,1,2,90deg);
+}
+
+.main {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: visible;
+}
+
+.hospital-home-header {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    gap: 20px;
+    padding: 40px 0px 0px 0px;
+    margin-bottom: 50px;
+}
+
+.hospital-name {
+    width: 300px;
+    color: #000;
+    font-size: 40px;
+    font-style: italic;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: center;
+}
+.hospital-home-body {
+    max-width: 800px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.introduce {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 50px;
+}
+.hospital-technology,
+.hospital-doctor,
+.hospital-environment {
+    display: flex;
+    justify-content: space-between;
+    gap:180px;
+}
+.hospital-technology-img,
+.hospital-doctor-img,
+.hospital-environment-img {
+    width: 300px;
+    height: 250px;
+    border-radius: 20px;
+    background-color: aqua;
+    box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.2);
+    padding: 10px;
+}
+.hospital-technology-body,
+.hospital-doctor-body,
+.hospital-environment-body {
+    width: 550px;
+    height: 250px;
+    border: 1px solid #000;
+    box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.3);
+    border-radius: 20px;
+    padding: 20px;
+    font-size: 18px;
+}
+
+
+.hospital-footer {
+    width: 100%;
+}
+.hospital-footer-body { 
+    min-height: 1300px;
+}
