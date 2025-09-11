@@ -51,6 +51,9 @@ a.about {
   width: 100px;
   height: 30px;
 }
+a.about {
+  width: 150px;
+}
 .login,
 .onLine {
   color: rgb(0, 0, 0);
