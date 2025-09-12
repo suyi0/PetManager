@@ -81,8 +81,11 @@ div,button {
     width: 52vw;
     height: 120px;
     margin-bottom: 40px;
-    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
+.personal-container-personal-right-top-head-button,
 .personal-container-personal-right-top-head-img {
     width: 100px;
     height: 100px;

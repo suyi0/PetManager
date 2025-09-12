@@ -19,6 +19,7 @@ body {
   background-size: cover;
   background-position: center;
   width: 100%;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -51,8 +52,14 @@ a.about {
   width: 100px;
   height: 30px;
 }
+a.home {
+  position: absolute;
+  left: 20px;
+}
 a.about {
   width: 150px;
+  position: absolute;
+  left: 120px;
 }
 .login,
 .onLine {
@@ -74,14 +81,6 @@ a.about {
 }
 .login-active2 {
   color: #42b983;
-}
-a.home {
-  position: absolute;
-  left: 20px;
-}
-a.about {
-  position: absolute;
-  left: 120px;
 }
 
 #app {

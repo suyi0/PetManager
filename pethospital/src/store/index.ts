@@ -13,6 +13,7 @@ export interface AuthState {
   userPhone: string | null;
   userAddressId: string | null;
   userAddress: string | null;
+  userHeadImage: string | null;
   token: string | null; // 添加 token 状态
   isLoggedIn: boolean; // 添加登录状态
   personal: boolean; //添加个人信息状态
@@ -48,6 +49,7 @@ export default createStore<State>({
         userPhone: localStorage.getItem("user_phone") || null, // 从localStorage恢复手机
         userAddressId: localStorage.getItem("address_id") || null, // 从localStorage恢复地址ID
         userAddress: localStorage.getItem("user_address") || null, // 从localStorage恢复地址
+        userHeadImage: localStorage.getItem("user_head_image") || null, // 从localStorage恢复头像
         token: localStorage.getItem("auth_token") || null, // 从localStorage恢复token
         isLoggedIn: !!localStorage.getItem("auth_token"), // 根据是否存在token判断登录状态
         showLogin: false, // 初始登录显示状态
@@ -80,6 +82,7 @@ export default createStore<State>({
                   country?: string;
                 }
               | string;
+            userHeadImage: string; // 添加头像参数
             token: string;
             userAddressId?: string;
           }
@@ -88,6 +91,7 @@ export default createStore<State>({
           state.userPhone = payload.userPhone;
           state.userEmail = payload.userEmail;
           state.userBirthday = payload.userBirthday;
+          state.userHeadImage = payload.userHeadImage;
 
           // 设置 addressId
           if (payload.userAddressId !== undefined) {
@@ -121,6 +125,7 @@ export default createStore<State>({
           localStorage.setItem("user_birthday", payload.userBirthday);
           localStorage.setItem("user_email", payload.userEmail);
           localStorage.setItem("user_phone", payload.userPhone);
+          localStorage.setItem("user_head_image", payload.userHeadImage || ""); // 保存头像到localStorage
           localStorage.setItem(
             "address_id",
             payload.userAddressId?.toString() || ""
@@ -145,6 +150,7 @@ export default createStore<State>({
           state.userEmail = null;
           state.userBirthday = null;
           state.userAddress = null;
+          state.userHeadImage = null; // 清除头像
           state.token = null; // 清除 token
           state.isLoggedIn = false;
           // 从 localStorage 中移除 token
@@ -153,6 +159,7 @@ export default createStore<State>({
           localStorage.removeItem("user_birthday");
           localStorage.removeItem("user_email");
           localStorage.removeItem("user_phone");
+          localStorage.removeItem("user_head_image");
           localStorage.removeItem("user_address");
         },
         SET_LOGIN(state: AuthState, data: any) {
@@ -265,6 +272,7 @@ export default createStore<State>({
                   userBirthday: response.data.user.birthday, // 从服务器返回的数据中获取用户生日
                   userAddressId: response.data.user.address_id, // 从服务器返回的数据中获取用户地址ID
                   userAddress: response.data.user.address, // 从服务器返回的数据中获取用户地址
+                  userHeadImage: response.data.user.head_image, // 从服务器返回的数据中获取用户头像
                   token: response.data.token, // 从响应中获取 token
                 });
                 return response;
@@ -284,6 +292,7 @@ export default createStore<State>({
                 email: state.userEmail || "",
                 birthday: state.userBirthday || "",
                 address: state.userAddress || "",
+                headImage: state.userHeadImage || "",
               })
               .catch((error) => {
                 console.error("Failed to save user data before logout:", error);
@@ -304,6 +313,7 @@ export default createStore<State>({
                 birthday: state.userBirthday,
                 address_id: state.userAddressId,
                 address: state.userAddress,
+                headImage: state.userHeadImage,
               })
               .catch((error) => {
                 console.error("Failed to save user data:", error);
@@ -326,7 +336,7 @@ export default createStore<State>({
             }, delay) as unknown as number;
           };
         })(),
-        // 更新特定用户字段
+        // 更新前端状态，特定用户字段
         updateUserField(
           { dispatch }: ActionContext<AuthState, State>,
           payload: { field: string; value: any }
@@ -352,6 +362,9 @@ export default createStore<State>({
             case "userAddress":
               this.state.auth.userAddress = payload.value;
               break;
+            case "userHeadImage":
+              this.state.auth.userHeadImage = payload.value;
+              break;
             default:
           }
           console.log("Updated user field:", payload.field, payload.value);
@@ -360,6 +373,7 @@ export default createStore<State>({
           // 触发防抖保存
           dispatch("debouncedUpdateUserData");
         },
+        // 检查登录状态
         checkLoginStatus({ commit }: ActionContext<State, any>) {
           return new Promise((resolve, reject) => {
             // 首先检查网络连接状态

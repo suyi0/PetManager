@@ -484,11 +484,14 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #f0f0f0;
   color: #666;
   border: none;
   cursor: pointer;
   transition: all 0.3s ease;
+  padding: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   svg {
     width: 16px;
