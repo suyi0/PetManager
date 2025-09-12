@@ -2,11 +2,16 @@
   <div class="personal-container-right-personal">
     <div class="personal-container-personal-right-top">
       <div class="personal-container-personal-right-top-head">
-        <img
-          class="personal-container-personal-right-top-head-img"
-          src="@/assets/photo/head.jpeg"
-          alt="store.state.auth.userName"
-        />
+        <button
+          class="personal-container-personal-right-top-head-button"
+          @click="emit('switchTab', 'head')"
+        >
+          <img
+            class="personal-container-personal-right-top-head-img"
+            src="@/assets/photo/head.jpeg"
+            alt="store.state.auth.userName"
+          />
+        </button>
       </div>
     </div>
     <div class="personal-container-right-personal-middle">

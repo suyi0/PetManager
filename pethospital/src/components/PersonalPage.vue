@@ -25,6 +25,7 @@
           v-if="activeTab === 'personal'"
           @switchTab="switchTab"
         />
+        <SetHeadView v-if="activeTab === 'head'" @close="close" />
         <SetNameView v-if="activeTab === 'name'" @close="close" />
         <SetBirthdayView v-if="activeTab === 'birthday'" @close="close" />
         <SetPhoneView
@@ -44,6 +45,7 @@ import { ref, onMounted, onBeforeUnmount } from "vue";
 import { useStore } from "vuex";
 import { key } from "../store";
 import PersonalRightView from "../views/Personal/personalRightView.vue";
+import SetHeadView from "../views/Personal/setHeadView.vue";
 import SetNameView from "../views/Personal/setNameView.vue";
 import SetBirthdayView from "../views/Personal/setBirthdayView.vue";
 import SetPhoneView from "../views/Personal/setPhoneView.vue";

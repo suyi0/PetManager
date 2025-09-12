@@ -381,7 +381,10 @@ function close() {
   border: none;
   cursor: pointer;
   color: #999;
-  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0px;
 }
 
 .remove-button:hover {
