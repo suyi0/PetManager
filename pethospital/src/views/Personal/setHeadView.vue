@@ -18,50 +18,57 @@
         />
       </svg>
     </div>
-    <div class="setHead-top">
-      {{ headImage }}
-    </div>
-    <div class="setHead-bottom">
-      <div class="setHead-bottom1">
-        <button class="setHead-bottom1-button" @click="triggerFileInput">
-          <span class="setHead-bottom1-button-span">上传新头像</span>
-          <div class="ImageSVG">
-            <svg
-              width="36"
-              height="36"
-              viewBox="0 0 36 36"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <!-- 头部 -->
-              <circle cx="18" cy="13" r="9" fill="#e0e0e0" />
+    <div v-show="!showPrewiew" class="setHead-container">
+      <div class="setHead-top">
+        {{ headImage }}
+      </div>
+      <div class="setHead-bottom">
+        <div class="setHead-bottom1">
+          <button class="setHead-bottom1-button" @click="triggerFileInput">
+            <span class="setHead-bottom1-button-span">上传新头像</span>
+            <div class="ImageSVG">
+              <svg
+                width="36"
+                height="36"
+                viewBox="0 0 36 36"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <!-- 头部 -->
+                <circle cx="18" cy="13" r="9" fill="#e0e0e0" />
 
-              <!-- 身体 -->
-              <path d="M10 23 L26 23 L26 31 L10 31 Z" fill="#e0e0e0" />
+                <!-- 身体 -->
+                <path d="M10 23 L26 23 L26 31 L10 31 Z" fill="#e0e0e0" />
 
-              <!-- 领口 -->
-              <path
-                d="M12 23 L18 17 L24 23"
-                stroke="#e0e0e0"
-                stroke-width="1.5"
-                fill="none"
-              />
-            </svg>
-          </div>
-        </button>
+                <!-- 领口 -->
+                <path
+                  d="M12 23 L18 17 L24 23"
+                  stroke="#e0e0e0"
+                  stroke-width="1.5"
+                  fill="none"
+                />
+              </svg>
+            </div>
+          </button>
 
-        <!-- 隐藏的文件输入框 -->
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/*"
-          style="display: none"
-          @change="handleFileChange"
-        />
-        <button @click="getCroppedImage">确定</button>
+          <!-- 隐藏的文件输入框 -->
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/*"
+            style="display: none"
+            @change="handleFileChange"
+          />
+        </div>
       </div>
     </div>
-    <div ref="previewContainer" style="display: none">
-      <img ref="previewImage" alt="预览图片" style="max-width: 100%" />
+    <div v-show="showPrewiew" class="preview">
+      <div class="preview-top" ref="previewContainer" style="display: none">
+        <img ref="previewImage" alt="预览图片" style="max-width: 100%" />
+      </div>
+      <div class="preview-bottom">
+        <button class="cancel-button" @click="cancel">取消</button>
+        <button class="save-button" @click="getCroppedImage">确定</button>
+      </div>
     </div>
   </div>
 </template>
@@ -95,7 +102,7 @@ const emit = defineEmits(["close"]);
 // 4. 响应式数据
 const headImage = ref("");
 const showUpHeadImage = ref(false);
-const isButtonActive = ref(false);
+const showPrewiew = ref(false);
 
 // 引用文件输入框
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -112,6 +119,8 @@ const cropperInstance = ref<Cropper | null>(null); // 存储 cropper 实例
 const triggerFileInput = () => {
   if (fileInput.value) {
     fileInput.value.click();
+    showUpHeadImage.value = true;
+    showPrewiew.value = true;
   }
 };
 
@@ -278,19 +287,21 @@ const getCroppedImage = async () => {
 // 上传裁剪后的图片
 const uploadImage = (formData: FormData) => {
   console.log("上传裁剪后的图片", formData);
+  // 关闭预览
+  showPrewiew.value = false;
   // 这里可以添加实际的上传逻辑
 };
 // 取消操作
 const cancel = () => {
-  showUpHeadImage.value = false;
-  isButtonActive.value = false;
+  showPrewiew.value = false;
 };
 // 关闭操作
 function close() {
+  console.log(showUpHeadImage.value);
   if (showUpHeadImage.value === true) {
     cancel();
     return;
-  } else {
+  } else if (showUpHeadImage.value === false) {
     emit("close");
   }
 }
@@ -353,6 +364,13 @@ onBeforeUnmount(() => {
   border-radius: 50%;
 }
 
+.setHead-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .setHead-top {
   width: 180px;
   height: 180px;
@@ -363,7 +381,7 @@ onBeforeUnmount(() => {
 }
 
 .setHead-bottom {
-  width: 45%;
+  width: 180px;
 }
 .setHead-bottom1-button {
   display: flex;
@@ -390,5 +408,59 @@ onBeforeUnmount(() => {
 .cropper-container .inner-circle {
   border: 1px dashed #ccc;
   border-radius: 50%;
+}
+
+.preview {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 50px;
+}
+
+.preview-top {
+  padding: 20px;
+  margin-top: 20px;
+  width: 300px;
+  height: 180px;
+}
+
+.preview-bottom {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.cancel-button {
+  padding: 12px 24px;
+  border: 1px solid #409eff;
+  border-radius: 8px;
+  background-color: transparent;
+  color: #409eff;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 35%;
+
+  &:hover {
+    background-color: rgba(64, 158, 255, 0.1);
+  }
+}
+
+.save-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  background-color: #409eff;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 35%;
+
+  &:hover {
+    background-color: #3a8ee6;
+  }
 }
 </style>
