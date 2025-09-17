@@ -89,6 +89,24 @@
     <div v-if="showLogin">
       <Login />
     </div>
+    <!-- 测试按钮，仅在开发环境中显示 -->
+    <div
+      v-if="!isLoggedIn"
+      style="position: fixed; bottom: 20px; right: 20px; z-index: 1000"
+    >
+      <button
+        @click="simulateLogin"
+        style="
+          background: #42b983;
+          color: white;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 4px;
+        "
+      >
+        模拟登录
+      </button>
+    </div>
   </div>
 </template>
 
@@ -101,6 +119,18 @@ import Login from "@/components/LoginPage.vue"; // 引入Login组件
 
 const store = useStore(key);
 const route = useRoute();
+
+const simulateLogin = () => {
+  store.commit("auth/frontSetUser", {
+    userName: "测试用户",
+    userPhone: "1234567890",
+    userEmail: "test@example.com",
+    userBirthday: "1990-01-01",
+    userAddress: "北京市",
+    userHeadImage: "",
+    token: "test_token",
+  });
+};
 
 // 添加对 store 是否存在的检查
 if (!store) {
