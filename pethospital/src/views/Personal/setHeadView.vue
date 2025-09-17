@@ -119,8 +119,6 @@ const cropperInstance = ref<Cropper | null>(null); // 存储 cropper 实例
 const triggerFileInput = () => {
   if (fileInput.value) {
     fileInput.value.click();
-    showUpHeadImage.value = true;
-    showPrewiew.value = true;
   }
 };
 
@@ -151,7 +149,6 @@ const handleFileChange = (event: Event) => {
 
         // 清理现有的裁剪器实例
         if (cropperInstance.value) {
-          cropperInstance.value = null;
           cropperInstance.value = null;
         }
 
@@ -217,6 +214,8 @@ const handleFileChange = (event: Event) => {
         };
         // 使用 previewImage.value 创建 cropper 实例
         cropperInstance.value = new Cropper(previewImage.value, cropperOptions);
+        showUpHeadImage.value = true;
+        showPrewiew.value = true;
       };
       img.src = e.target.result as string;
     };
@@ -294,6 +293,11 @@ const uploadImage = (formData: FormData) => {
 // 取消操作
 const cancel = () => {
   showPrewiew.value = false;
+  showUpHeadImage.value = false;
+
+  if (cropperInstance.value) {
+    cropperInstance.value = null;
+  }
 };
 // 关闭操作
 function close() {
@@ -303,6 +307,9 @@ function close() {
     return;
   } else if (showUpHeadImage.value === false) {
     emit("close");
+  }
+  if (cropperInstance.value) {
+    cropperInstance.value = null;
   }
 }
 
@@ -315,7 +322,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  // 可以在这里执行清理操作
+  if (cropperInstance.value) {
+    cropperInstance.value = null;
+  }
 });
 
 // 8. 监听器 (如需要)
