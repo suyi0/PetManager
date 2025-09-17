@@ -4,7 +4,7 @@ import "./registerServiceWorker";
 import router from "./router";
 import { store, key } from "./store";
 
-createApp(App).provide(key,store).use(store).use(router).mount("#app");
+createApp(App).provide(key, store).use(store).use(router).mount("#app");
 
 // 在 main.ts 或 App.vue 中
 window.addEventListener("beforeunload", () => {

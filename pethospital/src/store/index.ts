@@ -51,7 +51,7 @@ export const store = createStore<State>({
         userAddress: localStorage.getItem("user_address") || null, // 从localStorage恢复地址
         userHeadImage: localStorage.getItem("user_head_image") || null, // 从localStorage恢复头像
         token: localStorage.getItem("auth_token") || null, // 从localStorage恢复token
-        isLoggedIn: !!localStorage.getItem("auth_token"), // 根据是否存在token判断登录状态
+        isLoggedIn: true, //!!localStorage.getItem("auth_token"), // 根据是否存在token判断登录状态
         showLogin: false, // 初始登录显示状态
         personal: false, //添加个人信息状态
         isLoginButtonActive: false, // 初始登录按钮状态

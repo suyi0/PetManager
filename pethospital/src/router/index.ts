@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
 import HomeView from "../views/Home/HomeView.vue";
 import UserDashboard from "../views/UserDashboardView.vue";
-import store from "@/store"; // 直接导入实例
+import { store } from "@/store"; // 直接导入实例
 
 const routes: Array<RouteRecordRaw> = [
   {
