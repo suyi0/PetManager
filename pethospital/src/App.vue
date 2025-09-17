@@ -101,6 +101,12 @@ import Login from "@/components/LoginPage.vue"; // 引入Login组件
 
 const store = useStore(key);
 const route = useRoute();
+
+// 添加对 store 是否存在的检查
+if (!store) {
+  console.error("Store is not properly initialized");
+}
+
 const isLoggedIn = computed(() => store.state.auth.isLoggedIn);
 const showLogin = computed(() => store.state.auth.showLogin);
 const personal = computed(() => store.state.auth.personal);
@@ -157,7 +163,7 @@ const logout = () => store.dispatch("auth/logout");
 
 // 添加按钮状态管理
 const isLoginButtonActive = computed(
-  () => store.state.auth.isLoginButtonActive
+  () => store.state.auth.isLoginButtonActive || false
 );
 const setIsLoginButtonActive = () => {
   store.commit("auth/upDataLoginButtonActive", {
