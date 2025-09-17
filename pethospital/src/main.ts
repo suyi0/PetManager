@@ -2,9 +2,9 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import "./registerServiceWorker";
 import router from "./router";
-import store, { key } from "./store";
+import { store, key } from "./store";
 
-createApp(App).use(store, key).use(router).mount("#app");
+createApp(App).provide(key,store).use(store).use(router).mount("#app");
 
 // 在 main.ts 或 App.vue 中
 window.addEventListener("beforeunload", () => {

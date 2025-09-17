@@ -38,7 +38,7 @@ export interface State {
 export const key: InjectionKey<Store<State>> = Symbol();
 
 // 3. 创建 Vuex Store
-export default createStore<State>({
+export const store = createStore<State>({
   modules: {
     auth: {
       namespaced: true,
@@ -344,31 +344,31 @@ export default createStore<State>({
           // 更新本地状态
           switch (payload.field) {
             case "userName":
-              this.state.auth.userName = payload.value;
+              // Deleted:this.state.auth.userName = payload.value;
               break;
             case "userPhone":
-              this.state.auth.userPhone = payload.value;
+              // Deleted:this.state.auth.userPhone = payload.value;
               break;
             case "userEmail":
-              this.state.auth.userEmail = payload.value;
+              // Deleted:this.state.auth.userEmail = payload.value;
               break;
             case "userBirthday":
               // 确保生日字段是有效的日期字符串或空字符串
-              this.state.auth.userBirthday =
-                payload.value && payload.value.trim() !== "\t"
-                  ? payload.value
-                  : "";
+              // Deleted:this.state.auth.userBirthday =
+              // Deleted:payload.value && payload.value.trim() !== "\t"
+              // Deleted:? payload.value
+              // Deleted:: "";
               break;
             case "userAddress":
-              this.state.auth.userAddress = payload.value;
+              // Deleted:this.state.auth.userAddress = payload.value;
               break;
             case "userHeadImage":
-              this.state.auth.userHeadImage = payload.value;
+              // Deleted:this.state.auth.userHeadImage = payload.value;
               break;
             default:
           }
-          console.log("Updated user field:", payload.field, payload.value);
-          console.log(this.state.auth.userPhone);
+          // Deleted:console.log("Updated user field:", payload.field, payload.value);
+          // Deleted:console.log(this.state.auth.userPhone);
 
           // 触发防抖保存
           dispatch("debouncedUpdateUserData");
