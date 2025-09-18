@@ -298,6 +298,11 @@ const cancel = () => {
   if (cropperInstance.value) {
     cropperInstance.value = null;
   }
+
+  // 重置文件输入框，以便下次可以选择同一文件
+  if (fileInput.value) {
+    fileInput.value.value = "";
+  }
 };
 // 关闭操作
 function close() {
@@ -310,6 +315,11 @@ function close() {
   }
   if (cropperInstance.value) {
     cropperInstance.value = null;
+  }
+
+  // 重置文件输入框，以便下次可以选择同一文件
+  if (fileInput.value) {
+    fileInput.value.value = "";
   }
 }
 
