@@ -130,6 +130,10 @@ const handleFileChange = (event: Event) => {
       imgElement.style.objectFit = "contain";
       imgElement.style.display = "block";
 
+      // 强制图片尺寸
+      imgElement.width = 300;
+      imgElement.height = 300;
+
       previewContainer.value.appendChild(imgElement);
 
       // 等待图片加载完成再初始化 cropper
@@ -139,21 +143,62 @@ const handleFileChange = (event: Event) => {
           try {
             const options: Cropper.Options = {
               aspectRatio: 1,
-              viewMode: 1,
-              background: false,
+              viewMode: 2,
+              background: true,
               modal: true,
               guides: false,
               center: true,
               highlight: false,
               zoomOnTouch: false,
               zoomOnWheel: false,
-              cropBoxResizable: false,
-              minCropBoxWidth: 300,
-              minCropBoxHeight: 300,
-              autoCropArea: 1,
+              autoCropArea: 0.8,
+              ready: function () {
+                // 使用 setTimeout 延迟执行，确保 cropper 实例已正确初始化
+                setTimeout(() => {
+                  // 获取 cropper 实例
+                  const cropper = this as any;
+
+                  // 检查 cropper 实例是否有效
+                  if (!cropper || !cropper.getContainerData) return;
+
+                  // 获取容器数据
+                  const containerData = cropper.getContainerData();
+
+                  // 设置裁剪框为容器的80%大小
+                  const size =
+                    Math.min(containerData.width, containerData.height) * 0.8;
+
+                  // 应用裁剪框尺寸
+                  cropper.setCropBoxData({
+                    width: size,
+                    height: size,
+                  });
+
+                  // 将裁剪框居中
+                  cropper.setData({
+                    x: (containerData.width - size) / 2,
+                    y: (containerData.height - size) / 2,
+                  });
+                }, 0);
+              },
+              // 设置裁剪框样式
+              cropBoxMovable: true, //允许移动裁剪框
+              cropBoxResizable: true, //允许调整裁剪框大小
+              dragMode: "move", //设置拖拽模式
             };
 
             cropperInstance.value = new Cropper(imgElement, options);
+
+            // 添加调试信息
+            console.log("Cropper instance created:", cropperInstance.value);
+            console.log(
+              "Cropper container data:",
+              cropperInstance.value?.getContainerData()
+            );
+            console.log(
+              "Cropper crop box data:",
+              cropperInstance.value?.getCropBoxData()
+            );
           } catch (err) {
             console.error("Error creating cropper:", err);
           }
@@ -166,18 +211,46 @@ const handleFileChange = (event: Event) => {
         try {
           const options: Cropper.Options = {
             aspectRatio: 1,
-            viewMode: 1,
-            background: false,
+            viewMode: 2,
+            background: true,
             modal: true,
             guides: false,
             center: true,
             highlight: false,
             zoomOnTouch: false,
             zoomOnWheel: false,
-            cropBoxResizable: false,
-            minCropBoxWidth: 300,
-            minCropBoxHeight: 300,
-            autoCropArea: 1,
+            autoCropArea: 0.8,
+            ready: function () {
+              setTimeout(() => {
+                // 获取 cropper 实例
+                const cropper = this as any;
+
+                // 检查 cropper 实例是否有效
+                if (!cropper || !cropper.getContainerData) return;
+
+                // 获取容器数据
+                const containerData = cropper.getContainerData();
+
+                // 设置裁剪框为容器的80%大小
+                const size =
+                  Math.min(containerData.width, containerData.height) * 0.8;
+
+                // 应用裁剪框尺寸
+                cropper.setCropBoxData({
+                  width: size,
+                  height: size,
+                });
+
+                // 将裁剪框居中
+                cropper.setData({
+                  x: (containerData.width - size) / 2,
+                  y: (containerData.height - size) / 2,
+                });
+              }, 0);
+            },
+            cropBoxMovable: true, //允许移动裁剪框
+            cropBoxResizable: true, //允许调整裁剪框大小
+            dragMode: "move", //设置拖拽模式
           };
 
           cropperInstance.value = new Cropper(imgElement, options);
@@ -398,19 +471,58 @@ onBeforeUnmount(() => {
 }
 
 .preview-top {
-  width: 300px;
+  width: 100%;
+  max-width: 300px;
   height: 300px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
-  margin: 0 auto;
+  position: relative;
+  background: #f0f2f5;
+  border-radius: 8px;
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    width: auto;
+    height: auto;
+  }
 }
 
-.preview-top img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+/* 修复Cropper.js容器溢出问题 */
+.cropper-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.cropper-crop-box,
+.cropper-view-box {
+  border-radius: 50%;
+  overflow: hidden;
+  /* 新增：确保裁剪框可见 */
+  border: 2px solid #409eff !important;
+  background-color: rgba(64, 158, 255, 0.1) !important;
+
+  /* 确保裁剪框有正确的z-index */
+  z-index: 1000;
+}
+
+/* 新增：确保裁剪点可见 */
+.cropper-point {
+  background-color: #39f;
+  width: 8px;
+  height: 8px;
+  opacity: 1;
+  border-radius: 50%;
+}
+
+/* 新增：确保裁剪框有正确的尺寸 */
+.cropper-crop-box {
+  min-width: 100px !important;
+  min-height: 100px !important;
 }
 
 .preview-bottom {
@@ -448,6 +560,23 @@ onBeforeUnmount(() => {
 
   &:hover {
     background-color: #3a8ee6;
+  }
+}
+/* 响应式设计 */
+@media (max-width: 600px) {
+  .setHead {
+    padding: 24px 16px;
+    gap: 20px;
+  }
+
+  .preview-top {
+    height: 250px;
+  }
+
+  .setHead-top {
+    width: 150px;
+    height: 150px;
+    margin: 20px 0;
   }
 }
 </style>
