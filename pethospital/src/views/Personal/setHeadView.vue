@@ -126,7 +126,7 @@ const handleFileChange = (event: Event) => {
       const imgElement = document.createElement("img");
       imgElement.src = e.target?.result as string;
       imgElement.alt = "预览图片";
-      imgElement.style.width = "180px";
+      imgElement.style.width = "172px";
       imgElement.style.height = "300px";
       imgElement.style.objectFit = "cover";
       imgElement.style.borderRadius = "5px";
@@ -140,7 +140,7 @@ const handleFileChange = (event: Event) => {
         try {
           const options: Cropper.Options = {
             aspectRatio: 1,
-            viewMode: 2,
+            viewMode: 1,
             background: true,
             modal: true,
             guides: false,
@@ -150,22 +150,28 @@ const handleFileChange = (event: Event) => {
             zoomOnWheel: false,
             autoCropArea: 0.8,
             ready: function () {
+              console.log("Cropper ready");
+              const cropper = this as any;
+
+              // 确保获取到容器数据
               setTimeout(() => {
-                const cropper = this as any;
                 if (!cropper || !cropper.getContainerData) return;
 
                 const containerData = cropper.getContainerData();
+                const imageData = cropper.getImageData();
+
+                console.log("Container data:", containerData);
+                console.log("Image data:", imageData);
+                // 计算居中位置
                 const size =
                   Math.min(containerData.width, containerData.height) * 0.8;
 
+                // 设置裁剪框居中
                 cropper.setCropBoxData({
+                  left: (containerData.width - size) / 2,
+                  top: (containerData.height - size) / 2,
                   width: size,
                   height: size,
-                });
-
-                cropper.setData({
-                  x: (containerData.width - size) / 2,
-                  y: (containerData.height - size) / 2,
                 });
               }, 0);
             },
@@ -417,6 +423,7 @@ onBeforeUnmount(() => {
   width: 100% !important;
   height: 100% !important;
   z-index: 1000 !important; /* 提升层级，防止被遮挡 */
+  border-radius: 8px;
 }
 
 :deep(.cropper-crop-box),
@@ -430,8 +437,26 @@ onBeforeUnmount(() => {
   background-color: rgba(64, 158, 255, 0.1) !important;
   z-index: 1001 !important;
 }
+:deep(.cropper-canvas) {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+:deep(.cropper-wrap-box) {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* 添加溢出隐藏，防止内容溢出 */
+  border-radius: 8px; /* 保持与整体设计一致 */
+  box-sizing: border-box; /* 确保边框和内边距包含在尺寸内 */
+}
 :deep(.cropper-view-box) {
   position: absolute;
+  width: 100%;
+  height: 100%;
+}
+:deep(.cropper-view-box img) {
+  transform: translateX(-21.16px) translateY(-85.38px) !important;
 }
 /* 新增：确保裁剪点可见 */
 :deep(.cropper-point) {
