@@ -99,10 +99,26 @@ const handleFileChange = (event: Event) => {
   if (!target.files || target.files.length === 0) return;
 
   const file = target.files[0];
+  const maxSize = 5 * 1024 * 1024; // 5MB
+
+  if (file.size > maxSize) {
+    alert("图片大小不能超过 5MB");
+    return;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    alert("仅支持 JPG、PNG 格式");
+    return;
+  }
   const reader = new FileReader();
 
   reader.onload = (e) => {
-    if (!e.target?.result) return;
+    if (!e.target?.result) {
+      console.warn("File read failed:", e);
+      return;
+    }
+
+    console.log("✅ File read successfully:", e.target.result);
 
     // 销毁旧 cropper 实例
     if (cropperInstance.value) {
@@ -117,6 +133,7 @@ const handleFileChange = (event: Event) => {
     showPrewiew.value = true;
     showUpHeadImage.value = true;
 
+    // 使用 nextTick 确保 DOM 更新后再初始化 cropper
     setTimeout(() => {
       if (!previewContainer.value) return;
 
@@ -126,17 +143,22 @@ const handleFileChange = (event: Event) => {
       const imgElement = document.createElement("img");
       imgElement.src = e.target?.result as string;
       imgElement.alt = "预览图片";
-      imgElement.style.width = "172px";
-      imgElement.style.height = "300px";
-      imgElement.style.objectFit = "cover";
+      imgElement.style.maxWidth = "100%";
+      imgElement.style.maxHeight = "100%";
+      imgElement.style.objectFit = "contain";
       imgElement.style.borderRadius = "5px";
       imgElement.style.margin = "0 auto";
       imgElement.style.display = "block";
 
       previewContainer.value.appendChild(imgElement);
 
-      // 初始化 Cropper 的函数
+      // 等待图片加载完成再初始化 cropper
       const initCropper = () => {
+        if (!imgElement.complete || !imgElement.naturalWidth) {
+          console.warn("Image not loaded or invalid:", imgElement);
+          return;
+        }
+
         try {
           const options: Cropper.Options = {
             aspectRatio: 1,
@@ -149,35 +171,22 @@ const handleFileChange = (event: Event) => {
             zoomOnTouch: false,
             zoomOnWheel: false,
             autoCropArea: 0.8,
-            ready: function () {
-              console.log("Cropper ready");
-              const cropper = this as any;
-
-              // 确保获取到容器数据
-              setTimeout(() => {
-                if (!cropper || !cropper.getContainerData) return;
-
-                const containerData = cropper.getContainerData();
-                const imageData = cropper.getImageData();
-
-                console.log("Container data:", containerData);
-                console.log("Image data:", imageData);
-                // 计算居中位置
-                const size =
-                  Math.min(containerData.width, containerData.height) * 0.8;
-
-                // 设置裁剪框居中
-                cropper.setCropBoxData({
-                  left: (containerData.width - size) / 2,
-                  top: (containerData.height - size) / 2,
-                  width: size,
-                  height: size,
-                });
-              }, 0);
-            },
             cropBoxMovable: true,
             cropBoxResizable: true,
             dragMode: "move",
+            movable: true,
+            rotatable: false,
+            scalable: false,
+            zoomable: false,
+            ready: function () {
+              console.log("Cropper is ready");
+              // 确保裁剪框可以移动
+              const cropper = cropperInstance.value;
+              if (cropper) {
+                console.log("Crop box data:", cropper.getCropBoxData());
+                console.log("Container data:", cropper.getContainerData());
+              }
+            },
           };
 
           cropperInstance.value = new Cropper(imgElement, options);
@@ -187,14 +196,14 @@ const handleFileChange = (event: Event) => {
         }
       };
 
-      // 等待图片加载完成再初始化 cropper
-      imgElement.addEventListener("load", initCropper, { once: true });
-
       // 如果图片已经加载完成，则直接初始化
-      if (imgElement.complete) {
+      if (imgElement.complete && imgElement.naturalWidth > 0) {
         initCropper();
+      } else {
+        // 否则等待加载完成
+        imgElement.onload = initCropper;
       }
-    }, 50);
+    }, 100);
   };
   reader.readAsDataURL(file);
 };
@@ -267,7 +276,9 @@ const cancel = () => {
   }
 
   if (previewContainer.value) {
-    previewContainer.value.innerHTML = "";
+    if (previewContainer.value.firstChild) {
+      previewContainer.value.removeChild(previewContainer.value.firstChild);
+    }
   }
 
   if (fileInput.value) {
@@ -406,13 +417,18 @@ onBeforeUnmount(() => {
 }
 
 .preview-top {
-  width: 100%;
-  max-width: 300px;
+  width: 300px;
   height: 300px;
-  overflow: visible;
+  overflow: hidden;
   position: relative;
   background: #f0f2f5;
   border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // 添加这行确保容器可以接收鼠标事件
+  touch-action: none;
+  pointer-events: all; // 确保容器可以接收鼠标事件
 }
 
 /* 修复Cropper.js容器溢出问题 */
@@ -422,49 +438,78 @@ onBeforeUnmount(() => {
   left: 0;
   width: 100% !important;
   height: 100% !important;
-  z-index: 1000 !important; /* 提升层级，防止被遮挡 */
+  z-index: 1000 !important;
   border-radius: 8px;
+  touch-action: none; // 添加这行防止触摸事件冲突
 }
 
-:deep(.cropper-crop-box),
-:deep(.cropper-view-box) {
-  position: absolute;
-  left: 0;
-  top: 0;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 2px solid #409eff !important;
-  background-color: rgba(64, 158, 255, 0.1) !important;
-  z-index: 1001 !important;
+:deep(.cropper-modal) {
+  background-color: rgba(0, 0, 0, 0.5) !important;
 }
+
 :deep(.cropper-canvas) {
   position: absolute;
   left: 0;
   top: 0;
 }
+
 :deep(.cropper-wrap-box) {
   position: absolute;
   width: 100%;
   height: 100%;
-  overflow: hidden; /* 添加溢出隐藏，防止内容溢出 */
-  border-radius: 8px; /* 保持与整体设计一致 */
-  box-sizing: border-box; /* 确保边框和内边距包含在尺寸内 */
+  overflow: hidden;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+:deep(.cropper-crop-box) {
+  position: absolute;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #409eff !important;
+  background-color: rgba(64, 158, 255, 0.1) !important;
+  z-index: 1001 !important;
+  box-sizing: border-box;
 }
 :deep(.cropper-view-box) {
   position: absolute;
-  width: 100%;
-  height: 100%;
+  left: -2px; // 补偿 2px 边框
+  top: -2px; // 补偿 2px 边框
+  width: calc(100% + 4px); // 增加 4px 以覆盖边框
+  height: calc(100% + 4px); // 增加 4px 以覆盖边框
+  border: none; // 移除边框
+  box-sizing: border-box; // 确保尺寸计算正确
+  overflow: hidden;
+  z-index: 1002 !important;
 }
-:deep(.cropper-view-box img) {
-  transform: translateX(-21.16px) translateY(-85.38px) !important;
-}
-/* 新增：确保裁剪点可见 */
+
+/* 确保裁剪点可见 */
 :deep(.cropper-point) {
   background-color: #39f;
   width: 8px;
   height: 8px;
   opacity: 1;
   border-radius: 50%;
+}
+
+:deep(.cropper-modal) {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  opacity: 1 !important;
+}
+
+:deep(.cropper-drag-box) {
+  cursor: move !important;
+  background-color: transparent !important; // 确保拖拽区域透明
+  opacity: 1 !important; // 确保可见
+  pointer-events: all !important; // 确保可以接收鼠标事件
+  z-index: 1003 !important; // 提高z-index确保在最上层
+}
+// 添加缺少的光标样式类
+:deep(.cropper-move) {
+  cursor: move;
+}
+
+:deep(.cropper-crop) {
+  cursor: crosshair;
 }
 
 .preview-bottom {
