@@ -19,39 +19,41 @@
       </svg>
     </div>
 
-    <div v-if="!imageSrc" class="setHead-container">
+    <div
+      v-if="!imageSrc"
+      class="setHead-container"
+      @dragover.prevent
+      @drop.prevent="handleDrop"
+    >
       <div class="setHead-top">
         {{ headImage }}
       </div>
       <div class="setHead-bottom">
         <div class="setHead-bottom1">
-          <div
-            v-if="!imageSrc"
-            class="upload-area"
-            @dragover.prevent
-            @drop.prevent="handleDrop"
-          ></div>
+          <span class="upload-text"
+            >可以把图片拖进来选择或者点击下方的选择图片</span
+          >
           <div class="upload-content">
             <button @click="triggerFileInput" class="upload-btn">
-              选择图片
+              <span class="upload-span">选择图片</span>
+              <div class="ImageSVG">
+                <svg
+                  width="36"
+                  height="36"
+                  viewBox="0 0 36 36"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="18" cy="13" r="9" fill="#e0e0e0" />
+                  <path d="M10 23 L26 23 L26 31 L10 31 Z" fill="#e0e0e0" />
+                  <path
+                    d="M12 23 L18 17 L24 23"
+                    stroke="#e0e0e0"
+                    stroke-width="1.5"
+                    fill="none"
+                  />
+                </svg>
+              </div>
             </button>
-            <div class="ImageSVG">
-              <svg
-                width="36"
-                height="36"
-                viewBox="0 0 36 36"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="18" cy="13" r="9" fill="#e0e0e0" />
-                <path d="M10 23 L26 23 L26 31 L10 31 Z" fill="#e0e0e0" />
-                <path
-                  d="M12 23 L18 17 L24 23"
-                  stroke="#e0e0e0"
-                  stroke-width="1.5"
-                  fill="none"
-                />
-              </svg>
-            </div>
             <input
               ref="fileInput"
               type="file"
@@ -64,32 +66,40 @@
       </div>
     </div>
 
-    <div v-else class="cropper-container">
-      <div class="cropper-wrapper">
-        <img
-          ref="cropperImage"
-          :src="imageSrc"
-          alt="待裁剪图片"
-          class="cropper-image"
-        />
+    <div v-else class="cropper">
+      <div class="cropper-container">
+        <div class="cropper-wrapper">
+          <img
+            ref="cropperImage"
+            :src="imageSrc"
+            alt="待裁剪图片"
+            class="cropper-image"
+          />
+        </div>
       </div>
+      <div class="border-line"></div>
+      <div class="preview-container">
+        <div class="preview-croppedImage">
+          <h3>预览</h3>
+          <img :src="croppedImage || headImage" class="preview-image" />
+        </div>
+      </div>
+    </div>
+    <div v-if="cropperImage" class="bottom">
       <p class="tips">支持 JPG、PNG 格式，大小不超过 5MB</p>
       <div class="cropper-bottom">
         <button class="cancel-button" @click="cancel">取消</button>
         <button class="save-button" @click="getcroppedImage">确定</button>
       </div>
     </div>
-
-    <div v-if="croppedImage" class="preview-container">
-      <h3>预览</h3>
-      <img :src="croppedImage" alt="裁剪预览" class="preview-image" />
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 // eslint-disable-next-line no-unused-vars
-import { ref, onBeforeUnmount, nextTick } from "vue";
+import { ref, onBeforeUnmount, nextTick, onMounted } from "vue";
+import { useStore } from "vuex";
+import { key } from "@/store";
 import Cropper from "cropperjs";
 import "cropperjs/dist/cropper.css";
 
@@ -117,11 +127,12 @@ const emit = defineEmits<{
 }>();
 
 // 响应式数据
+const store = useStore(key);
 const headImage = ref("");
 const fileInput = ref<HTMLInputElement | null>(null);
 const cropperImage = ref<HTMLImageElement | null>(null);
 const imageSrc = ref<string | null>(null);
-const croppedImage = ref<string | null>(null);
+const croppedImage = ref<string>();
 const cropper = ref<Cropper | null>(null);
 
 // 触发文件选择
@@ -227,6 +238,8 @@ const getcroppedImage = async () => {
       "image/jpeg",
       0.8
     );
+    // 在这里添加这一行，确保预览区域能正确显示
+    await nextTick();
   } catch (error) {
     console.error("裁剪图片时出错:", error);
   }
@@ -258,7 +271,7 @@ const uploadImage = (formData: FormData) => {
 // 取消操作
 const cancel = () => {
   imageSrc.value = null;
-  croppedImage.value = null;
+  croppedImage.value = undefined;
   cropper.value?.destroy();
   cropper.value = null;
 
@@ -282,6 +295,11 @@ const close = () => {
   }
 };
 
+// 组件初始化
+onMounted(() => {
+  headImage.value = store.state.auth.userHeadImage || "";
+});
+
 // 组件卸载前清理
 onBeforeUnmount(() => {
   cropper.value?.destroy();
@@ -290,15 +308,13 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .setHead {
-  width: 500px;
-  max-width: 500px;
+  min-width: 500px;
   padding: 32px;
   background-color: #ffffff;
   border-radius: 12px;
   box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.3);
   position: relative;
   text-align: center;
-  top: 45px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -335,32 +351,13 @@ onBeforeUnmount(() => {
   background-color: #000;
 }
 
-.setHead-bottom {
+.setHead-bottom1 {
   width: 180px;
-}
-.setHead-bottom1-button {
   display: flex;
-  justify-content: space-between;
-}
-.setHead-bottom1-button-span {
-  display: flex;
-  align-items: center;
-  width: 100px;
-  height: 36px;
-  font-size: 20px;
-}
-.ImageSVG {
-  width: 36px;
-  height: 36px;
-}
-
-.cropper {
-  width: 100%;
-  display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
   flex-direction: column;
-  gap: 50px;
+  gap: 20px;
 }
 
 .image-cropper {
@@ -373,7 +370,7 @@ onBeforeUnmount(() => {
   height: 100%;
   left: 0px;
   top: 0px;
-  position: absolute;
+  position: relative;
   border-radius: 12px;
   z-index: 1;
 
@@ -383,7 +380,13 @@ onBeforeUnmount(() => {
 }
 
 .upload-content {
-  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s;
   .upload-icon {
     font-size: 48px;
     margin-bottom: 16px;
@@ -395,11 +398,19 @@ onBeforeUnmount(() => {
     margin-bottom: 20px;
   }
 }
+.upload-text {
+  width: 250px;
+  font-size: 16px;
+  background: rgba(130, 190, 19, 0.1);
+  color: #000000;
+}
 
 .upload-btn {
   background-color: #409eff;
   color: white;
   border: none;
+  display: flex;
+  justify-content: space-between;
   padding: 10px 20px;
   border-radius: 4px;
   cursor: pointer;
@@ -410,15 +421,34 @@ onBeforeUnmount(() => {
     background-color: #66b1ff;
   }
 }
+.upload-span {
+  display: flex;
+  align-items: center;
+  width: 100px;
+  height: 36px;
+  font-size: 20px;
+}
+.ImageSVG {
+  width: 36px;
+  height: 36px;
+}
 
+.cropper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 40px;
+}
 .cropper-container {
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin-right: 40px;
 }
 
 .cropper-wrapper {
-  max-width: 100%;
+  width: 300px;
+  height: 300px;
   margin-bottom: 20px;
 
   .cropper-image {
@@ -472,17 +502,34 @@ onBeforeUnmount(() => {
   }
 }
 
+.border-line {
+  height: 300px;
+  width: 3px;
+  background: #e5e9ef;
+  float: left;
+  position: relative;
+  left: 20px;
+}
+
 .preview-container {
+  width: 300px;
+  height: 300px;
   text-align: center;
 
   h3 {
+    font-size: 30px;
+    font-weight: 900;
     margin-bottom: 10px;
     color: #333;
   }
 
   .preview-image {
-    max-width: 100%;
-    border-radius: 8px;
+    width: 137px;
+    height: 137px;
+    border-radius: 50%;
+    position: relative;
+    top: 25px;
+    background-color: rgb(0, 0, 0);
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   }
 }
@@ -496,6 +543,14 @@ onBeforeUnmount(() => {
       width: 80%;
     }
   }
+}
+.tips {
+  display: block;
+  font-size: 16px;
+  line-height: 1.4; /* 明确设置行高 */
+  min-height: 24px; /* 强制最小高度 */
+  margin-top: 10px;
+  margin-bottom: 20px;
 }
 
 .cropper-bottom {

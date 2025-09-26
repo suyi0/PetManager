@@ -73,7 +73,8 @@ div,button {
 } 
 .personal-constainer-right {
     display: flex;
-    width: 52vw;
+    min-width: 52vw;
+    max-width: 800px;
     align-items: center;
     flex-direction: column;
 }

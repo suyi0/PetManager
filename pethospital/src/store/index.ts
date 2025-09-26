@@ -13,7 +13,7 @@ export interface AuthState {
   userPhone: string | null;
   userAddressId: string | null;
   userAddress: string | null;
-  userHeadImage: string | null;
+  userHeadImage: string | undefined;
   token: string | null; // 添加 token 状态
   isLoggedIn: boolean; // 添加登录状态
   personal: boolean; //添加个人信息状态
@@ -150,7 +150,7 @@ export const store = createStore<State>({
           state.userEmail = null;
           state.userBirthday = null;
           state.userAddress = null;
-          state.userHeadImage = null; // 清除头像
+          state.userHeadImage = ""; // 清除头像
           state.token = null; // 清除 token
           state.isLoggedIn = false;
           // 从 localStorage 中移除 token
