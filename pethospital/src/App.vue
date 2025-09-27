@@ -22,9 +22,9 @@
           <div class="onLine-line" @click="openPersonal">
             <div class="onLine-line-header">
               <img
+                :src="store.state.auth.userHeadImage"
+                alt="头像"
                 class="onLine-img"
-                src="@/assets/photo/head.jpeg"
-                alt="store.state.auth.userName"
               />
             </div>
             <div class="onLine-line-name">
@@ -54,9 +54,9 @@
             <div class="onLine-vertical-container">
               <div class="onLine-vertical-container-top">
                 <img
+                  :src="store.state.auth.userHeadImage"
+                  alt="头像"
                   class="onLine-vertical-container-top-img"
-                  src="@/assets/photo/head.jpeg"
-                  alt="store.state.auth.userName"
                 />
                 <span class="onLine-vertical-container-top-name">{{
                   store.state.auth.userEmail

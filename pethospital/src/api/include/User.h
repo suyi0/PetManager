@@ -14,6 +14,7 @@ struct User
     boost::gregorian::date birthday;  // 使用 boost::date_time
     std::string address_id;    // 地址ID
     std::string address;       // 地址
+    std::string head_image;    // 头像
 
     // 构造函数
     User() : birthday(boost::gregorian::date(1970, 1, 1)) {}

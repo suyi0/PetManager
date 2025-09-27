@@ -7,9 +7,9 @@
           @click="emit('switchTab', 'head')"
         >
           <img
+            :src="store.state.auth.userHeadImage"
+            alt="头像"
             class="personal-container-personal-right-top-head-img"
-            src="@/assets/photo/head.jpeg"
-            alt="store.state.auth.userName"
           />
         </button>
       </div>

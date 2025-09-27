@@ -26,7 +26,7 @@
       @drop.prevent="handleDrop"
     >
       <div class="setHead-top">
-        {{ headImage }}
+        <img :src="headImage" alt="头像" class="head-img" />
       </div>
       <div class="setHead-bottom">
         <div class="setHead-bottom1">
@@ -81,7 +81,7 @@
       <div class="preview-container">
         <div class="preview-croppedImage">
           <h3>预览</h3>
-          <img :src="croppedImage || headImage" class="preview-image" />
+          <img :src="previewImage || headImage" class="preview-image" />
         </div>
       </div>
     </div>
@@ -89,7 +89,9 @@
       <p class="tips">支持 JPG、PNG 格式，大小不超过 5MB</p>
       <div class="cropper-bottom">
         <button class="cancel-button" @click="cancel">取消</button>
-        <button class="save-button" @click="getcroppedImage">确定</button>
+        <button class="save-button" @click="getcroppedImage('upload')">
+          确定
+        </button>
       </div>
     </div>
   </div>
@@ -101,6 +103,7 @@ import { ref, onBeforeUnmount, nextTick, onMounted } from "vue";
 import { useStore } from "vuex";
 import { key } from "@/store";
 import Cropper from "cropperjs";
+import axios from "axios";
 import "cropperjs/dist/cropper.css";
 
 // 定义组件属性
@@ -133,6 +136,7 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const cropperImage = ref<HTMLImageElement | null>(null);
 const imageSrc = ref<string | null>(null);
 const croppedImage = ref<string>();
+const previewImage = ref<string>();
 const cropper = ref<Cropper | null>(null);
 
 // 触发文件选择
@@ -191,11 +195,19 @@ const initCropper = () => {
     cropBoxMovable: true,
     cropBoxResizable: true,
     toggleDragModeOnDblclick: false,
+    ready: function () {
+      // 当裁剪器准备就绪时，先生成一次预览
+      getcroppedImage();
+    },
+    crop: function () {
+      // 当裁剪框移动或调整大小时，更新预览
+      getcroppedImage();
+    },
   });
 };
 
 // 获取裁剪后的图像
-const getcroppedImage = async () => {
+const getcroppedImage = async (fileName?: string) => {
   if (!cropper.value) return;
 
   try {
@@ -225,49 +237,57 @@ const getcroppedImage = async () => {
     ctx.clip();
     ctx.drawImage(canvas, 0, 0);
 
+    previewImage.value = circularCanvas.toDataURL();
     croppedImage.value = circularCanvas.toDataURL();
 
-    circularCanvas.toBlob(
-      (blob) => {
-        if (blob) {
-          const formData = new FormData();
-          formData.append("image", blob, "cropped-image.jpg");
-          uploadImage(formData);
-        }
-      },
-      "image/jpeg",
-      0.8
-    );
-    // 在这里添加这一行，确保预览区域能正确显示
+    if (fileName == "upload") {
+      circularCanvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const formData = new FormData();
+            formData.append("image", blob, "cropped-image.jpg");
+            uploadImage(formData);
+          }
+        },
+        "image/jpeg",
+        0.8
+      );
+      // 在这里添加这一行，确保预览区域能正确显示
+    }
     await nextTick();
   } catch (error) {
     console.error("裁剪图片时出错:", error);
   }
 };
+const uploadImage = async (formData: FormData) => {
+  try {
+    // 第一步：上传图片到服务器
+    const uploadResponse = await axios.post(
+      "/api/user/upload-avatar",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
 
-// 上传图片
-const uploadImage = (formData: FormData) => {
-  console.log("上传裁剪后的图片", formData);
+    // 假设服务器返回的是真实图片 URL，例如：
+    const avatarUrl = uploadResponse.data.avatarUrl;
+
+    // 更新本地状态
+    store.dispatch("auth/updateUserField", {
+      field: "userHeadImage",
+      value: avatarUrl,
+    });
+
+    // 更新完 store，关闭设置界面
+    croppedImage.value = undefined;
+    close();
+  } catch (error) {
+    console.error("上传失败:", error);
+    alert("头像上传失败，请重试");
+  }
 };
 
-// // 旋转图片
-// const rotateImage = () => {
-//   cropper.value?.rotate(90);
-// };
-
-// // 缩放图片
-// const zoomImage = (isZoomIn: boolean) => {
-//   if (isZoomIn) {
-//     cropper.value?.zoom(0.1);
-//   } else {
-//     cropper.value?.zoom(-0.1);
-//   }
-// };
-
-// // 重置图片
-// const resetImage = () => {
-//   cropper.value?.reset();
-// };
 // 取消操作
 const cancel = () => {
   imageSrc.value = null;
@@ -286,9 +306,12 @@ const close = () => {
   if (croppedImage.value) {
     cancel();
     return;
+  } else {
+    imageSrc.value = null;
+    cropper.value?.destroy();
+    cropper.value = null;
+    emit("close");
   }
-
-  emit("close");
 
   if (fileInput.value) {
     fileInput.value.value = "";
@@ -349,6 +372,11 @@ onBeforeUnmount(() => {
   margin-top: 40px;
   margin-bottom: 40px;
   background-color: #000;
+}
+.head-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 90px;
 }
 
 .setHead-bottom1 {
@@ -457,51 +485,6 @@ onBeforeUnmount(() => {
   }
 }
 
-.cropper-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  margin-bottom: 20px;
-
-  .action-btn {
-    padding: 8px 16px;
-    border: 1px solid #dcdfe6;
-    border-radius: 4px;
-    background-color: white;
-    cursor: pointer;
-    transition: all 0.3s;
-
-    &:hover {
-      background-color: #f5f7fa;
-      border-color: #409eff;
-      color: #409eff;
-    }
-
-    &.confirm-btn {
-      background-color: #67c23a;
-      color: white;
-      border-color: #67c23a;
-
-      &:hover {
-        background-color: #85ce61;
-        border-color: #85ce61;
-      }
-    }
-
-    &.cancel-btn {
-      background-color: #f56c6c;
-      color: white;
-      border-color: #f56c6c;
-
-      &:hover {
-        background-color: #f78989;
-        border-color: #f78989;
-      }
-    }
-  }
-}
-
 .border-line {
   height: 300px;
   width: 3px;
@@ -534,16 +517,6 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 768px) {
-  .cropper-actions {
-    flex-direction: column;
-    align-items: center;
-
-    .action-btn {
-      width: 80%;
-    }
-  }
-}
 .tips {
   display: block;
   font-size: 16px;

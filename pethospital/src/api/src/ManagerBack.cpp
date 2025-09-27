@@ -4,6 +4,67 @@
 mysqlx::Session *g_db_session = nullptr;
 mysqlx::Schema *g_database = nullptr;
 
+// 添加获取文件MIME类型的函数
+std::string getMimeType(const std::string& filepath) {
+    // 获取文件扩展名
+    std::size_t dotPos = filepath.find_last_of('.');
+    if (dotPos == std::string::npos) {
+        return "application/octet-stream";
+    }
+    
+    std::string extension = filepath.substr(dotPos + 1);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    
+    // 根据扩展名返回相应的MIME类型
+    if (extension == "jpg" || extension == "jpeg") {
+        return "image/jpeg";
+    } else if (extension == "png") {
+        return "image/png";
+    } else if (extension == "gif") {
+        return "image/gif";
+    } else if (extension == "bmp") {
+        return "image/bmp";
+    } else if (extension == "webp") {
+        return "image/webp";
+    } else if (extension == "ico") {
+        return "image/x-icon";
+    } else if (extension == "svg") {
+        return "image/svg+xml";
+    } else if (extension == "txt") {
+        return "text/plain";
+    } else if (extension == "html" || extension == "htm") {
+        return "text/html";
+    } else if (extension == "css") {
+        return "text/css";
+    } else if (extension == "js") {
+        return "application/javascript";
+    } else if (extension == "json") {
+        return "application/json";
+    } else if (extension == "xml") {
+        return "application/xml";
+    } else if (extension == "pdf") {
+        return "application/pdf";
+    } else if (extension == "zip") {
+        return "application/zip";
+    } else if (extension == "rar") {
+        return "application/x-rar-compressed";
+    } else if (extension == "7z") {
+        return "application/x-7z-compressed";
+    } else if (extension == "mp3") {
+        return "audio/mpeg";
+    } else if (extension == "wav") {
+        return "audio/wav";
+    } else if (extension == "mp4") {
+        return "video/mp4";
+    } else if (extension == "avi") {
+        return "video/x-msvideo";
+    } else if (extension == "mov") {
+        return "video/quicktime";
+    } else {
+        return "application/octet-stream";
+    }
+}
+
 // 添加保存地址到数据库的函数
 std::string saveAddressToDatabase(const std::string &address_text, double longitude, double latitude)
 {
@@ -610,6 +671,7 @@ void WebSocketServer::setupRoutes()
             std::string phone = "";
             std::string email = "";
             std::string birthday = "";
+            std::string headImage = "";
 
             // 注册时存储的数据
             if (request_body.find("password") != request_body.end() && request_body.find("email") != request_body.end())
@@ -735,7 +797,8 @@ void WebSocketServer::setupRoutes()
                  request_body.find("phone") != request_body.end() ||
                  request_body.find("email") != request_body.end() ||
                  request_body.find("birthday") != request_body.end() ||
-                 request_body.find("address_id") != request_body.end()) &&
+                 request_body.find("address_id") != request_body.end() ||
+                 request_body.find("headImage") != request_body.end()) &&
                  request_body.find("email") != request_body.end())
             {
                 std::cout << "更新用户数据" << std::endl;
@@ -786,6 +849,21 @@ void WebSocketServer::setupRoutes()
                 else
                 {
                     email = "";
+                }
+                if(request_body.find("headImage") != request_body.end() && !request_body["headImage"].is_null())
+                {
+                    if (request_body["headImage"].is_string())
+                    {
+                        headImage = request_body["headImage"].get<std::string>();
+                    }
+                    else
+                    {
+                        headImage = request_body["headImage"].dump();
+                    }
+                }
+                else
+                {
+                    headImage = "";
                 }
                 // 在保存表单数据的路由中处理生日字段
                 if (request_body.find("birthday") != request_body.end() && !request_body["birthday"].is_null()) {
@@ -843,7 +921,6 @@ void WebSocketServer::setupRoutes()
                 } else {
                     birthday = "";
                 }
-
                 // 检查是否提供了email，这是必须的字段
                 if (email.empty())
                 {
@@ -870,7 +947,7 @@ void WebSocketServer::setupRoutes()
                     // 直接通过email查询用户，而不是获取所有用户
                     if(!email.empty()) {
                         // 通过email查询用户
-                        result = users_table.select("id", "name", "password", "CAST(phone AS CHAR)", "email", "CAST(birthday AS CHAR)", "address_id")
+                        result = users_table.select("id", "name", "password", "CAST(phone AS CHAR)", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
                                                    .where("email = :email")
                                                    .bind("email", email) // email变量的值被安全处理
                                                    .execute();
@@ -878,7 +955,7 @@ void WebSocketServer::setupRoutes()
                     // 通过phone查询用户
                     else if(!phone.empty()) {
                         // 通过phone查询用户
-                        result = users_table.select("id", "name", "password", "CAST(phone AS CHAR)", "email", "CAST(birthday AS CHAR)", "address_id")
+                        result = users_table.select("id", "name", "password", "CAST(phone AS CHAR)", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
                                                    .where("phone = :phone")
                                                    .bind("phone", phone) // phone变量的值被安全处理
                                                    .execute();
@@ -948,17 +1025,17 @@ void WebSocketServer::setupRoutes()
                                         date_str = "1970-01-01";
                                     }
                                 }
-                                
-                                #ifdef DEBUG
+
+#ifdef DEBUG
                                 std::cout << "Debug: Raw date string from database: '" << date_str << "'" << std::endl;
                                 std::cout << "Debug: Raw date string length: " << date_str.length() << std::endl;
-                                #endif
+#endif
                         
                                 // 检查是否为空或长度过短
                                 if (date_str.empty() || date_str.length() < 4) {
-                                    #ifdef DEBUG
+#ifdef DEBUG
                                     std::cout << "Debug: Empty or too short date string, using default" << std::endl;
-                                    #endif
+#endif
                                     user->birthday = boost::gregorian::date(1970, 1, 1);
                                 } else {
                                     // 清理字符串，移除可能的乱码或不可见字符
@@ -986,13 +1063,13 @@ void WebSocketServer::setupRoutes()
                                                               << std::setw(2) << std::setfill('0') << day;
                                                 
                                                 user->birthday = boost::gregorian::from_simple_string(formatted_date.str());
-                                                #ifdef DEBUG
+#ifdef DEBUG
                                                 std::cout << "Debug: Parsed valid date: " << formatted_date.str() << std::endl;
-                                                #endif
+#endif
                                             } else {
-                                                #ifdef DEBUG
+#ifdef DEBUG
                                                 std::cout << "Debug: Invalid date range, using default" << std::endl;
-                                                #endif
+#endif
                                                 user->birthday = boost::gregorian::date(1970, 1, 1);
                                             }
                                         } catch (...) {
@@ -1004,50 +1081,50 @@ void WebSocketServer::setupRoutes()
                                         if (date_str.length() >= 10) {
                                             // 尝试提取前10个字符并检查是否符合日期格式
                                             std::string potential_date = date_str.substr(0, 10);
-                                            #ifdef DEBUG
+#ifdef DEBUG
                                             std::cout << "Debug: Trying potential date: " << potential_date << std::endl;
-                                            #endif
+#endif
                                             if (std::regex_match(potential_date, date_pattern)) {
                                                 try {
                                                     user->birthday = boost::gregorian::from_simple_string(potential_date);
-                                                    #ifdef DEBUG
+#ifdef DEBUG
                                                     std::cout << "Debug: Parsed potential date: " << potential_date << std::endl;
-                                                    #endif
+#endif
                                                 } catch (...) {
-                                                    #ifdef DEBUG
+#ifdef DEBUG
                                                     std::cout << "Debug: Failed to parse potential date, using default" << std::endl;
-                                                    #endif
+#endif
                                                     user->birthday = boost::gregorian::date(1970, 1, 1);
                                                 }
                                             } else {
-                                                #ifdef DEBUG
+#ifdef DEBUG
                                                 std::cout << "Debug: Invalid date format, using default" << std::endl;
-                                                #endif
+#endif
                                                 user->birthday = boost::gregorian::date(1970, 1, 1);
                                             }
                                         } else {
-                                            #ifdef DEBUG
+#ifdef DEBUG
                                             std::cout << "Debug: Invalid date format, using default" << std::endl;
-                                            #endif
+#endif
                                             user->birthday = boost::gregorian::date(1970, 1, 1);
                                         }
                                     }
                                 }
                             } else {
-                                #ifdef DEBUG
+#ifdef DEBUG
                                 std::cout << "Debug: Null date value, using default" << std::endl;
-                                #endif
+#endif
                                 user->birthday = boost::gregorian::date(1970, 1, 1);
                             }
                         } catch (const std::exception& e) {
-                            #ifdef DEBUG
+#ifdef DEBUG
                             std::cout << "Debug: Exception in date processing: " << e.what() << std::endl;
-                            #endif
+#endif
                             user->birthday = boost::gregorian::date(1970, 1, 1);
                         } catch (...) {
-                            #ifdef DEBUG
+#ifdef DEBUG
                             std::cout << "Debug: Unknown exception in date processing" << std::endl;
-                            #endif
+#endif
                             user->birthday = boost::gregorian::date(1970, 1, 1);
                         }
 
@@ -1066,6 +1143,11 @@ void WebSocketServer::setupRoutes()
                         else
                         {
                             user->address_id = "1"; // 默认值
+                        }
+                        try {
+                            user->head_image = clean_string(row[7].get<std::string>());
+                        } catch (...) {
+                            user->head_image = "";
                         }
                         break; // 只需要第一个匹配的用户
                     }
@@ -1146,7 +1228,11 @@ void WebSocketServer::setupRoutes()
                         }
                     }
                 }
-
+                if (!headImage.empty() && user->head_image != headImage)
+                {
+                    update_op.set("head_image", headImage);
+                    has_changes = true;
+                }
                 // 从请求中获取地址信息
                 std::string new_address_id = "";
                 std::string address_text = "";
@@ -1357,11 +1443,181 @@ void WebSocketServer::setupRoutes()
         }
 
             res.end(); });
+    // 上传头像
+CROW_ROUTE(app, "/api/user/upload-avatar")
+    .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([](const crow::request &req, crow::response &res)
+    {
+        // 处理OPTIONS预检请求
+        initializeOPTIONS(req,res);
+        if (res.is_completed())
+        {
+            return; // 如果是OPTIONS请求，直接返回
+        }
+
+        // 检查是否有上传的文件数据
+        if (req.body.empty()) {
+            res.code = 400;
+            res.write("No image uploaded");
+            res.end();
+            return;
+        }
+        
+        // 获取项目根目录（向上两级）
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) == nullptr) {
+            res.code = 500;
+            res.write("Failed to get current working directory");
+            res.end();
+            return;
+        }
+
+        std::string projectRoot(cwd);
+        // 移除 src/api/src 部分，得到项目根目录
+        size_t pos = projectRoot.find("/pethospital/src/api/src");
+        if (pos != std::string::npos) {
+            projectRoot = projectRoot.substr(0, pos + 12); // 保留到 /pethospital
+        } else {
+            // 备用方案：向上两级
+            pos = projectRoot.find_last_of('/');
+            if (pos != std::string::npos) {
+                projectRoot = projectRoot.substr(0, pos); // 移除 src
+                pos = projectRoot.find_last_of('/');
+                if (pos != std::string::npos) {
+                    projectRoot = projectRoot.substr(0, pos); // 移除 api
+                }
+            }
+        }
+
+        std::string uploadDir = projectRoot + "/uploads";
+        std::cout << "Upload directory: " << uploadDir << std::endl;
+
+#ifdef _WIN32
+        if (_mkdir(uploadDir.c_str()) == -1 && errno != EEXIST) {
+            res.code = 500;
+            res.write("Failed to create upload directory");
+            res.end();
+            return;
+        }
+#else
+        if (mkdir(uploadDir.c_str(), 0755) == -1 && errno != EEXIST) {
+            res.code = 500;
+            res.write("Failed to create upload directory");
+            res.end();
+            return;
+        }
+#endif
+
+        // 生成文件名
+        std::string filename = "avatar_" + std::to_string(time(nullptr)) + ".jpg";
+        std::string filepath = uploadDir + "/" + filename;
+
+        std::cout << "Saving file to: " << filepath << std::endl;
+
+        // 保存文件
+        std::ofstream out(filepath, std::ios::binary);
+        if (!out) {
+            res.code = 500;
+            res.write("Failed to open file for writing: " + filepath);
+            res.end();
+            return;
+        }
+        out.write(req.body.data(), req.body.size());
+        out.close();
+
+        // 验证文件是否已保存
+        if (!std::filesystem::exists(filepath)) {
+            res.code = 500;
+            res.write("Failed to save file to: " + filepath);
+            res.end();
+            return;
+        }
+
+        // 返回正确的URL（使用绝对路径）
+        std::string avatarUrl = "http://localhost:8081/uploads/" + filename;
+
+        nlohmann::json response;
+        response["success"] = true;
+        response["avatarUrl"] = avatarUrl;
+        response["filepath"] = filepath;
+
+        res.code = 200;
+        initializeCORS(req,res);
+        res.write(response.dump());
+        res.end();
+    });
+    // 添加静态文件服务路由
+CROW_ROUTE(app, "/uploads/<string>")
+    .methods(crow::HTTPMethod::Get)([](const crow::request &req, crow::response &res, std::string filename)
+    {
+        // 构造项目根目录路径
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) == nullptr) {
+            std::cerr << "Failed to get current working directory" << std::endl;
+            res.code = 500;
+            res.end();
+            return;
+        }
+
+        std::string projectRoot(cwd);
+        size_t pos = projectRoot.find("/pethospital/src/api/src");
+        if (pos != std::string::npos) {
+            projectRoot = projectRoot.substr(0, pos + 12); // 保留到 /pethospital
+        } else {
+            pos = projectRoot.find_last_of('/');
+            if (pos != std::string::npos) {
+                projectRoot = projectRoot.substr(0, pos); // 移除 src
+                pos = projectRoot.find_last_of('/');
+                if (pos != std::string::npos) {
+                    projectRoot = projectRoot.substr(0, pos); // 移除 api
+                }
+            }
+        }
+
+        std::string filepath = projectRoot + "/uploads/" + filename;
+
+        std::cout << "Requested file: " << filepath << std::endl;
+
+        // 检查文件是否存在
+        if (!std::filesystem::exists(filepath)) {
+            std::cerr << "File not found: " << filepath << std::endl;
+            res.code = 404;
+            res.end();
+            return;
+        }
+
+        // 检查是否为目录
+        if (std::filesystem::is_directory(filepath)) {
+            res.code = 403;
+            res.end();
+            return;
+        }
+
+        // 设置响应头
+        res.set_header("Content-Type", getMimeType(filepath));
+        res.set_header("Cache-Control", "public, max-age=3600");
+
+        // 读取文件内容
+        std::ifstream file(filepath, std::ios::binary);
+        if (!file) {
+            std::cerr << "Failed to open file: " << filepath << std::endl;
+            res.code = 500;
+            res.end();
+            return;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        res.body = buffer.str();
+
+        std::cout << "File served successfully: " << filepath << std::endl;
+        res.end();
+    });
     // 获取数据库数据的路由
     CROW_ROUTE(app, "/api/user/data")
         .methods(crow::HTTPMethod::Get)([](const crow::request &req, crow::response &res)
                                     {
-        if (!g_db_session || !g_database) {
+        if (!g_db_session || !g_database)
+        {
             res.code = 500;
             initializeCORS(req, res);
             res.write(R"({"error": "Database connection not available"})");
@@ -1369,12 +1625,14 @@ void WebSocketServer::setupRoutes()
             return;
         }
 
-        try {
+        try
+        {
             mysqlx::Table users_table = g_database->getTable("users");
-            mysqlx::RowResult result = users_table.select("id", "name", "email", "phone", "birthday", "address_id").execute();
+            mysqlx::RowResult result = users_table.select("id", "name", "email", "phone", "birthday", "address_id", "head_iamge").execute();
 
             nlohmann::json response_data = nlohmann::json::array();
-            for (auto row : result) {
+            for (auto row : result)
+            {
                 nlohmann::json user_json;
                 user_json["id"] = row[0].get<int>();
                 user_json["name"] = clean_string(row[1].get<std::string>());
@@ -1382,6 +1640,7 @@ void WebSocketServer::setupRoutes()
                 user_json["phone"] = clean_string(row[3].get<std::string>());
                 user_json["birthday"] = clean_string(row[4].get<std::string>());
                 user_json["address_id"] = clean_string(row[5].get<std::string>());
+                user_json["head_image"] = clean_string(row[6].get<std::string>());
 
                 response_data.push_back(user_json);
             }
@@ -1390,7 +1649,8 @@ void WebSocketServer::setupRoutes()
             initializeCORS(req, res);
             res.write(response_data.dump());
         }
-        catch (const std::exception& e) {
+        catch (const std::exception &e)
+        {
             res.code = 500;
             initializeCORS(req, res);
             res.write(R"({"error": "Failed to fetch data", "details": ")" + std::string(e.what()) + "\"}");
@@ -1402,46 +1662,53 @@ void WebSocketServer::setupRoutes()
         // 连接开启时的onOpen回调
         .onopen([&](crow::websocket::connection &conn)
                 {
-                std::lock_guard<std::mutex> lock(conn_mutex);
-                active_connections.insert(&conn);
-                std::cout << "New WebSocket connection opened. Total connections: " << active_connections.size() << std::endl;
-                
-                // 发送欢迎消息
-                nlohmann::json json_msg = {{"message", "Connected to C++ WebSocket!"}};
-                try {
-                    conn.send_text(json_msg.dump());
-                } catch (const std::exception& e) {
-                    std::cerr << "Error sending welcome message: " << e.what() << std::endl;
-                } })
+        std::lock_guard<std::mutex> lock(conn_mutex);
+        active_connections.insert(&conn);
+        std::cout << "New WebSocket connection opened. Total connections: " << active_connections.size() << std::endl;
+
+        // 发送欢迎消息
+        nlohmann::json json_msg = {{"message", "Connected to C++ WebSocket!"}};
+        try
+        {
+            conn.send_text(json_msg.dump());
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error sending welcome message: " << e.what() << std::endl;
+        } })
         .onclose([&](crow::websocket::connection &conn, const std::string &reason, uint16_t value)
                  {
-                     std::lock_guard<std::mutex> lock(conn_mutex);
-                     active_connections.erase(&conn);
-                     std::cout << "Connection closed: Code: " << value << ", Reason: " << reason
-                               << ", Remaining connections: " << active_connections.size() << std::endl;
-                     // 检查关闭代码
-                     if (value != 1000)
-                     { // 1000是正常关闭代码
-                         std::cout << "Abnormal closure detected" << std::endl;
-                     }
+        std::lock_guard<std::mutex> lock(conn_mutex);
+        active_connections.erase(&conn);
+        std::cout << "Connection closed: Code: " << value << ", Reason: " << reason
+                  << ", Remaining connections: " << active_connections.size() << std::endl;
+        // 检查关闭代码
+        if (value != 1000)
+        { // 1000是正常关闭代码
+            std::cout << "Abnormal closure detected" << std::endl;
+        }
 
-                     shutdown_cv.notify_all(); // 通知等待的线程
+        shutdown_cv.notify_all(); // 通知等待的线程
                  })
         .onmessage([&](crow::websocket::connection &conn, const std::string &data, bool is_binary)
                    {
-                std::cout << "Message received: " << data << std::endl;
-                    // 回显消息
-                    if (!is_binary)
-                    {
-                        try {
-                            nlohmann::json response = {{"echo", data}};
-                            conn.send_text(response.dump());
-                        } catch (const std::exception& e) {
-                            std::cerr << "Error echoing message: " << e.what() << std::endl;
-                        }
-                    } })
+        std::cout << "Message received: " << data << std::endl;
+        // 回显消息
+        if (!is_binary)
+        {
+            try
+            {
+                nlohmann::json response = {{"echo", data}};
+                conn.send_text(response.dump());
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Error echoing message: " << e.what() << std::endl;
+            }
+        } })
         .onerror([&](crow::websocket::connection &conn, const std::string &reason)
-                 { std::cerr << "WebSocket error: " << reason << std::endl; });
+                 {
+        std::cerr << "WebSocket error: " << reason << std::endl; });
 }
 
 // 启动心跳线程，定期发送ping消息

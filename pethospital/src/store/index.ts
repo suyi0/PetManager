@@ -272,7 +272,7 @@ export const store = createStore<State>({
                   userBirthday: response.data.user.birthday, // 从服务器返回的数据中获取用户生日
                   userAddressId: response.data.user.address_id, // 从服务器返回的数据中获取用户地址ID
                   userAddress: response.data.user.address, // 从服务器返回的数据中获取用户地址
-                  userHeadImage: response.data.user.head_image, // 从服务器返回的数据中获取用户头像
+                  userHeadImage: response.data.user.headImage, // 从服务器返回的数据中获取用户头像
                   token: response.data.token, // 从响应中获取 token
                 });
                 return response;
@@ -344,31 +344,30 @@ export const store = createStore<State>({
           // 更新本地状态
           switch (payload.field) {
             case "userName":
-              // Deleted:this.state.auth.userName = payload.value;
+              this.state.auth.userName = payload.value;
               break;
             case "userPhone":
-              // Deleted:this.state.auth.userPhone = payload.value;
+              this.state.auth.userPhone = payload.value;
               break;
             case "userEmail":
-              // Deleted:this.state.auth.userEmail = payload.value;
+              this.state.auth.userEmail = payload.value;
               break;
             case "userBirthday":
               // 确保生日字段是有效的日期字符串或空字符串
-              // Deleted:this.state.auth.userBirthday =
-              // Deleted:payload.value && payload.value.trim() !== "\t"
-              // Deleted:? payload.value
-              // Deleted:: "";
+              this.state.auth.userBirthday =
+                payload.value && payload.value.trim() !== "\t"
+                  ? payload.value
+                  : "";
               break;
             case "userAddress":
-              // Deleted:this.state.auth.userAddress = payload.value;
+              this.state.auth.userAddress = payload.value;
               break;
             case "userHeadImage":
-              // Deleted:this.state.auth.userHeadImage = payload.value;
+              this.state.auth.userHeadImage = payload.value;
               break;
             default:
           }
-          // Deleted:console.log("Updated user field:", payload.field, payload.value);
-          // Deleted:console.log(this.state.auth.userPhone);
+          console.log("Updated user field:", payload.field, payload.value);
 
           // 触发防抖保存
           dispatch("debouncedUpdateUserData");

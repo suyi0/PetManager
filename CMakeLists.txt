@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.14)
 project(PetManager)
 
+# 添加定义以启用Crow的multipart支持
+add_definitions(-DCROW_ENABLE_MULTIPART)
+
 find_package(OpenSSL REQUIRED)  # 查找 OpenSSL
 
 # 使用 FetchContent 下载 nlohmann/json
@@ -36,9 +39,9 @@ set(SOURCES
 # 创建可执行文件，使用 RunServe 作为目标名称
 add_executable(RunServe ${SOURCES})
 
-target_link_libraries(ManagerBack PRIVATE 
+target_link_libraries(RunServe
     boost_system pthread 
     ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}  # 链接 OpenSSL
     ${MYSQLCPPCONN_LIBRARIES}
 )
-target_link_libraries(ManagerBack PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(RunServe nlohmann_json::nlohmann_json)
