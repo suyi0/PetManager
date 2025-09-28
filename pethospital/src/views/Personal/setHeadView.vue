@@ -263,7 +263,7 @@ const uploadImage = async (formData: FormData) => {
   try {
     // 第一步：上传图片到服务器
     const uploadResponse = await axios.post(
-      "/api/user/upload-avatar",
+      "/api/user/upload/avatar",
       formData,
       {
         headers: { "Content-Type": "multipart/form-data" },

@@ -1,4 +1,6 @@
 #include "../include/ManagerBack.h"
+// 在文件顶部添加常量定义
+#define UPLOADS_DIR "/Users/yanghang/Code/PetManager/pethospital/src/assets/uploads"
 
 // 定义全局数据库变量
 mysqlx::Session *g_db_session = nullptr;
@@ -65,6 +67,40 @@ std::string getMimeType(const std::string& filepath) {
     }
 }
 
+// 添加文件类型验证函数
+bool isValidImageExtension(const std::string& extension) {
+    std::string ext_lower = extension;
+    std::transform(ext_lower.begin(), ext_lower.end(), ext_lower.begin(), ::tolower);
+    return (ext_lower == "jpg" || ext_lower == "jpeg" || ext_lower == "png" || 
+            ext_lower == "gif" || ext_lower == "webp");
+}
+
+// 添加生成唯一文件名的函数
+std::string generateUniqueFilename(const std::string& original_filename) {
+    std::string extension = "";
+    size_t dot_pos = original_filename.find_last_of('.');
+    if (dot_pos != std::string::npos) {
+        extension = original_filename.substr(dot_pos);
+    }
+    
+    // 使用时间戳和随机数生成唯一文件名
+    auto now = std::chrono::system_clock::now();
+    auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+    
+    // 生成随机数
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(1000, 9999);
+    
+    std::string unique_name = "avatar_" + std::to_string(timestamp) + "_" + std::to_string(dis(gen));
+    
+    if (!extension.empty()) {
+        unique_name += extension;
+    }
+    
+    return unique_name;
+}
+
 // 添加保存地址到数据库的函数
 std::string saveAddressToDatabase(const std::string &address_text, double longitude, double latitude)
 {
@@ -107,6 +143,20 @@ std::string saveAddressToDatabase(const std::string &address_text, double longit
     }
 }
 
+// 获取路径最后的文件名
+std::string getLastFileName(const std::string& url) {
+    // 查找最后一个斜杠的位置
+    size_t lastSlashPos = url.find_last_of('/');
+    
+    // 如果找到了斜杠，则提取斜杠后面的部分作为文件名
+    //std::string::npos是C++标准库中定义的一个常量，表示size_t类型的最大值
+    if (lastSlashPos != std::string::npos) {
+        return url.substr(lastSlashPos + 1);
+    }
+    
+    // 如果没有找到斜杠，返回原字符串（或者返回空字符串）
+    return url;
+}
 void WebSocketServer::start()
 {
     setupRoutes();          // 设置路由
@@ -265,12 +315,6 @@ void WebSocketServer::setupRoutes()
                                request_body["password"].dump();
                 }
 
-                // 输出调试信息
-                std::cout << "request_body" << req.body << std::endl; 
-                std::cout << "email: " << email << std::endl;
-                std::cout << "phone: " << phone << std::endl;
-                std::cout << "password: " << password << std::endl;
-
                 // 对输入的密码进行SHA-256哈希处理
                 std::string hashed_password = sha256_hash(password);
 
@@ -296,13 +340,13 @@ void WebSocketServer::setupRoutes()
                     mysqlx::RowResult result;
                     if (!email.empty()) {
                         // 通过email查询用户
-                        result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id")
+                        result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
                                             .where("email = :email")
                                             .bind("email", email)
                                             .execute();
                     } else if (!phone.empty()) {
                         // 通过phone查询用户
-                        result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id")
+                        result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
                                             .where("phone = :phone")
                                             .bind("phone", phone)
                                             .execute();
@@ -375,7 +419,7 @@ void WebSocketServer::setupRoutes()
                     } catch (const std::exception& e) {
                         std::cout << "Debug: Exception in birthday processing: " << e.what() << std::endl;
                         user->birthday = boost::gregorian::date(1970, 1, 1);
-                    }
+                        }
 
                         try {
                             if (!row[7].isNull()) {
@@ -385,6 +429,11 @@ void WebSocketServer::setupRoutes()
                             }
                         } catch (...) {
                             user->address_id = "1";  // 默认地址ID
+                        }
+                        try {
+                            user->head_image = clean_string(row[8].get<std::string>());
+                        } catch (...) {
+                            user->head_image = "";
                         }
 
                         break; // 只需要第一个匹配的用户
@@ -429,6 +478,7 @@ void WebSocketServer::setupRoutes()
                     user_json["email"] = user->email;
                     user_json["phone"] = user->phone;
                     user_json["address_id"] = user->address_id;
+                    user_json["head_image"] = user->head_image;
                     
                     // 特别处理birthday字段，将其转换为字符串格式
                     std::ostringstream oss;
@@ -971,7 +1021,7 @@ void WebSocketServer::setupRoutes()
                         return;
                     }
                     // 即使email变量包含恶意代码，也会被当作普通字符串值处理
-                    // 处理结果
+                    // 处理结果,把数据库数据放入user对象中
                     for (auto row : result)
                     {
                         user = std::make_unique<User>();
@@ -1230,6 +1280,10 @@ void WebSocketServer::setupRoutes()
                 }
                 if (!headImage.empty() && user->head_image != headImage)
                 {
+                    // 删除原来的图片，如果文件不存在也不会报错
+                    const std::string lastFileName = getLastFileName(user->head_image);
+                    std::filesystem::remove(std::string(UPLOADS_DIR) + "/" + lastFileName);
+
                     update_op.set("head_image", headImage);
                     has_changes = true;
                 }
@@ -1444,174 +1498,150 @@ void WebSocketServer::setupRoutes()
 
             res.end(); });
     // 上传头像
-CROW_ROUTE(app, "/api/user/upload-avatar")
-    .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([](const crow::request &req, crow::response &res)
-    {
-        // 处理OPTIONS预检请求
-        initializeOPTIONS(req,res);
-        if (res.is_completed())
+    CROW_ROUTE(app, "/api/user/upload/avatar")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([](const crow::request &req, crow::response &res)
         {
-            return; // 如果是OPTIONS请求，直接返回
-        }
-
-        // 检查是否有上传的文件数据
-        if (req.body.empty()) {
-            res.code = 400;
-            res.write("No image uploaded");
-            res.end();
-            return;
-        }
-        
-        // 获取项目根目录（向上两级）
-        char cwd[1024];
-        if (getcwd(cwd, sizeof(cwd)) == nullptr) {
-            res.code = 500;
-            res.write("Failed to get current working directory");
-            res.end();
-            return;
-        }
-
-        std::string projectRoot(cwd);
-        // 移除 src/api/src 部分，得到项目根目录
-        size_t pos = projectRoot.find("/pethospital/src/api/src");
-        if (pos != std::string::npos) {
-            projectRoot = projectRoot.substr(0, pos + 12); // 保留到 /pethospital
-        } else {
-            // 备用方案：向上两级
-            pos = projectRoot.find_last_of('/');
-            if (pos != std::string::npos) {
-                projectRoot = projectRoot.substr(0, pos); // 移除 src
-                pos = projectRoot.find_last_of('/');
-                if (pos != std::string::npos) {
-                    projectRoot = projectRoot.substr(0, pos); // 移除 api
-                }
+            // 处理OPTIONS预检请求
+            initializeOPTIONS(req,res);
+            if (res.is_completed())
+            {
+                return; // 如果是OPTIONS请求，直接返回
             }
-        }
 
-        std::string uploadDir = projectRoot + "/uploads";
-        std::cout << "Upload directory: " << uploadDir << std::endl;
+            try {
+                // 获取multipart数据
+                crow::multipart::message msg(req);
+                auto& parts = msg.parts;
+                
+                std::string filename = "";          // 文件名
+                std::string filepath = "";          // 保存文件路径
+                std::string file_extension = "";    // 文件扩展名
+                std::string unique_filename = "";   // 用于保存生成的唯一文件名
+                
+                for (size_t i = 0; i < parts.size(); ++i) {
+                    auto& part = parts[i];
+                    
+                    // 获取Content-Disposition头部信息
+                    auto header_obj = part.get_header_object("Content-Disposition");
+                    std::string part_name = "";
+                    std::string part_filename = "";
+                    
+                    if (header_obj.params.find("name") != header_obj.params.end()) {
+                        part_name = header_obj.params.at("name");
+                    }
+                    
+                    if (header_obj.params.find("filename") != header_obj.params.end()) {
+                        part_filename = header_obj.params.at("filename");
+                    }
+                    
+                    // 检查是否是文件字段
+                    if (part_name == "image" || part_name == "avatar") {
+                        filename = part_filename;
+                        
+                        // 提取文件扩展名
+                        size_t dot_pos = filename.find_last_of('.');
+                        if (dot_pos != std::string::npos) {
+                            file_extension = filename.substr(dot_pos + 1);
+                        }
+                        
+                        // 验证文件类型
+                        if (!isValidImageExtension(file_extension)) {
+                            res.code = 400;
+                            initializeCORS(req,res);
+                            res.write(R"({"error": "Invalid file type. Only image files are allowed."})");
+                            res.end();
+                            return;
+                        }
+                        
+                        // 生成唯一文件名
+                        unique_filename = generateUniqueFilename(filename);
 
-#ifdef _WIN32
-        if (_mkdir(uploadDir.c_str()) == -1 && errno != EEXIST) {
-            res.code = 500;
-            res.write("Failed to create upload directory");
-            res.end();
-            return;
-        }
-#else
-        if (mkdir(uploadDir.c_str(), 0755) == -1 && errno != EEXIST) {
-            res.code = 500;
-            res.write("Failed to create upload directory");
-            res.end();
-            return;
-        }
-#endif
+                        // 检查文件是否存在
+                        if (!std::filesystem::exists(UPLOADS_DIR))
+                        {
+                            // 创建目录
+                            std::filesystem::create_directories(UPLOADS_DIR);
+                        }
 
-        // 生成文件名
-        std::string filename = "avatar_" + std::to_string(time(nullptr)) + ".jpg";
-        std::string filepath = uploadDir + "/" + filename;
-
-        std::cout << "Saving file to: " << filepath << std::endl;
-
-        // 保存文件
-        std::ofstream out(filepath, std::ios::binary);
-        if (!out) {
-            res.code = 500;
-            res.write("Failed to open file for writing: " + filepath);
-            res.end();
-            return;
-        }
-        out.write(req.body.data(), req.body.size());
-        out.close();
-
-        // 验证文件是否已保存
-        if (!std::filesystem::exists(filepath)) {
-            res.code = 500;
-            res.write("Failed to save file to: " + filepath);
-            res.end();
-            return;
-        }
-
-        // 返回正确的URL（使用绝对路径）
-        std::string avatarUrl = "http://localhost:8081/uploads/" + filename;
-
-        nlohmann::json response;
-        response["success"] = true;
-        response["avatarUrl"] = avatarUrl;
-        response["filepath"] = filepath;
-
-        res.code = 200;
-        initializeCORS(req,res);
-        res.write(response.dump());
-        res.end();
-    });
+                        filepath = std::string(UPLOADS_DIR) + "/" + unique_filename;
+                        
+                        // 保存文件
+                        std::ofstream file(filepath, std::ios::binary);
+                        if (file.is_open()) {
+                            file << part.body;
+                            file.close();
+                        } else {
+                            res.code = 500;
+                            initializeCORS(req,res);
+                            res.write(R"({"error": "Failed to save file"})");
+                            res.end();
+                            return;
+                        }
+                    }
+                }
+                
+                // 构建响应
+                std::string avatar_url = "http://localhost:8081/uploads/" + unique_filename;
+                nlohmann::json response;
+                response["success"] = true;
+                response["message"] = "File uploaded successfully";
+                response["avatarUrl"] = avatar_url;
+                response["filename"] = unique_filename;
+                
+                res.code = 200;
+                initializeCORS(req,res);
+                res.write(response.dump());
+                res.end();
+                
+            } catch (const std::exception& e) {
+                std::cerr << "Error in file upload: " << e.what() << std::endl;
+                res.code = 500;
+                initializeCORS(req,res);
+                res.write(R"({"error": "Internal server error"})");
+                res.end();
+            }
+        });
     // 添加静态文件服务路由
-CROW_ROUTE(app, "/uploads/<string>")
-    .methods(crow::HTTPMethod::Get)([](const crow::request &req, crow::response &res, std::string filename)
-    {
-        // 构造项目根目录路径
-        char cwd[1024];
-        if (getcwd(cwd, sizeof(cwd)) == nullptr) {
-            std::cerr << "Failed to get current working directory" << std::endl;
-            res.code = 500;
-            res.end();
-            return;
-        }
+    CROW_ROUTE(app, "/uploads/<string>")
+        .methods(crow::HTTPMethod::Get)([](const crow::request &req, crow::response &res, std::string filename)
+        {
+            // 使用项目目录中的文件路径
+            std::string filepath = std::string(UPLOADS_DIR) + "/" + filename;
 
-        std::string projectRoot(cwd);
-        size_t pos = projectRoot.find("/pethospital/src/api/src");
-        if (pos != std::string::npos) {
-            projectRoot = projectRoot.substr(0, pos + 12); // 保留到 /pethospital
-        } else {
-            pos = projectRoot.find_last_of('/');
-            if (pos != std::string::npos) {
-                projectRoot = projectRoot.substr(0, pos); // 移除 src
-                pos = projectRoot.find_last_of('/');
-                if (pos != std::string::npos) {
-                    projectRoot = projectRoot.substr(0, pos); // 移除 api
-                }
+            // 检查文件是否存在
+            if (!std::filesystem::exists(filepath)) {
+                std::cerr << "File not found: " << filepath << std::endl;
+                res.code = 404;
+                res.end();
+                return;
             }
-        }
 
-        std::string filepath = projectRoot + "/uploads/" + filename;
+            // 检查是否为目录
+            if (std::filesystem::is_directory(filepath)) {
+                res.code = 403;
+                res.end();
+                return; 
+            }
 
-        std::cout << "Requested file: " << filepath << std::endl;
+            // 设置响应头
+            res.set_header("Content-Type", getMimeType(filepath));
+            res.set_header("Cache-Control", "public, max-age=3600");
 
-        // 检查文件是否存在
-        if (!std::filesystem::exists(filepath)) {
-            std::cerr << "File not found: " << filepath << std::endl;
-            res.code = 404;
+            // 读取文件内容
+            std::ifstream file(filepath, std::ios::binary);
+            if (!file) {
+                std::cerr << "Failed to open file: " << filepath << std::endl;
+                res.code = 500;
+                res.end();
+                return;
+            }
+
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            res.body = buffer.str();
+
             res.end();
-            return;
-        }
-
-        // 检查是否为目录
-        if (std::filesystem::is_directory(filepath)) {
-            res.code = 403;
-            res.end();
-            return;
-        }
-
-        // 设置响应头
-        res.set_header("Content-Type", getMimeType(filepath));
-        res.set_header("Cache-Control", "public, max-age=3600");
-
-        // 读取文件内容
-        std::ifstream file(filepath, std::ios::binary);
-        if (!file) {
-            std::cerr << "Failed to open file: " << filepath << std::endl;
-            res.code = 500;
-            res.end();
-            return;
-        }
-
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        res.body = buffer.str();
-
-        std::cout << "File served successfully: " << filepath << std::endl;
-        res.end();
-    });
+        });
     // 获取数据库数据的路由
     CROW_ROUTE(app, "/api/user/data")
         .methods(crow::HTTPMethod::Get)([](const crow::request &req, crow::response &res)

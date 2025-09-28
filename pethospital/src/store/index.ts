@@ -161,6 +161,9 @@ export const store = createStore<State>({
           localStorage.removeItem("user_phone");
           localStorage.removeItem("user_head_image");
           localStorage.removeItem("user_address");
+
+          // 返回主页
+          window.location.href = "/";
         },
         SET_LOGIN(state: AuthState, data: any) {
           // 添加缺失的 SET_LOGIN mutation
@@ -272,7 +275,7 @@ export const store = createStore<State>({
                   userBirthday: response.data.user.birthday, // 从服务器返回的数据中获取用户生日
                   userAddressId: response.data.user.address_id, // 从服务器返回的数据中获取用户地址ID
                   userAddress: response.data.user.address, // 从服务器返回的数据中获取用户地址
-                  userHeadImage: response.data.user.headImage, // 从服务器返回的数据中获取用户头像
+                  userHeadImage: response.data.user.head_image, // 从服务器返回的数据中获取用户头像
                   token: response.data.token, // 从响应中获取 token
                 });
                 return response;
