@@ -26,7 +26,7 @@
       @drop.prevent="handleDrop"
     >
       <div class="setHead-top">
-        <img :src="headImage" alt="头像" class="head-img" />
+        <img :src="headImage" class="head-img" />
       </div>
       <div class="setHead-bottom">
         <div class="setHead-bottom1">

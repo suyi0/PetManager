@@ -8,7 +8,6 @@
         >
           <img
             :src="store.state.auth.userHeadImage"
-            alt="头像"
             class="personal-container-personal-right-top-head-img"
           />
         </button>

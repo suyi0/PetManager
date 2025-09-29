@@ -55,7 +55,6 @@
               <div class="onLine-vertical-container-top">
                 <img
                   :src="store.state.auth.userHeadImage"
-                  alt="头像"
                   class="onLine-vertical-container-top-img"
                 />
                 <span class="onLine-vertical-container-top-name">{{
