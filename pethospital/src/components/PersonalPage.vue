@@ -44,13 +44,13 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { useStore } from "vuex";
 import { key } from "../store";
-import PersonalRightView from "../views/Personal/personalRightView.vue";
-import SetHeadView from "../views/Personal/setHeadView.vue";
-import SetNameView from "../views/Personal/setNameView.vue";
-import SetBirthdayView from "../views/Personal/setBirthdayView.vue";
-import SetPhoneView from "../views/Personal/setPhoneView.vue";
-import SetEmailView from "../views/Personal/setEmailView.vue";
-import SetAddressView from "../views/Personal/setAddressView.vue";
+import PersonalRightView from "../views/Personal-module/personalRightView.vue";
+import SetHeadView from "../views/Personal-module/setHeadView.vue";
+import SetNameView from "../views/Personal-module/setNameView.vue";
+import SetBirthdayView from "../views/Personal-module/setBirthdayView.vue";
+import SetPhoneView from "../views/Personal-module/setPhoneView.vue";
+import SetEmailView from "../views/Personal-module/setEmailView.vue";
+import SetAddressView from "../views/Personal-module/setAddressView.vue";
 
 // 使用 store
 const store = useStore(key);

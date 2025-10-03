@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import About from "@/components/AboutPage.vue";
+import About from "@/views/About-module/AboutPage.vue";
 </script>
 
 <style lang="css">

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import HomeView from "../views/Home/HomeView.vue";
+import HomeView from "../views/Home-module/HomeView.vue";
 import UserDashboard from "../views/UserDashboardView.vue";
 import { store } from "@/store"; // 直接导入实例
 
@@ -12,7 +12,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/login",
     name: "login",
-    component: () => import("../views/Home/LoginView.vue"),
+    component: () => import("../views/Home-module/LoginView.vue"),
   },
   {
     path: "/about",
@@ -21,7 +21,9 @@ const routes: Array<RouteRecordRaw> = [
     // this generates a separate chunk (about.[hash].js) for this route
     // which is lazy-loaded when the route is visited.
     component: () =>
-      import(/* webpackChunkName: "about" */ "../views/Home/AboutView.vue"),
+      import(
+        /* webpackChunkName: "about" */ "../views/Home-module/AboutView.vue"
+      ),
   },
   {
     path: "/userdashboard",
@@ -32,33 +34,33 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/find/password",
     name: "findPassword",
-    component: () => import("../views/Home/AboutView.vue"), // 临时使用，你需要创建实际的组件
+    component: () => import("../views/Home-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
   },
   {
     path: "/register/account",
     name: "registerAccount",
-    component: () => import("../views/Home/RegisterView.vue"),
+    component: () => import("../views/Home-module/RegisterView.vue"),
   },
   {
     path: "/feedback",
     name: "feedback",
-    component: () => import("../views/Home/AboutView.vue"), // 临时使用，你需要创建实际的组件
+    component: () => import("../views/Home-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
   },
   {
     path: "/user/personal",
     name: "userPersonal",
-    component: () => import("../views/Personal/PersonalView.vue"),
+    component: () => import("../views/Personal-module/PersonalView.vue"),
     meta: { requiresAuth: true }, // 需要认证才能访问
   },
   {
     path: "/user/personalRight",
-    component: () => import("../views/Personal/personalRightView.vue"),
+    component: () => import("../views/Personal-module/personalRightView.vue"),
     name: "personalRight",
     meta: { requiresAuth: true }, // 需要认证才能访问
   },
   {
     path: "/user/setAddress",
-    component: () => import("../views/Personal/setAddressView.vue"),
+    component: () => import("../views/Personal-module/setAddressView.vue"),
     name: "setAddress",
     meta: { requiresAuth: true }, // 需要认证才能访问
   },
