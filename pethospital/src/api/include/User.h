@@ -15,6 +15,7 @@ struct User
     std::string address_id;    // 地址ID
     std::string address;       // 地址
     std::string head_image;    // 头像
+    bool token = false;         // 令牌
 
     // 构造函数
     User() : birthday(boost::gregorian::date(1970, 1, 1)) {}

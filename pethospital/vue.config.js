@@ -10,6 +10,11 @@ module.exports = defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      "/assets": {
+        target: "http://localhost:8081",
+        changeOrigin: true,
+        secure: false,
+      },
       "/websocket": {
         target: "http://localhost:8081",
         ws: true,

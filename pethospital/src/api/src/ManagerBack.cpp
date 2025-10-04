@@ -1658,7 +1658,7 @@ void WebSocketServer::setupRoutes()
         try
         {
             mysqlx::Table users_table = g_database->getTable("users");
-            mysqlx::RowResult result = users_table.select("id", "name", "email", "phone", "birthday", "address_id", "head_iamge").execute();
+            mysqlx::RowResult result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image").execute();
 
             nlohmann::json response_data = nlohmann::json::array();
             for (auto row : result)
@@ -1666,11 +1666,11 @@ void WebSocketServer::setupRoutes()
                 nlohmann::json user_json;
                 user_json["id"] = row[0].get<int>();
                 user_json["name"] = clean_string(row[1].get<std::string>());
-                user_json["email"] = clean_string(row[2].get<std::string>());
                 user_json["phone"] = clean_string(row[3].get<std::string>());
-                user_json["birthday"] = clean_string(row[4].get<std::string>());
-                user_json["address_id"] = clean_string(row[5].get<std::string>());
-                user_json["head_image"] = clean_string(row[6].get<std::string>());
+                user_json["email"] = clean_string(row[4].get<std::string>());
+                user_json["birthday"] = clean_string(row[5].get<std::string>());
+                user_json["address_id"] = clean_string(row[7].get<std::string>());
+                user_json["head_image"] = clean_string(row[8].get<std::string>());
 
                 response_data.push_back(user_json);
             }

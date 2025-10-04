@@ -1,6 +1,5 @@
 <template>
   <div class="about-container">
-    <div class="about-container-top"></div>
     <div class="about-container-middle">
       <div class="about-container-left">
         <div
@@ -95,6 +94,7 @@
 <script setup lang="ts">
 // 1. 导入部分
 import { ref, onMounted, onBeforeUnmount } from "vue";
+import backgroundImage from "@/assets/photo/background.jpeg";
 //import { useStore } from "vuex";
 //import { key } from "@/store";
 // import { useRouter, useRoute } from "vue-router"
@@ -122,7 +122,6 @@ import { ref, onMounted, onBeforeUnmount } from "vue";
 
 // 4. 响应式数据
 const activeTab = ref("environment");
-const backgroundImage = ref("@/assets/photo/background.jpeg");
 
 // 5. 计算属性
 

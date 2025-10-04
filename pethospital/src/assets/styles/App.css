@@ -133,7 +133,7 @@ nav a.router-link-exact-active {
     display: flex;
 }
 .onLine-vertical {
-    width: 100px;
+    width: 200px;
     height: 300px;
     display: flex;
     flex-direction: column;
