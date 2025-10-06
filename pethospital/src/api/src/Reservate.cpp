@@ -1,66 +1,24 @@
-#include <iostream>
-#include <string>
-#include <vector>
-#include <map>
-#include <set>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
-#include <mysqlx/xdevapi.h>
-
-#include "User.cpp"
-
-extern mysqlx::Session *g_db_session;
-extern mysqlx::Schema *g_database;
-
-class Reservate
-{
-public:
-    Reservate();
-
-    std::string date();
-
-    void setBefore(const std::string &time)
-    {
-        this->time_before = time;
-    }
-    std::string getBefore()
-    {
-        return this->time_before;
-    }
-    void setEnd(const std::string &time)
-    {
-        this->time_end = time;
-    }
-    std::string getEnd()
-    {
-        return this->time_end;
-    }
-
-    std::string addTime(const std::string &time);
-    void setReservate_time(const std::string &date, const std::string &time)
-    {
-        reservate_time.insert({date, time});
-    }
-
-private:
-    std::string name;
-    std::string time_before;
-    std::string time_end;
-    std::multimap<std::string, std::string> reservate_time;
-};
-
+#include "../include/Reservate.h"
 Reservate::Reservate()
 {
     this->time_before = "09:00";
     this->time_end = "10:00";
 }
-std::string Reservate::date()
+void Reservate::date()
 {
     std::time_t t = std::time(nullptr);
     char buffer[11];
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", std::localtime(&t));
-    return std::string(buffer);
+    for (int i = 0; i < 7; i++)
+    {
+        // 获取当前日期并格式化为字符串
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", std::localtime(&t));
+        boost::gregorian::date today = boost::gregorian::from_simple_string(buffer);
+        // 判断星期几
+        boost::gregorian::greg_weekday day_of_week = today.day_of_week();
+        std::string weekday_name = day_of_week.as_long_string();
+
+        this->date_time.insert({buffer, weekday_name});
+    }
 };
 
 std::string Reservate::addTime(const std::string &time)
@@ -78,33 +36,49 @@ std::string Reservate::addTime(const std::string &time)
     return newTime;
 }
 
-int main()
+
+nlohmann::json Reservate::generateSchedule()
+{
+    nlohmann::json schedule;
+    
+    // 生成未来7天的预约时间表
+    for (auto &pair : this->date_time) {
+        std::string date = pair.first;
+        std::string weekday = pair.second;
+        
+        nlohmann::json day_schedule;
+        day_schedule["date"] = date;
+        day_schedule["weekday"] = weekday;
+        
+        // 为每一天生成时间段 (示例：9:00-17:00，每小时一个时段)
+        nlohmann::json time_slots = nlohmann::json::array();
+        std::string start_time = "09:00";
+        std::string end_time = "17:00";
+        
+        std::string current_start = start_time;
+        while (current_start < end_time) {
+            std::string current_end = addTime(current_start);
+            if (current_end <= end_time) {
+                time_slots.push_back(current_start + "-" + current_end);
+            }
+            current_start = current_end;
+        }
+        
+        day_schedule["time_slots"] = time_slots;
+        schedule.push_back(day_schedule);
+    }
+    
+    return schedule;
+}
+void Reservate::start_reservate()
 {
     // 获取医生数据
     User u;
-    std::string email = "";
-    std::string phone = "";
-    std::string password = "";
     try
     {
-        mysqlx::Table users_table = g_database->getTable("doctors");
+        mysqlx::Table doctor_table = g_database->getTable("doctors");
         mysqlx::RowResult result;
-        if (!email.empty())
-        {
-            // 通过email查询用户
-            result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
-                         .where("email = :email")
-                         .bind("email", email)
-                         .execute();
-        }
-        else if (!phone.empty())
-        {
-            // 通过phone查询用户
-            result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
-                         .where("phone = :phone")
-                         .bind("phone", phone)
-                         .execute();
-        }
+        result = doctor_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image").execute();
 
         for (auto row : result)
         {
@@ -129,31 +103,35 @@ int main()
     catch (const std::exception &e)
     {
         std::cerr << "Error fetching doctor data: " << e.what() << std::endl;
-        return -1;
     }
     if (u.token == true)
     {
         Reservate r;
-        if (std::stoi(r.getEnd().substr(0, 2)) <= 12)
+        r.date();
+        std::string first_date = "";
+        for (auto &pair : r.date_time)
         {
-            for (int i = 0; i < 3; i++)
+            first_date = pair.first;
+            if (std::stoi(r.getEnd().substr(0, 2)) <= 12)
             {
-                r.setReservate_time(r.date(), (r.getBefore() + "-" + r.getEnd()));
-                r.setBefore(r.addTime(r.getBefore()));
-                r.setEnd(r.addTime(r.getEnd()));
+                for (int i = 0; i < 3; i++)
+                {
+                    r.setReservate_time(first_date, (r.getBefore() + "-" + r.getEnd()));
+                    r.setBefore(r.addTime(r.getBefore()));
+                    r.setEnd(r.addTime(r.getEnd()));
+                }
+                r.setBefore("14:30");
+                r.setEnd("15:30");
             }
-            r.setBefore("14:30");
-            r.setEnd("15:30");
-        }
-        else if (std::stoi(r.getEnd().substr(0, 2)) > 12 && std::stoi(r.getEnd().substr(0, 2)) <= 19)
-        {
-            for (int i = 0; i < 4; i++)
+            else if (std::stoi(r.getEnd().substr(0, 2)) > 12 && std::stoi(r.getEnd().substr(0, 2)) <= 19)
             {
-                r.setReservate_time(r.date(), (r.getBefore() + "-" + r.getEnd()));
-                r.setBefore(r.addTime(r.getBefore()));
-                r.setEnd(r.addTime(r.getEnd()));
+                for (int i = 0; i < 4; i++)
+                {
+                    r.setReservate_time(first_date, (r.getBefore() + "-" + r.getEnd()));
+                    r.setBefore(r.addTime(r.getBefore()));
+                    r.setEnd(r.addTime(r.getEnd()));
+                }
             }
         }
     }
-    return 0;
 }

@@ -334,26 +334,6 @@ function resetForm() {
   VerifyPrompt.value = false;
 }
 
-//注册成功操作
-function register() {
-  // 发送表单数据到后端
-  const formData = {
-    username: UserName.value,
-    password: Password1.value,
-    email: Email.value,
-    code: VerificationCode.value,
-  };
-  axios
-    .post("/api/form", formData)
-    .then((response) => {
-      console.log("Success:", response.data);
-    })
-    .catch((error) => {
-      console.error("Error:", error);
-    });
-}
-register;
-
 function back() {
   // 实现返回功能
   if (store.state.auth.LoginGrade === 3) {

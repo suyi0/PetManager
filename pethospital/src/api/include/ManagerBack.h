@@ -20,6 +20,7 @@
 #include "Encrypt.h"
 #include "GetAddress.h"
 #include "Utils.h"
+#include "Reservate.h"
 
 // 添加全局数据库会话变量的外部声明
 extern mysqlx::Session *g_db_session; // 全局数据库会话指针
