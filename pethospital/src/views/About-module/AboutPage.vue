@@ -7,42 +7,44 @@
           :class="{ ' click ': activeTab === 'environment' }"
           @click="switchTab('environment')"
         >
-          <button class="about-left1-button">医院环境</button>
+          <button class="about-left1-button">
+            <span> 医院环境 </span>
+          </button>
         </div>
         <div
           class="about-left2"
           :class="{ ' click ': activeTab === 'doctor' }"
           @click="switchTab('doctor')"
         >
-          <button class="about-left2-button">医生团队</button>
+          <button class="about-left2-button"><span>医生团队</span></button>
         </div>
         <div
           class="about-left3"
           :class="{ ' click ': activeTab === 'machine' }"
           @click="switchTab('machine')"
         >
-          <button class="about-left3-button">设备优势</button>
+          <button class="about-left3-button"><span>设备优势</span></button>
         </div>
         <div
           class="about-left4"
           :class="{ ' click ': activeTab === 'advantage' }"
           @click="switchTab('advantage')"
         >
-          <button class="about-left4-button">服务优势</button>
+          <button class="about-left4-button"><span>服务优势</span></button>
         </div>
         <div
           class="about-left5"
           :class="{ ' click ': activeTab === 'consultingService' }"
           @click="switchTab('consultingService')"
         >
-          <button class="about-left5-button">免费咨询</button>
+          <button class="about-left5-button"><span>免费咨询</span></button>
         </div>
         <div
           class="about-left6"
           :class="{ ' click ': activeTab === 'contact' }"
           @click="switchTab('contact')"
         >
-          <button class="about-left6-button">联系我们</button>
+          <button class="about-left6-button"><span>联系我们</span></button>
         </div>
       </div>
       <div class="about-container-right">

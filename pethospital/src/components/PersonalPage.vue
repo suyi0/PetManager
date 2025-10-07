@@ -10,14 +10,14 @@
           :class="{ ' click ': activeTab === 'personal' }"
           @click="switchTab('personal')"
         >
-          <button class="personal-button1">个人资料</button>
+          <button class="personal-button1"><span>个人资料</span></button>
         </div>
         <div
           class="personal-left2"
           :class="{ ' click ': activeTab === 'address' }"
           @click="switchTab('address')"
         >
-          <button class="personal-button2">配送地址</button>
+          <button class="personal-button2"><span>配送地址</span></button>
         </div>
       </div>
       <div class="personal-constainer-right">

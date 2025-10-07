@@ -375,6 +375,23 @@ export const store = createStore<State>({
           // 触发防抖保存
           dispatch("debouncedUpdateUserData");
         },
+        // 获得预约时间表
+        scheduleTime({ state }: ActionContext<AuthState, State>) {
+          axios
+            .post("/api/reservate/schedule", {
+              name: state.userName,
+              phone: state.userPhone,
+              email: state.userEmail,
+              birthday: state.userBirthday,
+              address: state.userAddress,
+              headImage: state.userHeadImage,
+            })
+            .then((response) => {
+              if (response.status === 200 && response.data.success) {
+                console.log(response.data);
+              }
+            });
+        },
         // 检查登录状态
         checkLoginStatus({ commit }: ActionContext<State, any>) {
           return new Promise((resolve, reject) => {

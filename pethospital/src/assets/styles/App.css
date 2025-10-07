@@ -14,6 +14,12 @@ body {
   display: flex;
   flex-direction: column;
 }
+span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(0, 0, 0);
+}
 .app-container {
   background-color: rgb(255, 255, 255);
   background-size: cover;
@@ -30,9 +36,16 @@ body {
   width: 100%;
   height: 45px;
   background-color: rgba(62, 76, 86, 0.3);
+  border-radius: 12px;
   position: fixed; /* 添加此属性 */
   top: 0; /* 固定在顶部 */
   z-index: 1000; /* 确保在其他元素之上 */
+}
+.app-nav {
+  display: flex;
+  gap: 18px;
+  padding: 7px;
+  font-size: 22px;
 }
 .app-content {
   flex: 1; /* 内容区域占据剩余空间 */
@@ -41,26 +54,29 @@ body {
   box-sizing: border-box; /* 确保padding不会增加元素总宽度 */
   padding: 45px 0 0 0; /* 为固定导航栏留出空间 */
 }
-
-a.home,
-a.about {
-  color: rgb(0, 0, 0);
-  display: absolute;
-  top: 10px;
-  font-size: 30px;
-  text-align: center;
+a.nav-home {
+  margin-left: 20px;
+  border-radius: 12px;
+}
+a.nav-home,
+a.nav-about,
+a.nav-services {
   width: 100px;
-  height: 30px;
+  border-radius: 12px;
+  transform: scale(1);
+  transition: all 1.5s ease;
 }
-a.home {
-  position: absolute;
-  left: 20px;
+.nav-home-hover,
+.nav-about-hover,
+.nav-services-hover {
+  width: 100px;
+  border-radius: 12px;
+  /* 可以添加其他样式 */
+  transform: scale(1.1);
+  transition: all 1.5s ease;
+  background-color: rgba(255, 255, 255, 0.6);
 }
-a.about {
-  width: 150px;
-  position: absolute;
-  left: 120px;
-}
+
 .login,
 .onLine {
   color: rgb(0, 0, 0);
@@ -100,19 +116,16 @@ nav {
 .router-link-active,
 a {
   text-decoration: none;
-  width: 100px;
   height: 30px;
-  margin-right: 10px;
-  margin-bottom: 10px;
 }
 
 nav a {
   font-weight: bold;
 }
-
-nav a.router-link-exact-active {
+nav a.router-link-active span {
   color: #42b983;
 }
+
 .onLine {
     width: 200px;
     height: 40px;
@@ -125,8 +138,8 @@ nav a.router-link-exact-active {
     font-size: 16px;
 }
 .onLine-img {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 90px;
 }
 .onLine-pulldown {

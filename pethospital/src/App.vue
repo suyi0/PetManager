@@ -2,13 +2,35 @@
   <div class="app-container">
     <div class="app-navbar">
       <!-- 导航栏始终显示 -->
-      <nav>
+      <nav class="app-nav">
         <!-- 使用 router-link 组件来导航. -->
         <!-- 通过传入 `to` 属性指定链接. -->
         <!-- <router-link> 默认会被渲染成一个 `<a>` 标签 -->
-        <router-link to="/" class="home"><span>首页</span></router-link>
-        <router-link to="/about" class="about">
-          <span>关于我们</span>
+        <router-link
+          to="/"
+          class="nav-home"
+          @mouseenter="handleMouseEnter('home')"
+          @mouseleave="handleMouseLeave('home')"
+          :class="{ 'nav-home-hover': hoveredLink === 'home' }"
+          ><span>首页</span></router-link
+        >
+        <router-link
+          to="/about"
+          class="nav-about"
+          @mouseenter="handleMouseEnter('about')"
+          @mouseleave="handleMouseLeave('about')"
+          :class="{ 'nav-about-hover': hoveredLink === 'about' }"
+        >
+          <span>关于</span>
+        </router-link>
+        <router-link
+          to="/services"
+          class="nav-services"
+          @mouseenter="handleMouseEnter('services')"
+          @mouseleave="handleMouseLeave('services')"
+          :class="{ 'nav-services-hover': hoveredLink === 'services' }"
+        >
+          <span>服务</span>
         </router-link>
         <button
           v-if="!isLoggedIn"
@@ -16,7 +38,7 @@
           :class="{ 'login-active2': isLoginButtonActive }"
           @click="handleLoginClick"
         >
-          <span>Login</span>
+          <span>登录</span>
         </button>
         <div v-else class="onLine">
           <div class="onLine-line" @click="openPersonal">
@@ -118,6 +140,18 @@ import Login from "@/components/LoginPage.vue"; // 引入Login组件
 
 const store = useStore(key);
 const route = useRoute();
+
+const hoveredLink = ref("");
+
+const handleMouseEnter = (link: string) => {
+  hoveredLink.value = link;
+};
+
+const handleMouseLeave = (link: string) => {
+  if (hoveredLink.value === link) {
+    hoveredLink.value = "";
+  }
+};
 
 const simulateLogin = () => {
   store.commit("auth/frontSetUser", {
@@ -253,8 +287,5 @@ useClickOutside(personalMenu, closePersonal);
 </script>
 
 <style>
-@import "@/assets/styles/Home.css";
-@import "@/assets/styles/Login.css";
-@import "@/assets/styles/About.css";
 @import "@/assets/styles/App.css";
 </style>

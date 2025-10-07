@@ -22,7 +22,7 @@ public:
 
     void date();
 
-    void start_reservate();
+    nlohmann::json slots(Reservate &r);
 
     void setBefore(const std::string &time)
     {
@@ -42,17 +42,18 @@ public:
     }
 
     std::string addTime(const std::string &time);
-    void setReservate_time(const std::string &date, const std::string &time)
+
+    void setTime_slots(const std::string &slots)
     {
-        reservate_time.insert({date, time});
+        this->time_slots.push_back( slots );
     }
 
     nlohmann::json generateSchedule();
 
 private:
-    std::string name;
-    std::string time_before;
-    std::string time_end;
-    std::multimap<std::string, std::string> reservate_time;
-    std::multimap<std::string, std::string> date_time;
+    std::string name;  // 医生姓名
+    std::string time_before;  // 开始时间
+    std::string time_end;  // 结束时间
+    std::multimap<std::string, std::string> date_time;  // 七天日期时间表->( 日期 , 星期 )
+    nlohmann::json time_slots = nlohmann::json::array();  // 预约时间段
 };

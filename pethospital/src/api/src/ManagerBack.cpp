@@ -1745,28 +1745,25 @@ void WebSocketServer::setupRoutes()
             res.write(R"({"error": "Failed to fetch data", "details": ")" + std::string(e.what()) + "\"}");
         }
         res.end(); });
-    CROW_ROUTE(app, "/api/reservate")
-        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([](const crow::request &req, crow::response &res) {
-
-        });
+    
+    //  预约时间表生成路由
     CROW_ROUTE(app, "/api/reservate/schedule")
-        .methods(crow::HTTPMethod::Get)([](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([](const crow::request &req, crow::response &res)
                                         {
-    try {
-        Reservate r;
-        r.date(); // 生成日期
+        try {
+            Reservate r;
         
-        // 生成并返回时间表
-        auto schedule = r.generateSchedule();
+            // 生成并返回时间表
+            auto schedule = r.generateSchedule();
         
-        res.code = 200;
-        res.set_header("Content-Type", "application/json");
-        res.write(schedule.dump());
-    } catch (const std::exception& e) {
-        res.code = 500;
-        res.write(R"({"error": "Failed to generate schedule"})");
-    }
-    res.end(); });
+            res.code = 200;
+            res.set_header("Content-Type", "application/json");
+            res.write(schedule.dump());
+        } catch (const std::exception& e) {
+            res.code = 500;
+            res.write(R"({"error": "Failed to generate schedule"})");
+        }
+        res.end(); });
 
     CROW_WEBSOCKET_ROUTE(app, "/websocket")
         // 连接开启时的onOpen回调

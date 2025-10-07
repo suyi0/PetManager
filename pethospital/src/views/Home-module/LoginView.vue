@@ -1,5 +1,5 @@
 <template>
-  <div class="login">
+  <div class="login-view">
     <Login />
   </div>
 </template>
