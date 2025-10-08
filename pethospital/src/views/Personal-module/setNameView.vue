@@ -170,13 +170,6 @@ onMounted(() => {
     cursor: pointer;
     color: #333;
     z-index: 10;
-
-    .login-cha-button {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 0;
-    }
   }
 
   .title-container {

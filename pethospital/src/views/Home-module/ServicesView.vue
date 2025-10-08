@@ -6,7 +6,9 @@
           <button
             class="services-container-left1-button"
             @click="switchTab('reservation')"
-            :class="{ ' click ': activeTab === 'reservation' }"
+            :class="{
+              ' click ': isReservationTab(activeTab),
+            }"
           >
             <span>预约服务</span>
           </button>
@@ -27,25 +29,37 @@
           class="services-container-right-reservation"
         >
           <div class="services-container-right-reservation-text1">
-            <button class="services-container-right-reservation-text1-button">
+            <button
+              class="services-container-right-reservation-text1-button"
+              @click="switchTab('reservation-treatSlots')"
+            >
               <img src="@/assets/photo/background.jpeg" alt="图片" />
               <span>宠物医治</span>
             </button>
           </div>
           <div class="services-container-right-reservation-text1">
-            <button class="services-container-right-reservation-text1-button">
+            <button
+              class="services-container-right-reservation-text1-button"
+              @click="switchTab('reservation-sterilizateSlots')"
+            >
               <img src="@/assets/photo/background.jpeg" alt="图片" />
               <span>宠物绝育</span>
             </button>
           </div>
           <div class="services-container-right-reservation-text1">
-            <button class="services-container-right-reservation-text1-button">
+            <button
+              class="services-container-right-reservation-text1-button"
+              @click="switchTab('reservation-beautySlots')"
+            >
               <img src="@/assets/photo/background.jpeg" alt="图片" />
               <span>宠物美容</span>
             </button>
           </div>
           <div class="services-container-right-reservation-text1">
-            <button class="services-container-right-reservation-text1-button">
+            <button
+              class="services-container-right-reservation-text1-button"
+              @click="switchTab('reservation-SPASlots')"
+            >
               <img src="@/assets/photo/background.jpeg" alt="图片" />
               <span>宠物SPA</span>
             </button>
@@ -55,6 +69,10 @@
           v-if="activeTab === 'afterSale'"
           class="services-container-right-afterSale"
         ></div>
+        <treatSlotsView
+          v-if="activeTab === 'reservation-treatSlots'"
+          @close="close"
+        />
       </div>
     </div>
   </div>
@@ -65,6 +83,7 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { useStore } from "vuex";
 import { key } from "@/store";
+import treatSlotsView from "../Services-module/treatSlotsView.vue";
 // import { useRouter, useRoute } from "vue-router";
 // import type { PropType } from "vue";
 
@@ -92,11 +111,26 @@ store;
 // 4. 响应式数据
 // const schedule = ref("");
 const activeTab = ref("reservation");
+
 // 5. 计算属性
 
 // 6. 方法定义
+const isReservationTab = (tab: string) => {
+  const reservationTabs = [
+    "reservation",
+    "reservation-treatSlots",
+    "reservation-sterilizateSlots",
+    "reservation-beautySlots",
+    "reservation-SPASlots",
+  ];
+  return reservationTabs.includes(tab);
+};
+
 const switchTab = (tab: string) => {
   activeTab.value = tab;
+};
+const close = () => {
+  activeTab.value = "reservation";
 };
 
 // 7. 生命周期钩子
@@ -170,7 +204,8 @@ span {
 }
 .services-container-right {
   min-width: 52vw;
-  margin-top: 104px;
+  max-width: 100%;
+  margin-top: 149px;
   .services-container-right-reservation {
     width: 100%;
     display: flex;
