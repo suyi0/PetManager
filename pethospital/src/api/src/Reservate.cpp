@@ -1,50 +1,69 @@
 #include "../include/Reservate.h"
-Reservate::Reservate()
-{
-    this->time_before = "09:00";
-    this->time_end = "10:00";
-}
 void Reservate::date()
 {
     std::time_t t = std::time(nullptr);
     char buffer[11];
+
+    // 获取当前日期并格式化为字符串
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", std::localtime(&t));
+    boost::gregorian::date today = boost::gregorian::from_simple_string(buffer);
+
+    // 星期中文映射
+    std::map<std::string, std::string> weekday_chinese = {
+        {"Sunday", "星期日"},
+        {"Monday", "星期一"},
+        {"Tuesday", "星期二"},
+        {"Wednesday", "星期三"},
+        {"Thursday", "星期四"},
+        {"Friday", "星期五"},
+        {"Saturday", "星期六"}
+    };
+
+    // 获取未来7天的日期
     for (int i = 0; i < 7; i++)
     {
-        // 获取当前日期并格式化为字符串
-        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", std::localtime(&t));
-        boost::gregorian::date today = boost::gregorian::from_simple_string(buffer);
+        // 计算第i天的日期
+        boost::gregorian::date current_date = today + boost::gregorian::days(i);
+
+        // 格式化日期字符串
+        std::string date_str = std::to_string(current_date.year()) + "-" +
+                               std::to_string(current_date.month()) + "-" +
+                               std::to_string(current_date.day());
+
         // 判断星期几
-        boost::gregorian::greg_weekday day_of_week = today.day_of_week();
+        boost::gregorian::greg_weekday day_of_week = current_date.day_of_week();
         std::string weekday_name = day_of_week.as_long_string();
 
-        this->date_time.insert({buffer, weekday_name});
+        // 转换为中文
+        std::string weekday_chinese_name = weekday_chinese[weekday_name];
+        this->date_time.insert({date_str, weekday_chinese_name});
     }
 };
 
-nlohmann::json Reservate::slots(Reservate &r)
+nlohmann::json Reservate::slots(const std::string& start_time, const std::string& end_time)
 {
-    // 这里可以根据需要实现时间段的生成逻辑
-    if (std::stoi(r.getEnd().substr(0, 2)) <= 12)
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            r.setTime_slots(r.getBefore() + "-" + r.getEnd());
-            r.setBefore(r.addTime(r.getBefore()));
-            r.setEnd(r.addTime(r.getEnd()));
-        }
-        r.setBefore("14:30");
-        r.setEnd("15:30");
+    nlohmann::json time_slots;
+    std::string current_start = start_time;
+    std::string current_end = end_time;
+    
+    // 上午时段：09:00-12:00，每小时一个
+    for (int i = 0; i < 3; ++i) {
+        time_slots.push_back(current_start + "-" + current_end);
+        current_start = addTime(current_start);
+        current_end = addTime(current_end);
     }
-    else if (std::stoi(r.getEnd().substr(0, 2)) > 12 && std::stoi(r.getEnd().substr(0, 2)) <= 19)
-    {
-        for (int i = 0; i < 4; i++)
-        {
-            r.setTime_slots(r.getBefore() + "-" + r.getEnd());
-            r.setBefore(r.addTime(r.getBefore()));
-            r.setEnd(r.addTime(r.getEnd()));
-        }
+    // 中午休息，跳过12:00-14:30
+    current_start = "14:30";
+    current_end = "15:30";
+
+    // 下午时段：14:30-18:30，每小时一个
+    for (int i = 0; i < 4; ++i) {
+        time_slots.push_back(current_start + "-" + current_end);
+        current_start = addTime(current_start);
+        current_end = addTime(current_end);
     }
-    return r.time_slots;
+
+    return time_slots;
 }
 
 std::string Reservate::addTime(const std::string &time)
@@ -75,11 +94,12 @@ nlohmann::json Reservate::generateSchedule()
         std::string weekday = pair.second;
 
         nlohmann::json day_schedule;
-        day_schedule["date"] = date;
+        day_schedule["year"] = std::stoi(date.substr(0, 4));    // 提取年份部分
+        day_schedule["date"] = date.substr(5);                  // 去掉年份部分
         day_schedule["weekday"] = weekday;
 
         // 为每一天生成时间段
-        day_schedule["time_slots"] = r.slots(r);
+        day_schedule["time_slots"] = r.slots("09:00", "10:00");
 
         schedule.push_back(day_schedule);
     }

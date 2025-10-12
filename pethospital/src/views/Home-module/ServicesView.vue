@@ -70,8 +70,18 @@
           class="services-container-right-afterSale"
         ></div>
         <treatSlotsView
-          v-if="activeTab === 'reservation-treatSlots'"
+          v-if="
+            activeTab === 'reservation-treatSlots' || activeTab === 'showSlots'
+          "
+          :active-tab="activeTab"
+          :year="Array.isArray(year) ? year : []"
+          :month="Array.isArray(month) ? month : []"
+          :day="Array.isArray(day) ? day : []"
+          :week="Array.isArray(weekday) ? weekday : []"
+          :slots="Array.isArray(slots) ? slots : []"
+          :switchTab="switchTab"
           @close="close"
+          @cancle="cancle"
         />
       </div>
     </div>
@@ -109,8 +119,12 @@ store;
 // }>()
 
 // 4. 响应式数据
-// const schedule = ref("");
 const activeTab = ref("reservation");
+const year = ref<string[]>([]);
+const month = ref<string[]>([]);
+const day = ref<string[]>([]);
+const weekday = ref<string[]>([]);
+const slots = ref<string[][]>([]);
 
 // 5. 计算属性
 
@@ -122,6 +136,7 @@ const isReservationTab = (tab: string) => {
     "reservation-sterilizateSlots",
     "reservation-beautySlots",
     "reservation-SPASlots",
+    "showSlots",
   ];
   return reservationTabs.includes(tab);
 };
@@ -129,17 +144,60 @@ const isReservationTab = (tab: string) => {
 const switchTab = (tab: string) => {
   activeTab.value = tab;
 };
+
+const cancle = () => {
+  activeTab.value = "reservation-treatSlots";
+};
+
 const close = () => {
-  activeTab.value = "reservation";
+  if (activeTab.value === "showSlots") {
+    activeTab.value = "reservation-treatSlots";
+  } else if (activeTab.value === "reservation-treatSlots") {
+    activeTab.value = "reservation";
+  }
 };
 
 // 7. 生命周期钩子
 onMounted(() => {
-  // store.dispatch("auth/scheduleTime").then((result: any) => {
-  //   if (result && typeof result === "string") {
-  //     schedule.value = result;
-  //   }
-  // });
+  store
+    .dispatch("auth/scheduleTime")
+    .then((response) => {
+      if (response && response.data && typeof response.data === "object") {
+        // response.data 包含一个名为 'data' 的属性，其中是数组
+        if (response.data.data && Array.isArray(response.data.data)) {
+          for (const item of response.data.data) {
+            // 将每个日期的数据添加到对应的数组中
+            year.value.push(item.year.toString());
+
+            // 提取月份和日期部分
+            const dateParts = item.date.split("-");
+            month.value.push(dateParts[0]);
+            day.value.push(dateParts[1]);
+
+            weekday.value.push(item.weekday);
+
+            // 处理 time_slots 字段
+            const timeSlotsArray: string[] = [];
+            if (item.time_slots) {
+              // 如果 time_slots 是对象，提取其值
+              Object.values(item.time_slots).forEach((slot) => {
+                timeSlotsArray.push(String(slot));
+              });
+            }
+            slots.value.push(timeSlotsArray);
+          }
+        }
+      }
+    })
+    .catch((error) => {
+      console.error("获取预约时间表失败:", error);
+      // 设置默认值
+      year.value = [];
+      month.value = [];
+      day.value = [];
+      weekday.value = [];
+      slots.value = [];
+    });
 });
 
 onBeforeUnmount(() => {
@@ -205,7 +263,7 @@ span {
 .services-container-right {
   min-width: 52vw;
   max-width: 100%;
-  margin-top: 149px;
+  margin-top: 104px;
   .services-container-right-reservation {
     width: 100%;
     display: flex;

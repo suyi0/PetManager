@@ -377,7 +377,7 @@ export const store = createStore<State>({
         },
         // 获得预约时间表
         scheduleTime({ state }: ActionContext<AuthState, State>) {
-          axios
+          return axios
             .post("/api/reservate/schedule", {
               name: state.userName,
               phone: state.userPhone,
@@ -389,6 +389,7 @@ export const store = createStore<State>({
             .then((response) => {
               if (response.status === 200 && response.data.success) {
                 console.log(response.data);
+                return response;
               }
             });
         },

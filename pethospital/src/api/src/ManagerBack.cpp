@@ -1755,10 +1755,15 @@ void WebSocketServer::setupRoutes()
         
             // 生成并返回时间表
             auto schedule = r.generateSchedule();
+
+            // 包装成包含 success 字段的 JSON 对象
+            nlohmann::json response;
+            response["success"] = true;
+            response["data"] = schedule;
         
             res.code = 200;
             res.set_header("Content-Type", "application/json");
-            res.write(schedule.dump());
+            res.write(response.dump());
         } catch (const std::exception& e) {
             res.code = 500;
             res.write(R"({"error": "Failed to generate schedule"})");

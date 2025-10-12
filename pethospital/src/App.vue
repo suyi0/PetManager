@@ -38,7 +38,7 @@
           :class="{ 'login-active2': isLoginButtonActive }"
           @click="handleLoginClick"
         >
-          <span>登录</span>
+          <span class="login-text">登录</span>
         </button>
         <div v-else class="onLine">
           <div class="onLine-line" @click="openPersonal">
