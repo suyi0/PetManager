@@ -15,16 +15,10 @@
 #include <ctime>
 #include <sys/stat.h> // 用于创建目录
 
-#include "Verification.h"
-#include "User.h"
-#include "Encrypt.h"
-#include "GetAddress.h"
 #include "Utils.h"
-#include "Reservate.h"
-
-// 添加全局数据库会话变量的外部声明
-extern mysqlx::Session *g_db_session; // 全局数据库会话指针
-extern mysqlx::Schema *g_database; // 全局数据库指针
+#include "../UserRoutes/Verification/Verification.h"
+#include "../ReservationRoutes/ReservationRoutes.h"
+#include "../UserRoutes/UserRoutes.h"
 
 class WebSocketServer
 {

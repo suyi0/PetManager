@@ -18,5 +18,6 @@ public:
 void initializeCORS(const crow::request &req, crow::response &res);
 void initializeOPTIONS(const crow::request &req, crow::response &res);
 bool parseJsonBody(const crow::request &req, crow::response &res, nlohmann::json &request_body);
+std::string getCreateTime();
 
 using CrowApp = crow::Crow<CorsMiddleware>;

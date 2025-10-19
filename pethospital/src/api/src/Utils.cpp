@@ -113,3 +113,16 @@ bool parseJsonBody(const crow::request &req, crow::response &res, nlohmann::json
     }
     return true;
 }
+
+// 获得创建时间
+std::string getCreateTime()
+{
+    auto now = std::chrono::system_clock::now();
+    std::time_t time_now = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_now = *std::localtime(&time_now);
+    std::ostringstream oss;
+    oss << std::put_time(&tm_now, "%Y-%m-%d %H:%M:%S");
+    std::string creation_time = oss.str();
+
+    return creation_time;
+}

@@ -10,7 +10,7 @@
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <nlohmann/json.hpp>
 
-#include "../include/User.h"
+#include "../../UserRoutes/User/User.h"
 
 extern mysqlx::Session *g_db_session;
 extern mysqlx::Schema *g_database;

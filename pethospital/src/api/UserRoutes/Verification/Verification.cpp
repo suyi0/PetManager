@@ -1,4 +1,4 @@
-#include "../include/Verification.h"
+#include "Verification.h"
 
 // 初始化静态成员
 std::unordered_map<std::string, Verify::CodeInfo> Verify::code_storage; // 使用unordered_map存储验证码

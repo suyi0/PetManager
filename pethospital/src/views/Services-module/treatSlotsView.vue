@@ -81,9 +81,7 @@
       <div class="reservation-slots-middle">
         <div class="date-selectors">
           <div class="date-selectors-top">
-            <span class="date-selectors-top-button-text"
-              >{{ props.year[0] }}年
-            </span>
+            <span class="date-selectors-top-button-text">{{ year[0] }}年 </span>
             <div class="date-selectors-top-button-container">
               <div class="date-selectors-top-button-div">
                 <button
@@ -94,10 +92,10 @@
                   }"
                 >
                   <span class="date-selectors-top-button-text">
-                    {{ props.week[0] }}
+                    {{ weekday[0] }}
                   </span>
                   <span class="date-selectors-top-button-text"
-                    >{{ props.month[0] }}月{{ props.day[0] }}日</span
+                    >{{ month[0] }}月{{ day[0] }}日</span
                   >
                 </button>
               </div>
@@ -110,10 +108,10 @@
                   }"
                 >
                   <span class="date-selectors-top-button-text">
-                    {{ props.week[1] }}
+                    {{ weekday[1] }}
                   </span>
                   <span class="date-selectors-top-button-text"
-                    >{{ props.month[1] }}月{{ props.day[1] }}日</span
+                    >{{ month[1] }}月{{ day[1] }}日</span
                   >
                 </button>
               </div>
@@ -126,10 +124,10 @@
                   }"
                 >
                   <span class="date-selectors-top-button-text">
-                    {{ props.week[2] }}
+                    {{ weekday[2] }}
                   </span>
                   <span class="date-selectors-top-button-text"
-                    >{{ props.month[2] }}月{{ props.day[2] }}日</span
+                    >{{ month[2] }}月{{ day[2] }}日</span
                   >
                 </button>
               </div>
@@ -142,10 +140,10 @@
                   }"
                 >
                   <span class="date-selectors-top-button-text">
-                    {{ props.week[3] }}
+                    {{ weekday[3] }}
                   </span>
                   <span class="date-selectors-top-button-text"
-                    >{{ props.month[3] }}月{{ props.day[3] }}日</span
+                    >{{ month[3] }}月{{ day[3] }}日</span
                   >
                 </button>
               </div>
@@ -158,10 +156,10 @@
                   }"
                 >
                   <span class="date-selectors-top-button-text">
-                    {{ props.week[4] }}
+                    {{ weekday[4] }}
                   </span>
                   <span class="date-selectors-top-button-text"
-                    >{{ props.month[4] }}月{{ props.day[4] }}日</span
+                    >{{ month[4] }}月{{ day[4] }}日</span
                   >
                 </button>
               </div>
@@ -174,10 +172,10 @@
                   }"
                 >
                   <span class="date-selectors-top-button-text">
-                    {{ props.week[5] }}
+                    {{ weekday[5] }}
                   </span>
                   <span class="date-selectors-top-button-text"
-                    >{{ props.month[5] }}月{{ props.day[5] }}日</span
+                    >{{ month[5] }}月{{ day[5] }}日</span
                   >
                 </button>
               </div>
@@ -190,10 +188,10 @@
                   }"
                 >
                   <span class="date-selectors-top-button-text">
-                    {{ props.week[6] }}
+                    {{ weekday[6] }}
                   </span>
                   <span class="date-selectors-top-button-text"
-                    >{{ props.month[6] }}月{{ props.day[6] }}日</span
+                    >{{ month[6] }}月{{ day[6] }}日</span
                   >
                 </button>
               </div>
@@ -207,9 +205,11 @@
                   <div
                     class="date-selectors-middle-slots-morning-container-left"
                   >
-                    <span>{{ props.slots[0][0] }}</span>
-                    <span>{{ props.slots[0][1] }}</span>
-                    <span>{{ props.slots[0][2] }}</span>
+                    <span
+                      v-for="(item, index) in getSlotArray(dateTab, 'morning')"
+                      :key="'morning-time-' + dateTab + '-' + index"
+                      >{{ item }}</span
+                    >
                   </div>
                   <div
                     class="date-selectors-middle-slots-morning-container-right"
@@ -274,10 +274,14 @@
                   <div
                     class="date-selectors-middle-slots-afternoon-container-left"
                   >
-                    <span>{{ props.slots[0][3] }}</span>
-                    <span>{{ props.slots[0][4] }}</span>
-                    <span>{{ props.slots[0][5] }}</span>
-                    <span>{{ props.slots[0][6] }}</span>
+                    <span
+                      v-for="(item, index) in getSlotArray(
+                        dateTab,
+                        'afternoon'
+                      )"
+                      :key="'afternoon-time-' + dateTab + '-' + index"
+                      >{{ item }}</span
+                    >
                   </div>
                   <div
                     class="date-selectors-middle-slots-afternoon-container-right"
@@ -367,11 +371,27 @@
           </button>
           <button
             class="reservation-slots-bottom-container-submit"
-            @click="submit"
+            @click="submit(dateTab, choiceActive)"
           >
             确定
           </button>
         </div>
+      </div>
+      <div
+        v-if="submitAfter"
+        class="reservation-slots-bottom-container-submit-after"
+      >
+        <h3>预约成功</h3>
+        <p style="margin-bottom: 20px">
+          您已成功预约 {{ upYear }}-{{ upMonth }}-{{ upDay }}
+          {{ upSlot }}
+        </p>
+        <button
+          class="reservation-slots-bottom-container-submit-after-button"
+          @click="removeSubmitAfter"
+        >
+          确定
+        </button>
       </div>
     </div>
   </div>
@@ -379,32 +399,36 @@
 
 <script setup lang="ts">
 // 1. 导入部分
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import { useStore } from "vuex";
 import { key } from "@/store";
 // import { useRouter, useRoute } from "vue-router";
 // import type { PropType } from "vue";
 
 const store = useStore(key);
-store;
 
 // 2. Props定义 (如果需要接收父组件传递的数据)
 const props = defineProps<{
   activeTab: string;
   switchTab(_tab: string): void;
-  year: string[];
-  month: string[];
-  day: string[];
-  week: string[];
-  slots: string[][];
 }>();
 
 // 3. Emit事件定义 (如果需要向父组件传递事件)
-const emit = defineEmits(["close", "submit", "cancle"]);
+const emit = defineEmits(["close", "cancle", "submit-success"]);
 
 // 4. 响应式数据
 const dateTab = ref("date1");
 const choiceActive = ref("");
+const year = computed(() => store.state.auth.reservate.year);
+const month = computed(() => store.state.auth.reservate.month);
+const day = computed(() => store.state.auth.reservate.day);
+const weekday = computed(() => store.state.auth.reservate.weekday);
+const slots = computed(() => store.state.auth.reservate.slots);
+const upYear = ref("");
+const upMonth = ref("");
+const upDay = ref("");
+const upSlot = ref("");
+const submitAfter = ref(true);
 
 // 5. 计算属性
 
@@ -415,14 +439,167 @@ function close() {
 function cancle() {
   emit("cancle");
 }
-function submit() {
-  emit("submit");
+function getSlotArray(
+  dateTab: string,
+  period: "morning" | "afternoon"
+): string[] {
+  const slotIndex = judgehDate(dateTab);
+  let choiceMorningSlots = 0;
+  for (let i = 0; i < slots.value[slotIndex].length; ++i) {
+    if (slots.value[slotIndex][i].substr(6, 5) === "12:00") {
+      choiceMorningSlots = i + 1;
+      break;
+    }
+  }
+  // 确保 slots.value 和 slots.value[slotIndex] 存在
+  if (slots.value && slots.value[slotIndex]) {
+    // 上午时段返回前3个元素
+    if (period === "morning") {
+      const morningSlots = slots.value[slotIndex].slice(0, choiceMorningSlots);
+      // 确保返回的数组始终有3个元素
+      while (morningSlots.length < 3) {
+        morningSlots.push("");
+      }
+      return morningSlots;
+    }
+    // 下午时段返回后4个元素
+    else if (period === "afternoon") {
+      const afternoonSlots = slots.value[slotIndex].slice(
+        choiceMorningSlots,
+        7
+      );
+      // 确保返回的数组始终有4个元素
+      while (afternoonSlots.length < 4) {
+        afternoonSlots.push("");
+      }
+      return afternoonSlots;
+    }
+  }
+  // 根据时段返回默认数组
+  if (period === "morning") {
+    return ["", "", ""];
+  } else {
+    return ["", "", "", ""];
+  }
+}
+
+function judgehDate(dateTab: string) {
+  switch (dateTab) {
+    case "date1":
+      return 0;
+    case "date2":
+      return 1;
+    case "date3":
+      return 2;
+    case "date4":
+      return 3;
+    case "date5":
+      return 4;
+    case "date6":
+      return 5;
+    case "date7":
+      return 6;
+  }
+  return 0;
+}
+
+function switchSlots(dateTab: string, choiceActive: string) {
+  const slotIndex = judgehDate(dateTab);
+  // 确保数组存在再访问
+  if (slots.value && slots.value[slotIndex]) {
+    switch (choiceActive) {
+      case "button1":
+        upSlot.value = slots.value[slotIndex][0] || "";
+        break;
+      case "button2":
+        upSlot.value = slots.value[slotIndex][1] || "";
+        break;
+      case "button3":
+        upSlot.value = slots.value[slotIndex][2] || "";
+        break;
+      case "button4":
+        upSlot.value = slots.value[slotIndex][3] || "";
+        break;
+      case "button5":
+        upSlot.value = slots.value[slotIndex][4] || "";
+        break;
+      case "button6":
+        upSlot.value = slots.value[slotIndex][5] || "";
+        break;
+      case "button7":
+        upSlot.value = slots.value[slotIndex][6] || "";
+        break;
+    }
+  }
+}
+function submit(dateTab: string, choiceActive: string) {
+  if (dateTab === "date1") {
+    upYear.value = year.value[0];
+    upMonth.value = month.value[0];
+    upDay.value = day.value[0];
+    switchSlots(dateTab, choiceActive);
+  } else if (dateTab === "date2") {
+    upYear.value = year.value[1];
+    upMonth.value = month.value[1];
+    upDay.value = day.value[1];
+    switchSlots(dateTab, choiceActive);
+  } else if (dateTab === "date3") {
+    upYear.value = year.value[2];
+    upMonth.value = month.value[2];
+    upDay.value = day.value[2];
+    switchSlots(dateTab, choiceActive);
+  } else if (dateTab === "date4") {
+    upYear.value = year.value[3];
+    upMonth.value = month.value[3];
+    upDay.value = day.value[3];
+    switchSlots(dateTab, choiceActive);
+  } else if (dateTab === "date5") {
+    upYear.value = year.value[4];
+    upMonth.value = month.value[4];
+    upDay.value = day.value[4];
+    switchSlots(dateTab, choiceActive);
+  } else if (dateTab === "date6") {
+    upYear.value = year.value[5];
+    upMonth.value = month.value[5];
+    upDay.value = day.value[5];
+    switchSlots(dateTab, choiceActive);
+  } else if (dateTab === "date7") {
+    upYear.value = year.value[6];
+    upMonth.value = month.value[6];
+    upDay.value = day.value[6];
+    switchSlots(dateTab, choiceActive);
+  }
+  // 提交预约记录
+  store
+    .dispatch("auth/upScheduleTime", {
+      upYear: upYear.value,
+      upMonth: upMonth.value,
+      upDay: upDay.value,
+      upSlot: upSlot.value,
+    })
+    .then((response) => {
+      if (response.data.success && response.status === 200) {
+        submitAfter.value = true;
+        // 添加 emit 通知父组件预约成功
+        emit("submit-success", {
+          year: upYear.value,
+          month: upMonth.value,
+          day: upDay.value,
+          slot: upSlot.value,
+        });
+      }
+    });
 }
 function switchDate(tab: string) {
   dateTab.value = tab;
 }
 function switchChoice(tab: string) {
   choiceActive.value = tab;
+}
+
+function removeSubmitAfter() {
+  submitAfter.value = false;
+  props.switchTab("reservation");
 }
 
 // 7. 生命周期钩子
@@ -706,5 +883,40 @@ span {
 }
 .date-selectors-middle-slots-morning {
   margin-bottom: 20px;
+}
+
+.reservation-slots-bottom-container-submit-after {
+  height: 300px;
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  position: fixed;
+  top: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgb(255, 255, 255);
+  color: black;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  text-align: center;
+  font-size: 25px;
+
+  .reservation-slots-bottom-container-submit-after-button {
+    width: 80px;
+    height: 45px;
+    padding: 15px;
+    background: #4caf50;
+    font-size: 25px;
+    font-weight: 520;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 }
 </style>

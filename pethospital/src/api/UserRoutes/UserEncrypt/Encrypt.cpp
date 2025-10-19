@@ -1,4 +1,4 @@
-#include "../include/Encrypt.h"
+#include "Encrypt.h"
 
 // 添加辅助函数
 std::string url_safe_base64_encode(const std::string &data)

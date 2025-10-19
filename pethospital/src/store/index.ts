@@ -27,6 +27,13 @@ export interface AuthState {
   isPhoneLoginButtonActive: boolean; // 添加手机登录按钮状态
   showRegister: boolean; // 添加注册页面状态
   choiceActive: boolean; // 控制同意框状态
+  reservate: {
+    year: string[]; // 预约表年份
+    month: string[]; // 预约表月份
+    day: string[]; // 预约表日期
+    weekday: string[]; // 预约表星期
+    slots: string[][]; // 预约表时间段
+  };
 }
 
 // 定义 State 类型，包含 AuthState 类型
@@ -63,6 +70,16 @@ export const store = createStore<State>({
         LoginGrade: null, // 初始登录页面等级状态
         showRegister: false, // 注册页面状态
         choiceActive: false, // 控制同意框状态
+        // 预约列表
+        reservate: {
+          year: JSON.parse(localStorage.getItem("reservate_year") || "[]"),
+          month: JSON.parse(localStorage.getItem("reservate_month") || "[]"),
+          day: JSON.parse(localStorage.getItem("reservate_day") || "[]"),
+          weekday: JSON.parse(
+            localStorage.getItem("reservate_weekday") || "[]"
+          ),
+          slots: JSON.parse(localStorage.getItem("reservate_slots") || "[]"),
+        },
       },
       //mutations 是用来修改 store 状态的方法
       mutations: {
@@ -83,6 +100,11 @@ export const store = createStore<State>({
                 }
               | string;
             userHeadImage: string; // 添加头像参数
+            year: string[];
+            month: string[];
+            day: string[];
+            weekday: string[];
+            slots: string[][];
             token: string;
             userAddressId?: string;
           }
@@ -120,12 +142,27 @@ export const store = createStore<State>({
           state.token = payload.token; // 保存 token
           state.isLoggedIn = true; // 同时更新登录状态
           // 将 token 等信息保存到 localStorage
+          // localStorage只接受字符串
           localStorage.setItem("auth_token", payload.token);
           localStorage.setItem("user_name", payload.userName);
           localStorage.setItem("user_birthday", payload.userBirthday);
           localStorage.setItem("user_email", payload.userEmail);
           localStorage.setItem("user_phone", payload.userPhone);
           localStorage.setItem("user_head_image", payload.userHeadImage || ""); // 保存头像到localStorage
+          localStorage.setItem("reservate_year", JSON.stringify(payload.year));
+          localStorage.setItem(
+            "reservate_month",
+            JSON.stringify(payload.month)
+          );
+          localStorage.setItem("reservate_day", JSON.stringify(payload.day));
+          localStorage.setItem(
+            "reservate_weekday",
+            JSON.stringify(payload.weekday)
+          );
+          localStorage.setItem(
+            "reservate_slots",
+            JSON.stringify(payload.slots)
+          );
           localStorage.setItem(
             "address_id",
             payload.userAddressId?.toString() || ""
@@ -153,13 +190,19 @@ export const store = createStore<State>({
           state.userHeadImage = ""; // 清除头像
           state.token = null; // 清除 token
           state.isLoggedIn = false;
-          // 从 localStorage 中移除 token
+
+          // 登出时从 localStorage 中移除token 等信息
           localStorage.removeItem("auth_token");
           localStorage.removeItem("user_name");
           localStorage.removeItem("user_birthday");
           localStorage.removeItem("user_email");
           localStorage.removeItem("user_phone");
           localStorage.removeItem("user_head_image");
+          localStorage.removeItem("reservate_year");
+          localStorage.removeItem("reservate_month");
+          localStorage.removeItem("reservate_day");
+          localStorage.removeItem("reservate_weekday");
+          localStorage.removeItem("reservate_slots");
           localStorage.removeItem("user_address");
 
           // 返回主页
@@ -195,6 +238,41 @@ export const store = createStore<State>({
         },
         closePersonal(state: AuthState) {
           state.personal = false;
+        },
+        setReservate(
+          state: AuthState,
+          reservate: {
+            year: string[];
+            month: string[];
+            day: string[];
+            weekday: string[];
+            slots: string[][];
+          }
+        ) {
+          state.reservate.year = reservate.year;
+          state.reservate.month = reservate.month;
+          state.reservate.day = reservate.day;
+          state.reservate.weekday = reservate.weekday;
+          state.reservate.slots = reservate.slots;
+
+          // 同时更新localStorage
+          localStorage.setItem(
+            "reservate_year",
+            JSON.stringify(reservate.year)
+          );
+          localStorage.setItem(
+            "reservate_month",
+            JSON.stringify(reservate.month)
+          );
+          localStorage.setItem("reservate_day", JSON.stringify(reservate.day));
+          localStorage.setItem(
+            "reservate_weekday",
+            JSON.stringify(reservate.weekday)
+          );
+          localStorage.setItem(
+            "reservate_slots",
+            JSON.stringify(reservate.slots)
+          );
         },
       },
       // actions 是用来处理异步操作的方法
@@ -244,7 +322,7 @@ export const store = createStore<State>({
           });
         },
         login(
-          { commit }: ActionContext<AuthState, State>,
+          { commit, dispatch }: ActionContext<AuthState, State>,
           payload: {
             email?: string;
             phone?: string;
@@ -267,7 +345,6 @@ export const store = createStore<State>({
             .post("/api/user/login", requestData)
             .then((response) => {
               if (response.status === 200 && response.data.success) {
-                console.log(response.data);
                 commit("frontSetUser", {
                   userName: response.data.user.name, // 从服务器返回的数据中获取用户名
                   userPhone: response.data.user.phone, // 从服务器返回的数据中获取用户电话
@@ -278,6 +355,9 @@ export const store = createStore<State>({
                   userHeadImage: response.data.user.head_image, // 从服务器返回的数据中获取用户头像
                   token: response.data.token, // 从响应中获取 token
                 });
+                // 登入成功后获取预约数据，不启动定时器
+                dispatch("scheduleTime");
+
                 return response;
               }
             })
@@ -376,7 +456,7 @@ export const store = createStore<State>({
           dispatch("debouncedUpdateUserData");
         },
         // 获得预约时间表
-        scheduleTime({ state }: ActionContext<AuthState, State>) {
+        scheduleTime({ state, commit }: ActionContext<AuthState, State>) {
           return axios
             .post("/api/reservate/schedule", {
               name: state.userName,
@@ -389,7 +469,97 @@ export const store = createStore<State>({
             .then((response) => {
               if (response.status === 200 && response.data.success) {
                 console.log(response.data);
+
+                // 处理响应数据并更新状态
+                if (
+                  response &&
+                  response.data &&
+                  typeof response.data === "object"
+                ) {
+                  // response.data 包含一个名为 'data' 的属性，其中是数组
+                  if (response.data.data && Array.isArray(response.data.data)) {
+                    const year: string[] = [];
+                    const month: string[] = [];
+                    const day: string[] = [];
+                    const weekday: string[] = [];
+                    const slots: string[][] = [];
+                    for (const item of response.data.data) {
+                      // 将每个日期的数据添加到对应的数组中
+                      year.push(item.year.toString());
+
+                      // 提取月份和日期部分
+                      const dateParts = item.date.split("-");
+                      month.push(dateParts[0]);
+                      day.push(dateParts[1]);
+
+                      weekday.push(item.weekday);
+
+                      // 处理 time_slots 字段
+                      const timeSlotsArray: string[] = [];
+                      if (item.time_slots) {
+                        // 如果 time_slots 是对象，提取其值
+                        Object.values(item.time_slots).forEach((slot) => {
+                          timeSlotsArray.push(String(slot));
+                        });
+                      }
+                      slots.push(timeSlotsArray);
+                    }
+
+                    // 更新状态和localStorage
+                    commit("setReservate", {
+                      year: year,
+                      month: month,
+                      day: day,
+                      weekday: weekday,
+                      slots: slots,
+                    });
+                  }
+                }
                 return response;
+              }
+            });
+        },
+
+        // 提交预约订单
+        upScheduleTime(
+          { state }: ActionContext<AuthState, State>,
+          payload: {
+            upYear: string;
+            upMonth: string;
+            upDay: string;
+            upSlot: string;
+          }
+        ) {
+          return axios
+            .post("/api/reservate/record", {
+              name: state.userName,
+              phone: state.userPhone,
+              email: state.userEmail,
+              date:
+                payload.upYear + "-" + payload.upMonth + "-" + payload.upDay,
+              slot: payload.upSlot,
+            })
+            .then((response) => {
+              if (response.status === 200 && response.data.success) {
+                return response;
+              }
+              if (response.status === 400) {
+                return response;
+              }
+              return response;
+            })
+            .catch((error) => {
+              if (error.response && error.response.status) {
+                // 服务器返回了错误响应
+                return error.response.status;
+              } else if (error.request) {
+                // 请求已发出但没有收到响应
+                console.error("No response received:", error.request);
+                return null; // 或者返回一个表示网络错误的特殊值
+              } else {
+                // 其他错误
+                console.error("Error:", error.message);
+                return null; // 或者返回一个表示其他错误的特殊值
               }
             });
         },
@@ -557,6 +727,77 @@ export const store = createStore<State>({
             // 开始连接
             connect();
           });
+        },
+        // 初始化预约数据（从localStorage加载）
+        initReservateData({ commit }: ActionContext<AuthState, State>) {
+          const reservateData = {
+            year: JSON.parse(localStorage.getItem("reservate_year") || "[]"),
+            month: JSON.parse(localStorage.getItem("reservate_month") || "[]"),
+            day: JSON.parse(localStorage.getItem("reservate_day") || "[]"),
+            weekday: JSON.parse(
+              localStorage.getItem("reservate_weekday") || "[]"
+            ),
+            slots: JSON.parse(localStorage.getItem("reservate_slots") || "[]"),
+          };
+
+          // 只有当有数据时才更新状态
+          if (
+            reservateData.year.length > 0 ||
+            reservateData.month.length > 0 ||
+            reservateData.day.length > 0 ||
+            reservateData.weekday.length > 0 ||
+            reservateData.slots.length > 0
+          ) {
+            commit("setReservate", reservateData);
+          }
+        },
+
+        // 每日定时更新预约表单
+        scheduleDailyUpdate({
+          dispatch,
+          state,
+        }: ActionContext<AuthState, State>) {
+          // 清除已存在的定时器
+          if ((this as any).dailyUpdateTimer) {
+            clearInterval((this as any).dailyUpdateTimer);
+          }
+
+          // 计算到下一个00:00的时间间隔
+          const now = new Date();
+          const nextMidnight = new Date();
+          nextMidnight.setHours(24, 0, 0, 0); // 设置为明天的00:00
+          const timeToMidnight = nextMidnight.getTime() - now.getTime();
+
+          // 立即执行一次更新
+          if (state.isLoggedIn) {
+            dispatch("scheduleTime");
+          }
+
+          // 设置定时器，在下一个00:00执行
+          setTimeout(() => {
+            // 递归设置下一次更新，确保每天都在00:00执行
+            const scheduleNextUpdate = () => {
+              if ((this as any).dailyUpdateTimer) {
+                clearTimeout((this as any).dailyUpdateTimer);
+              }
+
+              const now = new Date();
+              const nextMidnight = new Date();
+              nextMidnight.setHours(24, 0, 0, 0); // 设置为明天的00:00
+              const timeToMidnight = nextMidnight.getTime() - now.getTime();
+
+              (this as any).dailyUpdateTimer = setTimeout(() => {
+                if (state.isLoggedIn) {
+                  dispatch("scheduleTime");
+                }
+                // 递归调用以安排下一次更新
+                scheduleNextUpdate();
+              }, timeToMidnight);
+            };
+
+            // 开始调度下一次更新
+            scheduleNextUpdate();
+          }, timeToMidnight);
         },
       },
       getters: {

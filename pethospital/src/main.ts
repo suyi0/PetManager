@@ -4,6 +4,14 @@ import "./registerServiceWorker";
 import router from "./router";
 import { store, key } from "./store";
 
+// 初始化预约数据
+store.dispatch("auth/initReservateData");
+
+// 如果用户已登录，启动每日更新预约表单的定时器
+if (store.state.auth.isLoggedIn) {
+  store.dispatch("auth/scheduleDailyUpdate");
+}
+
 createApp(App).provide(key, store).use(store).use(router).mount("#app");
 
 // 在 main.ts 或 App.vue 中

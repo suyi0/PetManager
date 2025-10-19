@@ -58,6 +58,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: true }, // 需要认证才能访问
   },
   {
+    path: "/user/order",
+    component: () => import("../views/order-module/orderView.vue"),
+    name: "order",
+    meta: { requiresAuth: true }, // 需要认证才能访问
+  },
+  {
     path: "/user/setAddress",
     component: () => import("../views/Personal-module/setAddressView.vue"),
     name: "setAddress",
