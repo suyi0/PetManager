@@ -114,7 +114,7 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app)
 
                 // 从数据库中获取用户信息
                 int user_id = 0;
-                int doctor_id = 1;
+                int doctor_id = 0;
                 std::string date = "";
                 std::string time_slot = "";
                 std::string status = "预约成功";
@@ -146,6 +146,7 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app)
                     }
 
                     auto user_row = users_result.fetchOne();
+                    // 如果用户不存在，返回错误
                     if (!user_row) {
                         res.code = 404;
                         res.set_header("Content-Type", "application/json");
@@ -160,6 +161,14 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app)
                     // 创建数据库操作
                     mysqlx::TableInsert insert_op = reaservation_table.insert("user_id","doctor_id","date","time_slot","status","creation_time");
 
+                    // 安全获取预约信息字段
+                    // 获取并转换 doctor_id, date, time_slot 字段
+                    if(request_body.find("doctor_id") != request_body.end() && !request_body["doctor_id"].is_null())
+                    {
+                        doctor_id = request_body["doctor_id"].is_number() ? 
+                                request_body["doctor_id"].get<int>() : 
+                                std::stoi(request_body["doctor_id"].dump());
+                    }
                     if(request_body.find("date") != request_body.end() && !request_body["date"].is_null())
                     {
                         date = request_body["date"].is_string() ? 
@@ -172,7 +181,6 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app)
                                 request_body["slot"].get<std::string>() : 
                                 request_body["slot"].dump();
                     }
-
                     // 获得预约记录创建时间
                     creation_time = getCreateTime();
                     // 插入数据库
@@ -210,6 +218,87 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app)
                 res.write(R"({"error": "Failed to save reservation"})");
                 res.end();  // 显式结束响应
             } });
+
+    // 取消预约记录路由
+    CROW_ROUTE(app, "/api/reservate/cancel/<int>")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([](const crow::request &req, crow::response &res, int reservation_id)
+                                                                    {
+            try {
+                // 处理OPTIONS预检请求
+                initializeOPTIONS(req,res);
+
+                // 处理POST请求
+                // 解析请求体中的 JSON 数据
+                nlohmann::json request_body;
+                try
+                {
+                    request_body = nlohmann::json::parse(req.body);
+                }
+                catch (...)
+                {
+                    res.code = 400;
+                    initializeCORS(req,res);
+                    res.write(R"({"error": "Invalid JSON"})");
+                    res.end(); // 显式结束响应
+                    return;
+                }
+
+                // 检查数据库连接是否存在
+                if (!g_db_session || !g_database) {
+                    res.code = 500;
+                    initializeCORS(req,res);
+                    res.write(R"({"error": "Database connection not available"})");
+                    res.end();
+                    return;
+                }
+
+                std::string status = "已取消";
+
+                // 创建数据库操作
+                mysqlx::Table reaservation_table = g_database->getTable("reservations");
+
+                mysqlx::TableUpdate update_op = reaservation_table.update();
+                update_op.set("status", status).where("id = :id").bind("id", reservation_id).execute();
+
+                // 返回成功响应
+                nlohmann::json response;
+                response["success"] = true;
+                response["message"] = "取消成功";
+                res.code = 200;
+                initializeCORS(req, res);
+                res.write(response.dump());
+                res.end();
+                return;
+
+            } catch (const std::exception& e) {
+                res.code = 500;
+                initializeCORS(req,res);
+                res.write(R"({"error": "Failed to cancel reservation"})");
+                res.end();
+                return;
+            } });
+
+    // 获得订单记录
+    CROW_ROUTE(app, "/api/order/getrecord")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([](const crow::request &req, crow::response &res) {
+            try {
+                // 处理OPTIONS预检请求
+                initializeOPTIONS(req, res);
+
+                // 检查数据库连接是否存在
+                if (!g_db_session || !g_database) {
+                    res.code = 500;
+                    initializeCORS(req, res);
+                    res.write(R"({"error": "Database connection not available"})");
+                    res.end();
+                    return;
+                }
+            } catch (const std::exception& e) {
+                res.code = 500;
+                initializeCORS(req, res);
+                res.write(R"({"error": "Failed to check database connection"})");
+            }
+        });
 
     // 获取预约记录列表路由
     CROW_ROUTE(app, "/api/reservate/getrecord")

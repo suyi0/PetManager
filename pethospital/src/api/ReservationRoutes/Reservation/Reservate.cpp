@@ -25,10 +25,14 @@ void Reservate::date()
         // 计算第i天的日期
         boost::gregorian::date current_date = today + boost::gregorian::days(i);
 
-        // 格式化日期字符串
-        std::string date_str = std::to_string(current_date.year()) + "-" +
-                               std::to_string(current_date.month()) + "-" +
-                               std::to_string(current_date.day());
+        // 格式化日期字符串，确保月份和日期始终是两位数
+        char date_buffer[11];
+        snprintf(date_buffer, sizeof(date_buffer), "%d-%02d-%02d", 
+                static_cast<int>(current_date.year()),
+                static_cast<int>(current_date.month()),
+                static_cast<int>(current_date.day()));
+        
+        std::string date_str(date_buffer);
 
         // 判断星期几
         boost::gregorian::greg_weekday day_of_week = current_date.day_of_week();

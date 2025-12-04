@@ -28,44 +28,26 @@
         </div>
       </div>
       <div class="reservation-slots-middle">
-        <div class="reservation-slots-middle-div">
+        <div
+          v-for="doctor in doctorData"
+          :key="doctor.id"
+          class="reservation-slots-middle-div"
+        >
           <img
             class="reservation-slots-middle-div-img"
             src="@/assets/photo/background.jpeg"
             alt="头像"
           />
+          <span class="reservation-slots-middle-div-doctorName">{{
+            doctor.name
+          }}</span>
           <span class="reservation-slots-middle-div-span">医生介绍:</span>
           <button
             class="reservation-slots-middle-div-button"
-            @click="props.switchTab('showSlots')"
-          >
-            <span>预约</span>
-          </button>
-        </div>
-        <div class="reservation-slots-middle-div">
-          <img
-            class="reservation-slots-middle-div-img"
-            src="@/assets/photo/background.jpeg"
-            alt="头像"
-          />
-          <span class="reservation-slots-middle-div-span">医生介绍:</span>
-          <button
-            class="reservation-slots-middle-div-button"
-            @click="props.switchTab('showSlots')"
-          >
-            <span>预约</span>
-          </button>
-        </div>
-        <div class="reservation-slots-middle-div">
-          <img
-            class="reservation-slots-middle-div-img"
-            src="@/assets/photo/background.jpeg"
-            alt="头像"
-          />
-          <span class="reservation-slots-middle-div-span">医生介绍:</span>
-          <button
-            class="reservation-slots-middle-div-button"
-            @click="props.switchTab('showSlots')"
+            @click="
+              props.switchTab('showSlots');
+              choiceDoctor(doctor)
+            "
           >
             <span>预约</span>
           </button>
@@ -208,63 +190,41 @@
                     <span
                       v-for="(item, index) in getSlotArray(dateTab, 'morning')"
                       :key="'morning-time-' + dateTab + '-' + index"
-                      >{{ item }}</span
-                    >
-                  </div>
-                  <div
-                    class="date-selectors-middle-slots-morning-container-right"
-                  >
-                    <button
-                      class="date-selectors-middle-slots-morning-container-right-button"
-                      @click="switchChoice('button1')"
-                    >
-                      <img
-                        v-if="choiceActive === 'button1'"
-                        src="@/assets/photo/钩.svg"
-                        alt="钩"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                      <img
-                        v-else
-                        src="@/assets/photo/未选中.svg"
-                        alt="未选中"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                    </button>
-                    <button
-                      class="date-selectors-middle-slots-morning-container-right-button"
-                      @click="switchChoice('button2')"
-                    >
-                      <img
-                        v-if="choiceActive === 'button2'"
-                        src="@/assets/photo/钩.svg"
-                        alt="钩"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                      <img
-                        v-else
-                        src="@/assets/photo/未选中.svg"
-                        alt="未选中"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                    </button>
-                    <button
-                      class="date-selectors-middle-slots-morning-container-right-button"
-                      @click="switchChoice('button3')"
-                    >
-                      <img
-                        v-if="choiceActive === 'button3'"
-                        src="@/assets/photo/钩.svg"
-                        alt="钩"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                      <img
-                        v-else
-                        src="@/assets/photo/未选中.svg"
-                        alt="未选中"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                    </button>
+                      >{{ item }}
+                      <div
+                        class="date-selectors-middle-slots-morning-container-right"
+                      >
+                        <button
+                          class="date-selectors-middle-slots-morning-container-right-button"
+                          @click="
+                            switchChoice(
+                              index === 0
+                                ? 'button1'
+                                : index === 1
+                                ? 'button2'
+                                : 'button3'
+                            )
+                          "
+                        >
+                          <img
+                            v-if="
+                              (index === 0 && choiceActive === 'button1') ||
+                              (index === 1 && choiceActive === 'button2') ||
+                              (index === 2 && choiceActive === 'button3')
+                            "
+                            src="@/assets/photo/钩.svg"
+                            alt="钩"
+                            class="date-selectors-middle-slots-morning-container-right-img"
+                          />
+                          <img
+                            v-else
+                            src="@/assets/photo/未选中.svg"
+                            alt="未选中"
+                            class="date-selectors-middle-slots-morning-container-right-img"
+                          />
+                        </button>
+                      </div>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -280,80 +240,44 @@
                         'afternoon'
                       )"
                       :key="'afternoon-time-' + dateTab + '-' + index"
-                      >{{ item }}</span
-                    >
-                  </div>
-                  <div
-                    class="date-selectors-middle-slots-afternoon-container-right"
-                  >
-                    <button
-                      class="date-selectors-middle-slots-morning-container-right-button"
-                      @click="switchChoice('button4')"
-                    >
-                      <img
-                        v-if="choiceActive === 'button4'"
-                        src="@/assets/photo/钩.svg"
-                        alt="钩"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                      <img
-                        v-else
-                        src="@/assets/photo/未选中.svg"
-                        alt="未选中"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                    </button>
-                    <button
-                      class="date-selectors-middle-slots-morning-container-right-button"
-                      @click="switchChoice('button5')"
-                    >
-                      <img
-                        v-if="choiceActive === 'button5'"
-                        src="@/assets/photo/钩.svg"
-                        alt="钩"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                      <img
-                        v-else
-                        src="@/assets/photo/未选中.svg"
-                        alt="未选中"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                    </button>
-                    <button
-                      class="date-selectors-middle-slots-morning-container-right-button"
-                      @click="switchChoice('button6')"
-                    >
-                      <img
-                        v-if="choiceActive === 'button6'"
-                        src="@/assets/photo/钩.svg"
-                        alt="钩"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                      <img
-                        v-else
-                        src="@/assets/photo/未选中.svg"
-                        alt="未选中"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                    </button>
-                    <button
-                      class="date-selectors-middle-slots-morning-container-right-button"
-                      @click="switchChoice('button7')"
-                    >
-                      <img
-                        v-if="choiceActive === 'button7'"
-                        src="@/assets/photo/钩.svg"
-                        alt="钩"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                      <img
-                        v-else
-                        src="@/assets/photo/未选中.svg"
-                        alt="未选中"
-                        class="date-selectors-middle-slots-morning-container-right-img"
-                      />
-                    </button>
+                      >{{ item }}
+                      <div
+                        class="date-selectors-middle-slots-afternoon-container-right"
+                      >
+                        <button
+                          class="date-selectors-middle-slots-morning-container-right-button"
+                          @click="
+                            switchChoice(
+                              index === 0
+                                ? 'button4'
+                                : index === 1
+                                ? 'button5'
+                                : index === 2
+                                ? 'button6'
+                                : 'button7'
+                            )
+                          "
+                        >
+                          <img
+                            v-if="
+                              (index === 0 && choiceActive === 'button4') ||
+                              (index === 1 && choiceActive === 'button5') ||
+                              (index === 2 && choiceActive === 'button6') ||
+                              (index === 3 && choiceActive === 'button7')
+                            "
+                            src="@/assets/photo/钩.svg"
+                            alt="钩"
+                            class="date-selectors-middle-slots-morning-container-right-img"
+                          />
+                          <img
+                            v-else
+                            src="@/assets/photo/未选中.svg"
+                            alt="未选中"
+                            class="date-selectors-middle-slots-morning-container-right-img"
+                          />
+                        </button>
+                      </div>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -417,6 +341,16 @@ const props = defineProps<{
 const emit = defineEmits(["close", "cancle", "submit-success"]);
 
 // 4. 响应式数据
+interface Doctor {
+  id: number;
+  name: string;
+}
+
+const doctorData = computed<Doctor[]>(() => {
+  const data = store.state.auth.reservate.doctorData;
+  // 如果是单个对象，转换为数组；如果是数组，直接返回
+  return Array.isArray(data) ? data : [data];
+});
 const dateTab = ref("date1");
 const choiceActive = ref("");
 const year = computed(() => store.state.auth.reservate.year);
@@ -424,11 +358,12 @@ const month = computed(() => store.state.auth.reservate.month);
 const day = computed(() => store.state.auth.reservate.day);
 const weekday = computed(() => store.state.auth.reservate.weekday);
 const slots = computed(() => store.state.auth.reservate.slots);
-const upYear = ref("");
-const upMonth = ref("");
-const upDay = ref("");
-const upSlot = ref("");
-const submitAfter = ref(true);
+const upDoctorId = ref<number>(0);  //上传的医生ID
+const upYear = ref("");             //上传的年份
+const upMonth = ref("");            //上传的月份
+const upDay = ref("");              //上传的日期
+const upSlot = ref("");             //上传的时间段
+const submitAfter = ref(false);
 
 // 5. 计算属性
 
@@ -436,9 +371,18 @@ const submitAfter = ref(true);
 function close() {
   emit("close");
 }
+
 function cancle() {
   emit("cancle");
 }
+
+function choiceDoctor(doctor: Doctor) {
+  if(upDoctorId.value !== 0) {
+    upDoctorId.value = 0; // 重置医生ID
+  }
+  upDoctorId.value = doctor.id;
+}
+
 function getSlotArray(
   dateTab: string,
   period: "morning" | "afternoon"
@@ -504,7 +448,7 @@ function judgehDate(dateTab: string) {
 }
 
 function switchSlots(dateTab: string, choiceActive: string) {
-  const slotIndex = judgehDate(dateTab);
+  const slotIndex = judgehDate(dateTab); //判断选择的时间段
   // 确保数组存在再访问
   if (slots.value && slots.value[slotIndex]) {
     switch (choiceActive) {
@@ -572,6 +516,7 @@ function submit(dateTab: string, choiceActive: string) {
   // 提交预约记录
   store
     .dispatch("auth/upScheduleTime", {
+      upDoctorId: upDoctorId.value,
       upYear: upYear.value,
       upMonth: upMonth.value,
       upDay: upDay.value,
@@ -587,16 +532,26 @@ function submit(dateTab: string, choiceActive: string) {
           day: upDay.value,
           slot: upSlot.value,
         });
+        upDoctorId.value = 0;
       }
+    })
+    .catch((error) => {
+      console.error("预约提交失败:", error);
     });
 }
 function switchDate(tab: string) {
   dateTab.value = tab;
+  choiceActive.value = "";
 }
 function switchChoice(tab: string) {
-  choiceActive.value = tab;
+  if (choiceActive.value !== tab) {
+    choiceActive.value = tab;
+  } else {
+    choiceActive.value = "";
+  }
 }
 
+// 移除提交成功后的状态
 function removeSubmitAfter() {
   submitAfter.value = false;
   props.switchTab("reservation");
@@ -689,6 +644,13 @@ onBeforeUnmount(() => {
           object-fit: cover;
           border-radius: 12px;
           box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.3);
+        }
+        .reservation-slots-middle-div-doctorName {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+          font-size: 36px;
         }
         .reservation-slots-middle-div-span {
           width: 250px;

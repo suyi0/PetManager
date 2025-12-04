@@ -28,6 +28,10 @@ export interface AuthState {
   showRegister: boolean; // 添加注册页面状态
   choiceActive: boolean; // 控制同意框状态
   reservate: {
+    doctorData: {
+      id: number; // 预约医生ID
+      name: string; // 预约医生姓名
+    }[]; // 预约医生数据
     year: string[]; // 预约表年份
     month: string[]; // 预约表月份
     day: string[]; // 预约表日期
@@ -519,11 +523,11 @@ export const store = createStore<State>({
               }
             });
         },
-
         // 提交预约订单
         upScheduleTime(
           { state }: ActionContext<AuthState, State>,
           payload: {
+            upDoctorId: number;
             upYear: string;
             upMonth: string;
             upDay: string;
@@ -535,6 +539,7 @@ export const store = createStore<State>({
               name: state.userName,
               phone: state.userPhone,
               email: state.userEmail,
+              doctorId: payload.upDoctorId,
               date:
                 payload.upYear + "-" + payload.upMonth + "-" + payload.upDay,
               slot: payload.upSlot,
@@ -751,7 +756,6 @@ export const store = createStore<State>({
             commit("setReservate", reservateData);
           }
         },
-
         // 每日定时更新预约表单
         scheduleDailyUpdate({
           dispatch,
@@ -798,6 +802,38 @@ export const store = createStore<State>({
             // 开始调度下一次更新
             scheduleNextUpdate();
           }, timeToMidnight);
+        },
+        // 获得订单
+        getOrders({ state }: ActionContext<AuthState, State>) {
+          return axios
+            .get("/api/order/getrecord", {
+              params: {
+                name: state.userName,
+                phone: state.userPhone,
+                email: state.userEmail,
+              },
+            })
+            .then((response) => {
+              if (response.status === 200 && response.data.success) {
+                return response;
+              }
+            });
+        },
+        // 获得预约订单
+        getReservation({ state }: ActionContext<AuthState, State>) {
+          return axios
+            .get("/api/reservate/getrecord", {
+              params: {
+                name: state.userName,
+                phone: state.userPhone,
+                email: state.userEmail,
+              },
+            })
+            .then((response) => {
+              if (response.status === 200 && response.data.success) {
+                return response;
+              }
+            });
         },
       },
       getters: {
