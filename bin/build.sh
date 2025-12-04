@@ -26,8 +26,8 @@ LIB_DIRS="-L/usr/local/lib \
 # 设置库文件路径，添加更多必要的 Boost 库
 LIBS="-lboost_date_time -lboost_filesystem -lboost_thread -lssl -lcrypto -lmysqlcppconnx.2 -lcurl"
 
-# 查找所有.cpp文件
-CPP_FILES=$(find "${PROJECT_ROOT}/pethospital/src/api/src" -name "*.cpp" -type f)
+# 查找所有.cpp文件，包括API目录下各个子目录的源文件
+CPP_FILES=$(find "${PROJECT_ROOT}/pethospital/src/api" -name "*.cpp" -type f)
 
 # 设置输出文件路径
 OUTPUT_FILE="${PROJECT_ROOT}/pethospital/src/api/src/RunServe"
@@ -38,7 +38,7 @@ echo "编译器: ${COMPILER}"
 echo "源文件: ${CPP_FILES}"
 echo "输出文件: ${OUTPUT_FILE}"
 
-${COMPILER} ${CPP_STD} ${DEFINE_FLAGS} ${INCLUDE_DIRS} -Wall -Werror -pedantic -g -fcolor-diagnostics -fansi-escape-codes -pthread ${CPP_FILES} -o ${OUTPUT_FILE} ${LIB_DIRS} ${LIBS} 
+${COMPILER} ${CPP_STD} ${DEFINE_FLAGS} ${INCLUDE_DIRS} -Wall -Werror -pedantic -g -fcolor-diagnostics -fansi-escape-codes -pthread ${CPP_FILES} -o ${OUTPUT_FILE} ${LIB_DIRS} ${LIBS}
 
 # 检查编译结果
 if [ $? -eq 0 ]; then

@@ -27,13 +27,13 @@ include_directories(${OPENSSL_INCLUDE_DIR})  # 添加头文件路径
 
 # 添加所有源文件
 set(SOURCES
-    pethospital/src/api/Encrypt.cpp
-    pethospital/src/api/GetAddress.cpp
-    pethospital/src/api/ManagerBack.cpp
-    pethospital/src/api/RunServe.cpp
-    pethospital/src/api/User.cpp
-    pethospital/src/api/Utils.cpp
-    pethospital/src/api/Verification.cpp
+    pethospital/src/api/src/GetAddress.cpp
+    pethospital/src/api/src/ManagerBack.cpp
+    pethospital/src/api/src/RunServe.cpp
+    pethospital/src/api/src/Utils.cpp
+    pethospital/src/api/UserRoutes/UserRoutes.cpp
+    pethospital/src/api/UserRoutes/Verification/Verification.cpp
+    pethospital/src/api/ReservationRoutes/ReservationRoutes.cpp
 )
 
 # 创建可执行文件，使用 RunServe 作为目标名称
@@ -42,6 +42,6 @@ add_executable(RunServe ${SOURCES})
 target_link_libraries(RunServe
     boost_system pthread 
     ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}  # 链接 OpenSSL
-    ${MYSQLCPPCONN_LIBRARIES}
+    ${MYSQLX_LIBRARIES}
 )
 target_link_libraries(RunServe nlohmann_json::nlohmann_json)
