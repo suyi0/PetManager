@@ -18,8 +18,8 @@
             @blur="handleInputBlur"
           />
         </div>
+        <!-- 搜索结果记录列表 -->
         <div class="order-list" v-if="openSearch">
-          <!-- 搜索结果记录列表 -->
           <div class="order-list-history">
             <div class="order-list-history-header">
               <span class="order-list-history-text">搜索记录</span>
@@ -133,30 +133,32 @@
               :key="item.id"
               class="search-result-order-item"
             >
-              <div v-if="editTab" class="home-order-leftImg">
-                <button
-                  class="home-order-leftImg-button"
-                  @click="setChoiceActive(item.id)"
-                >
-                  <img
-                    v-if="choiceActive[item.id]"
-                    src="@/assets/photo/钩.svg"
-                    alt="钩"
-                    class="home-order-leftImg-button-img"
-                  />
-                  <img
-                    v-else
-                    src="@/assets/photo/未选中.svg"
-                    alt="未选中"
-                    class="home-order-leftImg-button-img"
-                  />
-                </button>
-              </div>
-              <div class="home-order-rightText">
-                <button class="home-order-rightText-button">
-                  {{ item.name }}
-                </button>
-              </div>
+              <router-link :to="`/user/orderDetail?tab=${activeTab}`">
+                <div v-if="editTab" class="home-order-leftImg">
+                  <button
+                    class="home-order-leftImg-button"
+                    @click="ordersButton(item.id)"
+                  >
+                    <img
+                      v-if="choiceActive[item.id]"
+                      src="@/assets/photo/钩.svg"
+                      alt="钩"
+                      class="home-order-leftImg-button-img"
+                    />
+                    <img
+                      v-else
+                      src="@/assets/photo/未选中.svg"
+                      alt="未选中"
+                      class="home-order-leftImg-button-img"
+                    />
+                  </button>
+                </div>
+                <div class="home-order-rightText">
+                  <button class="home-order-rightText-button">
+                    {{ item.name }}
+                  </button>
+                </div>
+              </router-link>
             </div>
           </div>
         </div>
@@ -170,30 +172,32 @@
               :key="item.id"
               class="search-result-order-item"
             >
-              <div v-if="editTab" class="home-order-leftImg">
-                <button
-                  class="home-order-leftImg-button"
-                  @click="setChoiceActive(item.id)"
-                >
-                  <img
-                    v-if="choiceActive[item.id]"
-                    src="@/assets/photo/钩.svg"
-                    alt="钩"
-                    class="home-order-leftImg-button-img"
-                  />
-                  <img
-                    v-else
-                    src="@/assets/photo/未选中.svg"
-                    alt="未选中"
-                    class="home-order-leftImg-button-img"
-                  />
-                </button>
-              </div>
-              <div class="reservation-order-rightText">
-                <button class="reservation-order-rightText-button">
-                  {{ item.name }}
-                </button>
-              </div>
+              <router-link :to="`/user/orderDetail?tab=${activeTab}`">
+                <div v-if="editTab" class="home-order-leftImg">
+                  <button
+                    class="home-order-leftImg-button"
+                    @click="ordersButton(item.id)"
+                  >
+                    <img
+                      v-if="choiceActive[item.id]"
+                      src="@/assets/photo/钩.svg"
+                      alt="钩"
+                      class="home-order-leftImg-button-img"
+                    />
+                    <img
+                      v-else
+                      src="@/assets/photo/未选中.svg"
+                      alt="未选中"
+                      class="home-order-leftImg-button-img"
+                    />
+                  </button>
+                </div>
+                <div class="reservation-order-rightText">
+                  <button class="reservation-order-rightText-button">
+                    {{ item.name }}
+                  </button>
+                </div>
+              </router-link>
             </div>
           </div>
         </div>
@@ -215,7 +219,7 @@
 import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import { useStore } from "vuex";
 import { key } from "@/store";
-// import { useRouter, useRoute } from "vue-router";
+//import { useRouter, useRoute } from "vue-router";
 // import type { PropType } from "vue";
 
 const store = useStore(key);
@@ -361,8 +365,13 @@ function handleInputBlur() {
   }, 200);
 }
 
+// 切换选择状态
 function setChoiceActive(id: number) {
   choiceActive.value[id] = !choiceActive.value[id];
+}
+
+function ordersButton(id: number) {
+  setChoiceActive(id);
 }
 
 function buttonClick(name: string) {
@@ -600,7 +609,7 @@ button {
       .order-right-top {
         width: 100%;
         height: 30px;
-        padding-left: 90px;
+        padding-left: 10%;
         display: flex;
         flex-direction: row;
         align-items: center;
@@ -621,10 +630,8 @@ button {
         .order-right-top-edit {
           font-size: 16px;
           cursor: pointer;
-          display: flex;
-          align-items: center;
-          flex-direction: row;
-          justify-content: flex-end;
+          position: absolute;
+          right: 10%;
         }
       }
 

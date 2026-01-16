@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import HomeView from "../views/Home-module/HomeView.vue";
+import HomeView from "../views/HomeNav-module/HomeView.vue";
 import UserDashboard from "../views/UserDashboardView.vue";
 import { store } from "@/store"; // 直接导入实例
 
@@ -10,19 +10,14 @@ const routes: Array<RouteRecordRaw> = [
     component: HomeView,
   },
   {
-    path: "/login",
-    name: "login",
-    component: () => import("../views/Home-module/LoginView.vue"),
-  },
-  {
     path: "/about",
     name: "about",
-    component: () => import("../views/Home-module/AboutView.vue"),
+    component: () => import("../views/HomeNav-module/AboutView.vue"),
   },
   {
     path: "/services",
     name: "services",
-    component: () => import("../views/Home-module/ServicesView.vue"),
+    component: () => import("../views/HomeNav-module/ServicesView.vue"),
   },
   {
     path: "/userdashboard",
@@ -33,17 +28,17 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/find/password",
     name: "findPassword",
-    component: () => import("../views/Home-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
+    component: () => import("../views/HomeNav-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
   },
   {
     path: "/register/account",
     name: "registerAccount",
-    component: () => import("../views/Home-module/RegisterView.vue"),
+    component: () => import("../views/HomeNav-module/RegisterView.vue"),
   },
   {
     path: "/feedback",
     name: "feedback",
-    component: () => import("../views/Home-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
+    component: () => import("../views/HomeNav-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
   },
   {
     path: "/user/personal",
@@ -61,6 +56,12 @@ const routes: Array<RouteRecordRaw> = [
     path: "/user/order",
     component: () => import("../views/order-module/orderView.vue"),
     name: "order",
+    meta: { requiresAuth: true }, // 需要认证才能访问
+  },
+  {
+    path: "/user/orderDetail",
+    component: () => import("../views/order-module/orderDetail.vue"),
+    name: "orderDetail",
     meta: { requiresAuth: true }, // 需要认证才能访问
   },
   {

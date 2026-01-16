@@ -46,7 +46,7 @@
             class="reservation-slots-middle-div-button"
             @click="
               props.switchTab('showSlots');
-              choiceDoctor(doctor)
+              choiceDoctor(doctor);
             "
           >
             <span>预约</span>
@@ -358,11 +358,11 @@ const month = computed(() => store.state.auth.reservate.month);
 const day = computed(() => store.state.auth.reservate.day);
 const weekday = computed(() => store.state.auth.reservate.weekday);
 const slots = computed(() => store.state.auth.reservate.slots);
-const upDoctorId = ref<number>(0);  //上传的医生ID
-const upYear = ref("");             //上传的年份
-const upMonth = ref("");            //上传的月份
-const upDay = ref("");              //上传的日期
-const upSlot = ref("");             //上传的时间段
+const upDoctorId = ref<number>(0); //上传的医生ID
+const upYear = ref(""); //上传的年份
+const upMonth = ref(""); //上传的月份
+const upDay = ref(""); //上传的日期
+const upSlot = ref(""); //上传的时间段
 const submitAfter = ref(false);
 
 // 5. 计算属性
@@ -377,7 +377,7 @@ function cancle() {
 }
 
 function choiceDoctor(doctor: Doctor) {
-  if(upDoctorId.value !== 0) {
+  if (upDoctorId.value !== 0) {
     upDoctorId.value = 0; // 重置医生ID
   }
   upDoctorId.value = doctor.id;

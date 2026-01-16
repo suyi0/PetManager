@@ -19,10 +19,14 @@
         @click="emit('switchTab', 'name')"
       >
         <button class="right-personal-button">
-          <div class="personal-container-right-personal-middle-div">姓名:</div>
-          <span class="personal-container-right-personal-middle-span">{{
-            UserName
-          }}</span>
+          <div class="personal-container-right-personal-middle-title">
+            姓名:
+          </div>
+          <div class="personal-container-right-personal-middle-div">
+            <span class="personal-container-right-personal-middle-span">{{
+              UserName
+            }}</span>
+          </div>
         </button>
       </div>
       <div
@@ -30,12 +34,14 @@
         @click="emit('switchTab', 'birthday')"
       >
         <button class="right-personal-button">
-          <div class="personal-container-right-personal-middle-div">
+          <div class="personal-container-right-personal-middle-title">
             出生日期:
           </div>
-          <span class="personal-container-right-personal-middle-span">{{
-            UserBirthday
-          }}</span>
+          <div class="personal-container-right-personal-middle-div">
+            <span class="personal-container-right-personal-middle-span">{{
+              UserBirthday
+            }}</span>
+          </div>
         </button>
       </div>
       <div
@@ -43,10 +49,10 @@
         @click="emit('switchTab', 'phone')"
       >
         <button class="right-personal-button">
-          <div class="personal-container-right-personal-middle-div">
+          <div class="personal-container-right-personal-middle-title">
             手机号:
           </div>
-          <div class="personal-container-right-personal-middle-span">
+          <div class="personal-container-right-personal-middle-div">
             <span class="personal-container-right-personal-middle-span">{{
               UserPhone
             }}</span>
@@ -58,8 +64,10 @@
         @click="emit('switchTab', 'email')"
       >
         <button class="right-personal-button">
-          <div class="personal-container-right-personal-middle-div">邮箱:</div>
-          <div class="personal-container-right-personal-middle-span">
+          <div class="personal-container-right-personal-middle-title">
+            邮箱:
+          </div>
+          <div class="personal-container-right-personal-middle-div">
             <span class="personal-container-right-personal-middle-span">{{
               UserEmail
             }}</span>
@@ -72,11 +80,13 @@
       >
         <!-- 允许子组件通过$emit触发自定义事件，父组件可以监听这些事件并作出响应。 -->
         <button class="right-personal-button">
-          <div class="personal-container-right-personal-middle-div">
+          <div class="personal-container-right-personal-middle-title">
             家庭地址:
           </div>
-          <div class="personal-container-right-personal-middle-span">
-            <span>{{ UserAddress }}</span>
+          <div class="personal-container-right-personal-middle-div">
+            <span class="personal-container-right-personal-middle-span">{{
+              UserAddress
+            }}</span>
           </div>
         </button>
       </div>

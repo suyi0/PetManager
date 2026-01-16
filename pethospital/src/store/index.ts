@@ -17,11 +17,8 @@ export interface AuthState {
   token: string | null; // 添加 token 状态
   isLoggedIn: boolean; // 添加登录状态
   personal: boolean; //添加个人信息状态
-  showLogin: boolean; // 添加 showLogin 状态
   LoginGrade: LoginGrade | null; // 添加登录页面等级状态
-  isLoginButtonActive: boolean; // 添加登录按钮状态
   isLogoutButtonActive: boolean; // 添加登出按钮状态
-  isinitLoginActive: boolean; // 添加初始化登录状态
   isAcountLoginButtonActive: boolean; // 添加账号登录按钮状态
   isWeChatLoginButtonActive: boolean; // 添加微信登录按钮状态
   isPhoneLoginButtonActive: boolean; // 添加手机登录按钮状态
@@ -31,6 +28,7 @@ export interface AuthState {
     doctorData: {
       id: number; // 预约医生ID
       name: string; // 预约医生姓名
+      specialty: string; // 预约医生专业
     }[]; // 预约医生数据
     year: string[]; // 预约表年份
     month: string[]; // 预约表月份
@@ -63,15 +61,12 @@ export const store = createStore<State>({
         userHeadImage: localStorage.getItem("user_head_image") || null, // 从localStorage恢复头像
         token: localStorage.getItem("auth_token") || null, // 从localStorage恢复token
         isLoggedIn: !!localStorage.getItem("auth_token"), // 根据是否存在token判断登录状态
-        showLogin: false, // 初始登录显示状态
         personal: false, //添加个人信息状态
-        isLoginButtonActive: false, // 初始登录按钮状态
         isLogoutButtonActive: false, // 初始登出按钮状态
-        isinitLoginActive: false, // 初始登录页面等级状态
         isAcountLoginButtonActive: false, // 初始账号登录按钮状态
         isWeChatLoginButtonActive: false, // 初始微信登录按钮状态
         isPhoneLoginButtonActive: false, // 初始手机登录按钮状态
-        LoginGrade: null, // 初始登录页面等级状态
+        LoginGrade: 1, // 初始登录页面等级状态
         showRegister: false, // 注册页面状态
         choiceActive: false, // 控制同意框状态
         // 预约列表
@@ -109,6 +104,11 @@ export const store = createStore<State>({
             day: string[];
             weekday: string[];
             slots: string[][];
+            doctorData: {
+              id: number;
+              name: string;
+              specialty: string;
+            }[];
             token: string;
             userAddressId?: string;
           }
@@ -153,20 +153,6 @@ export const store = createStore<State>({
           localStorage.setItem("user_email", payload.userEmail);
           localStorage.setItem("user_phone", payload.userPhone);
           localStorage.setItem("user_head_image", payload.userHeadImage || ""); // 保存头像到localStorage
-          localStorage.setItem("reservate_year", JSON.stringify(payload.year));
-          localStorage.setItem(
-            "reservate_month",
-            JSON.stringify(payload.month)
-          );
-          localStorage.setItem("reservate_day", JSON.stringify(payload.day));
-          localStorage.setItem(
-            "reservate_weekday",
-            JSON.stringify(payload.weekday)
-          );
-          localStorage.setItem(
-            "reservate_slots",
-            JSON.stringify(payload.slots)
-          );
           localStorage.setItem(
             "address_id",
             payload.userAddressId?.toString() || ""
@@ -182,7 +168,6 @@ export const store = createStore<State>({
         login(state: AuthState) {
           // 添加缺失的login mutation
           state.isLoggedIn = true;
-          state.showLogin = false;
         },
         logout(state: AuthState) {
           // 添加缺失的logout mutation
@@ -207,6 +192,7 @@ export const store = createStore<State>({
           localStorage.removeItem("reservate_day");
           localStorage.removeItem("reservate_weekday");
           localStorage.removeItem("reservate_slots");
+          localStorage.removeItem("reservate_doctorData");
           localStorage.removeItem("user_address");
 
           // 返回主页
@@ -216,12 +202,6 @@ export const store = createStore<State>({
           // 添加缺失的 SET_LOGIN mutation
           state.userName = data.username || data.user;
           state.isLoggedIn = true;
-        },
-        openLogin(state: AuthState) {
-          state.showLogin = true;
-        },
-        closeLogin(state: AuthState) {
-          state.showLogin = false;
         },
         upDataLoginButtonActive(state: AuthState, payload: Partial<AuthState>) {
           Object.assign(state, payload);
@@ -233,7 +213,7 @@ export const store = createStore<State>({
           // this.$store.commit('auth/setLoginGardeActive', [1, 2, 3, 4, 5]);
         },
         clearLoginGrade(state: AuthState) {
-          state.LoginGrade = null;
+          state.LoginGrade = 1;
           // // 清空数组
           // this.$store.commit('auth/clearLoginGarde');
         },
@@ -276,6 +256,22 @@ export const store = createStore<State>({
           localStorage.setItem(
             "reservate_slots",
             JSON.stringify(reservate.slots)
+          );
+        },
+        setDoctorData(
+          state: AuthState,
+          doctorData: {
+            id: number;
+            name: string;
+            specialty: string;
+          }[]
+        ) {
+          state.reservate.doctorData = doctorData;
+
+          // 同时更新localStorage
+          localStorage.setItem(
+            "reservate_doctorData",
+            JSON.stringify(doctorData)
           );
         },
       },
@@ -460,68 +456,84 @@ export const store = createStore<State>({
           dispatch("debouncedUpdateUserData");
         },
         // 获得预约时间表
-        scheduleTime({ state, commit }: ActionContext<AuthState, State>) {
-          return axios
-            .post("/api/reservate/schedule", {
-              name: state.userName,
-              phone: state.userPhone,
-              email: state.userEmail,
-              birthday: state.userBirthday,
-              address: state.userAddress,
-              headImage: state.userHeadImage,
-            })
-            .then((response) => {
-              if (response.status === 200 && response.data.success) {
-                console.log(response.data);
+        scheduleTime({ commit }: ActionContext<AuthState, State>) {
+          axios.get("/api/reservate/getData").then((response) => {
+            if (response.status === 200 && response.data.success) {
+              console.log(response.data);
 
-                // 处理响应数据并更新状态
-                if (
-                  response &&
-                  response.data &&
-                  typeof response.data === "object"
-                ) {
-                  // response.data 包含一个名为 'data' 的属性，其中是数组
-                  if (response.data.data && Array.isArray(response.data.data)) {
-                    const year: string[] = [];
-                    const month: string[] = [];
-                    const day: string[] = [];
-                    const weekday: string[] = [];
-                    const slots: string[][] = [];
-                    for (const item of response.data.data) {
-                      // 将每个日期的数据添加到对应的数组中
-                      year.push(item.year.toString());
+              // 处理响应数据并更新状态
+              if (
+                response &&
+                response.data &&
+                typeof response.data === "object"
+              ) {
+                // response.data 包含一个名为 'data' 的属性，其中是数组
+                if (response.data.data && Array.isArray(response.data.data)) {
+                  const year: string[] = [];
+                  const month: string[] = [];
+                  const day: string[] = [];
+                  const weekday: string[] = [];
+                  const slots: string[][] = [];
+                  for (const item of response.data.data) {
+                    // 将每个日期的数据添加到对应的数组中
+                    year.push(item.year.toString());
 
-                      // 提取月份和日期部分
-                      const dateParts = item.date.split("-");
-                      month.push(dateParts[0]);
-                      day.push(dateParts[1]);
+                    // 提取月份和日期部分
+                    const dateParts = item.date.split("-");
+                    month.push(dateParts[0]);
+                    day.push(dateParts[1]);
 
-                      weekday.push(item.weekday);
+                    weekday.push(item.weekday);
 
-                      // 处理 time_slots 字段
-                      const timeSlotsArray: string[] = [];
-                      if (item.time_slots) {
-                        // 如果 time_slots 是对象，提取其值
-                        Object.values(item.time_slots).forEach((slot) => {
-                          timeSlotsArray.push(String(slot));
-                        });
-                      }
-                      slots.push(timeSlotsArray);
+                    // 处理 time_slots 字段
+                    const timeSlotsArray: string[] = [];
+                    if (item.time_slots) {
+                      // 如果 time_slots 是对象，提取其值
+                      Object.values(item.time_slots).forEach((slot) => {
+                        timeSlotsArray.push(String(slot));
+                      });
                     }
-
-                    // 更新状态和localStorage
-                    commit("setReservate", {
-                      year: year,
-                      month: month,
-                      day: day,
-                      weekday: weekday,
-                      slots: slots,
-                    });
+                    slots.push(timeSlotsArray);
                   }
+
+                  // 更新状态和localStorage
+                  commit("setReservate", {
+                    year: year,
+                    month: month,
+                    day: day,
+                    weekday: weekday,
+                    slots: slots,
+                  });
                 }
-                return response;
               }
-            });
+            }
+          });
+        },
+        // 获得预约医生列表
+        scheduleDoctor({ commit }: ActionContext<AuthState, State>) {
+          axios.get("/api/reservate/getDoctor").then((response) => {
+            if (response.status === 200 && response.data.success) {
+              console.log(response.data);
+
+              // 更新预约医生数据
+              if (response.data.data && Array.isArray(response.data.data)) {
+                const doctorID: number[] = [];
+                const doctorName: string[] = [];
+                const doctorSpecialty: string[] = [];
+                for (const item of response.data.data) {
+                  doctorID.push(item.id);
+                  doctorName.push(item.name);
+                  doctorSpecialty.push(item.specialty);
+                }
+
+                commit("setDoctor", {
+                  doctorID: doctorID,
+                  doctorName: doctorName,
+                  doctorSpecialty: doctorSpecialty,
+                });
+              }
+            }
+          });
         },
         // 提交预约订单
         upScheduleTime(
