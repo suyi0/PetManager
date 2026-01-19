@@ -101,7 +101,7 @@
 // eslint-disable-next-line no-unused-vars
 import { ref, onBeforeUnmount, nextTick, onMounted } from "vue";
 import { useStore } from "vuex";
-import { key } from "@/store";
+import { key } from "@/store/userStore";
 import Cropper from "cropperjs";
 import axios from "axios";
 import "cropperjs/dist/cropper.css";

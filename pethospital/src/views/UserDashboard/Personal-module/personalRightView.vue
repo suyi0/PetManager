@@ -97,7 +97,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useStore } from "vuex";
-import { key } from "@/store";
+import { key } from "@/store/userStore";
+import { defineComponent } from "vue";
+
+defineComponent({
+  name: "userPersonalRight",
+});
 
 // 使用store
 const store = useStore(key);
@@ -105,6 +110,7 @@ const store = useStore(key);
 const emit = defineEmits(["switchTab"]);
 
 // computed 属性。它们是纯函数，只负责根据现有状态计算并返回新值，不修改任何状态。
+// 会随着 store 的状态变化而更新。
 const UserName = computed(() => {
   return store.getters["auth/formattedUserName"];
 });
@@ -133,5 +139,5 @@ const UserAddress = computed(() => {
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/Personal.css";
+@import "@/assets/styles/UserDashboard/UserPersonal.css";
 </style>

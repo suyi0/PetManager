@@ -89,10 +89,15 @@
 // 1. 导入部分
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { useStore } from "vuex";
-import { key } from "@/store";
+import { key } from "@/store/userStore";
 import treatSlotsView from "../Services-module/treatSlotsView.vue";
+import { defineComponent } from "vue";
 // import { useRouter, useRoute } from "vue-router";
 // import type { PropType } from "vue";
+
+defineComponent({
+  name: "userHomeNavServices",
+});
 
 const store = useStore(key);
 store;

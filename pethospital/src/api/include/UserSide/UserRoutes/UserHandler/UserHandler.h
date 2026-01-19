@@ -6,8 +6,8 @@
 #include "../../../../src/DatabaseManager/DatabaseManager.h"
 #include "../../../Shared/Utils/Utils.h"
 #include "nlohmann/json.hpp"
-#include "../Auth/Verification/Verification.h"
-#include "../Auth/UserEncrypt/Encrypt.h"
+#include "../../Auth/Verification/Verification.h"
+#include "../../Auth/UserEncrypt/Encrypt.h"
 #include "../User/User.h"
 #include "../GetAddress/GetAddress.h"
 

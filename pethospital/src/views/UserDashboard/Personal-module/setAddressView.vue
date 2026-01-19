@@ -39,7 +39,12 @@
 import { reactive } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
-import { key } from "../../store";
+import { key } from "@/store/userStore";
+import { defineComponent } from "vue";
+
+defineComponent({
+  name: "userSetAddress",
+});
 
 const store = useStore(key);
 const router = useRouter();

@@ -223,7 +223,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import { useStore } from "vuex";
-import { key } from "@/store";
+import { key } from "@/store/userStore";
 
 const emit = defineEmits<{
   (_e: "close"): void;

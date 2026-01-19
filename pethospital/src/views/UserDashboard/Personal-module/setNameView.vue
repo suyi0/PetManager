@@ -90,7 +90,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useStore } from "vuex";
-import { key } from "../../store";
+import { key } from "@/store/userStore";
 
 // 定义 emits
 const emit = defineEmits(["close", "submit"]);

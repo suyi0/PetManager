@@ -2,7 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import "./registerServiceWorker";
 import router from "./router";
-import { store, key } from "./store";
+import { store, key } from "@/store/userStore";
 
 // 初始化预约数据
 store.dispatch("auth/initReservateData");

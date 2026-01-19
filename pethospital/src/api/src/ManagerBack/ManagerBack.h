@@ -16,7 +16,7 @@
 #include <sys/stat.h> // 用于创建目录
 
 #include "../../include/Shared/Utils/Utils.h"
-#include "../../include/UserSide/UserRoutes/Verification/Verification.h"
+#include "../../include/UserSide/Auth/Verification/Verification.h"
 #include "../../include/UserSide/UserRoutes/UserRoutes.h"
 #include "../../include/UserSide/ReservationRoutes/ReservationRoutes.h"
 #include "../DatabaseManager/DatabaseManager.h"

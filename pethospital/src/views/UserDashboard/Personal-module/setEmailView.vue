@@ -184,7 +184,7 @@
 // 1. 导入部分
 import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import { useStore } from "vuex";
-import { key } from "@/store";
+import { key } from "@/store/userStore";
 // import { useRouter, useRoute } from "vue-router"
 // import type { PropType } from "vue"
 

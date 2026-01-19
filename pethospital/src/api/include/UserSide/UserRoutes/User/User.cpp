@@ -1,7 +1,5 @@
 #include "User.h"
 
-// ... existing code ...
-
 // 添加一个更严格的UTF-8字符串清理函数
 std::string clean_string(const std::string &input)
 {
@@ -107,7 +105,8 @@ std::string format_date(const std::tm &tm)
 
 // 辅助函数：标准化日期格式
 std::string normalizeDate(const std::string& date_str) {
-    if (date_str.empty()) return "1970-01-01";
+    if (date_str.empty())
+    return "1970-01-01";
     
     try {
         boost::gregorian::date parsed_date;
@@ -139,33 +138,32 @@ std::string normalizeDate(const std::string& date_str) {
     }
 }
 
-// 为 User 结构体添加 to_json 函数，用于序列化
-void to_json(nlohmann::json &j, const User &user)
+// 为 User 类添加 to_json 函数，用于序列化
+void User::to_json(nlohmann::json &j)
 {
     // 确保所有字符串字段都是有效的 UTF-8
     j = nlohmann::json{
-        {"id", user.id},
-        {"name", clean_string(user.name)},
-        {"phone", clean_string(user.phone)},
-        {"email", clean_string(user.email)},
-        {"birthday", boost::gregorian::to_iso_extended_string(user.birthday)},  // 转换为 ISO 格式
-        {"address_id", clean_string(user.address_id)},
-        {"address", clean_string(user.address)}
+        {"id", this->id},
+        {"name", clean_string(this->name)},
+        {"phone", clean_string(this->phone)},
+        {"email", clean_string(this->email)},
+        {"birthday", boost::gregorian::to_iso_extended_string(this->birthday)},  // 转换为 ISO 格式
+        {"address_id", clean_string(this->address_id)},
+        {"address", clean_string(this->address)}
     };
 }
-// 为 User 结构体添加 from_json 函数，用于反序列化（如果需要的话）
-void from_json(const nlohmann::json &j, User &user)
+// 为 User 类添加 from_json 函数，用于反序列化（如果需要的话）
+void User::from_json(const nlohmann::json &j)
 {
-    j.at("id").get_to(user.id);
-    j.at("name").get_to(user.name);
-    j.at("password").get_to(user.password);
-    j.at("phone").get_to(user.phone);
-    j.at("email").get_to(user.email);
-
+    j.at("id").get_to(this->id);
+    j.at("name").get_to(this->name);
+    j.at("password").get_to(this->password);
+    j.at("phone").get_to(this->phone);
+    j.at("email").get_to(this->email);
     // 修复日期字段的反序列化
     std::string birthday_str = j.at("birthday").get<std::string>();
-    user.birthday = boost::gregorian::from_simple_string(birthday_str);
-
-    j.at("address_id").get_to(user.address_id);
-    j.at("address").get_to(user.address);
+    this->birthday = boost::gregorian::from_simple_string(birthday_str);
+    j.at("address_id").get_to(this->address_id);
+    j.at("address").get_to(this->address);
 }
+

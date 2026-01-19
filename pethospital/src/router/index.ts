@@ -1,75 +1,16 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import HomeView from "../views/HomeNav-module/HomeView.vue";
-import UserDashboard from "../views/UserDashboardView.vue";
-import { store } from "@/store"; // 直接导入实例
+import userRouters from "./userRouter"; // 引入用户模块的路由
+import { store } from "@/store/userStore";
 
 const routes: Array<RouteRecordRaw> = [
   {
-    path: "/",
-    name: "Home",
-    component: HomeView,
+    path: "/PetHospitalHome",
+    name: "PetHospitalHome",
+    component: () => import("../App.vue"),
   },
-  {
-    path: "/about",
-    name: "about",
-    component: () => import("../views/HomeNav-module/AboutView.vue"),
-  },
-  {
-    path: "/services",
-    name: "services",
-    component: () => import("../views/HomeNav-module/ServicesView.vue"),
-  },
-  {
-    path: "/userdashboard",
-    name: "userdashboard",
-    component: UserDashboard,
-    meta: { requiresAuth: true }, // 需要认证才能访问
-  },
-  {
-    path: "/find/password",
-    name: "findPassword",
-    component: () => import("../views/HomeNav-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
-  },
-  {
-    path: "/register/account",
-    name: "registerAccount",
-    component: () => import("../views/HomeNav-module/RegisterView.vue"),
-  },
-  {
-    path: "/feedback",
-    name: "feedback",
-    component: () => import("../views/HomeNav-module/AboutView.vue"), // 临时使用，你需要创建实际的组件
-  },
-  {
-    path: "/user/personal",
-    name: "userPersonal",
-    component: () => import("../views/Personal-module/PersonalView.vue"),
-    meta: { requiresAuth: true }, // 需要认证才能访问
-  },
-  {
-    path: "/user/personalRight",
-    component: () => import("../views/Personal-module/personalRightView.vue"),
-    name: "personalRight",
-    meta: { requiresAuth: true }, // 需要认证才能访问
-  },
-  {
-    path: "/user/order",
-    component: () => import("../views/order-module/orderView.vue"),
-    name: "order",
-    meta: { requiresAuth: true }, // 需要认证才能访问
-  },
-  {
-    path: "/user/orderDetail",
-    component: () => import("../views/order-module/orderDetail.vue"),
-    name: "orderDetail",
-    meta: { requiresAuth: true }, // 需要认证才能访问
-  },
-  {
-    path: "/user/setAddress",
-    component: () => import("../views/Personal-module/setAddressView.vue"),
-    name: "setAddress",
-    meta: { requiresAuth: true }, // 需要认证才能访问
-  },
+
+  // 用户模块
+  ...userRouters,
 ];
 
 const router = createRouter({
@@ -98,7 +39,7 @@ router.beforeEach((to, from, next) => {
             next(); // 用户已登录，允许访问
           } else {
             next({
-              name: "login",
+              name: "PetHospitalHome",
               query: { redirect: to.fullPath },
               // 重定向到登录页
             });

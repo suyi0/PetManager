@@ -255,7 +255,6 @@ crow::response UserHandler::userLogin(const crow::request &req)
         std::string hashed_password = sha256_hash(password);
 
         // 检查数据库连接是否存在
-        DatabaseManager *dbManager = DatabaseManager::getInstance();
         if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
         {
             return ResponseHelper::system_error(req);
@@ -298,42 +297,42 @@ crow::response UserHandler::userLogin(const crow::request &req)
             for (auto row : result)
             {
                 user = std::make_unique<User>();
-                user->id = row[0].get<int>();
+                user->setID(row[0].get<int>());
                 // 确保正确处理所有字段，添加错误检查
                 try
                 {
-                    user->name = clean_string(row[1].get<std::string>());
+                    user->setName(clean_string(row[1].get<std::string>()));
                 }
                 catch (...)
                 {
-                    user->name = "[Invalid Name]";
+                    user->setName("[Invalid Name]");
                 }
 
                 try
                 {
-                    user->password = clean_string(row[2].get<std::string>());
+                    user->setPassword(clean_string(row[2].get<std::string>()));
                 }
                 catch (...)
                 {
-                    user->password = "";
+                    user->setPassword("");
                 }
 
                 try
                 {
-                    user->phone = clean_string(row[3].get<std::string>());
+                    user->setPhone(clean_string(row[3].get<std::string>()));
                 }
                 catch (...)
                 {
-                    user->phone = "";
+                    user->setPhone("");
                 }
 
                 try
                 {
-                    user->email = clean_string(row[4].get<std::string>());
+                    user->setEmail(clean_string(row[4].get<std::string>()));
                 }
                 catch (...)
                 {
-                    user->email = "";
+                    user->setEmail("");
                 }
 
                 // 处理生日字段，确保其格式正确
@@ -342,7 +341,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                     auto birthday_value = row[5];
                     if (birthday_value.isNull())
                     {
-                        user->birthday = boost::gregorian::date(1970, 1, 1);
+                        user->setBirthday(boost::gregorian::date(1970, 1, 1));
                     }
                     else
                     {
@@ -357,50 +356,50 @@ crow::response UserHandler::userLogin(const crow::request &req)
                         {
                             try
                             {
-                                user->birthday = boost::gregorian::from_simple_string(birthday_str);
+                                user->setBirthday(boost::gregorian::from_simple_string(birthday_str));
                                 std::cout << "Debug: Successfully parsed birthday: " << birthday_str << std::endl;
                             }
                             catch (...)
                             {
                                 std::cout << "Debug: Failed to parse birthday: " << birthday_str << ", using default" << std::endl;
-                                user->birthday = boost::gregorian::date(1970, 1, 1);
+                                user->setBirthday(boost::gregorian::date(1970, 1, 1));
                             }
                         }
                         else
                         {
                             std::cout << "Debug: Invalid birthday format: " << birthday_str << ", using default" << std::endl;
-                            user->birthday = boost::gregorian::date(1970, 1, 1);
+                            user->setBirthday(boost::gregorian::date(1970, 1, 1));
                         }
                     }
                 }
                 catch (const std::exception &e)
                 {
                     std::cout << "Debug: Exception in birthday processing: " << e.what() << std::endl;
-                    user->birthday = boost::gregorian::date(1970, 1, 1);
+                    user->setBirthday(boost::gregorian::date(1970, 1, 1));
                 }
 
                 try
                 {
                     if (!row[7].isNull())
                     {
-                        user->address_id = clean_string(row[7].get<std::string>());
+                        user->setAddressID(clean_string(row[7].get<std::string>())); // 设置地址ID
                     }
                     else
                     {
-                        user->address_id = "1"; // 默认地址ID
+                        user->setAddressID("1"); // 默认地址ID
                     }
                 }
                 catch (...)
                 {
-                    user->address_id = "1"; // 默认地址ID
+                    user->setAddressID("1"); // 默认地址ID
                 }
                 try
                 {
-                    user->head_image = clean_string(row[8].get<std::string>());
+                    user->setHeadImage(clean_string(row[8].get<std::string>()));
                 }
                 catch (...)
                 {
-                    user->head_image = "";
+                    user->setHeadImage("");
                 }
 
                 break; // 只需要第一个匹配的用户
@@ -423,7 +422,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
 
         // 在这里验证用户名和密码 (示例验证)
         nlohmann::json response;
-        if (!user || user->password != hashed_password)
+        if (!user || user->getPassword() != hashed_password)
         {
             // 不区分用户不存在和密码错误，统一返回相同错误信息
             response["error"] = "Invalid username or password";
@@ -440,18 +439,18 @@ crow::response UserHandler::userLogin(const crow::request &req)
 
             // 手动构建用户JSON对象，确保birthday正确序列化
             nlohmann::json user_json;
-            user_json["id"] = user->id;
-            user_json["name"] = user->name;
-            user_json["email"] = user->email;
-            user_json["phone"] = user->phone;
-            user_json["address_id"] = user->address_id;
-            user_json["head_image"] = user->head_image;
+            user_json["id"] = user->getID();
+            user_json["name"] = user->getName();
+            user_json["email"] = user->getEmail();
+            user_json["phone"] = user->getPhone();
+            user_json["address_id"] = user->getAddressID();
+            user_json["head_image"] = user->getHeadImage();
 
             // 特别处理birthday字段，将其转换为字符串格式
             std::ostringstream oss;
-            oss << std::setfill('0') << std::setw(4) << user->birthday.year()
-                << "-" << std::setfill('0') << std::setw(2) << static_cast<unsigned>(user->birthday.month())
-                << "-" << std::setfill('0') << std::setw(2) << user->birthday.day();
+            oss << std::setfill('0') << std::setw(4) << user->getBirthday().year()
+                << "-" << std::setfill('0') << std::setw(2) << static_cast<unsigned>(user->getBirthday().month())
+                << "-" << std::setfill('0') << std::setw(2) << user->getBirthday().day();
             user_json["birthday"] = oss.str();
 
             response["user"] = user_json;
@@ -914,42 +913,42 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 for (auto row : result)
                 {
                     user = std::make_unique<User>();
-                    user->id = row[0].get<int>();
+                    user->setID(row[0].get<int>());
                     // 确保正确处理所有字段，添加错误检查
                     try
                     {
-                        user->name = clean_string(row[1].get<std::string>());
+                        user->setName(clean_string(row[1].get<std::string>()));
                     }
                     catch (...)
                     {
-                        user->name = "[Invalid Name]";
+                        user->setName("[Invalid Name]");
                     }
 
                     try
                     {
-                        user->password = clean_string(row[2].get<std::string>());
+                        user->setPassword(clean_string(row[2].get<std::string>()));
                     }
                     catch (...)
                     {
-                        user->password = "";
+                        user->setPassword("");
                     }
 
                     try
                     {
-                        user->phone = clean_string(row[3].get<std::string>());
+                        user->setPhone(clean_string(row[3].get<std::string>()));
                     }
                     catch (...)
                     {
-                        user->phone = "";
+                        user->setPhone("");
                     }
 
                     try
                     {
-                        user->email = clean_string(row[4].get<std::string>());
+                        user->setEmail(clean_string(row[4].get<std::string>()));
                     }
                     catch (...)
                     {
-                        user->email = "";
+                        user->setEmail("");
                     }
 
                     // 先获取字符串格式的日期，再转换为boost::gregorian::date
@@ -996,7 +995,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 #ifdef DEBUG
                                 std::cout << "Debug: Empty or too short date string, using default" << std::endl;
 #endif
-                                user->birthday = boost::gregorian::date(1970, 1, 1);
+                                user->setBirthday(boost::gregorian::date(1970, 1, 1));
                             }
                             else
                             {
@@ -1027,7 +1026,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                                                            << std::setw(2) << std::setfill('0') << month << "-"
                                                            << std::setw(2) << std::setfill('0') << day;
 
-                                            user->birthday = boost::gregorian::from_simple_string(formatted_date.str());
+                                            user->setBirthday(boost::gregorian::from_simple_string(formatted_date.str()));
 #ifdef DEBUG
                                             std::cout << "Debug: Parsed valid date: " << formatted_date.str() << std::endl;
 #endif
@@ -1037,13 +1036,13 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 #ifdef DEBUG
                                             std::cout << "Debug: Invalid date range, using default" << std::endl;
 #endif
-                                            user->birthday = boost::gregorian::date(1970, 1, 1);
+                                            user->setBirthday(boost::gregorian::date(1970, 1, 1));
                                         }
                                     }
                                     catch (...)
                                     {
                                         std::cout << "Debug: Failed to parse date, using default" << std::endl;
-                                        user->birthday = boost::gregorian::date(1970, 1, 1);
+                                        user->setBirthday(boost::gregorian::date(1970, 1, 1));
                                     }
                                 }
                                 else
@@ -1060,7 +1059,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                                         {
                                             try
                                             {
-                                                user->birthday = boost::gregorian::from_simple_string(potential_date);
+                                                user->setBirthday(boost::gregorian::from_simple_string(potential_date));
 #ifdef DEBUG
                                                 std::cout << "Debug: Parsed potential date: " << potential_date << std::endl;
 #endif
@@ -1070,7 +1069,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 #ifdef DEBUG
                                                 std::cout << "Debug: Failed to parse potential date, using default" << std::endl;
 #endif
-                                                user->birthday = boost::gregorian::date(1970, 1, 1);
+                                                user->setBirthday(boost::gregorian::date(1970, 1, 1));
                                             }
                                         }
                                         else
@@ -1078,7 +1077,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 #ifdef DEBUG
                                             std::cout << "Debug: Invalid date format, using default" << std::endl;
 #endif
-                                            user->birthday = boost::gregorian::date(1970, 1, 1);
+                                            user->setBirthday(boost::gregorian::date(1970, 1, 1));
                                         }
                                     }
                                     else
@@ -1086,7 +1085,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 #ifdef DEBUG
                                         std::cout << "Debug: Invalid date format, using default" << std::endl;
 #endif
-                                        user->birthday = boost::gregorian::date(1970, 1, 1);
+                                        user->setBirthday(boost::gregorian::date(1970, 1, 1));
                                     }
                                 }
                             }
@@ -1096,7 +1095,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 #ifdef DEBUG
                             std::cout << "Debug: Null date value, using default" << std::endl;
 #endif
-                            user->birthday = boost::gregorian::date(1970, 1, 1);
+                            user->setBirthday(boost::gregorian::date(1970, 1, 1));
                         }
                     }
                     catch (const std::exception &e)
@@ -1104,14 +1103,14 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 #ifdef DEBUG
                         std::cout << "Debug: Exception in date processing: " << e.what() << std::endl;
 #endif
-                        user->birthday = boost::gregorian::date(1970, 1, 1);
+                        user->setBirthday(boost::gregorian::date(1970, 1, 1));
                     }
                     catch (...)
                     {
 #ifdef DEBUG
                         std::cout << "Debug: Unknown exception in date processing" << std::endl;
 #endif
-                        user->birthday = boost::gregorian::date(1970, 1, 1);
+                        user->setBirthday(boost::gregorian::date(1970, 1, 1));
                     }
 
                     // 处理可能为NULL的address_id
@@ -1119,24 +1118,24 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     {
                         try
                         {
-                            user->address_id = row[6].get<std::string>();
+                            user->setAddressID(row[6].get<std::string>());
                         }
                         catch (...)
                         {
-                            user->address_id = "1"; // 默认值
+                            user->setAddressID("1");     // 默认值
                         }
                     }
                     else
                     {
-                        user->address_id = "1"; // 默认值
+                        user->setAddressID("1");        // 默认值
                     }
                     try
                     {
-                        user->head_image = clean_string(row[7].get<std::string>());
+                        user->setHeadImage(clean_string(row[7].get<std::string>()));
                     }
                     catch (...)
                     {
-                        user->head_image = "";
+                        user->setHeadImage("");         // 默认值 = "";
                     }
                     break; // 只需要第一个匹配的用户
                 }
@@ -1163,17 +1162,17 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             bool has_changes = false; // 添加一个标志来跟踪是否有字段需要更新
 
             // 只有当前端数据与数据库数据不同时才更新
-            if (!name.empty() && user->name != name)
+            if (!name.empty() && user->getName() != name)
             {
                 update_op.set("name", name);
                 has_changes = true;
             }
-            if (!phone.empty() && user->phone != phone)
+            if (!phone.empty() && user->getPhone() != phone)
             {
                 update_op.set("phone", phone);
                 has_changes = true;
             }
-            if (!email.empty() && user->email != email)
+            if (!email.empty() && user->getEmail() != email)
             {
                 update_op.set("email", email);
                 has_changes = true;
@@ -1184,7 +1183,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 try
                 {
                     boost::gregorian::date birthday_date = boost::gregorian::from_simple_string(birthday);
-                    if (user->birthday != birthday_date)
+                    if (user->getBirthday() != birthday_date)
                     {
                         update_op.set("birthday", birthday);
                         has_changes = true;
@@ -1194,17 +1193,17 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 {
                     // 如果日期格式无效，使用默认日期进行比较
                     boost::gregorian::date default_date(1970, 1, 1);
-                    if (user->birthday != default_date)
+                    if (user->getBirthday() != default_date)
                     {
                         update_op.set("birthday", birthday);
                         has_changes = true;
                     }
                 }
             }
-            if (!headImage.empty() && user->head_image != headImage)
+            if (!headImage.empty() && user->getHeadImage() != headImage)
             {
                 // 删除原来的图片，如果文件不存在也不会报错
-                const std::string lastFileName = getLastFileName(user->head_image);
+                const std::string lastFileName = getLastFileName(user->getHeadImage());
                 std::filesystem::remove(std::string(UPLOADS_DIR) + "/" + lastFileName);
 
                 update_op.set("head_image", headImage);
@@ -1273,7 +1272,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                                 address_updated = true; // 标记地址已更新
 
                                 // 如果地址ID发生了变化，更新users表中的address_id
-                                if (new_address_id != user->address_id)
+                                if (new_address_id != user->getAddressID())
                                 {
                                     try
                                     {
@@ -1301,7 +1300,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     {
                         std::string request_address_id = request_body["address_id"].get<std::string>();
                         // 只有当address_id有效且与当前值不同时才更新
-                        if (!request_address_id.empty() && request_address_id != "0" && request_address_id != user->address_id)
+                        if (!request_address_id.empty() && request_address_id != "0" && request_address_id != user->getAddressID())
                         {
                             update_op.set("address_id", request_address_id);
                             has_changes = true;
@@ -1313,7 +1312,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                         std::cerr << "Invalid address_id provided" << std::endl;
                     }
                 }
-                else if (address_updated && new_address_id != user->address_id)
+                else if (address_updated && new_address_id != user->getAddressID())
                 {
                     // 如果通过地址文本更新了地址，则更新address_id
                     try
@@ -1362,15 +1361,15 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 
             // 手动构建用户JSON对象，确保birthday正确序列化
             nlohmann::json user_json;
-            user_json["id"] = user->id;
-            user_json["name"] = user->name;
-            user_json["email"] = user->email;
-            user_json["phone"] = user->phone;
-            user_json["address_id"] = user->address_id;
+            user_json["id"] = user->getID();
+            user_json["name"] = user->getName();
+            user_json["email"] = user->getEmail();
+            user_json["phone"] = user->getPhone();
+            user_json["address_id"] = user->getAddressID();
 
             // 特别处理birthday字段，将其转换为字符串格式
             std::ostringstream oss;
-            oss << user->birthday;
+            oss << user->getBirthday();
             user_json["birthday"] = oss.str();
 
             response["user"] = user_json;

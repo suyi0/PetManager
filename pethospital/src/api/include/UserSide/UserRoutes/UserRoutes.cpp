@@ -21,24 +21,10 @@ void UserRoutes::UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManag
                 return; // 如果是OPTIONS请求，直接返回
             }
             try {
-                crow::response login_response = handler.userLogin(req);
+                crow::response handlerResponse = handler.userLogin(req);
 
                 // 安全解析JSON
-                nlohmann::json response_json;
-                if (!login_response.body.empty())
-                {
-                    try {
-                        response_json = nlohmann::json::parse(login_response.body);
-                    } catch (const std::exception& e) {
-                        // 如果解析失败，使用原始响应
-                        res.code = login_response.code;
-                        res.body = login_response.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, login_response.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
             } catch(const std::exception& e) {
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
@@ -63,22 +49,9 @@ void UserRoutes::UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManag
             }
 
             try {
-                crow::response readyVerify_response = handler.userReadyVerification(req);
+                crow::response handlerResponse = handler.userReadyVerification(req);
             
-                nlohmann::json response_json;
-                if (!readyVerify_response.body.empty()) {
-                    try {
-                        response_json = nlohmann::json::parse(readyVerify_response.body);
-                    } catch (...) {
-                        res.code = readyVerify_response.code;
-                        res.body = readyVerify_response.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-
-                res = ResponseHelper::custom(req, readyVerify_response.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
@@ -98,21 +71,9 @@ void UserRoutes::UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManag
 
                 try
                 {
-                    crow::response verify_response = handler.userVerification(req);
+                    crow::response handlerResponse = handler.userVerification(req);
                 
-                    nlohmann::json response_json;
-                    if (!verify_response.body.empty()) {
-                    try {
-                        response_json = nlohmann::json::parse(verify_response.body);
-                    } catch (...) {
-                        res.code = verify_response.code;
-                        res.body = verify_response.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                    res = ResponseHelper::custom(req, verify_response.code, response_json);
-                    }
+                    ProcessHandlerResponse(req, res, handlerResponse);
                 } catch (const std::exception& e) {
                     res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
                 }
@@ -131,25 +92,9 @@ void UserRoutes::UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManag
             }
             try
             {
-                crow::response update_response = handler.userUpdate(req);
+                crow::response handlerResponse = handler.userUpdate(req);
 
-                nlohmann::json response_json;
-                if (!update_response.body.empty())
-                {
-                    try
-                    {
-                        response_json = nlohmann::json::parse(update_response.body);
-                    }
-                    catch (...)
-                    {
-                        res.code = update_response.code;
-                        res.body = update_response.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, update_response.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e)
             {
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
@@ -169,25 +114,9 @@ void UserRoutes::UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManag
             }
             try
             {
-                crow::response uploadAvatar_response = handler.userUploadAvatar(req);
+                crow::response handlerResponse = handler.userUploadAvatar(req);
 
-                nlohmann::json response_json;
-                if (!uploadAvatar_response.body.empty())
-                {
-                    try
-                    {
-                        response_json = nlohmann::json::parse(uploadAvatar_response.body);
-                    }
-                    catch (...)
-                    {
-                        res.code = uploadAvatar_response.code;
-                        res.body = uploadAvatar_response.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, uploadAvatar_response.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e)
             {
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
@@ -206,25 +135,9 @@ void UserRoutes::UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManag
             }
             try
             {
-                crow::response file_response = handler.upload(req, filename);
+                crow::response handlerResponse = handler.upload(req, filename);
 
-                nlohmann::json response_json;
-                if (!file_response.body.empty())
-                {
-                    try
-                    {
-                        response_json = nlohmann::json::parse(file_response.body);
-                    } catch (...)
-                    {
-                        res.code = file_response.code;
-                        res.body = file_response.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-
-                res = ResponseHelper::custom(req, file_response.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception &e)
             {
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
@@ -242,25 +155,9 @@ void UserRoutes::UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManag
             }
             try
             {
-                crow::response userdata_response = handler.getUserdata(req);
+                crow::response handlerResponse = handler.getUserdata(req);
 
-                nlohmann::json response_json;
-                if (!userdata_response.body.empty())
-                {
-                    try
-                    {
-                        response_json = nlohmann::json::parse(userdata_response.body);
-                    } catch (...)
-                    {
-                        res.code = userdata_response.code;
-                        res.body = userdata_response.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-
-                res = ResponseHelper::custom(req, userdata_response.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception &e)
             {
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));

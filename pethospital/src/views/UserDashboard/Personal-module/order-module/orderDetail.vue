@@ -45,7 +45,7 @@
 // 1. 导入部分
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { useStore } from "vuex";
-import { key } from "@/store";
+import { key } from "@/store/userStore";
 import { useRoute } from "vue-router";
 // import type { PropType } from "vue";
 

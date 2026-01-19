@@ -1,5 +1,5 @@
 <template>
-  <div v-show="showRegister && LoginGrade === 3" class="Register-mask">
+  <div v-show="showRegister" class="Register-mask">
     <div class="RegisterView">
       <div class="login-back">
         <button @click="back" class="login-back-button">
@@ -251,10 +251,16 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from "vue";
 import { useStore } from "vuex";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
+import { defineComponent } from "vue";
+
+defineComponent({
+  name: "userRegisterAccount",
+});
 
 const store = useStore();
+const route = useRoute();
 const router = useRouter();
 
 const UserName = ref("");
@@ -294,7 +300,6 @@ const passwordRegex =
 
 const showRegister = computed(() => store.state.auth.showRegister);
 const inputType = computed(() => (showPassword.value ? "text" : "password"));
-const LoginGrade = computed(() => store.state.auth.LoginGrade);
 
 // 当注册窗口关闭时，重置所有表单数据
 watch(showRegister, (newVal) => {
@@ -336,8 +341,8 @@ function resetForm() {
 
 function back() {
   // 实现返回功能
-  if (store.state.auth.LoginGrade === 3) {
-    store.commit("auth/openLogin");
+  if (route.path === "/user/register/account") {
+    router.back();
     // 返回上一级登录界面
     store.commit("auth/upDataLoginButtonActive", {
       isinitLoginActive: false,
@@ -633,5 +638,5 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
-@import "@/assets/styles/register.css";
+@import "@/assets/styles/UserDashboard/UserRegister.css";
 </style>

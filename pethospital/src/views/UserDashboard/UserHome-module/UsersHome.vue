@@ -123,9 +123,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useStore } from "vuex";
-import { key } from "@/store";
+import { key } from "@/store/userStore";
 import { useRoute } from "vue-router";
-import Login from "@/components/LoginPage.vue"; // 引入Login组件
 
 const store = useStore(key);
 const route = useRoute();
@@ -206,9 +205,6 @@ watch(
 // actions 通过 dispatch 调用。
 
 const logout = () => store.dispatch("auth/logout");
-const setLoginGradeActive = () => {
-  store.commit("auth/setLoginGradeActive", 1);
-};
 // 点击个人头像按钮时，打开个人中心
 const openPersonal = (event: Event) => {
   // 阻止事件冒泡，避免触发 handleClickOutside

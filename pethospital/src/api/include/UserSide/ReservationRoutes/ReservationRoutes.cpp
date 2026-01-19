@@ -61,27 +61,13 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
                 // 直接调用处理器方法
                 crow::response handlerResponse = handler.createReservation(req, user_id, name, email, phone, doctor_id, date, time_slot, status, creation_time);
 
-                nlohmann::json response_json;
-                if(!handlerResponse.body.empty()) {
-                    try {
-                        response_json = nlohmann::json::parse(handlerResponse.body);
-                    } catch (const std::exception& e) {
-                        // 如果解析失败，使用原始响应
-                        res.code = handlerResponse.code;
-                        res.body = handlerResponse.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, handlerResponse.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
             
             } catch (const std::exception& e) {
                 res = ResponseHelper::custom(req, 500, "error: Failed to save reservation");
             }
-            res.end();
-        });
-    
+            res.end(); });
+
     // 获取预约记录列表路由.
     CROW_ROUTE(app, "/api/reservate/getrecord")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([&handler](const crow::request &req, crow::response &res)
@@ -107,25 +93,12 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
 
                 crow::response handlerResponse = handler.getReservations(req, user_id);
 
-                nlohmann::json response_json;
-                if(!handlerResponse.body.empty()) {
-                    try {
-                        response_json = nlohmann::json::parse(handlerResponse.body);
-                    } catch (const std::exception& e) {
-                        res.code = handlerResponse.code;
-                        res.body = handlerResponse.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, handlerResponse.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
                 res = ResponseHelper::system_error(req, "error: Failed to fetch reservations, details: " + std::string(e.what()) + "\"");
             }
-            res.end();
-        });
+            res.end(); });
 
     //  预约提前数据路由.
     CROW_ROUTE(app, "/api/reservate/getData")
@@ -139,8 +112,7 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
             } catch (const std::exception& e) {
                 res = ResponseHelper::custom(req, 500, "error: Failed to generate schedule");
             }
-            res.end();
-        });
+            res.end(); });
 
     // 获取医生列表路由.
     CROW_ROUTE(app, "/api/reservate/getDoctor")
@@ -150,28 +122,11 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
                 // 生成医生列表
                 crow::response handlerResponse = handler.getDoctorList(req);
 
-                nlohmann::json doctorList = handlerResponse.body;
-                if(!handlerResponse.body.empty())
-                {
-                    try
-                    {
-                        doctorList = nlohmann::json::parse(handlerResponse.body);
-                    }
-                    catch(const std::exception& e)
-                    {
-                        res.code = handlerResponse.code;
-                        res.body = handlerResponse.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::success(req, doctorList);
+                ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
                 res = ResponseHelper::custom(req, 500, "error, Failed to get doctor list");
             }
-            res.end();
-        });
+            res.end(); });
 
     // 更新预约记录路由
     CROW_ROUTE(app, "/api/reservate/update")
@@ -199,25 +154,12 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
 
                 crow::response handlerResponse = handler.updateReservation(req, reservation_id);
 
-                nlohmann::json response_json;
-                if(!handlerResponse.body.empty()) {
-                    try {
-                        response_json = nlohmann::json::parse(handlerResponse.body);
-                    } catch (const std::exception& e) {
-                        res.code = handlerResponse.code;
-                        res.body = handlerResponse.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, handlerResponse.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
                 res = ResponseHelper::custom(req, 500, "error: Failed to update reservation, details: " + std::string(e.what()) + "\"}");
             }
-            res.end();
-        });
+            res.end(); });
 
     // 取消预约记录路由.
     CROW_ROUTE(app, "/api/reservate/cancel")
@@ -247,24 +189,11 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
 
                 crow::response handlerResponse = handler.cancelReservation(req, user_id, reservation_id);
 
-                nlohmann::json response_json;
-                if(!handlerResponse.body.empty()) {
-                    try {
-                        response_json = nlohmann::json::parse(handlerResponse.body);
-                    } catch (const std::exception& e) {
-                        res.code = handlerResponse.code;
-                        res.body = handlerResponse.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, handlerResponse.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
                 res = ResponseHelper::custom(req, 500, "error: Failed to cancel reservation");
-            }
-        });
+            } });
 
     // 删除预约记录路由.
     CROW_ROUTE(app, "/api/reservate/deleterecord")
@@ -295,26 +224,12 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
 
                 crow::response handlerResponse = handler.deleteReservation(req, user_id, reaservation_id);
 
-                nlohmann::json response_json;
-                if(!handlerResponse.body.empty()) {
-                    try {
-                        response_json = nlohmann::json::parse(handlerResponse.body);
-
-                    } catch (const std::exception& e) {
-                        res.code = handlerResponse.code;
-                        res.body = handlerResponse.body;
-                        initializeCORS(req, res);
-                        res.end();
-                        return;
-                    }
-                }
-                res = ResponseHelper::custom(req, handlerResponse.code, response_json);
+                ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
                 res = ResponseHelper::custom(req, 500, "error: Failed to delete reservation, details: " + std::string(e.what()) + "\"");
             }
-            res.end();
-        });
+            res.end(); });
 
     routes_setup = true;
 }
