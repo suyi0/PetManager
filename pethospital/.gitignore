@@ -31,5 +31,4 @@ pnpm-debug.log*
 *.sw?
 
 # Configuration files containing sensitive data
-*.conf
-config.ini
+config.json

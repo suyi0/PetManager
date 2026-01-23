@@ -2,6 +2,33 @@ import { createStore, Store, ActionContext } from "vuex";
 import { InjectionKey } from "vue";
 import axios from "axios";
 
+// 添加防抖工具函数
+function debounce<T extends (..._args: any[]) => any>(func: T, wait: number) {
+  return function (this: any, ..._args: Parameters<T>): Promise<ReturnType<T>> {
+    // 将timeoutId附加到函数本身，确保每个被防抖的函数都有自己的定时器
+    if (!(func as any).__debounceTimer) {
+      (func as any).__debounceTimer = null;
+    }
+    return new Promise((resolve, reject) => {
+      if ((func as any).__debounceTimer) {
+        clearTimeout((func as any).__debounceTimer);
+      }
+      (func as any).__debounceTimer = setTimeout(() => {
+        try {
+          const result = func.apply(this, _args);
+          if (result instanceof Promise) {
+            result.then(resolve).catch(reject);
+          } else {
+            resolve(result);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      }, wait) as unknown as number;
+    });
+  };
+}
+
 export type LoginGrade = 1 | 2 | 3 | 4 | 5; // 定义有效的等级值
 
 // 1. 定义 AuthState 类型
@@ -279,7 +306,7 @@ export const store = createStore<State>({
       actions: {
         // 模块名需与 dispatch 路径匹配
         // 添加注册 action
-        register(
+        register: debounce(function (
           { commit }: ActionContext<AuthState, State>,
           payload: {
             email: string;
@@ -311,16 +338,29 @@ export const store = createStore<State>({
                 throw error;
               })
           );
-        },
-        registerSetUser(
+        }, 300),
+
+        registerSetUser: debounce(function (
           context: ActionContext<AuthState, State>,
           payload: { email: string; password: string }
         ) {
-          axios.post("/api/user/form", {
-            password: payload.password,
-            email: payload.email,
-          });
+          axios
+            .post("/api/user/form", {
+              password: payload.password,
+              email: payload.email,
+            })
+            .then((response) => {
+              if (response.status === 200) {
+                return response;
+              } else {
+                throw new Error("Register set user failed");
+              }
+            })
+            .catch((error) => {
+              throw error;
+            });
         },
+        300),
         login(
           { commit, dispatch }: ActionContext<AuthState, State>,
           payload: {
@@ -344,7 +384,7 @@ export const store = createStore<State>({
           return axios
             .post("/api/user/login", requestData)
             .then((response) => {
-              if (response.status === 200 && response.data.success) {
+              if (response.status === 200) {
                 commit("frontSetUser", {
                   userName: response.data.user.name, // 从服务器返回的数据中获取用户名
                   userPhone: response.data.user.phone, // 从服务器返回的数据中获取用户电话

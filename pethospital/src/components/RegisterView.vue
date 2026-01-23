@@ -289,6 +289,9 @@ const specialChar = ref(false); // 特殊字符
 const passwordLength = ref(false); // 密码长度
 const VerifyPrompt = ref(false); // 验证码提示框状态
 
+let requestInProgress = false; // 请求是否正在进行
+let registerInProgress = false; // 注册是否正在进行
+
 // 添加密码强度检查
 const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/; // 简单的邮箱格式验证
 // const phoneRegex = /^1[3-9]\d{9}$/; // 中国大陆手机号验证
@@ -341,7 +344,7 @@ function resetForm() {
 
 function back() {
   // 实现返回功能
-  if (route.path === "/user/register/account") {
+  if (route.name === "userRegisterAccount") {
     router.back();
     // 返回上一级登录界面
     store.commit("auth/upDataLoginButtonActive", {
@@ -548,12 +551,13 @@ function Length() {
 
 function getVerificationCode() {
   if (!isgetVerificationCode.value && isEmailValid.value) {
-    if (passwordCheckTimeout.value) {
-      clearTimeout(passwordCheckTimeout.value);
+    if (requestInProgress || !isEmailValid.value) {
+      return;
     }
+
+    requestInProgress = true;
     isgetVerificationCode.value = true;
-    count.value = 60; // 设置倒计时时间为60秒
-    // 开始倒计时
+    count.value = 60;
     startCountdown();
     axios
       .post("/api/verification/ready", {
@@ -573,28 +577,59 @@ function getVerificationCode() {
           // 其他错误
           alert("请求错误: " + error.message);
         }
+      })
+      .finally(() => {
+        requestInProgress = false; // 释放锁
       });
   }
 }
 
 function Verify() {
+  if (registerInProgress) {
+    alert("请等待注册完成");
+    return;
+  }
+
+  // 验证必要参数
+  if (!Email.value || !VerificationCode.value || !Password1.value) {
+    alert("请填写完整的注册信息");
+    return;
+  }
+
+  // 设置状态锁，防止重复提交
+  registerInProgress = true;
+
   // 在注册组件中
   store
     .dispatch("auth/register", {
       email: Email.value,
       code: VerificationCode.value,
     })
-    .then((response) => {
-      if (response.status === 200 && response.data.success) {
-        store.dispatch("auth/registerSetUser", {
+    .then((registerResponse) => {
+      if (registerResponse.status === 200) {
+        // 注册成功，进行保存用户数据
+        // return store.dispatch("auth/registerSetUser",
+        // 会返回一个Promise对象重新链接到主链上
+        return store.dispatch("auth/registerSetUser", {
           email: Email.value,
           password: Password1.value,
         });
+      } else {
+        // 如果注册失败，抛出错误以进入catch块
+        throw new Error(`注册失败: ${registerResponse.status}`);
+      }
+    })
+    // 这个链式调用是通过return store.dispatch("auth/registerSetUser")返回的Promise对象，
+    // 允许我们进行后续处理，比如显示注册成功提示。
+    .then((registerSetUserResponse) => {
+      if (registerSetUserResponse.status === 200) {
         alert("注册成功");
         // 登录
         store.commit("auth/login");
         // 注册成功并自动登录，可以跳转到主页
-        router.push("/");
+        router.push("/user/home");
+      } else {
+        throw new Error("保存用户数据失败");
       }
     })
     .catch((error) => {
@@ -602,9 +637,14 @@ function Verify() {
         VerifyPrompt.value = true;
       } else if (error.response && error.response.status === 400) {
         alert("请输入邮箱或者验证码");
+      } else {
+        // 网络错误或其他客户端错误
+        console.error("注册失败:", error);
+        alert("网络错误或请求失败，请稍后重试");
       }
-      // 处理注册错误
-      console.error("注册失败:", error);
+    })
+    .finally(() => {
+      registerInProgress = false; // 释放锁
     });
 }
 

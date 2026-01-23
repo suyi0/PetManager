@@ -69,7 +69,7 @@
           v-if="activeTab === 'afterSale'"
           class="services-container-right-afterSale"
         ></div>
-        <treatSlotsView
+        <treatSlots
           v-if="
             activeTab === 'reservation-treatSlots' || activeTab === 'showSlots'
           "
@@ -90,7 +90,7 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { useStore } from "vuex";
 import { key } from "@/store/userStore";
-import treatSlotsView from "../Services-module/treatSlotsView.vue";
+import treatSlots from "@/views/UserDashboard/Services-module/treatSlots.vue";
 import { defineComponent } from "vue";
 // import { useRouter, useRoute } from "vue-router";
 // import type { PropType } from "vue";

@@ -16,6 +16,8 @@ private:
     DatabaseManagerInterface* dbManager;
 public:
     explicit UserHandler(DatabaseManagerInterface* dbManager) : dbManager(dbManager) {}
+    // 添加一个方法来检查数据库管理器是否可用
+    bool isDbManagerValid() const { return dbManager != nullptr; }
 
     crow::response userLogin(const crow::request& req); //  对应 "/api/user/login"
 

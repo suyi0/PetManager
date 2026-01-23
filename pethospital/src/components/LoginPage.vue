@@ -299,6 +299,8 @@ const isVerificationCodeValid = ref(false); // 验证码是否有效
 const isVerificationCodeValidActive = ref(false); // 验证码输入框状态
 const isAllowButtonActive = ref(false); // 控制同意按钮状态
 
+let loginInProgress = false;
+
 // 计算属性
 const inputType = computed(() => (showPassword.value ? "text" : "password"));
 const isAcountLoginButtonActive = computed(
@@ -354,6 +356,13 @@ const isPhone = (value: string) => {
 };
 
 const handleLogin = () => {
+  if (loginInProgress) {
+    alert("请等待");
+    return;
+  }
+  // 设置状态锁，防止重复提交
+  loginInProgress = true;
+
   if (inputTypeValue.value === "email" && Email.value) {
     // 登录逻辑
     store
@@ -368,7 +377,7 @@ const handleLogin = () => {
           // 登录
           store.commit("auth/login");
           // 登录成功，可以跳转到主页
-          router.push("/");
+          router.push("/user/home");
         }
       })
       .catch((error) => {
@@ -386,6 +395,9 @@ const handleLogin = () => {
           console.error("Error message:", error.message);
           alert("登录请求出错: " + error.message);
         }
+      })
+      .finally(() => {
+        loginInProgress = false; // 释放锁
       });
   } else if (inputTypeValue.value === "phone" && Phone.value) {
     store
@@ -394,7 +406,7 @@ const handleLogin = () => {
         password: Password.value,
       })
       .then((response) => {
-        if (response.data.success && response.status === 200) {
+        if (response.status === 200) {
           console.log("登录成功");
           console.log("Response data:", response.data);
           // 登录
@@ -418,6 +430,9 @@ const handleLogin = () => {
           console.error("Error message:", error.message);
           alert("登录请求出错: " + error.message);
         }
+      })
+      .finally(() => {
+        loginInProgress = false; // 释放锁
       });
   }
 };
@@ -559,8 +574,6 @@ const changeRegister = () => {
   store.commit("auth/upDataLoginButtonActive", {
     showRegister: true,
   });
-  console.log(store.state.auth.showRegister);
-  console.log(store.state.auth.LoginGrade);
 };
 
 // 组件卸载时重置登录状态

@@ -1,13 +1,9 @@
 <template>
-  <div class="usersHome-container">
-    <div class="usersHome-navbar">
-      <!-- 导航栏始终显示 -->
-      <nav class="usersHome-nav">
-        <!-- 使用 router-link 组件来导航. -->
-        <!-- 通过传入 `to` 属性指定链接. -->
-        <!-- <router-link> 默认会被渲染成一个 `<a>` 标签 -->
+  <div class="userHome-container">
+    <div class="userHome-navbar">
+      <nav class="userHome-nav">
         <router-link
-          to="/"
+          to="/user/home"
           class="nav-home"
           @mouseenter="handleMouseEnter('home')"
           @mouseleave="handleMouseLeave('home')"
@@ -15,7 +11,7 @@
           ><span>首页</span></router-link
         >
         <router-link
-          to="/about"
+          to="/user/home/about"
           class="nav-about"
           @mouseenter="handleMouseEnter('about')"
           @mouseleave="handleMouseLeave('about')"
@@ -24,7 +20,7 @@
           <span>关于</span>
         </router-link>
         <router-link
-          to="/services"
+          to="/user/home/services"
           class="nav-services"
           @mouseenter="handleMouseEnter('services')"
           @mouseleave="handleMouseLeave('services')"
@@ -93,11 +89,9 @@
         </div>
       </nav>
     </div>
-
-    <!-- 内容区域根据路由变化 -->
-    <main class="usersHome-content">
-      <router-view />
-    </main>
+    <div class="usersHome-content">
+      <router-view></router-view>
+    </div>
 
     <!-- 测试按钮，仅在开发环境中显示 -->
     <div
@@ -263,7 +257,7 @@ body {
   display: flex;
   flex-direction: column;
 }
-.app-container {
+.userHome-container {
   background-color: rgb(255, 255, 255);
   background-size: cover;
   background-position: center;
@@ -273,22 +267,32 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-.app-navbar {
-  flex-shrink: 0; /* 保持导航栏在顶部，不随内容滚动 */
-  width: 100%;
-  height: 45px;
-  background-color: rgba(62, 76, 86, 0.3);
-  border-radius: 12px;
-  position: fixed; /* 添加此属性 */
-  top: 0; /* 固定在顶部 */
-  z-index: 1000; /* 确保在其他元素之上 */
-}
-.app-nav {
-  display: flex;
-  gap: 18px;
-  padding: 7px;
-  font-size: 22px;
+
+  .userHome-navbar {
+    flex-shrink: 0; /* 保持导航栏在顶部，不随内容滚动 */
+    width: 100%;
+    height: 45px;
+    background-color: rgba(62, 76, 86, 0.3);
+    position: fixed; /* 添加此属性 */
+    left: 0;
+    top: 0; /* 固定在顶部 */
+    z-index: 1000; /* 确保在其他元素之上 */
+
+    .userHome-nav {
+      display: flex;
+      gap: 18px;
+      padding: 7px;
+      font-size: 22px;
+    }
+  }
+
+  .usersHome-content {
+    min-width: 100%;
+    min-height: 100%;
+    position: fixed;
+    left: 0;
+    top: 45px;
+  }
 }
 .app-content {
   flex: 1; /* 内容区域占据剩余空间 */
@@ -377,7 +381,7 @@ a {
 nav a {
   font-weight: bold;
 }
-nav a.router-link-active span {
+nav a.router-link-exact-active span {
   color: #42b983;
 }
 

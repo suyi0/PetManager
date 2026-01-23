@@ -2,7 +2,6 @@
 #include <crow.h>
 #include <nlohmann/json.hpp>
 
-
 // 工具函数声明
 void initializeCORS(const crow::request &req, crow::response &res);
 void initializeOPTIONS(const crow::request &req, crow::response &res);
@@ -10,26 +9,8 @@ bool parseJsonBody(const crow::request &req, crow::response &res, nlohmann::json
 std::string getCreateTime();
 
 // 判断响应结果函数
-void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow::response &handlerResponse)
-{
-    nlohmann::json response_json;
-    if (!handlerResponse.body.empty())
-    {
-        try
-        {
-            response_json = nlohmann::json::parse(handlerResponse.body);
-        }
-        catch (const std::exception &e)
-        {
-            // 如果解析失败，使用原始响应
-            res.code = handlerResponse.code;
-            res.body = handlerResponse.body;
-            initializeCORS(req, res);
-            return;
-        }
-    }
-    res = ResponseHelper::custom(req, handlerResponse.code, response_json);
-}
+void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow::response &handlerResponse);
+
 
 // CORS中间件类
 class CorsMiddleware

@@ -5,6 +5,16 @@ std::unordered_map<std::string, Verify::CodeInfo> Verify::code_storage; // 使�
 std::mutex Verify::storage_mutex;
 int Verify::expiration_seconds = 300; // 默认5分钟过期时间
 
+// 添加获取当前日期的辅助函数
+std::string Verify::getCurrentDate() {
+    auto now = std::chrono::system_clock::now();
+    std::time_t time_t_now = std::chrono::system_clock::to_time_t(now);
+    
+    char buffer[100];
+    std::strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %z", std::gmtime(&time_t_now));
+    return std::string(buffer);
+}
+
 // 获取验证码存储的公共方法
 std::unordered_map<std::string, Verify::CodeInfo> Verify::GetCodeStorage()
 {
@@ -86,86 +96,96 @@ std::string Verify::CreateVerify()
     return this->Code;
 }
 
-void Verify::SetSMTPConfig(std::string server, int port, std::string username, std::string password)
+// 设置邮件服务器的配置
+void Verify::SetSMTPConfig(std::string host, int port, std::string user, std::string password, std::string sender)
 {
-    smtp_server = server;     // SMTP服务器地址（如smtp.gmail.com）
+    smtp_host = host;       // SMTP服务器地址（如smtp.gmail.com）
     smtp_port = port;         // SMTP端口号（如587或465）
-    smtp_username = username; // 发送方邮箱地址
+    smtp_user = user;         // 发送方邮箱地址
     smtp_password = password; // 邮箱密码或应用专用密码
+    smtp_sender = sender;     // 发件人邮箱名称
 }
 
+// 从环境变量中加载配置
 bool Verify::LoadConfigFromEnv()
 {
     // 从环境变量加载配置
-    const char *server = getenv("SMTP_SERVER");
-    const char *port = getenv("SMTP_PORT");
-    const char *username = getenv("SMTP_USERNAME");
-    const char *password = getenv("SMTP_PASSWORD");
+    const char *smtp_host = getenv("SMTP_HOST");
+    const char *smtp_port = getenv("SMTP_PORT");
+    const char *smtp_user = getenv("SMTP_USER");
+    const char *smtp_password = getenv("SMTP_PASS");
+    const char *smtp_sender = getenv("SMTP_SENDER");
 
-    if (server && port && username && password)
+    if (smtp_host && smtp_port && smtp_user && smtp_password && smtp_sender) // 所有配置项都存在
     {
-        smtp_server = std::string(server);
-        smtp_port = atoi(port);
-        smtp_username = std::string(username);
-        smtp_password = std::string(password);
+        SetSMTPConfig(std::string(smtp_host), std::stoi(smtp_port), std::string(smtp_user), std::string(smtp_password), std::string(smtp_sender));
         return true;
     }
     return false;
 }
 
-bool Verify::LoadConfigFromFile(const std::string &configPath)
+// 从配置文件中加载配置
+bool Verify::LoadConfigFromFile()
 {
+    std::string host = "";
+    int port = 0;
+    std::string user = "";
+    std::string password = "";
+    std::string sender = "";
+
     // 从配置文件加载配置
-    std::ifstream configFile(configPath);
-    if (!configFile.is_open())
+    const char *smtp_config = getenv("PETMANAGERCONFIG_PATH") ? getenv("PETMANAGERCONFIG_PATH") : "config.json";
+    std::cout << "PETMANAGERCONFIG_PATH: " << (smtp_config ? smtp_config : "nullptr") << std::endl;
+
+    if (smtp_config == nullptr)
     {
+        std::cout << "未找到配置文件，请检查环境变量PETMANAGERCONFIG_PATH" << std::endl;
         return false;
     }
-
-    std::string line;
-    std::map<std::string, std::string> configMap;
-
-    while (getline(configFile, line))
+    std::ifstream configFile(smtp_config);
+    if (!configFile.is_open())
     {
-        // 跳过空行和注释行
-        if (line.empty() || line[0] == '#' || line[0] == ';')
+        std::cout << "无法打开配置文件：" << smtp_config << std::endl;
+        return false;
+    }
+    try
+    {
+        nlohmann::json config;
+        configFile >> config;
+        if (config.contains("email"))
         {
-            continue;
-        }
-
-        // 解析 key=value 格式
-        size_t delimiterPos = line.find('=');
-        if (delimiterPos != std::string::npos)
-        {
-            std::string key = line.substr(0, delimiterPos);
-            std::string value = line.substr(delimiterPos + 1);
-
-            // 去除首尾空格
-            key.erase(0, key.find_first_not_of(" \t"));
-            key.erase(key.find_last_not_of(" \t") + 1);
-            value.erase(0, value.find_first_not_of(" \t"));
-            value.erase(value.find_last_not_of(" \t") + 1);
-
-            configMap[key] = value;
+            if (config["email"].contains("smtp_host"))
+            {
+                host = config["email"]["smtp_host"];
+            }
+            if (config["email"].contains("smtp_port"))
+            {
+                port = config["email"]["smtp_port"];
+            }
+            if (config["email"].contains("smtp_user"))
+            {
+                user = config["email"]["smtp_user"];
+            }
+            if (config["email"].contains("smtp_password"))
+            {
+                password = config["email"]["smtp_password"];
+            }
+            if (config["email"].contains("smtp_sender"))
+            {
+                sender = config["email"]["smtp_sender"];
+            }
         }
     }
-
-    configFile.close();
-
-    // 检查必需的配置项
-    if (configMap.count("SMTP_SERVER") &&
-        configMap.count("SMTP_PORT") &&
-        configMap.count("SMTP_USERNAME") &&
-        configMap.count("SMTP_PASSWORD"))
+    catch (const std::exception &e)
     {
-
-        smtp_server = configMap["SMTP_SERVER"];
-        smtp_port = atoi(configMap["SMTP_PORT"].c_str());
-        smtp_username = configMap["SMTP_USERNAME"];
-        smtp_password = configMap["SMTP_PASSWORD"];
+        std::cerr << "Error parsing config.json: " << e.what() << std::endl;
+    }
+    // 检查配置项是否完整,完整传值，返回true
+    if (host != "" && port != 0 && user != "" && password != "" && sender != "")
+    {
+        SetSMTPConfig(host, port, user, password, sender);
         return true;
     }
-
     return false;
 }
 
@@ -206,9 +226,9 @@ void Verify::SendVerify(std::string emailaddress, std::string code, std::promise
     std::cout << "SMTP配置加载成功" << std::endl;
 
     // 检查SMTP配置是否已正确设置
-    if (smtp_server.empty() || smtp_port <= 0 || smtp_port > 65535)
+    if (smtp_host.empty() || smtp_port <= 0 || smtp_port > 65535)
     {
-        fprintf(stderr, "Invalid SMTP configuration: server=%s, port=%d\n", smtp_server.c_str(), smtp_port);
+        fprintf(stderr, "Invalid SMTP configuration: server=%s, port=%d\n", smtp_host.c_str(), smtp_port);
         if (promise)
         {
             promise->set_value(false);
@@ -217,16 +237,23 @@ void Verify::SendVerify(std::string emailaddress, std::string code, std::promise
     }
 
     // 构建邮件内容（符合RFC 2822标准）
+    std::cout << "准备发送验证码: " << code << " 到邮箱: " << emailaddress << std::endl;
     // 修改：添加发件人名字
-    payload_text = "To: " + emailaddress + "\r\n";
+    payload_text = "To: " + emailaddress + ">\r\n";
     // 使用 "姓名 <邮箱>" 格式设置发件人
-    payload_text += "From: \"YH\" <" + smtp_username + "\r\n";
+    payload_text += "From: \"YH\" <" + smtp_sender + ">\r\n";
     payload_text += "Subject: 验证码\r\n";
+    payload_text += "Date: " + getCurrentDate() + "\r\n";
     payload_text += "Content-Type: text/plain; charset=UTF-8\r\n";
     payload_text += "MIME-Version: 1.0\r\n";
     payload_text += "\r\n";
+    payload_text += "您好，\r\n";
     payload_text += "您的验证码是: " + code + "\r\n";
-    payload_text += "\r\n.\r\n"; // 添加结束符
+    payload_text += "此验证码将在5分钟内过期。\r\n";
+    payload_text += "如果您没有请求此验证码，请忽略此邮件。\n";
+    payload_text += "\r\n.\r\n"; // SMTP 结束符
+
+    std::cout << "邮件内容长度: " << payload_text.length() << std::endl;
 
     curl = curl_easy_init();
     if (curl)
@@ -235,11 +262,11 @@ void Verify::SendVerify(std::string emailaddress, std::string code, std::promise
         std::string smtp_url;
         if (smtp_port == 465)
         {
-            smtp_url = "smtps://" + smtp_server + ":" + std::to_string(smtp_port);
+            smtp_url = "smtps://" + smtp_host + ":" + std::to_string(smtp_port);
         }
         else
         {
-            smtp_url = "smtp://" + smtp_server + ":" + std::to_string(smtp_port);
+            smtp_url = "smtp://" + smtp_host + ":" + std::to_string(smtp_port);
         }
         curl_easy_setopt(curl, CURLOPT_URL, smtp_url.c_str());
 
@@ -247,7 +274,7 @@ void Verify::SendVerify(std::string emailaddress, std::string code, std::promise
         curl_easy_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 
         // 设置用户名和密码
-        curl_easy_setopt(curl, CURLOPT_USERNAME, smtp_username.c_str());
+        curl_easy_setopt(curl, CURLOPT_USERNAME, smtp_user.c_str());
         curl_easy_setopt(curl, CURLOPT_PASSWORD, smtp_password.c_str());
 
         // 对于465端口，强制使用SSL
@@ -268,7 +295,7 @@ void Verify::SendVerify(std::string emailaddress, std::string code, std::promise
         // 后期完成后要申请CA证书，完成SSL验证
 
         // 设置发件人
-        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, smtp_username.c_str());
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, smtp_user.c_str());
 
         // 添加收件人
         recipients = curl_slist_append(recipients, emailaddress.c_str());

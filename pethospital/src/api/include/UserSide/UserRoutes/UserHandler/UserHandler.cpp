@@ -477,6 +477,8 @@ crow::response UserHandler::userReadyVerification(const crow::request &req)
 
         std::string email = request_body["email"];
 
+        std::cout << "Debug: Received email: " << email << std::endl;
+
         Verify verify(email); // 栈上的对象
 
         // 检查邮箱地址
@@ -628,6 +630,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
         // 获取打开对应的表
         mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
 
+        int type_id = 1;
         std::string name = "";
         std::string password = "";
         std::string phone = "";
@@ -639,12 +642,18 @@ crow::response UserHandler::userUpdate(const crow::request &req)
         if ((request_body.find("password") != request_body.end() && request_body.find("email") != request_body.end()) ||
             (request_body.find("password") != request_body.end() && request_body.find("phone") != request_body.end()))
         {
-            std::cout << "注册" << std::endl;
-
             // 创建数据库操作(插入)
-            mysqlx::TableInsert insert_op = users_table.insert("name", "password", "CAST(phone AS CHAR)", "email", "CAST(birthday AS CHAR)", "address_id", "head_image");
+            mysqlx::TableInsert insert_op = users_table.insert("type_id", "name", "phone", "password", "email", "birthday", "creation_time", "address_id", "head_image");
 
             // 从请求中获取数据并确保它们是字符串类型
+            if(request_body.find("type_id") != request_body.end() && !request_body["type_id"].is_null())
+            {
+                type_id = request_body["type_id"].is_number() ? request_body["type_id"].get<int>() : std::stoi(std::string(request_body["type_id"]));
+            }
+            else
+            {
+                type_id = 1;
+            }
             if (request_body.find("name") != request_body.end() && !request_body["name"].is_null())
             {
                 name = request_body["name"].is_string() ? request_body["name"].get<std::string>() : request_body["name"].dump();
@@ -683,7 +692,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             }
             else
             {
-                birthday = "";
+                birthday = "1970-01-01";
             }
             if (request_body.find("headImage") != request_body.end() && !request_body["headImage"].is_null())
             {
@@ -710,23 +719,13 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 name = "未命名";
             }
 
-            // 注册时使用邮箱的没有设置手机号和生日时，设置为空字符串
-            if (phone.empty())
-            {
-                phone = "";
-            }
-            if (birthday.empty())
-            {
-                birthday = "";
-            }
-
             // 使用SHA-256对密码进行哈希处理
             std::string hashed_password = sha256_hash(password);
 
             // 获取注册时间并格式化为MySQL datetime格式
             std::string creation_time = getCreateTime();
 
-            insert_op.values(name, phone, hashed_password, email, birthday, creation_time, "1", headImage).execute();
+            insert_op.values(type_id, name, phone, hashed_password, email, birthday, creation_time, "1", headImage).execute();
             // 用于执行 INSERT 操作并将数据插入到数据库.
 
             return ResponseHelper::success(req, "用户注册成功");
@@ -1204,8 +1203,27 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             {
                 // 删除原来的图片，如果文件不存在也不会报错
                 const std::string lastFileName = getLastFileName(user->getHeadImage());
-                std::filesystem::remove(std::string(UPLOADS_DIR) + "/" + lastFileName);
+                std::string oldFilePath = std::string(UPLOADS_DIR) + "/" + lastFileName;
 
+                // 检查文件是否存在后再删除，避免删除目录
+                if (std::filesystem::exists(oldFilePath) && !std::filesystem::is_directory(oldFilePath))
+                {
+                    try
+                    {
+                        std::filesystem::remove(oldFilePath);
+                        std::cout << "Successfully removed old avatar file: " << oldFilePath << std::endl;
+                    }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "Error removing old avatar file: " << e.what() << std::endl;
+                        // 不中断更新过程，仅记录错误
+                    }
+                }
+                else
+                {
+                    std::cout << "Old avatar file does not exist or is a directory: " << oldFilePath << std::endl;
+                }
+                
                 update_op.set("head_image", headImage);
                 has_changes = true;
             }
@@ -1404,13 +1422,6 @@ crow::response UserHandler::userUploadAvatar(const crow::request &req)
 {
     try
     {
-        nlohmann::json request_body;
-        crow::response res;
-        if (!parseJsonBody(req, res, request_body))
-        {
-            return res; // JSON解析失败，直接返回
-        }
-
         // 检查数据库连接是否存在
         if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
         {

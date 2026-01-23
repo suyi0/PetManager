@@ -2,6 +2,12 @@
 #include "mysqlx/xdevapi.h"
 #include "DatabaseManagerInterface.h"
 #include <thread>
+#include <nlohmann/json.hpp>
+#include <tuple>
+#include <fstream>
+#include <iostream>
+#include <mutex>
+
 
 class DatabaseManager : public DatabaseManagerInterface
 {
