@@ -15,6 +15,7 @@
 class User
 {
     int id;                    // 用户ID
+    int type_id;               // 用户类型ID
     std::string name;          // 用户名
     std::string password;      // 密码
     std::string phone;         // 手机号 // ← 注意：此字段包含国际区号，如 +86，不应被清理
@@ -33,15 +34,20 @@ public:
     void from_json(const nlohmann::json &j);
 
     // 设置属性方法
+
     void setID(int id)                                         // 设置用户ID
     {
         this->id = id;
+    }
+    void setTypeID(int type_id)                                // 设置用户类型ID
+    {
+        this->type_id = type_id;
     }
     void setName(const std::string &name)                      // 设置用户名
     {
         this->name = name;
     }
-    void setPassword(const std::string &password)              // 设置密码
+    void setPassword(const std::string &password)               // 设置密码
     {
         this->password = password;
     }
@@ -77,6 +83,10 @@ public:
     int getID()                           // 获取用户ID
     { 
         return id;
+    }
+    int getTypeID()                       // 获取用户类型ID
+    {
+        return type_id;
     }
     std::string getName()                 // 获取用户名
     {

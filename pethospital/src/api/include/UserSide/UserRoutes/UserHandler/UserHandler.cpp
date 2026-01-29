@@ -3,6 +3,14 @@
 // 在文件顶部添加常量定义
 #define UPLOADS_DIR "/Users/yanghang/Code/PetManager/pethospital/src/assets/uploads"
 
+// 添加邮箱格式验证函数
+bool isValidEmailFormat(const std::string &email) {
+    // 简单的邮箱正则表达式验证
+    // 这个正则表达式检查基本的邮箱格式：用户名@域名.顶级域名
+    std::regex email_pattern(R"(^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$)");
+    return std::regex_match(email, email_pattern);
+}
+
 // 添加获取文件MIME类型的函数
 std::string getMimeType(const std::string &filepath)
 {
@@ -213,14 +221,18 @@ crow::response UserHandler::userLogin(const crow::request &req)
     try
     {
         // 解析请求体中的 JSON 数据
+        std::cout << "[DEBUG] Parsing JSON body" << std::endl;
         nlohmann::json request_body;
         crow::response res;
         if (!parseJsonBody(req, res, request_body))
         {
+            std::cout << "[DEBUG] Failed to parse JSON body" << std::endl;
             return res; // JSON解析失败，直接返回
         }
+        std::cout << "[DEBUG] Successfully parsed JSON body: " << request_body.dump() << std::endl;
 
         // 检查必要字段是否存在
+        std::cout << "[DEBUG] Checking required fields" << std::endl;
         bool hasEmail = (request_body.find("email") != request_body.end());
         bool hasPhone = (request_body.find("phone") != request_body.end());
         bool hasPassword = (request_body.find("password") != request_body.end());
@@ -228,6 +240,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
         // 检查是否提供了邮箱或电话号码，并且提供了密码
         if (!hasPassword && (!hasEmail || !hasPhone))
         {
+            std::cout << "[DEBUG] Missing required fields" << std::endl;
             return ResponseHelper::error(req, "Missing email or phone and password");
         }
 
@@ -240,124 +253,142 @@ crow::response UserHandler::userLogin(const crow::request &req)
         {
             email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
         }
-
         if (hasPhone)
         {
             phone = request_body["phone"].is_string() ? request_body["phone"].get<std::string>() : request_body["phone"].dump();
         }
-
         if (hasPassword)
         {
             password = request_body["password"].is_string() ? request_body["password"].get<std::string>() : request_body["password"].dump();
         }
 
+        std::cout << "[DEBUG] Email: " << email << ", Phone: " << phone << ", Password hash: " << (password.empty() ? "empty" : "provided") << std::endl;
         // 对输入的密码进行SHA-256哈希处理
+         std::cout << "[DEBUG] Hashing password" << std::endl;
         std::string hashed_password = sha256_hash(password);
 
         // 检查数据库连接是否存在
+        std::cout << "[DEBUG] Checking database connection" << std::endl;
         if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
         {
+            std::cout << "Database connection is not available" << std::endl;
             return ResponseHelper::system_error(req);
         }
 
         // 从数据库中获取用户信息
         // user是一个智能指针
+        std::cout << "[DEBUG] Starting database query" << std::endl;
         std::unique_ptr<User> user = nullptr;
         try
         {
+            std::cout << "[DEBUG] Getting users table" << std::endl;
             // 获取表
             mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
 
             // 查询用户
+            std::cout << "[DEBUG] Executing query" << std::endl;
             mysqlx::RowResult result;
             if (!email.empty())
             {
+                std::cout << "[DEBUG] Querying by email: " << email << std::endl;
                 // 通过email查询用户
-                result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
+                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "birthday", "creation_time", "address_id", "head_image")
                              .where("email = :email")
                              .bind("email", email)
                              .execute();
             }
             else if (!phone.empty())
             {
+                std::cout << "[DEBUG] Querying by phone: " << phone << std::endl;
                 // 通过phone查询用户
-                result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
+                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "birthday", "creation_time", "address_id", "head_image")
                              .where("phone = :phone")
                              .bind("phone", phone)
                              .execute();
             }
             else
             {
+                std::cout << "[DEBUG] Neither email nor phone provided" << std::endl;
                 // 理论上不会到达这里，因为前面已经检查过了
                 return crow::response(500, R"({"error": "Either email or phone must be provided"})");
             }
 
+            std::cout << "[DEBUG] Processing query results" << std::endl;
             // 即使email变量包含恶意代码，也会被当作普通字符串值处理
             // 处理结果
             for (auto row : result)
             {
+                std::cout << "[DEBUG] Processing user row" << std::endl;
                 user = std::make_unique<User>();
                 user->setID(row[0].get<int>());
                 // 确保正确处理所有字段，添加错误检查
                 try
                 {
-                    user->setName(clean_string(row[1].get<std::string>()));
+                    user->setTypeID(row[1].get<int>());
                 }
                 catch (...)
                 {
-                    user->setName("[Invalid Name]");
+                    user->setTypeID(0);
                 }
-
                 try
                 {
-                    user->setPassword(clean_string(row[2].get<std::string>()));
+                    user->setName(clean_string(row[2].get<std::string>()));
+                }
+                catch (...)
+                {
+                    user->setName("");
+                }
+                try
+                {
+                    user->setPassword(clean_string(row[3].get<std::string>()));
                 }
                 catch (...)
                 {
                     user->setPassword("");
                 }
-
                 try
                 {
-                    user->setPhone(clean_string(row[3].get<std::string>()));
+                    user->setPhone(clean_string(row[4].get<std::string>()));
                 }
                 catch (...)
                 {
                     user->setPhone("");
                 }
-
                 try
                 {
-                    user->setEmail(clean_string(row[4].get<std::string>()));
+                    user->setEmail(clean_string(row[5].get<std::string>()));
                 }
                 catch (...)
                 {
                     user->setEmail("");
                 }
-
                 // 处理生日字段，确保其格式正确
                 try
                 {
-                    auto birthday_value = row[5];
+                    std::cout << "[DEBUG] Processing birthday field" << std::endl;
+                    auto birthday_value = row[6];
                     if (birthday_value.isNull())
                     {
+                        std::cout << "[DEBUG] Birthday is NULL" << std::endl;
                         user->setBirthday(boost::gregorian::date(1970, 1, 1));
                     }
                     else
                     {
                         // 使用 toString() 方法显式转换为字符串
                         std::string birthday_str = birthday_value.get<std::string>();
+                        std::cout << "[DEBUG] Raw birthday value: '" << birthday_str << "'" << std::endl;
 
                         // 清理字符串，移除可能的空格或不可见字符
                         birthday_str = clean_string(birthday_str);
+                         std::cout << "[DEBUG] Cleaned birthday value: '" << birthday_str << "'" << std::endl;
 
                         // 确保格式为 YYYY-MM-DD
                         if (birthday_str.length() == 10 && birthday_str[4] == '-' && birthday_str[7] == '-')
                         {
                             try
                             {
-                                user->setBirthday(boost::gregorian::from_simple_string(birthday_str));
                                 std::cout << "Debug: Successfully parsed birthday: " << birthday_str << std::endl;
+                                user->setBirthday(boost::gregorian::from_simple_string(birthday_str));
                             }
                             catch (...)
                             {
@@ -380,7 +411,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
 
                 try
                 {
-                    if (!row[7].isNull())
+                    if (!row[8].isNull())
                     {
                         user->setAddressID(clean_string(row[7].get<std::string>())); // 设置地址ID
                     }
@@ -395,7 +426,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    user->setHeadImage(clean_string(row[8].get<std::string>()));
+                    user->setHeadImage(clean_string(row[9].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -420,17 +451,17 @@ crow::response UserHandler::userLogin(const crow::request &req)
             return ResponseHelper::custom(req, 500, "Operation failed");
         }
 
-        // 在这里验证用户名和密码 (示例验证)
+        // 在这里验证用户名和密码
         nlohmann::json response;
         if (!user || user->getPassword() != hashed_password)
         {
             // 不区分用户不存在和密码错误，统一返回相同错误信息
-            response["error"] = "Invalid username or password";
-            response["success"] = false;
-            return ResponseHelper::unauthorized(req, response);
+            std::cout << "[DEBUG] Invalid credentials" << std::endl;
+            return ResponseHelper::error(req, "Invalid username or password");
         }
         else
         {
+            std::cout << "[DEBUG] Valid credentials, creating response" << std::endl;
             // 验证成功
             // 生成一个基于用户邮箱的JWT token
             std::string token = generate_SHA256_jwt(email);
@@ -440,6 +471,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
             // 手动构建用户JSON对象，确保birthday正确序列化
             nlohmann::json user_json;
             user_json["id"] = user->getID();
+            user_json["type_id"] = user->getTypeID();
             user_json["name"] = user->getName();
             user_json["email"] = user->getEmail();
             user_json["phone"] = user->getPhone();
@@ -460,7 +492,9 @@ crow::response UserHandler::userLogin(const crow::request &req)
     }
     catch (const std::exception &e)
     {
-        return ResponseHelper::system_error(req, "Internal server error" + std::string(e.what()) + "\"");
+        std::cout << "[CRITICAL ERROR] Exception in userLogin: " << e.what() << std::endl;
+        std::cout << "[CRITICAL ERROR] Stack trace would go here if available" << std::endl;
+        return ResponseHelper::system_error(req, "Internal server error" + std::string(e.what()));
     }
 }
 
@@ -475,78 +509,160 @@ crow::response UserHandler::userReadyVerification(const crow::request &req)
             return res; // JSON解析失败，直接返回
         }
 
-        std::string email = request_body["email"];
-
-        std::cout << "Debug: Received email: " << email << std::endl;
-
-        Verify verify(email); // 栈上的对象
-
-        // 检查邮箱地址
-        if (verify.VerifyEmailAddress(email) == false)
+        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
         {
-            return ResponseHelper::error(req, "emailAddress is in wrong format");
+            return ResponseHelper::system_error(req);
         }
 
-        // 创建验证码
-        verify.CreateVerify();
-
-        // 使用智能指针的主要原因是：
-        // 资源共享 - 多个线程或作用域需要访问同一个对象
-        // 自动内存管理 - 避免内存泄漏和手动内存管理的复杂性
-        // 线程安全 - 确保对象在需要时不会被提前销毁
-        // 异常安全 - 即使发生异常也能正确释放资源
-        auto email_ptr = std::make_shared<std::string>(email);
-        auto verify_ptr = std::make_shared<Verify>(verify); // 创建Verify对象，通过拷贝构造创建堆上的对象
-
-        // 异步编程和承诺/未来模式 (Promise/Future)
-        auto promise_ptr = std::make_shared<std::promise<bool>>();
-        auto future = promise_ptr->get_future(); // 从promise获取future
-
-        // 发送邮件验证码
-        std::thread sender([email_ptr, verify_ptr, promise_ptr]()
-                           {
-                    try {
-                        verify_ptr->SendVerify(*email_ptr, verify_ptr->GetVerifyCode(), promise_ptr.get());
-                    } catch (...) {
-                        promise_ptr->set_value(false); // 确保在异常情况下也设置结果
-                    } });
-        sender.detach();
-
-        // 等待邮件发送步骤完成，判断发送结果
-        nlohmann::json response;
-        try
+        if (request_body.find("email") == request_body.end())
         {
-            bool sendSuccess = future.get(); // 使用之前获取的future对象
-            if (sendSuccess)                 // 使用之前获取的future对象
+            return ResponseHelper::error(req, "Missing email parameter");
+        }
+
+        std::string email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
+
+        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
+
+        mysqlx::RowResult result = users_table.select("*").where("email = :email").bind("email", email).execute();
+
+        if (result.begin() == result.end()) // 没有匹配的用户才创建验证码并发送邮件
+        {
+            Verify verify(email); // 栈上的对象
+
+            // 检查邮箱地址
+            if (verify.VerifyEmailAddress(email) == false)
             {
-                response["data"] = true;
-                response["message"] = "sent verification code email";
-                return ResponseHelper::success(req, response);
+                return ResponseHelper::error(req, "emailAddress is in wrong format");
             }
-            else
+
+            // 创建验证码
+            verify.CreateVerify();
+
+            // 使用智能指针的主要原因是：
+            // 资源共享 - 多个线程或作用域需要访问同一个对象
+            // 自动内存管理 - 避免内存泄漏和手动内存管理的复杂性
+            // 线程安全 - 确保对象在需要时不会被提前销毁
+            // 异常安全 - 即使发生异常也能正确释放资源
+            auto email_ptr = std::make_shared<std::string>(email);
+            auto verify_ptr = std::make_shared<Verify>(verify); // 创建Verify对象，通过拷贝构造创建堆上的对象
+
+            // 异步编程和承诺/未来模式 (Promise/Future)
+            auto promise_ptr = std::make_shared<std::promise<bool>>();
+            auto future = promise_ptr->get_future(); // 从promise获取future
+
+            // 发送邮件验证码
+            std::thread sender([email_ptr, verify_ptr, promise_ptr]()
+                               {
+                        try {
+                            verify_ptr->SendVerify(*email_ptr, verify_ptr->GetVerifyCode(), promise_ptr.get());
+                        } catch (...) {
+                            promise_ptr->set_value(false); // 确保在异常情况下也设置结果
+                        } });
+            sender.detach();
+
+            // 等待邮件发送步骤完成，判断发送结果
+            nlohmann::json response;
+            try
             {
+                bool sendSuccess = future.get(); // 使用之前获取的future对象
+                if (sendSuccess)                 // 使用之前获取的future对象
+                {
+                    response["data"] = true;
+                    response["message"] = "sent verification code email";
+                    return ResponseHelper::success(req, response);
+                }
+                else
+                {
+                    response["data"] = false;
+                    response["message"] = "failed to send verification code email";
+
+                    return ResponseHelper::error(req, response);
+                }
+            }
+            catch (const std::exception &e)
+            {
+                // 这个catch块会捕获所有继承自std::exception的异常类型，包括：
+                // std::runtime_error（运行时错误）
+                // std::logic_error（逻辑错误）
+                // std::invalid_argument（无效参数）
+                // std::out_of_range（超出范围）
+                // 其他标准库抛出的异常
                 response["data"] = false;
-                response["message"] = "failed to send verification code email";
-
-                return ResponseHelper::error(req, response);
+                response["message"] = "exception occurred while sending email: " + std::string(e.what()) + "\"";
+                return ResponseHelper::system_error(req);
+            }
+            catch (...)
+            {
+                return ResponseHelper::system_error(req);
             }
         }
-        catch (const std::exception &e)
+        else
         {
-            // 这个catch块会捕获所有继承自std::exception的异常类型，包括：
-            // std::runtime_error（运行时错误）
-            // std::logic_error（逻辑错误）
-            // std::invalid_argument（无效参数）
-            // std::out_of_range（超出范围）
-            // 其他标准库抛出的异常
-            response["data"] = false;
-            response["message"] = "exception occurred while sending email: " + std::string(e.what()) + "\"";
+            return ResponseHelper::error(req, "emailAddress is already in use");
+        }
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req);
+    }
+}
+
+crow::response UserHandler::userCheckEmail(const crow::request &req)
+{
+    try
+    {
+
+        nlohmann::json request_body;
+        crow::response res;
+        if (!parseJsonBody(req, res, request_body))
+        {
+            return res; // JSON解析失败，直接返回
+        }
+
+        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
+        {
             return ResponseHelper::system_error(req);
         }
-        catch (...)
+
+        std::string email = "";
+        bool hasEmail = (request_body.find("email") != request_body.end());
+        if (hasEmail)
         {
+            email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
+        }
+
+        email = clean_string(email);
+
+        // 添加邮箱格式验证
+        if (!isValidEmailFormat(email)) {
+            return ResponseHelper::error(req, "Invalid email format");
+        }
+        
+
+        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
+
+        mysqlx::RowResult result = users_table.select("COUNT(*) as count").where("email = :email").bind("email", email).execute();
+
+        auto row = result.fetchOne();
+        if (row && !row[0].isNull())
+        {
+            int count = row[0].get<int>();
+            if(count == 0) // 说明邮件没有被注册
+            {
+                return ResponseHelper::success(req, "emailAddress is not used");
+            }
+            else // 说明邮件被注册(既无法继续注册)
+            {
+                return ResponseHelper::error(req, "emailAddress is used");
+            }
+        } else {
+            // 查询失败
             return ResponseHelper::system_error(req);
         }
+    }
+    catch (const mysqlx::Error &e)
+    {
+        return ResponseHelper::custom(req, 500, "Database error: " + std::string(e.what()));
     }
     catch (const std::exception &e)
     {
@@ -630,7 +746,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
         // 获取打开对应的表
         mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
 
-        int type_id = 1;
+        int type_id = 3;
         std::string name = "";
         std::string password = "";
         std::string phone = "";
@@ -646,13 +762,13 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             mysqlx::TableInsert insert_op = users_table.insert("type_id", "name", "phone", "password", "email", "birthday", "creation_time", "address_id", "head_image");
 
             // 从请求中获取数据并确保它们是字符串类型
-            if(request_body.find("type_id") != request_body.end() && !request_body["type_id"].is_null())
+            if (request_body.find("type_id") != request_body.end() && !request_body["type_id"].is_null())
             {
                 type_id = request_body["type_id"].is_number() ? request_body["type_id"].get<int>() : std::stoi(std::string(request_body["type_id"]));
             }
             else
             {
-                type_id = 1;
+                type_id = 3;
             }
             if (request_body.find("name") != request_body.end() && !request_body["name"].is_null())
             {
@@ -1121,12 +1237,12 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                         }
                         catch (...)
                         {
-                            user->setAddressID("1");     // 默认值
+                            user->setAddressID("1"); // 默认值
                         }
                     }
                     else
                     {
-                        user->setAddressID("1");        // 默认值
+                        user->setAddressID("1"); // 默认值
                     }
                     try
                     {
@@ -1134,7 +1250,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     }
                     catch (...)
                     {
-                        user->setHeadImage("");         // 默认值 = "";
+                        user->setHeadImage(""); // 默认值 = "";
                     }
                     break; // 只需要第一个匹配的用户
                 }
@@ -1223,7 +1339,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 {
                     std::cout << "Old avatar file does not exist or is a directory: " << oldFilePath << std::endl;
                 }
-                
+
                 update_op.set("head_image", headImage);
                 has_changes = true;
             }

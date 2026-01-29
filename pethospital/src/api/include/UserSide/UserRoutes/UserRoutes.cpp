@@ -1,6 +1,7 @@
 #include "UserRoutes.h"
 
-void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface *dbManager)
+std::unordered_map<std::string, std::chrono::steady_clock::time_point> email_check_last_access;
+void UserRoutes::setupUserRoutes(CrowApp& app, DatabaseManagerInterface *dbManager)
 {
     // 添加标志防止重复设置路由
     static bool routes_setup = false;
@@ -11,17 +12,10 @@ void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface 
     CROW_ROUTE(app, "/api/user/login")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
-            // 处理OPTIONS预检请求
-            initializeOPTIONS(req,res);
-            if(res.is_completed())
-            {
-                return; // 如果是OPTIONS请求，直接返回
-            }
             try {
                 UserHandler handler(dbManager);
                 crow::response handlerResponse = handler.userLogin(req);
 
-                // 安全解析JSON
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch(const std::exception& e) {
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
@@ -38,13 +32,6 @@ void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface 
     CROW_ROUTE(app, "/api/verification/ready")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
-            // 处理OPTIONS请求
-            initializeOPTIONS(req, res);
-            if (res.is_completed())
-            {
-                return; // 如果是OPTIONS请求，直接返回
-            }
-
             try {
                 UserHandler handler(dbManager);
                 crow::response handlerResponse = handler.userReadyVerification(req);
@@ -55,18 +42,25 @@ void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface 
             }
             res.end(); });
 
+    CROW_ROUTE(app, "/api/user/check/email")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
+            try
+            {
+                UserHandler handler(dbManager);
+
+                crow::response handlerResponse = handler.userCheckEmail(req);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            } catch (const std::exception& e) {
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            res.end(); });
+
     //  用户注册验证码验证路由
     CROW_ROUTE(app, "/api/user/verify")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
-                // 处理OPTIONS预检请求
-                initializeOPTIONS(req,res);
-        
-                if (res.is_completed())
-                {
-                    return; // 如果是OPTIONS请求，直接返回
-                }
-
                 try
                 {
                     UserHandler handler(dbManager);
@@ -82,13 +76,6 @@ void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface 
     CROW_ROUTE(app, "/api/user/form")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Put, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                                                                      {
-            // 处理OPTIONS预检请求
-            initializeOPTIONS(req, res);
-
-            if (res.is_completed())
-            {
-                return; // 如果是OPTIONS请求，直接返回
-            }
             try
             {   
                 UserHandler handler(dbManager);
@@ -106,12 +93,6 @@ void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface 
     CROW_ROUTE(app, "/api/user/upload/avatar")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
-            // 处理OPTIONS预检请求
-            initializeOPTIONS(req,res);
-            if (res.is_completed())
-            {
-                return; // 如果是OPTIONS请求，直接返回
-            }
             try
             {
                 UserHandler handler(dbManager);
@@ -127,12 +108,6 @@ void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface 
     CROW_ROUTE(app, "/uploads/<string>")
         .methods(crow::HTTPMethod::Get)([dbManager](const crow::request &req, crow::response &res, std::string filename)
                                         {
-            // 处理OPTIONS预检请求
-            initializeOPTIONS(req,res);
-            if (res.is_completed())
-            {
-                return; // 如果是OPTIONS请求，直接返回
-            }
             try
             {
                 UserHandler handler(dbManager);
@@ -148,11 +123,6 @@ void UserRoutes::setupUserRoutes(crow::SimpleApp &app, DatabaseManagerInterface 
     CROW_ROUTE(app, "/api/user/data")
         .methods(crow::HTTPMethod::Get)([dbManager](const crow::request &req, crow::response &res)
                                         {
-            initializeCORS(req, res);
-             if (res.is_completed())
-            {
-                return; // 如果是OPTIONS请求，直接返回
-            }
             try
             {
                 UserHandler handler(dbManager);

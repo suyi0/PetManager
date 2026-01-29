@@ -144,6 +144,7 @@ void User::to_json(nlohmann::json &j)
     // 确保所有字符串字段都是有效的 UTF-8
     j = nlohmann::json{
         {"id", this->id},
+        {"type_id", this->type_id},
         {"name", clean_string(this->name)},
         {"phone", clean_string(this->phone)},
         {"email", clean_string(this->email)},
@@ -156,8 +157,8 @@ void User::to_json(nlohmann::json &j)
 void User::from_json(const nlohmann::json &j)
 {
     j.at("id").get_to(this->id);
+    j.at("type_id").get_to(this->type_id);
     j.at("name").get_to(this->name);
-    j.at("password").get_to(this->password);
     j.at("phone").get_to(this->phone);
     j.at("email").get_to(this->email);
     // 修复日期字段的反序列化

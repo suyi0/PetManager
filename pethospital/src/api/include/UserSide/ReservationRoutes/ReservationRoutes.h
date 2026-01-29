@@ -12,5 +12,5 @@ public:
     // 静态类--不需要实例化的类
 
     // 设置路由
-    static void setupReservationRoutes(crow::SimpleApp& app, DatabaseManagerInterface *dbManager);
+    static void setupReservationRoutes(CrowApp& app, DatabaseManagerInterface *dbManager);
 };

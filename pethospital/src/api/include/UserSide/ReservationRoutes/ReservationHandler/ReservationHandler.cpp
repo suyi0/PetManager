@@ -248,7 +248,7 @@ crow::response ReservationHandler::getDoctorList(const crow::request &req)
                 // 如果需要获取医生的详细用户信息，可以查询Users表
                 try
                 {
-                    mysqlx::Table users_table = dbManager->getSchema()->getTable("Users");
+                    mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
                     mysqlx::RowResult user_result = users_table.select("name", "phone", "email")
                                                         .where("id = :id")
                                                         .bind("id", row[0].get<int>())

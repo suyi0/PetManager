@@ -8,6 +8,6 @@ class UserRoutes
 {
 public:
     // 设置用户路由
-    static void setupUserRoutes(crow::SimpleApp& app, DatabaseManagerInterface* dbManager);
+    static void setupUserRoutes(CrowApp& app, DatabaseManagerInterface* dbManager);
 
 };

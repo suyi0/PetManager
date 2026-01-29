@@ -1,6 +1,6 @@
 #include "ReservationRoutes.h"
 
-void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseManagerInterface *dbManager)
+void ReservationRoutes::setupReservationRoutes(CrowApp& app, DatabaseManagerInterface *dbManager)
 {
     // 添加标志防止重复设置路由
     static bool routes_setup = false;
@@ -15,9 +15,6 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([&handler](const crow::request &req, crow::response &res)
                                                                     { 
             try {
-                // 处理OPTIONS预检请求 - 这是为了CORS跨域支持
-                initializeOPTIONS(req,res);
-
                 // 解析请求体中的 JSON 数据
                 nlohmann::json request_body;
 
@@ -73,8 +70,6 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([&handler](const crow::request &req, crow::response &res)
                                                                    {
             try {
-                // 处理OPTIONS预检请求
-                initializeOPTIONS(req, res);
 
                 // 用户 ID 是身份认证信息，通常由前端从 JWT token 或 session 中获取，并放在请求头中更安全地传递
 
@@ -133,9 +128,6 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([&handler](const crow::request &req, crow::response &res)
                                                                     {
             try {
-                // 处理OPTIONS预检请求
-                initializeOPTIONS(req, res);
-
                 nlohmann::json request_body;
                 if (!parseJsonBody(req, res, request_body)) {
                     res = ResponseHelper::custom(req, 400, "error: Invalid JSON");
@@ -166,9 +158,6 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([&handler](const crow::request &req, crow::response &res)
                                                                     {
             try {
-                // 处理OPTIONS预检请求
-                initializeOPTIONS(req,res);
-
                 nlohmann::json request_body;
                 if (!parseJsonBody(req, res, request_body)) {
                     res = ResponseHelper::custom(req, 400, "error: Invalid JSON");
@@ -200,9 +189,6 @@ void ReservationRoutes::setupReservationRoutes(crow::SimpleApp &app, DatabaseMan
         .methods(crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([&handler](const crow::request &req, crow::response &res)
                                                                       {
             try {
-                // 处理OPTIONS预检请求
-                initializeOPTIONS(req, res);
-
                 nlohmann::json request_body;
                 if (!parseJsonBody(req, res, request_body)) {
                     res = ResponseHelper::custom(req, 400, "error: Invalid JSON");

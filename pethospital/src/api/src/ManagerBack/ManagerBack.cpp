@@ -42,7 +42,7 @@ void WebSocketServer::start()
     server_thread = std::thread([this]
                                 {
             try {
-                app.port(8081).multithreaded().run();
+                app_ptr_->port(8081).multithreaded().run();
             } catch (const std::exception& e) {
                 std::cerr << "Server fatal error: " << e.what() << std::endl;
             } });
@@ -96,7 +96,7 @@ void WebSocketServer::gracefulShutdown()
                          return active_connections.empty(); // 仅等待连接清空
                      });
     // 停止服务器
-    app.stop();
+    app_ptr_->stop();
     if (server_thread.joinable())
     {
         server_thread.join();
@@ -125,17 +125,23 @@ bool WebSocketServer::isSignalReceived() const
 // 设置路由
 void WebSocketServer::setupRoutes()
 {
+    if (!app_ptr_) {
+        std::cerr << "Error: App pointer is null in setupRoutes" << std::endl;
+        return;
+    }
 
     // 注册用户路由
-    UserRoutes::setupUserRoutes(app, DatabaseManager::getInstance());
+    UserRoutes::setupUserRoutes(*app_ptr_, DatabaseManager::getInstance());
 
     // 注册预约路由
-    ReservationRoutes::setupReservationRoutes(app, DatabaseManager::getInstance());
+    ReservationRoutes::setupReservationRoutes(*app_ptr_, DatabaseManager::getInstance());
 
     // 注册订单路由
-    OrderRoutes::setupOrderRoutes(app, DatabaseManager::getInstance());
+    OrderRoutes::setupOrderRoutes(*app_ptr_, DatabaseManager::getInstance());
 
-    CROW_WEBSOCKET_ROUTE(app, "/websocket")
+    // 使用解引用后的对象注册WebSocket路由
+    auto& app_ref = *app_ptr_;
+    CROW_WEBSOCKET_ROUTE(app_ref, "/websocket")
         // 连接开启时的onOpen回调
         .onopen([&](crow::websocket::connection &conn)
                 {

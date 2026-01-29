@@ -97,7 +97,7 @@ import { key } from "@/store/userStore";
 const store = useStore(key);
 
 // 定义 emits
-const emit = defineEmits(["close"]);
+const emit = defineEmits(["close", "submit"]);
 
 // 响应式数据
 const isButtonActive = ref(false);
@@ -162,14 +162,14 @@ function saveBirthday() {
   const m = month.value.toString().padStart(2, "0");
   const d = day.value.toString().padStart(2, "0");
 
+  const field = "userBirthday";
   const birthday = `${y}-${m}-${d}`;
 
-  store.dispatch("auth/updateUserField", {
-    field: "userBirthday",
-    value: birthday,
+  emit("submit", {
+    field,
+    birthday,
   });
   isButtonActive.value = false;
-  close();
 }
 
 function cancel() {

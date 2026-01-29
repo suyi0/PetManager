@@ -344,7 +344,7 @@ export const store = createStore<State>({
           context: ActionContext<AuthState, State>,
           payload: { email: string; password: string }
         ) {
-          axios
+          return axios
             .post("/api/user/form", {
               password: payload.password,
               email: payload.email,
@@ -386,9 +386,10 @@ export const store = createStore<State>({
             .then((response) => {
               if (response.status === 200) {
                 commit("frontSetUser", {
+                  userType: response.data.user.type_id, // 从服务器返回的数据中获取用户类型
                   userName: response.data.user.name, // 从服务器返回的数据中获取用户名
-                  userPhone: response.data.user.phone, // 从服务器返回的数据中获取用户电话
                   userEmail: response.data.user.email, // 从服务器返回的数据中获取用户邮箱
+                  userPhone: response.data.user.phone, // 从服务器返回的数据中获取用户电话
                   userBirthday: response.data.user.birthday, // 从服务器返回的数据中获取用户生日
                   userAddressId: response.data.user.address_id, // 从服务器返回的数据中获取用户地址ID
                   userAddress: response.data.user.address, // 从服务器返回的数据中获取用户地址
@@ -397,6 +398,7 @@ export const store = createStore<State>({
                 });
                 // 登入成功后获取预约数据，不启动定时器
                 dispatch("scheduleTime");
+                commit("login");
 
                 return response;
               }
@@ -424,6 +426,27 @@ export const store = createStore<State>({
           // 再执行登出操作
           commit("logout");
         },
+
+        checkEmail: debounce(function (
+          _: ActionContext<AuthState, State>,
+          payload: { email: string }
+        ) {
+          return axios
+            .post("/api/user/check/email", {
+              email: payload.email,
+            })
+            .then((response) => {
+              if (response.status === 200) {
+                return response;
+              } else {
+                return response;
+              }
+            })
+            .catch((error) => {
+              throw error;
+            });
+        },
+        1000),
         // 更新用户数据到服务器
         updateUserData({ state }: ActionContext<AuthState, State>) {
           // 更新用户数据到服务器

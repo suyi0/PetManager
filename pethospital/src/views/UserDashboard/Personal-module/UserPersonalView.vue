@@ -27,14 +27,26 @@
             @switchTab="switchTab"
           />
           <SetHeadView v-if="activeTab === 'head'" @close="close" />
-          <SetNameView v-if="activeTab === 'name'" @close="close" />
-          <SetBirthdayView v-if="activeTab === 'birthday'" @close="close" />
+          <SetNameView
+            v-if="activeTab === 'name'"
+            @close="close"
+            @submit="submit"
+          />
+          <SetBirthdayView
+            v-if="activeTab === 'birthday'"
+            @close="close"
+            @submit="submit"
+          />
           <SetPhoneView
             v-if="activeTab === 'phone'"
             @close="close"
             @submit="submit"
           />
-          <SetEmailView v-if="activeTab === 'email'" @close="close" />
+          <SetEmailView
+            v-if="activeTab === 'email'"
+            @close="close"
+            @submit="submit"
+          />
           <SetAddressView v-if="activeTab === 'address'" />
         </div>
       </div>

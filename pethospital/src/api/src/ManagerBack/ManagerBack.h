@@ -40,9 +40,14 @@ public:
     // 提供公共方法访问 signal_received
     bool isSignalReceived() const;
 
+    // 设置app指针
+    void setApp(CrowApp* app_ptr) { app_ptr_ = app_ptr; }
+    
+    // 获取app指针
+    crow::App<CorsMiddleware, RateLimitMiddleware>* getApp() { return app_ptr_; }
+
 private:
     // 私有构造函数，防止外部实例化
-
     // 设置路由
     void setupRoutes();
 
@@ -53,7 +58,7 @@ private:
     void setupSignalHandlers();
 
     std::thread cleanup_thread;
-    crow::SimpleApp app;
+    crow::App<CorsMiddleware, RateLimitMiddleware>* app_ptr_ = nullptr;  // 使用指针，以便外部传入
     std::thread server_thread;
     std::atomic<bool> heartbeat_running{true};
     std::thread heartbeat_thread;

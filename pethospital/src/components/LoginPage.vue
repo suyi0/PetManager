@@ -371,29 +371,25 @@ const handleLogin = () => {
         password: Password.value,
       })
       .then((response) => {
-        if (response.data.success && response.status === 200) {
-          console.log("登录成功");
-          console.log("Response data:", response.data);
-          // 登录
-          store.commit("auth/login");
+        if (response.status === 200) {
           // 登录成功，可以跳转到主页
-          router.push("/user/home");
+          if (response.data.user.type_id === 1) {
+            router.push("/admin/home");
+          } else if (response.data.user.type_id === 2) {
+            router.push("/doctor/home");
+          } else if (response.data.user.type_id === 3) {
+            router.push("/user/home");
+          }
         }
       })
       .catch((error) => {
-        if (error.response.status === 401) {
+        if (error.response.status === 400) {
           // 服务器返回了错误状态码
-          console.error("Error status:", error.response.status);
           console.error("Error data:", error.response.data);
-          alert("登录失败: " + error.response.data.error);
-        } else if (error.request) {
-          // 请求已发出但没有收到响应
-          console.error("No response received:", error.request);
-          alert("无法连接到服务器，请检查网络连接");
-        } else {
-          // 其他错误
-          console.error("Error message:", error.message);
-          alert("登录请求出错: " + error.message);
+          alert("账号或者密码错误");
+        } else if (error.response.status === 500) {
+          console.error("Error data:", error.response.data);
+          alert("服务器错误");
         }
       })
       .finally(() => {

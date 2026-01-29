@@ -9,7 +9,7 @@
 class OrderRoutes {
 public:
 
-    static void setupOrderRoutes(crow::SimpleApp& app, DatabaseManagerInterface* dbManager);
+    static void setupOrderRoutes(CrowApp& app, DatabaseManagerInterface* dbManager);
 
 };
 
