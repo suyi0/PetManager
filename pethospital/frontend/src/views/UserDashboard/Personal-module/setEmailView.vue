@@ -120,6 +120,7 @@
         <div v-show="!newEmailEffect && ischeckEmail" class="email-effect">
           邮箱已存在不可用
         </div>
+
         <div class="verification-container">
           <input
             id="VerificationCode"
@@ -129,7 +130,6 @@
             placeholder="VerificationCode"
           />
           <button
-            aria-label="关闭"
             class="verification-button"
             :class="{ ' after  ': isgetVerificationCode }"
             :disabled="
@@ -166,10 +166,10 @@ import { key } from "@/store/userStore";
 const store = useStore(key);
 
 // 响应式数据
+const showChangeEmailModal = ref(false);
 const userEmail = computed(() => store.state.auth.userEmail);
 const newUserEmail = ref("");
 const VerificationCode = ref("");
-const showChangeEmailModal = ref(false);
 const isEmailValid = ref(false);
 const isButtonActive = ref(false);
 const isgetVerificationCode = ref(false); // 添加验证码按钮状态-灰色(禁用)
@@ -262,7 +262,7 @@ function getVerificationCode() {
     count.value = 60;
     startCountdown();
     store
-      .dispatch("user/getVerificationCode", {
+      .dispatch("user/sendVerificationCode", {
         email: newUserEmail.value,
       })
       .then((response) => {
@@ -302,6 +302,7 @@ function changeEmail() {
   }
 
   if (emailChangeInProgress) {
+    alert("请勿重复提交");
     return;
   }
   emailChangeInProgress = true;
@@ -311,7 +312,7 @@ function changeEmail() {
     if (newEmailEffect.value) {
       // 修改电子邮件地址前先验证验证码
       store
-        .dispatch("auth/register", {
+        .dispatch("auth/verify", {
           email: newUserEmail.value,
           verificationCode: VerificationCode.value,
         })
@@ -331,7 +332,7 @@ function changeEmail() {
         .then((updateResponse) => {
           if (updateResponse.status === 200) {
             alert("修改成功");
-            newUserEmail.value = "";
+            resetForm();
           }
         })
         .catch((error) => {
@@ -381,11 +382,19 @@ onBeforeUnmount(() => {
 //   router.push(`/detail/id`)
 // };
 
+function resetForm() {
+  showChangeEmailModal.value = false;
+  newUserEmail.value = "";
+  VerificationCode.value = "";
+  isEmailValid.value = false;
+  newEmailEffect.value = false;
+  ischeckEmail.value = false;
+  isButtonActive.value = false;
+}
+
 // 取消操作
 const cancel = () => {
-  showChangeEmailModal.value = false;
-  isButtonActive.value = false;
-  newUserEmail.value = "";
+  resetForm();
 };
 // 处理关闭事件
 function close() {
@@ -497,7 +506,7 @@ function close() {
   display: flex;
   justify-content: center;
   gap: 16px;
-  margin-top: 16px;
+  margin-top: 28px;
 }
 
 .email-effect {
@@ -600,7 +609,6 @@ function close() {
   .verification-container {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
     justify-content: center;
     margin-top: 12px;

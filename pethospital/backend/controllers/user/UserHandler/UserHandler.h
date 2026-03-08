@@ -7,75 +7,21 @@
 #include <chrono>
 #include "../../../database/DatabaseManager.h"
 #include "../../../utils/Utils.h"
-#include "../../auth/Verification/Verification.h"
 #include "../../auth/Encrypt/Encrypt.h"
 #include "../../../models/user/User.h"
 #include "../GetAddress/GetAddress.h"
-#include "nlohmann/json.hpp"
+#include "../../auth/JwtUtils/JwtUtils.h"
 
-// 添加邮箱格式验证函数
-bool isValidEmailFormat(const std::string &email);
-
-class RateLimiter {
+class UserHandler : public BaseHandler {
 private:
-    struct ClientInfo {
-        std::chrono::steady_clock::time_point last_request;
-        int request_count;
-    };
-    
-    std::unordered_map<std::string, ClientInfo> client_requests;
-    const int time_window_seconds = 5; // 时间窗口为5秒
-    const int max_requests = 1; // 每个时间窗口内最多1次请求
+    std::shared_ptr<DatabaseManagerInterface> dbManager;
 
 public:
-    bool is_allowed(const std::string& client_ip) {
-        auto now = std::chrono::steady_clock::now();
-        auto it = client_requests.find(client_ip);
-        
-        if (it == client_requests.end()) {
-            // 第一次请求
-            client_requests[client_ip] = {now, 1};
-            return true;
-        }
-        
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-            now - it->second.last_request
-        ).count();
-        
-        if (elapsed >= time_window_seconds) {
-            // 时间窗口已过，重置计数器
-            it->second.last_request = now;
-            it->second.request_count = 1;
-            return true;
-        } else {
-            // 时间窗口内
-            if (it->second.request_count < max_requests) {
-                it->second.request_count++;
-                return true;
-            } else {
-                // 达到最大请求数
-                return false;
-            }
-        }
-    }
-};
-
-class UserHandler {
-private:
-    DatabaseManagerInterface* dbManager;
-    static RateLimiter rate_limiter; // 创建一个静态的RateLimiter对象
-public:
-    explicit UserHandler(DatabaseManagerInterface* dbManager) : dbManager(dbManager) {}
+    explicit UserHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
     // 添加一个方法来检查数据库管理器是否可用
     bool isDbManagerValid() const { return dbManager != nullptr; }
 
     crow::response userLogin(const crow::request& req); //  对应 "/api/user/login"
-
-    crow::response userReadyVerification(const crow::request& req); //  对应 "/api/verification/ready"
-
-    crow::response userCheckEmail(const crow::request& req); // 对应 "/api/user/check/email"
-
-    crow::response userVerification(const crow::request& req); //   对应 "/api/verification/verify"
     
     crow::response userUpdate(const crow::request& req); // 对应 "/api/user/form"
     
@@ -83,7 +29,9 @@ public:
 
     crow::response upload(const crow::request& req, const std::string& filename); // 对应 "/uploads/<string>"
 
-    crow::response getUserdata(const crow::request& req); // 对应 "/api/user/data"
+    crow::response getData(const crow::request& req); // 对应 "/api/user/data"
+
+    nlohmann::json getUserData(const int &id);
 
 };
 

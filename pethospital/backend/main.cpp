@@ -1,8 +1,12 @@
-#include "./setRoutes/setRoutes.h"
+#include "./routes/setRoutes/setRoutes.h"
+#include "../utils/ScheduledTaskManager/ScheduledTaskManager.h"
 
 // 主函数
 int main(int argc, char *argv[])
 {
+    // 初始化环境变量
+    initializeEnvironment();
+
 // 输出当前进程 PID
 #ifdef __linux__
     std::cout << "Crow PID: " << getpid() << std::endl;
@@ -18,6 +22,11 @@ int main(int argc, char *argv[])
 
     // 初始化数据库 - 使用新版API
     DatabaseManager::getInstance()->create_Tables();
+
+    // 初始化定时任务管理器
+    auto taskManager = ScheduledTaskManager::getInstance();
+    taskManager->initialize(DatabaseManager::getInstance());
+    taskManager->start();
 
     // 使用WebSocketServer的setupRoutes方法注册所有路由
     WebSocketServer::instance().setApp(&app); // 假设你有一个方法来设置app
@@ -39,6 +48,9 @@ int main(int argc, char *argv[])
     // 由主线程触发关闭
     std::cout << "Shutting down server..." << std::endl;
     WebSocketServer::instance().gracefulShutdown();
+
+    // 停止定时任务管理器
+    taskManager->stop();
 
     // 关闭HTTP服务器
     app.stop();

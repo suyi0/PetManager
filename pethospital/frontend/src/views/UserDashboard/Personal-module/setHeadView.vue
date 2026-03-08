@@ -262,13 +262,9 @@ const getcroppedImage = async (fileName?: string) => {
 const uploadImage = async (formData: FormData) => {
   try {
     // 第一步：上传图片到服务器
-    const uploadResponse = await axios.post(
-      "/api/user/upload/avatar",
-      formData,
-      {
-        headers: { "Content-Type": "multipart/form-data" },
-      }
-    );
+    const uploadResponse = await axios.post("/api/upload/avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
 
     // 假设服务器返回的是真实图片 URL，例如：
     const avatarUrl = uploadResponse.data.avatarUrl;

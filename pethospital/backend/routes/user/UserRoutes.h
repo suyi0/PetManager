@@ -1,13 +1,13 @@
 #pragma once
 
 
-#include "../../utils/Utils.h"
 #include "../../controllers/user/UserHandler/UserHandler.h"
+#include "../../controllers/auth/authHandler/authHandler.h"
 
 class UserRoutes
 {
 public:
     // 设置用户路由
-    static void setupUserRoutes(CrowApp& app, DatabaseManagerInterface* dbManager);
+    static void setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerInterface> dbManager);
 
 };

@@ -14,7 +14,7 @@ class DatabaseManager : public DatabaseManagerInterface
 private:
     static std::mutex mutex_; // 添加互斥锁确保线程安全
 
-    static DatabaseManager *instance;
+    static std::shared_ptr<DatabaseManagerInterface> instance;
 
     mysqlx::Session *session;
     mysqlx::Schema *schema;
@@ -26,12 +26,12 @@ public:
     ~DatabaseManager();
 
     // 获取单例实例
-    static DatabaseManager *getInstance();
+    static std::shared_ptr<DatabaseManagerInterface> getInstance();
 
     static void destroyInstance();
 
     // 创建必要的表
-    void create_Tables();
+    void create_Tables() override;
 
     mysqlx::Session *getSession() override;  // 重写基类的纯虚函数
     mysqlx::Schema *getSchema() override;  // 重写基类的纯虚函数

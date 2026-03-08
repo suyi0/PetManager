@@ -229,7 +229,6 @@
                 />
                 <div class="Register-form-minContainser-first-right">
                   <button
-                    aria-label="关闭"
                     class="Register-form-minContainser-first-right-button"
                     :class="{ ' after  ': isgetVerificationCode }"
                     :disabled="
@@ -575,7 +574,7 @@ function getVerificationCode() {
     count.value = 60;
     startCountdown();
     store
-      .dispatch("user/getVerificationCode", {
+      .dispatch("user/sendVerificationCode", {
         email: Email.value,
       })
       .then((response) => {
@@ -622,7 +621,7 @@ function Verify() {
 
   // 在注册组件中
   store
-    .dispatch("auth/register", {
+    .dispatch("auth/verify", {
       email: Email.value,
       code: VerificationCode.value,
     })

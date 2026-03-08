@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 
+#include "../../utils/Utils.h"
 #include "../../controllers/auth/Verification/Verification.h"
 
 
@@ -25,6 +26,7 @@ class User
     std::string address;       // 地址
     std::string head_image;    // 头像
     bool token = false;         // 令牌
+    std::string doctor_specialty;              // 专业领域
 
 public:
     // 构造函数
@@ -79,6 +81,11 @@ public:
     {
         this->token = token;
     }
+    void setDoctorSpecialty(const std::string &doctor_specialty) // 设置医生专业领域
+    {
+        this->doctor_specialty = doctor_specialty;
+    }
+
     // 获取属性方法
     int getID()                           // 获取用户ID
     { 
@@ -120,14 +127,14 @@ public:
     {
         return head_image;
     }
-
     bool getToken()                       // 获取令牌
     {
         return token;
     }
+    std::string getDoctorSpecialty()      // 获取医生专业领域
+    {
+        return doctor_specialty;
+    }
 
+    
 };
-
-std::string clean_string(const std::string &input);
-std::string format_date(const std::tm &tm);
-std::string normalizeDate(const std::string& date_str);

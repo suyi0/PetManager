@@ -3,15 +3,6 @@
 // 在文件顶部添加常量定义
 #define UPLOADS_DIR "/Users/yanghang/Code/PetManager/pethospital/frontend/src/assets/uploads"
 
-// 添加邮箱格式验证函数
-bool isValidEmailFormat(const std::string &email)
-{
-    // 简单的邮箱正则表达式验证
-    // 这个正则表达式检查基本的邮箱格式：用户名@域名.顶级域名
-    std::regex email_pattern(R"(^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$)");
-    return std::regex_match(email, email_pattern);
-}
-
 // 添加获取文件MIME类型的函数
 std::string getMimeType(const std::string &filepath)
 {
@@ -194,7 +185,8 @@ bool saveAddressToDatabase(int DBaddress_id, const std::string &address_text, do
         // 获取 address_small 表
         mysqlx::Table address_table = DatabaseManager::getInstance()->getSchema()->getTable("address_small");
 
-        if (DBaddress_id <= 0) {
+        if (DBaddress_id <= 0)
+        {
             // 传入地址ID无效，取消存储地址信息操作
             return false;
         }
@@ -202,22 +194,23 @@ bool saveAddressToDatabase(int DBaddress_id, const std::string &address_text, do
         {
             // 检查该ID是否已存在
             mysqlx::RowResult result = address_table.select("id")
-                                          .where("id = :id")
-                                          .bind("id", DBaddress_id)
-                                          .execute();
+                                           .where("id = :id")
+                                           .bind("id", DBaddress_id)
+                                           .execute();
 
             // 如果已存在，使用这个ID更新对应地址信息
-            if (result.fetchOne()) {
+            if (result.fetchOne())
+            {
                 // 如果已存在，则更新该地址信息
                 mysqlx::TableUpdate update_op = address_table.update();
                 update_op.set("address_text", address_text)
-                         .set("longitude", longitude)
-                         .set("latitude", latitude)
-                         .where("id = :id")
-                         .bind("id", DBaddress_id)
-                         .execute();
+                    .set("longitude", longitude)
+                    .set("latitude", latitude)
+                    .where("id = :id")
+                    .bind("id", DBaddress_id)
+                    .execute();
             }
-            else        // 不存在，直接使用该地址ID存储地址信息
+            else // 不存在，直接使用该地址ID存储地址信息
             {
                 // 插入新的地址记录
                 mysqlx::TableInsert insert_op = address_table.insert("id", "address_text", "longitude", "latitude");
@@ -225,7 +218,6 @@ bool saveAddressToDatabase(int DBaddress_id, const std::string &address_text, do
             }
             return true; // 成功
         }
-  
     }
     catch (const std::exception &e)
     {
@@ -251,17 +243,38 @@ std::string getLastFileName(const std::string &url)
     return url;
 }
 
+nlohmann::json UserHandler::getUserData(const int &id)
+{
+    mysqlx::Table user_table = DatabaseManager::getInstance()->getSchema()->getTable("users");
+
+    mysqlx::RowResult result = user_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
+                                   .where("id = :id")
+                                   .bind("id", id)
+                                   .execute();
+    nlohmann::json user_data;
+    for (auto row : result)
+    {
+        user_data = {
+            {"id", row[0].get<int>()},
+            {"name", row[1].get<std::string>()},
+            {"phone", row[3].get<std::string>()},
+            {"email", row[4].get<std::string>()},
+            {"birthday", row[5].get<std::string>()},
+            {"address_id", row[6].get<std::string>()},
+            {"head_image", row[7].get<std::string>()},
+        };
+        break;
+    }
+    return user_data;
+}
 crow::response UserHandler::userLogin(const crow::request &req)
 {
     try
     {
         // 解析请求体中的 JSON 数据
-        nlohmann::json request_body;
         crow::response res;
-        if (!parseJsonBody(req, res, request_body))
-        {
-            return res; // JSON解析失败，直接返回
-        }
+        auto jsonOpt = parseJson(req, res);
+        nlohmann::json &request_body = jsonOpt.value();
 
         // 检查必要字段是否存在
         bool hasEmail = (request_body.find("email") != request_body.end());
@@ -316,7 +329,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
             if (!email.empty())
             {
                 // 通过email查询用户
-                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
+                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
                              .where("email = :email")
                              .bind("email", email)
                              .execute();
@@ -324,7 +337,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
             else if (!phone.empty())
             {
                 // 通过phone查询用户
-                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image")
+                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
                              .where("phone = :phone")
                              .bind("phone", phone)
                              .execute();
@@ -425,9 +438,9 @@ crow::response UserHandler::userLogin(const crow::request &req)
 
                 try
                 {
-                    if (!row[8].isNull())
+                    if (!row[7].isNull())
                     {
-                        DBaddress_id = row[8].get<int>();
+                        DBaddress_id = row[7].get<int>();
                         user->setAddressID(DBaddress_id); // 设置地址ID
                     }
                     else
@@ -441,7 +454,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    user->setHeadImage(clean_string(row[9].get<std::string>()));
+                    user->setHeadImage(clean_string(row[8].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -477,7 +490,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
         {
             // 验证成功
             // 生成一个基于用户邮箱的JWT token
-            std::string token = generate_SHA256_jwt(email);
+            std::string token = JwtUtils::createToken(user->getID(), user->getName(), user->getEmail(), true);
             response["token"] = token;
             response["success"] = true;
 
@@ -511,252 +524,15 @@ crow::response UserHandler::userLogin(const crow::request &req)
     }
 }
 
-crow::response UserHandler::userReadyVerification(const crow::request &req)
-{
-    try
-    {
-        nlohmann::json request_body;
-        crow::response res;
-        if (!parseJsonBody(req, res, request_body))
-        {
-            return res; // JSON解析失败，直接返回
-        }
-
-        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
-        {
-            return ResponseHelper::system_error(req);
-        }
-
-        if (request_body.find("email") == request_body.end())
-        {
-            return ResponseHelper::error(req, "Missing email parameter");
-        }
-
-        std::string email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
-
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
-        mysqlx::RowResult result = users_table.select("*").where("email = :email").bind("email", email).execute();
-
-        if (result.begin() == result.end()) // 没有匹配的用户才创建验证码并发送邮件
-        {
-            Verify verify(email); // 栈上的对象
-
-            // 检查邮箱地址
-            if (verify.VerifyEmailAddress(email) == false)
-            {
-                return ResponseHelper::error(req, "emailAddress is in wrong format");
-            }
-
-            // 创建验证码
-            verify.CreateVerify();
-
-            // 使用智能指针的主要原因是：
-            // 资源共享 - 多个线程或作用域需要访问同一个对象
-            // 自动内存管理 - 避免内存泄漏和手动内存管理的复杂性
-            // 线程安全 - 确保对象在需要时不会被提前销毁
-            // 异常安全 - 即使发生异常也能正确释放资源
-            auto email_ptr = std::make_shared<std::string>(email);
-            auto verify_ptr = std::make_shared<Verify>(verify); // 创建Verify对象，通过拷贝构造创建堆上的对象
-
-            // 异步编程和承诺/未来模式 (Promise/Future)
-            auto promise_ptr = std::make_shared<std::promise<bool>>();
-            auto future = promise_ptr->get_future(); // 从promise获取future
-
-            // 发送邮件验证码
-            std::thread sender([email_ptr, verify_ptr, promise_ptr]()
-                               {
-                        try {
-                            verify_ptr->SendVerify(*email_ptr, verify_ptr->GetVerifyCode(), promise_ptr.get());
-                        } catch (...) {
-                            promise_ptr->set_value(false); // 确保在异常情况下也设置结果
-                        } });
-            sender.detach();
-
-            // 等待邮件发送步骤完成，判断发送结果
-            nlohmann::json response;
-            try
-            {
-                bool sendSuccess = future.get(); // 使用之前获取的future对象
-                if (sendSuccess)                 // 使用之前获取的future对象
-                {
-                    response["data"] = true;
-                    response["message"] = "sent verification code email";
-                    return ResponseHelper::success(req, response);
-                }
-                else
-                {
-                    response["data"] = false;
-                    response["message"] = "failed to send verification code email";
-
-                    return ResponseHelper::error(req, response);
-                }
-            }
-            catch (const std::exception &e)
-            {
-                // 这个catch块会捕获所有继承自std::exception的异常类型，包括：
-                // std::runtime_error（运行时错误）
-                // std::logic_error（逻辑错误）
-                // std::invalid_argument（无效参数）
-                // std::out_of_range（超出范围）
-                // 其他标准库抛出的异常
-                response["data"] = false;
-                response["message"] = "exception occurred while sending email: " + std::string(e.what()) + "\"";
-                return ResponseHelper::system_error(req);
-            }
-            catch (...)
-            {
-                return ResponseHelper::system_error(req);
-            }
-        }
-        else
-        {
-            return ResponseHelper::error(req, "emailAddress is already in use");
-        }
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req);
-    }
-}
-
-crow::response UserHandler::userCheckEmail(const crow::request &req)
-{
-    try
-    {
-
-        nlohmann::json request_body;
-        crow::response res;
-        if (!parseJsonBody(req, res, request_body))
-        {
-            return res; // JSON解析失败，直接返回
-        }
-
-        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
-        {
-            return ResponseHelper::system_error(req);
-        }
-
-        std::string email = "";
-        bool hasEmail = (request_body.find("email") != request_body.end());
-        if (hasEmail)
-        {
-            email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
-        }
-
-        email = clean_string(email);
-
-        // 添加邮箱格式验证
-        if (!isValidEmailFormat(email))
-        {
-            return ResponseHelper::error(req, "Invalid email format");
-        }
-
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
-        mysqlx::RowResult result = users_table.select("COUNT(*) as count").where("email = :email").bind("email", email).execute();
-
-        auto row = result.fetchOne();
-        if (row && !row[0].isNull())
-        {
-            int count = row[0].get<int>();
-            if (count == 0) // 说明邮件没有被注册
-            {
-                return ResponseHelper::success(req, "emailAddress is not used");
-            }
-            else // 说明邮件被注册(既无法继续注册)
-            {
-                return ResponseHelper::error(req, "emailAddress is used");
-            }
-        }
-        else
-        {
-            // 查询失败
-            return ResponseHelper::system_error(req);
-        }
-    }
-    catch (const mysqlx::Error &e)
-    {
-        return ResponseHelper::custom(req, 500, "Database error: " + std::string(e.what()));
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req);
-    }
-}
-
-crow::response UserHandler::userVerification(const crow::request &req)
-{
-    try
-    {
-        nlohmann::json request_body;
-        crow::response res;
-
-        if (!parseJsonBody(req, res, request_body))
-        {
-            return res; // JSON解析失败，直接返回
-        }
-
-        // 检查必要字段是否存在
-        if (request_body.find("email") == request_body.end() ||
-            request_body.find("code") == request_body.end())
-        {
-            return ResponseHelper::error(req, "verify : false , message : Missing email or code");
-        }
-
-        std::string email = request_body["email"];
-        std::string code = request_body["code"];
-
-        // 创建验证码对象
-        Verify verify(email);
-
-        // 验证码验证
-        bool isValid = Verify::ValidateCode(email, code);
-        std::cout << "验证结果: " << (isValid ? "成功" : "失败") << std::endl;
-
-        // 验证码验证
-        if (isValid)
-        {
-            // 如果验证成功，返回 token
-            nlohmann::json response;
-            // 生成一个基于用户邮箱的JWT token
-            std::string token = generate_SHA256_jwt(email);
-            response["token"] = token;
-            response["success"] = true;
-            return ResponseHelper::success(req, response);
-        }
-        else
-        {
-            // 验证失败
-            nlohmann::json response;
-            response["error"] = "Invalid Verification Code";
-            response["success"] = false;
-            return ResponseHelper::unauthorized(req, response["error"]);
-        }
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req);
-    }
-}
-
 crow::response UserHandler::userUpdate(const crow::request &req)
 {
     try
     {
-        nlohmann::json request_body;
         crow::response res;
-
-        if (!parseJsonBody(req, res, request_body))
-        {
-            return res; // JSON解析失败，直接返回
-        }
-
-        // 检查数据库连接是否存在
-        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
-        {
-            return ResponseHelper::system_error(req);
-        }
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
 
         // 获取打开对应的表
         mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
@@ -772,19 +548,21 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 
         int DBid = 0;
         std::string DBname = "";
-        std::string DBpassword = "";
+        std::string DBpassword = ""; // 数据库里存储的密码就是加密后的密码（哈希值）
         std::string DBphone = "";
         std::string DBemail = "";
         boost::gregorian::date DBbirthday = boost::gregorian::date(1970, 1, 1);
         int DBaddress_id = 0;
         std::string DBheadImage = "";
 
+        std::string hashed_password = ""; // 哈希后的密码
+
         // 注册时存储的数据
         if ((request_body.find("password") != request_body.end() && request_body.find("email") != request_body.end()) ||
             (request_body.find("password") != request_body.end() && request_body.find("phone") != request_body.end()))
         {
             // 创建数据库操作(插入)
-            mysqlx::TableInsert insert_op = users_table.insert("type_id", "name", "phone", "password", "email", "birthday", "creation_time", "address_id", "head_image");
+            mysqlx::TableInsert insert_op = users_table.insert("type_id", "name", "phone", "password", "email", "birthday", "address_id", "head_image");
 
             // 从请求中获取数据并确保它们是字符串类型
             if (request_body.find("type_id") != request_body.end() && !request_body["type_id"].is_null())
@@ -872,22 +650,18 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             // 使用SHA-256对密码进行哈希处理
             std::string hashed_password = sha256_hash(password);
 
-            // 获取注册时间并格式化为MySQL datetime格式
-            std::string creation_time = getCreateTime();
-
-            insert_op.values(type_id, name, phone, hashed_password, email, birthday, creation_time, address_id, headImage).execute();
+            insert_op.values(type_id, name, phone, hashed_password, email, birthday, address_id, headImage).execute();
             // 用于执行 INSERT 操作并将数据插入到数据库.
 
             return ResponseHelper::success(req, "用户注册成功");
         }
         // 更新用户数据
         else if (
-            (request_body.find("name") != request_body.end() ||
-             request_body.find("email") != request_body.end() ||
-             request_body.find("birthday") != request_body.end() ||
-             request_body.find("address_id") != request_body.end() ||
-             request_body.find("headImage") != request_body.end()) &&
-            (request_body.find("email") != request_body.end() || request_body.find("phone") != request_body.end()))
+            (request_body.contains("name") ||
+             request_body.contains("birthday") ||
+             request_body.contains("address_id") ||
+             request_body.contains("headImage")) &&
+            (request_body.contains("email") || request_body.contains("phone")))
         {
             // 从请求中获取数据并确保它们是字符串类型
             if (request_body.find("name") != request_body.end() && !request_body["name"].is_null())
@@ -904,6 +678,22 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             else
             {
                 name = "";
+            }
+            if (request_body.find("password") != request_body.end() && !request_body["password"].is_null())
+            {
+                if (request_body["password"].is_string())
+                {
+                    password = request_body["password"].get<std::string>();
+                }
+                else
+                {
+                    password = request_body["password"].dump();
+                }
+                hashed_password = sha256_hash(password);
+            }
+            else
+            {
+                hashed_password = "";
             }
             if (request_body.find("phone") != request_body.end() && !request_body["phone"].is_null())
             {
@@ -1043,6 +833,11 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                                  .where("phone = :phone")
                                  .bind("phone", phone) // phone变量的值被安全处理
                                  .execute();
+                }
+
+                if (result.count() == 0)
+                {
+                    return ResponseHelper::notFound(req, "User not found");
                 }
 
                 // 即使email变量包含恶意代码，也会被当作普通字符串值处理
@@ -1281,6 +1076,12 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 update_op.set("name", name);
                 has_changes = true;
             }
+            // 对比哈希密码，值不相同才更新
+            if (!hashed_password.empty() && DBpassword != hashed_password)
+            {
+                update_op.set("password", hashed_password);
+                has_changes = true;
+            }
             if (!phone.empty() && DBphone != phone)
             {
 
@@ -1345,10 +1146,10 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             }
             // 从请求中获取地址信息
             std::string address_text = "";
-            if (request_body.find("address") != request_body.end())             // 只有前端传入address字段时才进行更新地址信息操作
+            if (request_body.find("address") != request_body.end()) // 只有前端传入address字段时才进行更新地址信息操作
             {
                 // 特别处理address字段，因为它可能是null
-                if (!request_body["address"].is_null())                  // address字段不为null
+                if (!request_body["address"].is_null()) // address字段不为null
                 {
                     // 处理address字段，确保它是字符串类型
                     if (request_body["address"].is_string())
@@ -1357,14 +1158,13 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     }
                     else
                     {
-                        address_text = request_body["address"].dump();  // 将非字符串类型转换为字符串
+                        address_text = request_body["address"].dump(); // 将非字符串类型转换为字符串
                     }
                 }
-                else                                                     // address字段为null
+                else // address字段为null
                 {
                     // 如果address是null，address_text保持为空字符串
                     address_text = "";
-
                 }
 
                 // 如果有地址信息不为null，调用 geocodeAddress 函数获取地理编码
@@ -1398,7 +1198,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                                 // 由于缺少 address_small 表的相关代码，这里简化处理
                                 // 实际应用中需要实现完整的地址管理逻辑
                                 // 保存地址到数据库并获取address_id
-                                if(saveAddressToDatabase(DBaddress_id, address_text, longitude, latitude))
+                                if (saveAddressToDatabase(DBaddress_id, address_text, longitude, latitude))
                                 {
                                     std::cout << "Address saved to database successfully" << std::endl;
                                 }
@@ -1423,13 +1223,10 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             {
                 try
                 {
-                    if (!email.empty())
+                    // 根据id进行更新
+                    if (DBid != 0)
                     {
-                        update_op.where("email = :email").bind("email", email).execute();
-                    }
-                    else if (!phone.empty())
-                    {
-                        update_op.where("phone = :phone").bind("phone", phone).execute();
+                        update_op.where("id = :id").bind("id", DBid).execute();
                     }
                     std::cout << "User data updated successfully" << std::endl;
                 }
@@ -1439,31 +1236,18 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 
                     return ResponseHelper::custom(req, 500, "error: Failed to update user data, details: " + std::string(e.what()) + "\"");
                 }
+                // 返回成功响应
+                nlohmann::json response;
+                response["success"] = true;
+                response["message"] = "Form data saved successfully";
+                response["data"] = getUserData(DBid);
+
+                return ResponseHelper::success(req, response);
             }
             else
             {
-                std::cout << "No fields to update" << std::endl;
+                return ResponseHelper::success(req, "No changes to update");
             }
-
-            // 返回成功响应
-            nlohmann::json response;
-            response["success"] = true;
-            response["message"] = "Form data saved successfully";
-
-            // 手动构建用户JSON对象，确保birthday正确序列化
-            nlohmann::json user_json;
-            user_json["id"] = DBid;
-            user_json["name"] = DBname;
-            user_json["email"] = DBemail;
-            user_json["phone"] = DBphone;
-            user_json["address_id"] = DBaddress_id;
-            // 特别处理birthday字段，将其转换为字符串格式
-            std::ostringstream oss;
-            oss << DBbirthday;
-            user_json["birthday"] = oss.str();
-
-            response["user"] = user_json;
-            return ResponseHelper::success(req, response);
         }
         else
         {
@@ -1492,7 +1276,7 @@ crow::response UserHandler::userUploadAvatar(const crow::request &req)
     try
     {
         // 检查数据库连接是否存在
-        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
+        if (!checkDbConnection())
         {
             return ResponseHelper::system_error(req);
         }
@@ -1633,25 +1417,19 @@ crow::response UserHandler::upload(const crow::request &req, const std::string &
     return res;
 }
 
-crow::response UserHandler::getUserdata(const crow::request &req)
+// 获取用户数据
+crow::response UserHandler::getData(const crow::request &req)
 {
-    nlohmann::json request_body;
     crow::response res;
-    if (!parseJsonBody(req, res, request_body))
-    {
-        return res;
-    }
-
-    if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
-    {
-
-        return ResponseHelper::system_error(req);
-    }
+    // auto request_body_opt = validateRequest(req, res);
+    // if (!request_body_opt)
+    //     return res;
+    // auto &request_body = request_body_opt.value();
 
     try
     {
         mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::RowResult result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "creation_time", "address_id", "head_image").execute();
+        mysqlx::RowResult result = users_table.select("id", "name", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image").execute();
 
         nlohmann::json response_data = nlohmann::json::array();
         for (auto row : result)
@@ -1659,11 +1437,11 @@ crow::response UserHandler::getUserdata(const crow::request &req)
             nlohmann::json user_json;
             user_json["id"] = row[0].get<int>();
             user_json["name"] = clean_string(row[1].get<std::string>());
-            user_json["phone"] = clean_string(row[3].get<std::string>());
-            user_json["email"] = clean_string(row[4].get<std::string>());
-            user_json["birthday"] = clean_string(row[5].get<std::string>());
-            user_json["address_id"] = clean_string(row[7].get<std::string>());
-            user_json["head_image"] = clean_string(row[8].get<std::string>());
+            user_json["phone"] = clean_string(row[2].get<std::string>());
+            user_json["email"] = clean_string(row[3].get<std::string>());
+            user_json["birthday"] = clean_string(row[4].get<std::string>());
+            user_json["address_id"] = clean_string(row[5].get<std::string>());
+            user_json["head_image"] = clean_string(row[6].get<std::string>());
 
             response_data.push_back(user_json);
         }

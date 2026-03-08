@@ -1,12 +1,34 @@
 #pragma once
 #include <crow.h>
+#include <vector>
 #include <nlohmann/json.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <openssl/hmac.h>
+#include <openssl/sha.h>
+#include <algorithm>
+#include <mysqlx/xdevapi.h>
 #include "../middleware/CorsMiddleware/CorsMiddleware.h"
 #include "../middleware/RateLimitMiddleware/RateLimitMiddleware.h"
+#include "../database/DatabaseManager.h"
+#include "../controllers/auth/Encrypt/Encrypt.h"
+#include "../controllers/auth/JwtUtils/JwtUtils.h"
+#include "../database/DatabaseManager.h"
 
 // 工具函数声明
-bool parseJsonBody(const crow::request &req, crow::response &res, nlohmann::json &request_body);
 std::string getCreateTime();
+std::string clean_string(const std::string &input);
+std::string format_date(const std::tm &tm);
+std::string normalizeDate(const std::string &date_str);
+
+std::string formatDateTime(const boost::posix_time::ptime &pt);
+std::string formatDateOnly(const boost::posix_time::ptime &pt); // 只提取日期部分
+std::string formatTimeOnly(const boost::posix_time::ptime &pt); // 只提取时间部分
+
+// 环境变量相关函数
+bool loadEnvironmentFile(const std::string &envFilePath);                        // 加载环境变量文件
+std::string getEnvVar(const std::string &name, const std::string &defaultValue); // 获取环境变量，带默认值
+void initializeEnvironment();                                                    // 在main函数开始时调用
 
 // 判断响应结果函数
 void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow::response &handlerResponse);
@@ -88,6 +110,56 @@ public:
     {
         crow::response res(status, data.dump());
         return res;
+    }
+};
+
+// 基类
+class BaseHandler
+{
+private:
+    std::shared_ptr<DatabaseManagerInterface> dbManager;
+
+public:
+    explicit BaseHandler(std::shared_ptr<DatabaseManagerInterface> db) : dbManager(db) {}
+
+    // 公共的 JSON 解析方法
+    std::optional<nlohmann::json> parseJson(const crow::request& req, crow::response& res) {
+        try {
+            return nlohmann::json::parse(req.body);
+        } catch (...) {
+            res.code = 400;
+            res.set_header("Content-Type", "application/json");
+            std::string origin = req.get_header_value("Origin");
+            if (!origin.empty()) {
+                res.set_header("Access-Control-Allow-Origin", origin);
+            }
+            res.write(R"({"error": "Invalid JSON"})");
+            res.end();
+            return std::nullopt;
+        }
+    }
+
+    // 检查数据库连接
+    bool checkDbConnection()
+    {
+        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
+        {
+            return false;
+        }
+        return true;
+    }
+
+    // 一键验证：JSON + 数据库（返回 optional）
+    std::optional<nlohmann::json> validateRequest(const crow::request& req, crow::response& res) {
+        auto json_opt = parseJson(req, res);
+        if (!json_opt) return std::nullopt;
+        
+        if (!checkDbConnection()) {
+            ResponseHelper::system_error(req);
+            return std::nullopt;
+        }
+        
+        return json_opt;
     }
 };
 

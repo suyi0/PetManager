@@ -1,7 +1,7 @@
 #include "UserRoutes.h"
 
 std::unordered_map<std::string, std::chrono::steady_clock::time_point> email_check_last_access;
-void UserRoutes::setupUserRoutes(CrowApp& app, DatabaseManagerInterface *dbManager)
+void UserRoutes::setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     // 添加标志防止重复设置路由
     static bool routes_setup = false;
@@ -28,56 +28,19 @@ void UserRoutes::setupUserRoutes(CrowApp& app, DatabaseManagerInterface *dbManag
     ([]()
      { return "Server is running!"; });
 
-    // 添加控制验证码准备状态的路由
-    CROW_ROUTE(app, "/api/verification/ready")
-        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                    {
-            try {
-                UserHandler handler(dbManager);
-                crow::response handlerResponse = handler.userReadyVerification(req);
-            
-                ProcessHandlerResponse(req, res, handlerResponse);
-            } catch (const std::exception& e) {
-                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
-            }
-            res.end(); });
-
-    CROW_ROUTE(app, "/api/user/check/email")
-        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                    {
-            try
-            {
-                UserHandler handler(dbManager);
-
-                crow::response handlerResponse = handler.userCheckEmail(req);
-
-                ProcessHandlerResponse(req, res, handlerResponse);
-            } catch (const std::exception& e) {
-                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
-            }
-            res.end(); });
-
-    //  用户注册验证码验证路由
-    CROW_ROUTE(app, "/api/user/verify")
-        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                    {
-                try
-                {
-                    UserHandler handler(dbManager);
-                    crow::response handlerResponse = handler.userVerification(req);
-                
-                    ProcessHandlerResponse(req, res, handlerResponse);
-                } catch (const std::exception& e) {
-                    res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
-                }
-                res.end(); });
-
     // 添加保存表单数据路由
-    CROW_ROUTE(app, "/api/user/form")
+    CROW_ROUTE(app, "/api/upload/form")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Put, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                                                                      {
             try
             {   
+                isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200)
+                {
+                    res.end();
+                    return;
+                }
                 UserHandler handler(dbManager);
                 crow::response handlerResponse = handler.userUpdate(req);
 
@@ -90,11 +53,18 @@ void UserRoutes::setupUserRoutes(CrowApp& app, DatabaseManagerInterface *dbManag
             res.end(); });
     // 上传头像
     // 文件上传请求,客户端发送的是 multipart/form-data 格式，不是 JSON 格式
-    CROW_ROUTE(app, "/api/user/upload/avatar")
+    CROW_ROUTE(app, "/api/upload/avatar")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try
             {
+                isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200)
+                {
+                    res.end();
+                    return;
+                }
                 UserHandler handler(dbManager);
                 crow::response handlerResponse = handler.userUploadAvatar(req);
 
@@ -119,14 +89,23 @@ void UserRoutes::setupUserRoutes(CrowApp& app, DatabaseManagerInterface *dbManag
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
             res.end(); });
+
     // 获取数据库数据的路由
-    CROW_ROUTE(app, "/api/user/data")
+    // 只有管理员可以获取所有用户数据
+    CROW_ROUTE(app, "/api/allUser/getdata")
         .methods(crow::HTTPMethod::Get)([dbManager](const crow::request &req, crow::response &res)
                                         {
             try
             {
+                isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200)
+                {
+                    res.end();
+                    return;
+                }
                 UserHandler handler(dbManager);
-                crow::response handlerResponse = handler.getUserdata(req);
+                crow::response handlerResponse = handler.getData(req);
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception &e)

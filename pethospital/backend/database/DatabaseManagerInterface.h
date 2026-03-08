@@ -19,8 +19,12 @@ class DatabaseManagerInterface
 {
 public:
     virtual ~DatabaseManagerInterface() = default;
+
+    // C++中的虚函数机制允许通过基类指针或引用来调用派生类中重写的函数
+    
     virtual mysqlx::Session *getSession() = 0; // 纯虚函数
     virtual mysqlx::Schema *getSchema() = 0;   // 纯虚函数
+    virtual void create_Tables() = 0;          // 纯虚函数
 };
 
 #endif

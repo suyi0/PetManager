@@ -130,6 +130,9 @@ void WebSocketServer::setupRoutes()
         return;
     }
 
+    // 注册认证路由
+    authRoutes::setupAuthRoutes(*app_ptr_, DatabaseManager::getInstance());
+
     // 注册用户路由
     UserRoutes::setupUserRoutes(*app_ptr_, DatabaseManager::getInstance());
 
@@ -138,6 +141,12 @@ void WebSocketServer::setupRoutes()
 
     // 注册订单路由
     OrderRoutes::setupOrderRoutes(*app_ptr_, DatabaseManager::getInstance());
+
+    // 注册仓库路由
+    WarehouseRoutes::setupWarehouseRoutes(*app_ptr_, DatabaseManager::getInstance());
+
+    // 注册医生路由
+    DoctorRoutes::setupDoctorRoutes(*app_ptr_, DatabaseManager::getInstance());
 
     // 使用解引用后的对象注册WebSocket路由
     auto& app_ref = *app_ptr_;

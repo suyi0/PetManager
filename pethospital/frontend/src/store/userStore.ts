@@ -305,22 +305,31 @@ export const store = createStore<State>({
       // actions 是用来处理异步操作的方法
       actions: {
         // 模块名需与 dispatch 路径匹配
-        // 添加注册 action
-        register: debounce(async function (
+        verify: debounce(async function (
           { commit }: ActionContext<AuthState, State>,
           payload: {
-            email: string;
-            code: string;
+            email?: string;
+            phone?: string;
+            verificationCode: string;
           }
         ) {
+          // 准备请求数据
+          const requestData: any = {
+            code: payload.verificationCode,
+          };
+
+          if (payload.email) {
+            requestData.email = payload.email;
+          } else if (payload.phone) {
+            requestData.phone = payload.phone;
+          }
           // 在实际应用中，这里应该调用注册 API
           // 用return 返回一个 Promise，这样 action 可以返回一个 Promise，用于处理异步操作.
           // 并且其他组件可以通过返回的 Promise 来处理注册结果
           return (
             axios
-              .post("/api/user/verify", {
-                email: payload.email,
-                code: payload.code,
+              .post("/api/auth/verify", {
+                requestData,
               })
               //只有2xx状态码才会进入then回调
               .then((response) => {
@@ -345,7 +354,7 @@ export const store = createStore<State>({
           payload: { email: string; password: string }
         ) {
           return axios
-            .post("/api/user/form", {
+            .post("/api/upload/form", {
               password: payload.password,
               email: payload.email,
             })
@@ -432,7 +441,7 @@ export const store = createStore<State>({
           payload: { email: string }
         ) {
           return axios
-            .post("/api/user/check/email", {
+            .post("/api/auth/checkEmail", {
               email: payload.email,
             })
             .then((response) => {
@@ -448,13 +457,54 @@ export const store = createStore<State>({
         },
         1000),
 
-        readyVerification: debounce(async function (
-          ActionContext,
-          payload: { email: string }
+        checkPhone: debounce(async function (
+          _: ActionContext<AuthState, State>,
+          payload: { phone: string }
         ) {
           return axios
-            .post("/api/verification/ready", {
+            .post("/api/auth/checkPhone", {
+              phone: payload.phone,
+            })
+            .then((response) => {
+              if (response.status === 200) {
+                return response;
+              } else {
+                return response;
+              }
+            })
+            .catch((error) => {
+              throw error;
+            });
+        },
+        1000),
+
+        sendVerificationCode: debounce(async function (
+          ActionContext,
+          payload: { email?: string; phone?: string }
+        ) {
+          return axios
+            .post("/api/verification/sms/send", {
               email: payload.email,
+              phone: payload.phone,
+            })
+            .then((response) => {
+              if (response.status === 200) {
+                return response;
+              }
+            })
+            .catch((error) => {
+              throw error;
+            });
+        },
+        60000),
+        checkVerificationCode: debounce(async function (
+          ActionContext,
+          payload: { email: string; phone: string; code: string }
+        ) {
+          return axios
+            .post("/api/verification/sms/verify", {
+              phone: payload.phone,
+              code: payload.code,
             })
             .then((response) => {
               if (response.status === 200) {
@@ -473,7 +523,7 @@ export const store = createStore<State>({
           // 更新用户数据到服务器
           if (state.userName) {
             axios
-              .post("/api/user/form", {
+              .post("/api/upload/form", {
                 name: state.userName,
                 phone: state.userPhone,
                 email: state.userEmail,
