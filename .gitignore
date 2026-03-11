@@ -1,9 +1,20 @@
 # macOS 系统生成的隐藏文件
 .DS_Store
+# Python virtual environments
+.venv/
+venv/
 # npm 包管理器的依赖目录，不需要提交
 node_modules
+**/node_modules/
 # 编译后的构建目录
 /dist
+dist/
+coverage/
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+*.log
 
 
 # local env files                                       # 本地环境变量文件
@@ -43,5 +54,6 @@ build/
 **/build/
 *.dSYM/
 *.exe
+*.out
 main
 RunServe
