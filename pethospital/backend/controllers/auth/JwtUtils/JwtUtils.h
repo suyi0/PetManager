@@ -6,7 +6,6 @@
 std::string url_safe_base64_encode(const std::string &data);
 std::string url_safe_base64_decode(const std::string &data);
 int calcDecodeLength(const std::string &b64input);
-std::string read_config_value(const std::string &filename, const std::string &key);
 std::string get_jwt_secret();
 bool verify_jwt_signature(const std::string &header, const std::string &payload,
                           const std::string &signature, const std::string &secret);

@@ -36,9 +36,10 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
     }
 }
 
-crow::response doctorHandler::getUserList(const std::string &name)
+crow::response doctorHandler::getUserList(const crow::request &req, const std::string &name)
 {
 
+    return ResponseHelper::success(req, "");
 }
 crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId)
 {

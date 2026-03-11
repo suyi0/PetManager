@@ -16,6 +16,7 @@
 #include "../database/DatabaseManager.h"
 
 // 工具函数声明
+std::tm safeLocalTime(std::time_t time_value);
 std::string getCreateTime();
 std::string clean_string(const std::string &input);
 std::string format_date(const std::tm &tm);

@@ -20,12 +20,18 @@ int main(int argc, char *argv[])
     
     RateLimitMiddleware::initialize(50, 60);  // 每60s，只能接受50次请求
 
-    // 初始化数据库 - 使用新版API
-    DatabaseManager::getInstance()->create_Tables();
+    // 初始化数据库 - 数据库是核心依赖，连接失败时直接退出，避免后续空会话崩溃
+    auto dbManager = DatabaseManager::getInstance();
+    if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
+    {
+        std::cerr << "Database unavailable. Server startup aborted." << std::endl;
+        DatabaseManager::destroyInstance();
+        return 1;
+    }
 
     // 初始化定时任务管理器
     auto taskManager = ScheduledTaskManager::getInstance();
-    taskManager->initialize(DatabaseManager::getInstance());
+    taskManager->initialize(dbManager);
     taskManager->start();
 
     // 使用WebSocketServer的setupRoutes方法注册所有路由

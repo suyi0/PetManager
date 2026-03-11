@@ -35,6 +35,11 @@ void setAutoIncrement(const std::string &table_name, int new_value)
 
 void WebSocketServer::start()
 {
+    if (!app_ptr_)
+    {
+        throw std::runtime_error("App pointer is null in WebSocketServer::start");
+    }
+
     setupRoutes();          // 设置路由
     setupSignalHandlers();  // 设置信号处理
     startCodeCleanupTask(); // 启动定时任务
@@ -152,7 +157,7 @@ void WebSocketServer::setupRoutes()
     auto& app_ref = *app_ptr_;
     CROW_WEBSOCKET_ROUTE(app_ref, "/websocket")
         // 连接开启时的onOpen回调
-        .onopen([&](crow::websocket::connection &conn)
+        .onopen([this](crow::websocket::connection &conn)
                 {
         std::lock_guard<std::mutex> lock(conn_mutex);
         active_connections.insert(&conn);
@@ -168,7 +173,7 @@ void WebSocketServer::setupRoutes()
         {
             std::cerr << "Error sending welcome message: " << e.what() << std::endl;
         } })
-        .onclose([&](crow::websocket::connection &conn, const std::string &reason, uint16_t value)
+        .onclose([this](crow::websocket::connection &conn, const std::string &reason, uint16_t value)
                  {
                      std::lock_guard<std::mutex> lock(conn_mutex);
                      active_connections.erase(&conn);
@@ -182,7 +187,7 @@ void WebSocketServer::setupRoutes()
 
                      shutdown_cv.notify_all(); // 通知等待的线程
                  })
-        .onmessage([&](crow::websocket::connection &conn, const std::string &data, bool is_binary)
+        .onmessage([this](crow::websocket::connection &conn, const std::string &data, bool is_binary)
                    {
         std::cout << "Message received: " << data << std::endl;
         // 回显消息
@@ -198,7 +203,7 @@ void WebSocketServer::setupRoutes()
                 std::cerr << "Error echoing message: " << e.what() << std::endl;
             }
         } })
-        .onerror([&](crow::websocket::connection &conn, const std::string &reason)
+        .onerror([this](crow::websocket::connection &conn, const std::string &reason)
                  { std::cerr << "WebSocket error: " << reason << std::endl; });
 }
 

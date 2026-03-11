@@ -4,6 +4,10 @@
 void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &operation, const std::string &details)
 {
     try {
+        if (!dbManager || !dbManager->getSession()) {
+            return;
+        }
+
         mysqlx::Session *session = dbManager->getSession();
     
         session->sql("INSERT INTO system_operations (operation, details) VALUES (?, ?)")
@@ -20,6 +24,10 @@ void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterfac
 void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, int &userId, const std::string &operation, const std::string &details)
 {
     try {
+        if (!dbManager || !dbManager->getSession()) {
+            return;
+        }
+
         mysqlx::Session *session = dbManager->getSession();
     
         session->sql("INSERT INTO user_operations (user_id, operation, details) VALUES (?, ?, ?)")

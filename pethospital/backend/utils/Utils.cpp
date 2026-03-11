@@ -1,12 +1,22 @@
 #include "Utils.h"
 
+std::tm safeLocalTime(std::time_t time_value)
+{
+    std::tm tm_now{};
+#ifdef _WIN32
+    localtime_s(&tm_now, &time_value);
+#else
+    localtime_r(&time_value, &tm_now);
+#endif
+    return tm_now;
+}
 
 // 获得创建时间
 std::string getCreateTime()
 {
     auto now = std::chrono::system_clock::now();
     std::time_t time_now = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_now = *std::localtime(&time_now);
+    std::tm tm_now = safeLocalTime(time_now);
     std::ostringstream oss;
     oss << std::put_time(&tm_now, "%Y-%m-%d %H:%M:%S");
     std::string creation_time = oss.str();
@@ -281,6 +291,6 @@ void initializeEnvironment()
     }
     else
     {
-        std::cout << "Failed to load environment file, using defaults" << std::endl;
+        std::cout << "Failed to load environment file" << std::endl;
     }
 }

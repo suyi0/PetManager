@@ -7,7 +7,7 @@ class warehouseHandler : public BaseHandler {
 private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 public:
-    explicit warehouseHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
+    explicit warehouseHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
 
     crow::response updataWarehouse(const crow::request& req);
 };

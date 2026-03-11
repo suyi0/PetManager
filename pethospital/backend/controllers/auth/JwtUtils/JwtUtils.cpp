@@ -1,4 +1,5 @@
 #include "JwtUtils.h"
+#include <cstring>
 
 // URL安全的Base64编码函数
 std::string url_safe_base64_encode(const std::string &data)
@@ -107,66 +108,15 @@ int calcDecodeLength(const std::string &b64input)
     return (len * 3) / 4 - padding;
 }
 
-// 从配置文件中读取密钥
-std::string read_config_value(const std::string &filename, const std::string &key)
-{
-    std::ifstream config_file(filename);
-    std::string line;
-
-    while (std::getline(config_file, line))
-    {
-        // 跳过注释行和空行
-        if (line.empty() || line[0] == '#' || line[0] == ';')
-        {
-            continue;
-        }
-
-        // 查找键值对 (格式: KEY=VALUE)
-        size_t delimiter_pos = line.find('=');
-        if (delimiter_pos != std::string::npos)
-        {
-            std::string config_key = line.substr(0, delimiter_pos);
-            // 去除空格
-            config_key.erase(0, config_key.find_first_not_of(" \t"));
-            config_key.erase(config_key.find_last_not_of(" \t") + 1);
-
-            if (config_key == key)
-            {
-                std::string value = line.substr(delimiter_pos + 1);
-                // 去除空格和引号
-                value.erase(0, value.find_first_not_of(" \t\""));
-                value.erase(value.find_last_not_of(" \t\"") + 1);
-                return value;
-            }
-        }
-    }
-
-    return ""; // 未找到键值
-}
-
-// 获取JWT密钥
 std::string get_jwt_secret()
 {
-    // 首先尝试从环境变量获取
     const char *jwt_secret_env = std::getenv("JWT_SECRET");
-    if (jwt_secret_env)
+    if (jwt_secret_env && std::strlen(jwt_secret_env) > 0)
     {
-        // 如果环境变量存在，则返回该值
-        std::cout << "Using JWT_SECRET from environment variable." << std::endl;
         return std::string(jwt_secret_env);
     }
 
-    // 如果环境变量不存在，则从配置文件读取
-    std::string secret_from_file = read_config_value("config.ini", "JWT_SECRET");
-    if (!secret_from_file.empty())
-    {
-        // 如果配置文件存在，则返回该值
-        std::cout << "Using JWT_SECRET from config.ini." << std::endl;
-        return secret_from_file;
-    }
-
-    // 如果都没有，则使用默认值（仅用于开发环境）
-    return "default-secret-key-change-in-production";
+    throw std::runtime_error("Missing required environment variable: JWT_SECRET");
 }
 
 // 生成JWT

@@ -9,7 +9,7 @@ private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 
 public:
-    explicit update(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
+    explicit update(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
 
     void Automatic_update();                                                        // 系统自动更新操作
 

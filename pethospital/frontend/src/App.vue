@@ -25,7 +25,7 @@
 import { computed, onMounted } from "vue";
 import { useStore } from "vuex";
 import { key } from "@/store/userStore";
-import Login from "./components/LoginPage.vue";
+import Login from "./views/LoginPage.vue";
 import router from "./router";
 
 const store = useStore(key);

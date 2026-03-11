@@ -15,6 +15,14 @@
 std::unique_ptr<ScheduledTaskManager> ScheduledTaskManager::instance = nullptr;
 std::mutex ScheduledTaskManager::instanceMutex;
 
+namespace
+{
+bool canUseDatabase(const std::shared_ptr<DatabaseManagerInterface> &dbManager)
+{
+    return dbManager && dbManager->getSession() && dbManager->getSchema();
+}
+}
+
 ScheduledTaskManager::~ScheduledTaskManager()
 {
     stop();
@@ -43,12 +51,12 @@ void ScheduledTaskManager::initialize(std::shared_ptr<DatabaseManagerInterface> 
     // time_t 是一个标量类型（通常是 long 或 long long），表示自 Unix 纪元（1970-01-01 00:00:00 UTC）以来的秒数
 
     // 转换为 tm 结构体后，可以直观地修改各个字段：
-    std::tm* local_tm = std::localtime(&time_t_now);                    // 转换为本地时间结构体 tm
-    local_tm->tm_hour = 0;                                              // 设置时为0
-    local_tm->tm_min = 0;                                               // 设置分为0        
-    local_tm->tm_sec = 0;                                               // 设置秒为0     
+    std::tm local_tm = safeLocalTime(time_t_now);                       // 转换为本地时间结构体 tm
+    local_tm.tm_hour = 0;                                               // 设置时为0
+    local_tm.tm_min = 0;                                                // 设置分为0        
+    local_tm.tm_sec = 0;                                                // 设置秒为0     
     // std::mktime(local_tm) 将本地时间结构体 tm* 转换为 time_t 类型（自 Unix 纪元以来的秒数）。
-    auto midnight = std::chrono::system_clock::from_time_t(std::mktime(local_tm));  // 将午夜时间转换回 chrono::system_clock 类型
+    auto midnight = std::chrono::system_clock::from_time_t(std::mktime(&local_tm));  // 将午夜时间转换回 chrono::system_clock 类型
 
     // 添加默认的30分钟系统信息记录任务
     addTask("SystemInfoRecord", [this]()
@@ -172,10 +180,10 @@ void ScheduledTaskManager::workerLoop()
     {
         auto now = std::chrono::system_clock::now();
         auto time_t_now = std::chrono::system_clock::to_time_t(now);
-        std::tm* local_tm = std::localtime(&time_t_now);
+        std::tm local_tm = safeLocalTime(time_t_now);
 
         // 计算当前时间的分钟数（从 00:00 开始的总分钟数）
-        int currentTotalMinutes = local_tm->tm_hour * 60 + local_tm->tm_min;
+        int currentTotalMinutes = local_tm.tm_hour * 60 + local_tm.tm_min;
         // 计算应该执行的时间节点（0 或 30）
         int scheduledMinute = (currentTotalMinutes / 30) * 30;
 
@@ -227,7 +235,7 @@ void ScheduledTaskManager::recordSystemInfo()
 #endif
 
     // 记录到数据库
-    if (logger && dbManager)
+    if (logger && canUseDatabase(dbManager))
     {
         logger->logSystemOperation(dbManager, "SystemInfo", ss.str());
     }
@@ -237,7 +245,7 @@ void ScheduledTaskManager::recordSystemInfo()
 
 void ScheduledTaskManager::recordDatabaseStatus()
 {
-    if (!dbManager)
+    if (!canUseDatabase(dbManager))
         return;
 
     try
@@ -309,7 +317,7 @@ void ScheduledTaskManager::recordMemoryUsage()
 #endif
 
     // 记录到数据库
-    if (logger && dbManager)
+    if (logger && canUseDatabase(dbManager))
     {
         logger->logSystemOperation(dbManager, "MemoryUsage", ss.str());
     }
@@ -319,7 +327,7 @@ void ScheduledTaskManager::recordMemoryUsage()
 
 void ScheduledTaskManager::recordUserActivity()
 {
-    if (!dbManager)
+    if (!canUseDatabase(dbManager))
         return;
 
     try

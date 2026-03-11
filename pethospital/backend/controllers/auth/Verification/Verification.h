@@ -86,9 +86,6 @@ public:
     // 从环境变量加载配置
     bool LoadConfigFromEnv();
 
-    // 从配置文件加载配置
-    bool LoadConfigFromFile();
-
     // 验证码存储和管理相关静态方法
     static void StoreCode(const std::string &email, const std::string &code);
     static bool ValidateCode(const std::string &email, const std::string &code);

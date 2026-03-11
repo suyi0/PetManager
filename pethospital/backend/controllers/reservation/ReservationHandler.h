@@ -9,7 +9,7 @@ private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 
 public:
-    explicit ReservationHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
+    explicit ReservationHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
     crow::response createReservation(const crow::request& req, int user_id, std::string name, std::string email, std::string phone, int doctor_id, std::string date, std::string time_slot, std::string status);                 //  对应 /api/reservate/record
     crow::response getReservations(const crow::request& req, int user_id);                   //  对应 /api/reservate/getrecord
     crow::response updateReservation(const crow::request& req, int id);

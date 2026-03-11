@@ -1,83 +1,137 @@
+#include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <mutex>
 #include "DatabaseManager.h"
 
-// 添加从配置文件读取数据库配置的函数
+namespace
+{
+std::string trimQuotes(std::string value)
+{
+    if (value.size() >= 2)
+    {
+        const char first = value.front();
+        const char last = value.back();
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\''))
+        {
+            return value.substr(1, value.size() - 2);
+        }
+    }
+
+    return value;
+}
+
+bool isTruthyEnv(const char *value)
+{
+    if (!value)
+    {
+        return false;
+    }
+
+    std::string normalized = trimQuotes(std::string(value));
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), ::toupper);
+    return normalized == "1" || normalized == "TRUE" || normalized == "YES" || normalized == "ON";
+}
+
+mysqlx::SSLMode parseSslMode(const char *ssl_mode_env)
+{
+    if (!ssl_mode_env)
+    {
+        // MySQL X authentication often requires a secure channel for PLAIN auth.
+        return mysqlx::SSLMode::REQUIRED;
+    }
+
+    std::string ssl_mode = trimQuotes(ssl_mode_env);
+    std::transform(ssl_mode.begin(), ssl_mode.end(), ssl_mode.begin(), ::toupper);
+
+    if (ssl_mode == "DISABLED")
+    {
+        if (!isTruthyEnv(getenv("DB_ALLOW_INSECURE_SSL")))
+        {
+            std::cerr << "⚠️  Refusing DB_SSL_MODE=DISABLED without DB_ALLOW_INSECURE_SSL=true. Falling back to REQUIRED."
+                      << std::endl;
+            return mysqlx::SSLMode::REQUIRED;
+        }
+        return mysqlx::SSLMode::DISABLED;
+    }
+    if (ssl_mode == "VERIFY_CA")
+    {
+        return mysqlx::SSLMode::VERIFY_CA;
+    }
+    if (ssl_mode == "VERIFY_IDENTITY")
+    {
+        return mysqlx::SSLMode::VERIFY_IDENTITY;
+    }
+    if (ssl_mode == "REQUIRED")
+    {
+        return mysqlx::SSLMode::REQUIRED;
+    }
+
+    std::cerr << "⚠️  Unknown DB_SSL_MODE value '" << ssl_mode
+              << "', falling back to REQUIRED" << std::endl;
+    return mysqlx::SSLMode::REQUIRED;
+}
+
+const char *sslModeToUriValue(mysqlx::SSLMode mode)
+{
+    switch (mode)
+    {
+    case mysqlx::SSLMode::DISABLED:
+        return "DISABLED";
+    case mysqlx::SSLMode::REQUIRED:
+        return "REQUIRED";
+    case mysqlx::SSLMode::VERIFY_CA:
+        return "VERIFY_CA";
+    case mysqlx::SSLMode::VERIFY_IDENTITY:
+        return "VERIFY_IDENTITY";
+    default:
+        return "REQUIRED";
+    }
+}
+
+const char *sslModeToString(mysqlx::SSLMode mode)
+{
+    switch (mode)
+    {
+    case mysqlx::SSLMode::DISABLED:
+        return "DISABLED";
+    case mysqlx::SSLMode::REQUIRED:
+        return "REQUIRED";
+    case mysqlx::SSLMode::VERIFY_CA:
+        return "VERIFY_CA";
+    case mysqlx::SSLMode::VERIFY_IDENTITY:
+        return "VERIFY_IDENTITY";
+    default:
+        return "UNKNOWN";
+    }
+}
+} // namespace
+
 std::tuple<std::string, int, std::string, std::string, std::string> loadDatabaseConfig()
 {
-    // 默认数据库连接信息
     std::string host = "";
     int port = 0;
     std::string user = "";
     std::string password = "";
     std::string name = "";
 
-    // 从环境变量获取数据库连接信息
     const char *db_host = getenv("DB_HOST");
     const char *db_port = getenv("DB_PORT");
     const char *db_user = getenv("DB_USER");
     const char *db_pass = getenv("DB_PASS");
     const char *db_name = getenv("DB_NAME");
-    const char *db_config = getenv("PETMANAGERCONFIG_PATH") ? getenv("PETMANAGERCONFIG_PATH") : "config.json";
     if (db_host && db_port && db_user && db_pass && db_name)
     {
-        host = std::string(db_host);
+        host = trimQuotes(std::string(db_host));
         port = std::stoi(std::string(db_port));
-        user = std::string(db_user);
-        password = std::string(db_pass);
-        name = std::string(db_name);
+        user = trimQuotes(std::string(db_user));
+        password = trimQuotes(std::string(db_pass));
+        name = trimQuotes(std::string(db_name));
     }
 
-    // 如果环境变量没有设置，则尝试从配置文件加载
-    if (host == "" || user == "" || password == "" || name == "")
+    if (host.empty() || port <= 0 || user.empty() || password.empty() || name.empty())
     {
-        std::cout << "⚠️  Warning: Some environment variables are not set, trying to load from config file..." << std::endl;
-
-        std::ifstream configFile(db_config); // 读取文件
-        if (configFile.is_open())
-        {
-            try
-            {
-                nlohmann::json config;
-                configFile >> config; // 将整个文件内容解析为JSON对象
-
-                if (config.contains("database"))
-                {
-                    if (config["database"].contains("host"))
-                    {
-                        host = config["database"]["host"].get<std::string>();
-                    }
-                    if (config["database"].contains("port"))
-                    {
-                        port = config["database"]["port"].get<int>();
-                    }
-                    if (config["database"].contains("user"))
-                    {
-                        user = config["database"]["user"].get<std::string>();
-                    }
-                    if (config["database"].contains("password"))
-                    {
-                        password = config["database"]["password"].get<std::string>();
-                    }
-                    if (config["database"].contains("schema"))
-                    {
-                        name = config["database"]["schema"].get<std::string>();
-                    }
-                }
-            }
-            catch (const std::exception &e)
-            {
-                std::cerr << "❌ Error parsing config.json: " << e.what() << std::endl;
-                std::cerr << "❌ Failed to load database configuration!" << std::endl;
-                throw std::runtime_error("Failed to load database configuration");
-            }
-        }
-        else
-        {
-            std::cerr << "❌ Config file not found at: " << db_config << std::endl;
-            std::cerr << "❌ Failed to load database configuration!" << std::endl;
-            throw std::runtime_error("Failed to load database configuration");
-        }
+        throw std::runtime_error("Missing required database environment variables: DB_HOST, DB_PORT, DB_USER, DB_PASS, DB_NAME");
     }
 
     return std::make_tuple(host, port, user, password, name);
@@ -119,6 +173,11 @@ void add_Column_If_Not_Exists(const std::string &table_name, const std::string &
 
 // 添加静态成员定义
 std::mutex DatabaseManager::mutex_;
+bool DatabaseManager::hasValidConnection() const
+{
+    return session != nullptr && schema != nullptr;
+}
+
 void DatabaseManager::create_Tables()
 {
     static bool tables_created = false; // 添加标志防止重复执行
@@ -132,7 +191,7 @@ void DatabaseManager::create_Tables()
     std::cout << "create_Tables() executing for the first time..." << std::endl;
 
     // 检查并创建必要的表
-    if (schema != nullptr)
+    if (hasValidConnection())
     {
         // 获取所有表名
         auto tables = schema->getTables();
@@ -240,7 +299,7 @@ void DatabaseManager::create_Tables()
                          "address_id int, "
                          "head_image VARCHAR(255),"
                          "user_specialty VARCHAR(255),"              // 如果是医生，则添加此字段信息
-                         "user_introduction, "                       // 用户简介(一般只有医生有介绍)
+                         "user_introduction TEXT, "                  // 用户简介(一般只有医生有介绍)
                          "user_level int, "                          // 用户等级(排列顺序：同等级按字母顺序排列，不同等级按等级顺序排列)
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
@@ -249,6 +308,33 @@ void DatabaseManager::create_Tables()
                          ")")
                 .execute();
             std::cout << "users table created successfully." << std::endl;
+        }
+
+        // 创建仓库表
+        if(warehouse_exists)
+        {
+            std::cout << "warehouse table is exists." << std::endl;
+        }
+        else
+        {
+            std::cout << "warehouse table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE warehouse("
+                         "id INT PRIMARY KEY AUTO_INCREMENT, "
+                         "item_name VARCHAR(255), "                                                                               // 物品名称
+                         "item_type VARCHAR(255), "                                                                               // 物品类型
+                         "item_productiondate DATE, "                                                                             // 生产日期
+                         "item_expirationdate DATE, "                                                                             // 到期日期
+                         "days_until_expire INT DEFAULT NULL, "                                                                   // 剩余天数
+                         "item_price DECIMAL(10, 2), "                                                                            // 价格
+                         "item_number INT, "                                                                                      // 数量
+                         "item_totalprice DECIMAL(18, 2), "                                                                      // 总价
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "                                                       // 创建时间
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "                           // 更新时间
+                         "INDEX idx_id_exp (id, days_until_expire), "
+                         "INDEX idx_exp (days_until_expire) "
+                         ")")
+                    .execute();
+            std::cout << " warehouse table created successfully" << std::endl;
         }
 
         // 上班时间表
@@ -349,7 +435,7 @@ void DatabaseManager::create_Tables()
                          "order_type VARCHAR(255),"
                          "order_date VARCHAR(255), "
                          "order_status VARCHAR(255), "
-                         "order_totalprice DECIMAL(100, 2), "
+                         "order_totalprice DECIMAL(18, 2), "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "                                   // 订单创建时间
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "       // 订单更新时间
                          "CONSTRAINT fk_orders_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id), "
@@ -373,8 +459,8 @@ void DatabaseManager::create_Tables()
                          "order_id INT, "
                          "medicine_id INT, "
                          "quantity INT, "
-                         "price DECIMAL(100, 2), "
-                         "total_price DECIMAL(100, 2), "
+                         "price DECIMAL(18, 2), "
+                         "total_price DECIMAL(18, 2), "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "INDEX idx_orderId_time (order_id, created_at), "
@@ -382,33 +468,8 @@ void DatabaseManager::create_Tables()
                          "CONSTRAINT fk_medicine_id FOREIGN KEY (medicine_id) REFERENCES warehouse(id) "
                          ")")
                 .execute();
-        }
 
-        // 创建仓库表
-        if(warehouse_exists)
-        {
-            std::cout << "warehouse table is exists." << std::endl;
-        }
-        else
-        {
-            std::cout << "warehouse table does not exist. Creating..." << std::endl;
-            session->sql("CREATE TABLE warehouse("
-                         "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "item_name VARCHAR(255), "                                                                               // 物品名称
-                         "item_type VARCHAR(255), "                                                                               // 物品类型
-                         "item_productiondate DATE, "                                                                             // 生产日期
-                         "item_expirationdate DATE"                                                                               // 到期日期
-                         "days_until_expire INT GENERATED ALWAYS AS (DATEDIFF(item_expirationdate, CURDATE())) STORED, "          // 剩余天数
-                         "item_price DECIMAL(10, 2), "                                                                            // 价格
-                         "item_number INT, "                                                                                      // 数量
-                         "item_totalprice DECIMAL(100, 2), "                                                                      // 总价
-                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "                                                       // 创建时间
-                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "                           // 更新时间
-                         "INDEX idx_id_exp (id, days_until_expire), "
-                         "INDEX idx_exp (days_until_expire) "
-                         ")")
-                    .execute();
-            std::cout << " warehouse table created successfully" << std::endl;
+            std::cout << "orderMedicines table created successfully" << std::endl;
         }
 
         // 创建上班时间记录表
@@ -429,7 +490,7 @@ void DatabaseManager::create_Tables()
                         "notes TEXT, "                                                              // 备注
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                        "CONSTRAINT fk_doctor_id FOREIGN KEY (userId) REFERENCES users(id), "
+                        "CONSTRAINT fk_worktime_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id), "
                         "INDEX idx_user (doctor_id)"
                         ")")
                     .execute();
@@ -485,30 +546,28 @@ void DatabaseManager::create_Tables()
 
 std::shared_ptr<DatabaseManagerInterface> DatabaseManager::instance = nullptr;
 
-DatabaseManager::DatabaseManager()
+DatabaseManager::DatabaseManager() : session(nullptr), schema(nullptr)
 {
     // 初始化数据库 - 使用新版API
     try
     {
         // 加载数据库配置
         auto [db_host, db_port, db_user, db_pass, db_name] = loadDatabaseConfig();
-
-        std::cout << "Attempting to connect to database..." << std::endl;
-        std::cout << "Host: " << db_host << ", Port: " << db_port << ", User: " << db_user << ", DB: " << db_name << std::endl;
+        const mysqlx::SSLMode ssl_mode = parseSslMode(getenv("DB_SSL_MODE"));
 
         // 尝试多种连接方法
-        std::cout << "Trying various connection methods..." << std::endl;
-
         bool connected = false;
         
         // 方法1: 尝试使用 URI 连接
         try 
         {
-            std::string full_uri = "mysqlx://" + db_user + ":" + db_pass + "@" + db_host + ":" + std::to_string(db_port) + "/" + db_name + "?ssl-mode=DISABLED&connect-timeout=30000";
-            std::cout << "Trying URI connection: " << full_uri << std::endl;
+            std::string full_uri = "mysqlx://" + db_user + ":" + db_pass + "@" + db_host + ":" +
+                                   std::to_string(db_port) + "/" + db_name + "?connect-timeout=30000&ssl-mode=" +
+                                   sslModeToUriValue(ssl_mode);
             session = new mysqlx::Session(full_uri);                    // 建立会话
             schema = new mysqlx::Schema(session->getSchema(db_name));   // 获取数据库模式
-            std::cout << "✅ Database connection successful via URI method!" << std::endl;
+            std::cout << "✅ Database connection successful via URI method! SSL mode: "
+                      << sslModeToString(ssl_mode) << std::endl;
             connected = true;
         }
         catch (const mysqlx::Error &e)
@@ -527,10 +586,11 @@ DatabaseManager::DatabaseManager()
                     mysqlx::SessionOption::USER, db_user.c_str(),
                     mysqlx::SessionOption::PWD, db_pass.c_str(),
                     mysqlx::SessionOption::DB, db_name.c_str(),
-                    mysqlx::SessionOption::SSL_MODE, mysqlx::SSLMode::DISABLED
+                    mysqlx::SessionOption::SSL_MODE, ssl_mode
                 );
                 schema = new mysqlx::Schema(session->getSchema(db_name));
-                std::cout << "✅ Database connection successful via SessionOption method!" << std::endl;
+                std::cout << "✅ Database connection successful via SessionOption method! SSL mode: "
+                          << sslModeToString(ssl_mode) << std::endl;
                 connected = true;
             }
             catch (const mysqlx::Error &e)
@@ -543,13 +603,12 @@ DatabaseManager::DatabaseManager()
             // 方法3: 尝试先连接到服务器，再选择数据库
             try 
             {
-                std::cout << "Trying server-first connection method..." << std::endl;
                 mysqlx::Session temp_session(
                     mysqlx::SessionOption::HOST, db_host.c_str(),
                     mysqlx::SessionOption::PORT, db_port,
                     mysqlx::SessionOption::USER, db_user.c_str(),
                     mysqlx::SessionOption::PWD, db_pass.c_str(),
-                    mysqlx::SessionOption::SSL_MODE, mysqlx::SSLMode::DISABLED
+                    mysqlx::SessionOption::SSL_MODE, ssl_mode
                 );
                 
                 // 检查并创建数据库
@@ -571,10 +630,9 @@ DatabaseManager::DatabaseManager()
                     mysqlx::SessionOption::USER, db_user.c_str(),
                     mysqlx::SessionOption::PWD, db_pass.c_str(),
                     mysqlx::SessionOption::DB, db_name.c_str(),
-                    mysqlx::SessionOption::SSL_MODE, mysqlx::SSLMode::DISABLED
+                    mysqlx::SessionOption::SSL_MODE, ssl_mode
                 );
                 schema = new mysqlx::Schema(session->getSchema(db_name));
-                std::cout << "✅ Database connection successful via server-first method!" << std::endl;
                 connected = true;
             }
             catch (const mysqlx::Error &e)
@@ -587,13 +645,16 @@ DatabaseManager::DatabaseManager()
             // 方法4: 尝试使用字符串形式的连接参数
             try 
             {
-                std::cout << "Trying host string connection method..." << std::endl;
                 std::string host_and_port = db_host + std::string(":") + std::to_string(db_port);
                 session = new mysqlx::Session(
-                    mysqlx::SessionOption::URI, ("mysqlx://" + db_user + ":" + db_pass + "@" + host_and_port + "/" + db_name + "?ssl-mode=DISABLED").c_str()
+                    mysqlx::SessionOption::URI,
+                    ("mysqlx://" + db_user + ":" + db_pass + "@" + host_and_port + "/" + db_name +
+                     "?ssl-mode=" + std::string(sslModeToUriValue(ssl_mode)))
+                        .c_str()
                 );
                 schema = new mysqlx::Schema(session->getSchema(db_name));
-                std::cout << "✅ Database connection successful via host string method!" << std::endl;
+                std::cout << "✅ Database connection successful via host string method! SSL mode: "
+                          << sslModeToString(ssl_mode) << std::endl;
                 connected = true;
             }
             catch (const mysqlx::Error &e)
@@ -609,6 +670,7 @@ DatabaseManager::DatabaseManager()
             std::cerr << "- Port: " << db_port << std::endl;
             std::cerr << "- User: " << db_user << std::endl;
             std::cerr << "- DB Name: " << db_name << std::endl;
+            std::cerr << "- SSL Mode: " << sslModeToString(ssl_mode) << std::endl;
 
             // 即使数据库连接失败，服务器也应该继续运行
             session = nullptr;
@@ -616,7 +678,7 @@ DatabaseManager::DatabaseManager()
         }
         
         // 如果成功建立了会话，创建表
-        if (session != nullptr && schema != nullptr) {
+        if (hasValidConnection()) {
             create_Tables();
         }
     }

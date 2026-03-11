@@ -124,71 +124,6 @@ bool Verify::LoadConfigFromEnv()
     return false;
 }
 
-// 从配置文件中加载配置
-bool Verify::LoadConfigFromFile()
-{
-    std::string host = "";
-    int port = 0;
-    std::string user = "";
-    std::string password = "";
-    std::string sender = "";
-
-    // 从配置文件加载配置
-    const char *smtp_config = getenv("PETMANAGERCONFIG_PATH") ? getenv("PETMANAGERCONFIG_PATH") : "config.json";
-    std::cout << "PETMANAGERCONFIG_PATH: " << (smtp_config ? smtp_config : "nullptr") << std::endl;
-
-    if (smtp_config == nullptr)
-    {
-        std::cout << "未找到配置文件，请检查环境变量PETMANAGERCONFIG_PATH" << std::endl;
-        return false;
-    }
-    std::ifstream configFile(smtp_config);
-    if (!configFile.is_open())
-    {
-        std::cout << "无法打开配置文件：" << smtp_config << std::endl;
-        return false;
-    }
-    try
-    {
-        nlohmann::json config;
-        configFile >> config;
-        if (config.contains("email"))
-        {
-            if (config["email"].contains("smtp_host"))
-            {
-                host = config["email"]["smtp_host"];
-            }
-            if (config["email"].contains("smtp_port"))
-            {
-                port = config["email"]["smtp_port"];
-            }
-            if (config["email"].contains("smtp_user"))
-            {
-                user = config["email"]["smtp_user"];
-            }
-            if (config["email"].contains("smtp_password"))
-            {
-                password = config["email"]["smtp_password"];
-            }
-            if (config["email"].contains("smtp_sender"))
-            {
-                sender = config["email"]["smtp_sender"];
-            }
-        }
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Error parsing config.json: " << e.what() << std::endl;
-    }
-    // 检查配置项是否完整,完整传值，返回true
-    if (host != "" && port != 0 && user != "" && password != "" && sender != "")
-    {
-        SetSMTPConfig(host, port, user, password, sender);
-        return true;
-    }
-    return false;
-}
-
 // 添加一个自定义的读取函数
 static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp)
 {
@@ -211,16 +146,15 @@ void Verify::SendVerify(std::string emailaddress, std::string code, std::promise
     struct curl_slist *recipients = NULL;
     std::string payload_text;
 
-    // 尝试从环境变量加载配置
     if (!this->LoadConfigFromEnv())
     {
-        std::cout << "无法从环境变量加载配置，尝试从配置文件加载..." << std::endl;
-        // 尝试从配置文件加载配置
-        if (!this->LoadConfigFromFile())
+        std::cerr << "Missing required SMTP environment variables: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SENDER"
+                  << std::endl;
+        if (promise)
         {
-            std::cout << "无法从配置文件加载配置，请检查环境变量或配置文件。" << std::endl;
-            return;
+            promise->set_value(false);
         }
+        return;
     }
 
     std::cout << "SMTP配置加载成功" << std::endl;

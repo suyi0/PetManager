@@ -9,7 +9,7 @@ private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
     
 public:
-    explicit OrderHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
+    explicit OrderHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
 
     crow::response createOrder(const crow::request& req);
 

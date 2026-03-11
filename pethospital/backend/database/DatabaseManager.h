@@ -22,6 +22,8 @@ private:
     // 私有构造函数防止外部实例化
     DatabaseManager();
 
+    bool hasValidConnection() const;
+
 public:
     ~DatabaseManager();
 

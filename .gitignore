@@ -34,3 +34,14 @@ pnpm-debug.log*
 *.conf
 config.ini
 .env
+*.sql
+*.sqlite
+*.sqlite3
+
+# Build outputs and debug artifacts
+build/
+**/build/
+*.dSYM/
+*.exe
+main
+RunServe

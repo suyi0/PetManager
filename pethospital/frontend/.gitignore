@@ -32,3 +32,14 @@ pnpm-debug.log*
 
 # Configuration files containing sensitive data
 config.json
+*.sql
+*.sqlite
+*.sqlite3
+
+# Build outputs and debug artifacts
+build/
+**/build/
+*.dSYM/
+*.exe
+main
+RunServe

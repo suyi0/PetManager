@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import userRouters from "./userRouter"; // 引入用户模块的路由
+import userRouters from "@/user/router/UserRouter"; // 引入用户模块的路由
+import adminRouters from "@/super-admin/router/superAdminRouter"; // 引入管理员模块的路由
+import doctorRouters from "@/doctor/router/DoctorRouter";
 import { store } from "@/store/userStore";
 
 const routes: Array<RouteRecordRaw> = [
@@ -9,8 +11,9 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("../App.vue"),
   },
 
-  // 用户模块
   ...userRouters,
+  ...doctorRouters,
+  ...adminRouters.options.routes,
 ];
 
 const router = createRouter({

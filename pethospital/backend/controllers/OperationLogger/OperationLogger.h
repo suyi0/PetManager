@@ -9,7 +9,7 @@ private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 
 public:
-    explicit OperationLogger(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
+    explicit OperationLogger(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
 
     static void logSystemOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &operation, const std::string &details = "");
  

@@ -306,9 +306,6 @@ crow::response UserHandler::userLogin(const crow::request &req)
             password = request_body["password"].is_string() ? request_body["password"].get<std::string>() : request_body["password"].dump();
         }
 
-        // 对输入的密码进行SHA-256哈希处理
-        std::string hashed_password = sha256_hash(password);
-
         // 检查数据库连接是否存在
         if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
         {
@@ -481,13 +478,31 @@ crow::response UserHandler::userLogin(const crow::request &req)
 
         // 在这里验证用户名和密码
         nlohmann::json response;
-        if (!user || user->getPassword() != hashed_password)
+        if (!user || !verify_password_hash(password, user->getPassword()))
         {
             // 不区分用户不存在和密码错误，统一返回相同错误信息
             return ResponseHelper::error(req, "Invalid username or password");
         }
         else
         {
+            if (password_hash_needs_upgrade(user->getPassword()))
+            {
+                try
+                {
+                    mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
+                    users_table.update()
+                        .set("password", hash_password(password))
+                        .where("id = :id")
+                        .bind("id", user->getID())
+                        .execute();
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "Failed to upgrade password hash for user " << user->getID()
+                              << ": " << e.what() << std::endl;
+                }
+            }
+
             // 验证成功
             // 生成一个基于用户邮箱的JWT token
             std::string token = JwtUtils::createToken(user->getID(), user->getName(), user->getEmail(), true);
@@ -647,8 +662,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 name = "未命名";
             }
 
-            // 使用SHA-256对密码进行哈希处理
-            std::string hashed_password = sha256_hash(password);
+            std::string hashed_password = hash_password(password);
 
             insert_op.values(type_id, name, phone, hashed_password, email, birthday, address_id, headImage).execute();
             // 用于执行 INSERT 操作并将数据插入到数据库.
@@ -689,7 +703,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 {
                     password = request_body["password"].dump();
                 }
-                hashed_password = sha256_hash(password);
+                hashed_password = hash_password(password);
             }
             else
             {
@@ -1445,6 +1459,7 @@ crow::response UserHandler::getData(const crow::request &req)
 
             response_data.push_back(user_json);
         }
+
 
         return ResponseHelper::success(req, response_data);
     }

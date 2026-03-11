@@ -3,9 +3,10 @@ void Reservate::date()
 {
     std::time_t t = std::time(nullptr);
     char buffer[11];
+    std::tm local_tm = safeLocalTime(t);
 
     // 获取当前日期并格式化为字符串
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", std::localtime(&t));
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &local_tm);
     boost::gregorian::date today = boost::gregorian::from_simple_string(buffer);
 
     // 星期中文映射

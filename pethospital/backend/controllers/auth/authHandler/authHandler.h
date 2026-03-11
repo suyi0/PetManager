@@ -25,7 +25,7 @@ class authHandler : public BaseHandler
 private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 public:
-    explicit authHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
+    explicit authHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
 
     crow::response authCheckName(const crow::request& req);                 //  对应 "/api/auth/checkName"
 

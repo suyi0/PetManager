@@ -8,7 +8,7 @@ class adminHandler : public BaseHandler
 private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 public:
-    explicit adminHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db){}
+    explicit adminHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)){}
 
     crow::response getWorkTimeRecord(const crow::request& req);                  // 获取全部人的工作时间记录 对应 /admin/getWorkTimeRecord
 

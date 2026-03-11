@@ -17,7 +17,7 @@ private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 
 public:
-    explicit UserHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db) {}
+    explicit UserHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
     // 添加一个方法来检查数据库管理器是否可用
     bool isDbManagerValid() const { return dbManager != nullptr; }
 
