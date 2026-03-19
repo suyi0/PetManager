@@ -1,0 +1,299 @@
+#include "warehouseManagerHandler.h"
+
+crow::response warehouseManagerHandler::uploadData(const crow::request &req)
+{
+    crow::response res;
+    auto request_body_opt = validateRequest(req, res);
+    if (!request_body_opt)
+        return res;
+    auto &request_body = request_body_opt.value();
+
+    try
+    {
+        if(request_body["item_name"].is_null()
+            || request_body["item_type"].is_null()
+            || request_body["item_productiondate"].is_null()
+            || request_body["item_expirationdate"].is_null()
+            || request_body["item_price"].is_null()
+            || request_body["item_number"].is_null()
+        )
+        {
+            return ResponseHelper::validation(req, "上传数据不完整");
+        }
+
+        std::string item_name = request_body["item_name"].get<std::string>();
+        std::string item_type = request_body["item_type"].get<std::string>();
+        std::string item_productiondate = request_body["item_productiondate"].get<std::string>();
+        std::string item_expirationdate = request_body["item_expirationdate"].get<std::string>();
+        double item_price = request_body["item_price"].get<double>();
+        int item_number = request_body["item_number"].get<int>();
+
+        if(item_name.empty()
+            || item_type.empty()
+            || item_productiondate.empty()
+            || item_expirationdate.empty())
+        {
+            return ResponseHelper::validation(req, "上传数据不完整");
+        }
+
+        if(item_price <= 0.0 || item_number <= 0)
+        {
+            return ResponseHelper::validation(req, "价格和数量必须大于0");
+        }
+
+        if(item_productiondate > item_expirationdate)
+        {
+            return ResponseHelper::validation(req, "生产日期不能晚于过期日期");
+        }
+
+        mysqlx::RowResult result = dbManager->getSession()->sql("INSERT INTO warehouse (item_name, item_type, item_productiondate, item_expirationdate, item_price, item_number) VALUES (?, ?, ?, ?, ?, ?)")
+                                .bind(item_name, item_type, item_productiondate, item_expirationdate, item_price, item_number)
+                                .execute();
+                                
+        if(result.getAffectedItemsCount() > 0)
+        {
+            return ResponseHelper::success(req, "上传数据成功");
+        }
+        else
+        {
+            return ResponseHelper::custom(req, 500, "数据上传失败");
+        }
+    }
+    catch(const std::exception& e)
+    {
+        return ResponseHelper::system_error(req);
+    }
+}
+
+crow::response warehouseManagerHandler::selectAllData(const crow::request &req)
+{
+    try
+    {
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::system_error(req);
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()->sql(
+            "SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
+            "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
+            "FROM warehouse ORDER BY id DESC")
+            .execute();
+
+        nlohmann::json response_data = nlohmann::json::array();
+        for (auto row : result)
+        {
+            nlohmann::json item_json;
+            item_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+            item_json["item_name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+            item_json["item_type"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
+            item_json["item_productiondate"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            item_json["item_expirationdate"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            item_json["days_until_expire"] = row[5].isNull() ? nullptr : nlohmann::json(row[5].get<int>());
+            item_json["item_price"] = row[6].isNull() ? 0.0 : row[6].get<double>();
+            item_json["item_number"] = row[7].isNull() ? 0 : row[7].get<int>();
+            item_json["item_totalprice"] = row[8].isNull() ? 0.0 : row[8].get<double>();
+            item_json["created_at"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
+            item_json["updated_at"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+            response_data.push_back(item_json);
+        }
+
+        return ResponseHelper::success(req, response_data);
+    }
+    catch(const std::exception& e)
+    {
+        return ResponseHelper::system_error(req, "获取仓库数据失败: " + std::string(e.what()));
+    }
+}
+
+crow::response warehouseManagerHandler::selectData(const crow::request &req, const std::string& identifier, const std::string& value)
+{
+    try
+    {
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::system_error(req);
+        }
+
+        mysqlx::SqlResult result;
+
+        if(identifier == "dataID")
+        {
+            int dataID = 0;
+            try
+            {
+                dataID = std::stoi(value);
+            }
+            catch (const std::exception&)
+            {
+                return ResponseHelper::validation(req, "dataID 必须是有效数字");
+            }
+
+            if(dataID <= 0)
+            {
+                return ResponseHelper::validation(req, "无效的数据ID");
+            }
+
+            result = dbManager->getSession()->sql(
+                "SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
+                "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
+                "FROM warehouse WHERE id = ?")
+                .bind(dataID)
+                .execute();
+        }
+        else if(identifier == "item_name")
+        {
+            if(value.empty())
+            {
+                return ResponseHelper::validation(req, "item_name 不能为空");
+            }
+
+            result = dbManager->getSession()->sql(
+                "SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
+                "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
+                "FROM warehouse WHERE item_name = ? ORDER BY id DESC")
+                .bind(value)
+                .execute();
+        }
+        else
+        {
+            return ResponseHelper::validation(req, "identifier 仅支持 dataID 或 item_name");
+        }
+
+        nlohmann::json response_data = nlohmann::json::array();
+        for (auto row : result)
+        {
+            nlohmann::json item_json;
+            item_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+            item_json["item_name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+            item_json["item_type"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
+            item_json["item_productiondate"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            item_json["item_expirationdate"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            item_json["days_until_expire"] = row[5].isNull() ? nullptr : nlohmann::json(row[5].get<int>());
+            item_json["item_price"] = row[6].isNull() ? 0.0 : row[6].get<double>();
+            item_json["item_number"] = row[7].isNull() ? 0 : row[7].get<int>();
+            item_json["item_totalprice"] = row[8].isNull() ? 0.0 : row[8].get<double>();
+            item_json["created_at"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
+            item_json["updated_at"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+            response_data.push_back(item_json);
+        }
+
+        if(response_data.empty())
+        {
+            return ResponseHelper::notFound(req, "未找到对应的仓库数据");
+        }
+
+        if(identifier == "dataID")
+        {
+            return ResponseHelper::success(req, response_data[0]);
+        }
+
+        return ResponseHelper::success(req, response_data);
+    }
+    catch(const std::exception& e)
+    {
+        return ResponseHelper::system_error(req, "获取仓库数据失败: " + std::string(e.what()));
+    }
+}
+
+crow::response warehouseManagerHandler::updata(const crow::request &req, const int& dataID)
+{
+    crow::response res;
+    auto request_body_opt = validateRequest(req, res);
+    if (!request_body_opt)
+        return res;
+    auto &request_body = request_body_opt.value();
+
+    try
+    {
+        if(request_body["id"].is_null()
+            || request_body["item_name"].is_null()
+            || request_body["item_type"].is_null()
+            || request_body["item_productiondate"].is_null()
+            || request_body["item_expirationdate"].is_null()
+            || request_body["item_price"].is_null()
+            || request_body["item_number"].is_null())
+        {
+            return ResponseHelper::validation(req, "更新数据不完整");
+        }
+
+        std::string item_name = request_body["item_name"].get<std::string>();
+        std::string item_type = request_body["item_type"].get<std::string>();
+        std::string item_productiondate = request_body["item_productiondate"].get<std::string>();
+        std::string item_expirationdate = request_body["item_expirationdate"].get<std::string>();
+        int item_number = request_body["item_number"].get<int>();
+        double item_price = request_body["item_price"].get<double>();
+
+        if(dataID <= 0)
+        {
+            return ResponseHelper::validation(req, "无效的数据ID");
+        }
+
+        if(item_name.empty()
+            || item_type.empty()
+            || item_productiondate.empty()
+            || item_expirationdate.empty())
+        {
+            return ResponseHelper::validation(req, "更新数据不完整");
+        }
+
+        if(item_price <= 0.0 || item_number <= 0)
+        {
+            return ResponseHelper::validation(req, "价格和数量必须大于0");
+        }
+
+        if(item_productiondate > item_expirationdate)
+        {
+            return ResponseHelper::validation(req, "生产日期不能晚于过期日期");
+        }
+
+        mysqlx::RowResult result = dbManager->getSession()->sql(
+            "UPDATE warehouse SET item_name = ?, item_type = ?, item_productiondate = ?, item_expirationdate = ?, item_number = ?, item_price = ? WHERE id = ?")
+                .bind(item_name, item_type, item_productiondate, item_expirationdate, item_number, item_price, dataID)
+                .execute();
+
+        if(result.getAffectedItemsCount() > 0)
+        {
+            return ResponseHelper::success(req, "库存更新成功");
+        }
+
+        return ResponseHelper::notFound(req, "未找到要更新的数据");
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req);
+    }
+}
+
+crow::response warehouseManagerHandler::deleteData(const crow::request &req, const int& dataID)
+{
+    try
+    {
+        if(dataID <= 0)
+        {
+            return ResponseHelper::validation(req, "无效的数据ID");
+        }
+
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::system_error(req);
+        }
+
+        mysqlx::RowResult result = dbManager->getSession()->sql("DELETE FROM warehouse WHERE id = ?")
+                                    .bind(dataID)
+                                    .execute();
+        
+        if(result.getAffectedItemsCount() > 0)
+        {
+            return ResponseHelper::success(req, "删除数据成功");
+        }
+        else
+        {
+            return ResponseHelper::notFound(req, "未找到要删除的数据");
+        }
+    }
+    catch(const std::exception& e)
+    {
+        return ResponseHelper::system_error(req);
+    }
+}

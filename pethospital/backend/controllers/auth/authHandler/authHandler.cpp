@@ -1,21 +1,5 @@
 #include "authHandler.h"
 
-// 添加邮箱格式验证函数
-bool isValidEmailFormat(const std::string &email)
-{
-    // 简单的邮箱正则表达式验证
-    // 这个正则表达式检查基本的邮箱格式：用户名@域名.顶级域名
-    std::regex email_pattern(R"(^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$)");
-    return std::regex_match(email, email_pattern);
-}
-
-bool isValidPhoneFormat(const std::string &phone)
-{
-    // 验证手机号码的正则表达式
-    std::regex phone_pattern(R"(^1[3-9]\d{8}$)");
-    return std::regex_match(phone, phone_pattern);
-}
-
 // 验证用户token
 int isValidUserToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
@@ -519,7 +503,7 @@ crow::response authHandler::authVerification(const crow::request &req)
             // 如果验证成功，返回 token
             nlohmann::json response;
             // 生成一个基于用户邮箱的JWT token
-            std::string token = JwtUtils::createToken(userID, userName, email, true);
+            std::string token = JwtUtils::createToken(userID, userName, 3, email, true);
             response["token"] = token;
             response["success"] = true;
             return ResponseHelper::success(req, response);
@@ -535,6 +519,77 @@ crow::response authHandler::authVerification(const crow::request &req)
     }
     catch (const std::exception &e)
     {
+        return ResponseHelper::system_error(req);
+    }
+}
+
+// 刷新管理员令牌
+crow::response authHandler::refreshAdminToken(const crow::request &req)
+{
+    try
+    {
+        std::string authHeader = req.get_header_value("Authorization");
+        if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
+        {
+            return ResponseHelper::unauthorized(req, "Missing or invalid token");
+        }
+
+        std::string token = authHeader.substr(7);
+        int userId = JwtUtils::getUserIdFromToken(token);
+        if (userId <= 0)
+        {
+            return ResponseHelper::unauthorized(req, "Token expired or invalid");
+        }
+
+        std::string identifier = JwtUtils::getUserIdentifierFromToken(token);
+        if (identifier.empty())
+        {
+            return ResponseHelper::unauthorized(req, "Invalid identifier in token");
+        }
+
+        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
+        mysqlx::RowResult result = users_table.select("type_id", "name", "email", "phone")
+                                       .where("id = :id")
+                                       .bind("id", userId)
+                                       .execute();
+
+        auto row = result.fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::unauthorized(req, "Admin user not found");
+        }
+
+        int typeId = row[0].get<int>();
+        if (typeId != 1)
+        {
+            return ResponseHelper::unauthorized(req, "Only super admin can refresh this token");
+        }
+
+        std::string userName = clean_string(row[1].get<std::string>());
+        std::string email = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
+        std::string phone = row[3].isNull() ? "" : normalizePhoneIdentifier(row[3].get<std::string>());
+
+        bool isEmailLogin = !email.empty() && identifier == email;
+        bool isPhoneLogin = !phone.empty() && normalizePhoneIdentifier(identifier) == phone;
+
+        if (!isEmailLogin && !isPhoneLogin)
+        {
+            return ResponseHelper::unauthorized(req, "Token identifier does not match admin account");
+        }
+
+        nlohmann::json response;
+        response["token"] = JwtUtils::createToken(
+            userId,
+            userName,
+            typeId,
+            isEmailLogin ? email : phone,
+            isEmailLogin);
+        response["expiresIn"] = 300;
+        return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "[ERROR] Failed to refresh admin token: " << e.what() << std::endl;
         return ResponseHelper::system_error(req);
     }
 }
@@ -741,7 +796,7 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
             }
             // 验证成功，返回token
             nlohmann::json response;
-            std::string token = JwtUtils::createToken(userID, userName, phone, false);
+            std::string token = JwtUtils::createToken(userID, userName, 3, phone, false);
             response["token"] = token;
             response["success"] = true;
             return ResponseHelper::success(req, response);

@@ -89,6 +89,21 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 res.end(); 
         });
 
+    CROW_ROUTE(app, "/api/auth/admin/refresh")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
+                try
+                {
+                    authHandler handler(dbManager);
+                    crow::response handlerResponse = handler.refreshAdminToken(req);
+
+                    ProcessHandlerResponse(req, res, handlerResponse);
+                } catch (const std::exception& e) {
+                    res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+                }
+                res.end();
+        });
+
         CROW_ROUTE(app, "/api/verification/sms/send")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {

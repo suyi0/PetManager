@@ -219,10 +219,7 @@ std::string formatDateTime(const boost::posix_time::ptime& pt)
 // 只提取日期部分 YYYY-MM-DD
 std::string formatDateOnly(const boost::posix_time::ptime& pt)
 {
-    std::ostringstream oss;
-    boost::gregorian::date date = pt.date();
-    oss << date;
-    return oss.str();
+    return boost::gregorian::to_iso_extended_string(pt.date());
 }
 
 // 只提取时间部分 HH:MM:SS

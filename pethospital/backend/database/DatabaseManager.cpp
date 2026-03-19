@@ -6,6 +6,7 @@
 
 namespace
 {
+// 去除引号
 std::string trimQuotes(std::string value)
 {
     if (value.size() >= 2)
@@ -21,6 +22,7 @@ std::string trimQuotes(std::string value)
     return value;
 }
 
+// 判断环境变量是否为真
 bool isTruthyEnv(const char *value)
 {
     if (!value)
@@ -33,6 +35,7 @@ bool isTruthyEnv(const char *value)
     return normalized == "1" || normalized == "TRUE" || normalized == "YES" || normalized == "ON";
 }
 
+// 解析SSL模式
 mysqlx::SSLMode parseSslMode(const char *ssl_mode_env)
 {
     if (!ssl_mode_env)
@@ -72,6 +75,7 @@ mysqlx::SSLMode parseSslMode(const char *ssl_mode_env)
     return mysqlx::SSLMode::REQUIRED;
 }
 
+// 将SSL模式转换为URI值
 const char *sslModeToUriValue(mysqlx::SSLMode mode)
 {
     switch (mode)
@@ -89,6 +93,7 @@ const char *sslModeToUriValue(mysqlx::SSLMode mode)
     }
 }
 
+// 将SSL模式转换为字符串
 const char *sslModeToString(mysqlx::SSLMode mode)
 {
     switch (mode)
@@ -105,8 +110,9 @@ const char *sslModeToString(mysqlx::SSLMode mode)
         return "UNKNOWN";
     }
 }
-} // namespace
+}
 
+// 加载数据库配置
 std::tuple<std::string, int, std::string, std::string, std::string> loadDatabaseConfig()
 {
     std::string host = "";
@@ -136,6 +142,7 @@ std::tuple<std::string, int, std::string, std::string, std::string> loadDatabase
 
     return std::make_tuple(host, port, user, password, name);
 }
+
 // 添加列
 void add_Column_If_Not_Exists(const std::string &table_name, const std::string &column_name, const std::string &column_definition)
 {
@@ -173,9 +180,15 @@ void add_Column_If_Not_Exists(const std::string &table_name, const std::string &
 
 // 添加静态成员定义
 std::mutex DatabaseManager::mutex_;
+thread_local std::unique_ptr<mysqlx::Session> DatabaseManager::thread_session_ =
+    nullptr;
+thread_local std::unique_ptr<mysqlx::Schema> DatabaseManager::thread_schema_ =
+    nullptr;
+
+// 判断是否有有效的连接
 bool DatabaseManager::hasValidConnection() const
 {
-    return session != nullptr && schema != nullptr;
+    return thread_session_ != nullptr && thread_schema_ != nullptr;
 }
 
 void DatabaseManager::create_Tables()
@@ -189,6 +202,9 @@ void DatabaseManager::create_Tables()
     }
 
     std::cout << "create_Tables() executing for the first time..." << std::endl;
+
+    mysqlx::Session *session = getSession();
+    mysqlx::Schema *schema = getSchema();
 
     // 检查并创建必要的表
     if (hasValidConnection())
@@ -314,6 +330,18 @@ void DatabaseManager::create_Tables()
         if(warehouse_exists)
         {
             std::cout << "warehouse table is exists." << std::endl;
+            try
+            {
+                session->sql("ALTER TABLE warehouse "
+                             "MODIFY COLUMN item_totalprice DECIMAL(18, 2) "
+                             "GENERATED ALWAYS AS (item_price * item_number) STORED")
+                    .execute();
+                std::cout << "warehouse.item_totalprice migrated to generated column." << std::endl;
+            }
+            catch (const std::exception &e)
+            {
+                std::cout << "warehouse.item_totalprice migration skipped: " << e.what() << std::endl;
+            }
         }
         else
         {
@@ -327,7 +355,7 @@ void DatabaseManager::create_Tables()
                          "days_until_expire INT DEFAULT NULL, "                                                                   // 剩余天数
                          "item_price DECIMAL(10, 2), "                                                                            // 价格
                          "item_number INT, "                                                                                      // 数量
-                         "item_totalprice DECIMAL(18, 2), "                                                                      // 总价
+                         "item_totalprice DECIMAL(18, 2) GENERATED ALWAYS AS (item_price * item_number) STORED, "                 // 总价
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "                                                       // 创建时间
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "                           // 更新时间
                          "INDEX idx_id_exp (id, days_until_expire), "
@@ -447,6 +475,7 @@ void DatabaseManager::create_Tables()
             std::cout << "orders table created successfully" << std::endl;
         }
 
+        // 创建订单药品表
         if(orderMedicines_exists)
         {
             std::cout << "orderMedicines table is exists." << std::endl;
@@ -546,139 +575,20 @@ void DatabaseManager::create_Tables()
 
 std::shared_ptr<DatabaseManagerInterface> DatabaseManager::instance = nullptr;
 
-DatabaseManager::DatabaseManager() : session(nullptr), schema(nullptr)
+DatabaseManager::DatabaseManager()
 {
-    // 初始化数据库 - 使用新版API
     try
     {
-        // 加载数据库配置
         auto [db_host, db_port, db_user, db_pass, db_name] = loadDatabaseConfig();
-        const mysqlx::SSLMode ssl_mode = parseSslMode(getenv("DB_SSL_MODE"));
+        db_host_ = db_host;
+        db_port_ = db_port;
+        db_user_ = db_user;
+        db_pass_ = db_pass;
+        db_name_ = db_name;
+        ssl_mode_ = parseSslMode(getenv("DB_SSL_MODE"));
 
-        // 尝试多种连接方法
-        bool connected = false;
-        
-        // 方法1: 尝试使用 URI 连接
-        try 
+        if (ensureThreadConnection()) // 线程连接上进行创建表操作
         {
-            std::string full_uri = "mysqlx://" + db_user + ":" + db_pass + "@" + db_host + ":" +
-                                   std::to_string(db_port) + "/" + db_name + "?connect-timeout=30000&ssl-mode=" +
-                                   sslModeToUriValue(ssl_mode);
-            session = new mysqlx::Session(full_uri);                    // 建立会话
-            schema = new mysqlx::Schema(session->getSchema(db_name));   // 获取数据库模式
-            std::cout << "✅ Database connection successful via URI method! SSL mode: "
-                      << sslModeToString(ssl_mode) << std::endl;
-            connected = true;
-        }
-        catch (const mysqlx::Error &e)
-        {
-            std::cerr << "❌ URI connection failed: " << e.what() << std::endl;
-        }
-
-        if (!connected) {
-            // 方法2: 尝试使用 SessionOptions - 这是正确的方法
-            try 
-            {
-                std::cout << "Trying SessionOption connection method..." << std::endl;
-                session = new mysqlx::Session(
-                    mysqlx::SessionOption::HOST, db_host.c_str(),
-                    mysqlx::SessionOption::PORT, db_port,
-                    mysqlx::SessionOption::USER, db_user.c_str(),
-                    mysqlx::SessionOption::PWD, db_pass.c_str(),
-                    mysqlx::SessionOption::DB, db_name.c_str(),
-                    mysqlx::SessionOption::SSL_MODE, ssl_mode
-                );
-                schema = new mysqlx::Schema(session->getSchema(db_name));
-                std::cout << "✅ Database connection successful via SessionOption method! SSL mode: "
-                          << sslModeToString(ssl_mode) << std::endl;
-                connected = true;
-            }
-            catch (const mysqlx::Error &e)
-            {
-                std::cerr << "❌ SessionOption connection failed: " << e.what() << std::endl;
-            }
-        }
-
-        if (!connected) {
-            // 方法3: 尝试先连接到服务器，再选择数据库
-            try 
-            {
-                mysqlx::Session temp_session(
-                    mysqlx::SessionOption::HOST, db_host.c_str(),
-                    mysqlx::SessionOption::PORT, db_port,
-                    mysqlx::SessionOption::USER, db_user.c_str(),
-                    mysqlx::SessionOption::PWD, db_pass.c_str(),
-                    mysqlx::SessionOption::SSL_MODE, ssl_mode
-                );
-                
-                // 检查并创建数据库
-                auto result = temp_session.sql("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?")
-                                  .bind(db_name)
-                                  .execute();
-
-                if (result.count() == 0)
-                {
-                    std::cout << "Database '" << db_name << "' does not exist, creating it..." << std::endl;
-                    temp_session.sql("CREATE DATABASE IF NOT EXISTS `" + db_name + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci").execute();
-                    std::cout << "Database '" << db_name << "' created successfully!" << std::endl;
-                }
-                
-                // 现在连接到特定数据库
-                session = new mysqlx::Session(
-                    mysqlx::SessionOption::HOST, db_host.c_str(),
-                    mysqlx::SessionOption::PORT, db_port,
-                    mysqlx::SessionOption::USER, db_user.c_str(),
-                    mysqlx::SessionOption::PWD, db_pass.c_str(),
-                    mysqlx::SessionOption::DB, db_name.c_str(),
-                    mysqlx::SessionOption::SSL_MODE, ssl_mode
-                );
-                schema = new mysqlx::Schema(session->getSchema(db_name));
-                connected = true;
-            }
-            catch (const mysqlx::Error &e)
-            {
-                std::cerr << "❌ Server-first connection failed: " << e.what() << std::endl;
-            }
-        }
-
-        if (!connected) {
-            // 方法4: 尝试使用字符串形式的连接参数
-            try 
-            {
-                std::string host_and_port = db_host + std::string(":") + std::to_string(db_port);
-                session = new mysqlx::Session(
-                    mysqlx::SessionOption::URI,
-                    ("mysqlx://" + db_user + ":" + db_pass + "@" + host_and_port + "/" + db_name +
-                     "?ssl-mode=" + std::string(sslModeToUriValue(ssl_mode)))
-                        .c_str()
-                );
-                schema = new mysqlx::Schema(session->getSchema(db_name));
-                std::cout << "✅ Database connection successful via host string method! SSL mode: "
-                          << sslModeToString(ssl_mode) << std::endl;
-                connected = true;
-            }
-            catch (const mysqlx::Error &e)
-            {
-                std::cerr << "❌ Host string connection failed: " << e.what() << std::endl;
-            }
-        }
-
-        if (!connected) {
-            std::cerr << "❌ All connection methods failed!" << std::endl;
-            std::cerr << "连接参数详情:" << std::endl;
-            std::cerr << "- Host: " << db_host << std::endl;
-            std::cerr << "- Port: " << db_port << std::endl;
-            std::cerr << "- User: " << db_user << std::endl;
-            std::cerr << "- DB Name: " << db_name << std::endl;
-            std::cerr << "- SSL Mode: " << sslModeToString(ssl_mode) << std::endl;
-
-            // 即使数据库连接失败，服务器也应该继续运行
-            session = nullptr;
-            schema = nullptr;
-        }
-        
-        // 如果成功建立了会话，创建表
-        if (hasValidConnection()) {
             create_Tables();
         }
     }
@@ -693,9 +603,158 @@ DatabaseManager::DatabaseManager() : session(nullptr), schema(nullptr)
         std::cerr << "- DB Name: " << getenv("DB_NAME") << std::endl;
 
         // 即使数据库连接失败，服务器也应该继续运行
-        session = nullptr;
-        schema = nullptr;
+        thread_session_.reset();
+        thread_schema_.reset();
     }
+}
+
+// 确保线程连接
+bool DatabaseManager::ensureThreadConnection()
+{
+    if (thread_session_ && thread_schema_)
+    {
+        return true;
+    }
+
+    bool connected = false;
+
+    try
+    {
+        std::string full_uri =
+            "mysqlx://" + db_user_ + ":" + db_pass_ + "@" + db_host_ + ":" +
+            std::to_string(db_port_) + "/" + db_name_ +
+            "?connect-timeout=30000&ssl-mode=" + sslModeToUriValue(ssl_mode_);
+        auto session = std::make_unique<mysqlx::Session>(full_uri);
+        auto schema =
+            std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
+        thread_session_ = std::move(session);
+        thread_schema_ = std::move(schema);
+        std::cout << "✅ Database connection successful via URI method! SSL mode: "
+                  << sslModeToString(ssl_mode_) << std::endl;
+        connected = true;
+    }
+    catch (const mysqlx::Error &e)
+    {
+        std::cerr << "❌ URI connection failed: " << e.what() << std::endl;
+    }
+
+    if (!connected)
+    {
+        try
+        {
+            auto session = std::make_unique<mysqlx::Session>(
+                mysqlx::SessionOption::HOST, db_host_.c_str(),
+                mysqlx::SessionOption::PORT, db_port_,
+                mysqlx::SessionOption::USER, db_user_.c_str(),
+                mysqlx::SessionOption::PWD, db_pass_.c_str(),
+                mysqlx::SessionOption::DB, db_name_.c_str(),
+                mysqlx::SessionOption::SSL_MODE, ssl_mode_);
+            auto schema =
+                std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
+            thread_session_ = std::move(session);
+            thread_schema_ = std::move(schema);
+            std::cout
+                << "✅ Database connection successful via SessionOption method! SSL mode: "
+                << sslModeToString(ssl_mode_) << std::endl;
+            connected = true;
+        }
+        catch (const mysqlx::Error &e)
+        {
+            std::cerr << "❌ SessionOption connection failed: " << e.what()
+                      << std::endl;
+        }
+    }
+
+    if (!connected)
+    {
+        try
+        {
+            mysqlx::Session temp_session(
+                mysqlx::SessionOption::HOST, db_host_.c_str(),
+                mysqlx::SessionOption::PORT, db_port_,
+                mysqlx::SessionOption::USER, db_user_.c_str(),
+                mysqlx::SessionOption::PWD, db_pass_.c_str(),
+                mysqlx::SessionOption::SSL_MODE, ssl_mode_);
+
+            auto result = temp_session
+                              .sql("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?")
+                              .bind(db_name_)
+                              .execute();
+
+            if (result.count() == 0)
+            {
+                std::cout << "Database '" << db_name_
+                          << "' does not exist, creating it..." << std::endl;
+                temp_session
+                    .sql("CREATE DATABASE IF NOT EXISTS `" + db_name_ +
+                         "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                    .execute();
+                std::cout << "Database '" << db_name_
+                          << "' created successfully!" << std::endl;
+            }
+
+            auto session = std::make_unique<mysqlx::Session>(
+                mysqlx::SessionOption::HOST, db_host_.c_str(),
+                mysqlx::SessionOption::PORT, db_port_,
+                mysqlx::SessionOption::USER, db_user_.c_str(),
+                mysqlx::SessionOption::PWD, db_pass_.c_str(),
+                mysqlx::SessionOption::DB, db_name_.c_str(),
+                mysqlx::SessionOption::SSL_MODE, ssl_mode_);
+            auto schema =
+                std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
+            thread_session_ = std::move(session);
+            thread_schema_ = std::move(schema);
+            connected = true;
+        }
+        catch (const mysqlx::Error &e)
+        {
+            std::cerr << "❌ Server-first connection failed: " << e.what()
+                      << std::endl;
+        }
+    }
+
+    if (!connected)
+    {
+        try
+        {
+            std::string host_and_port =
+                db_host_ + std::string(":") + std::to_string(db_port_);
+            auto session = std::make_unique<mysqlx::Session>(
+                mysqlx::SessionOption::URI,
+                ("mysqlx://" + db_user_ + ":" + db_pass_ + "@" + host_and_port +
+                 "/" + db_name_ + "?ssl-mode=" +
+                 std::string(sslModeToUriValue(ssl_mode_)))
+                    .c_str());
+            auto schema =
+                std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
+            thread_session_ = std::move(session);
+            thread_schema_ = std::move(schema);
+            std::cout
+                << "✅ Database connection successful via host string method! SSL mode: "
+                << sslModeToString(ssl_mode_) << std::endl;
+            connected = true;
+        }
+        catch (const mysqlx::Error &e)
+        {
+            std::cerr << "❌ Host string connection failed: " << e.what()
+                      << std::endl;
+        }
+    }
+
+    if (!connected)
+    {
+        std::cerr << "❌ All connection methods failed!" << std::endl;
+        std::cerr << "连接参数详情:" << std::endl;
+        std::cerr << "- Host: " << db_host_ << std::endl;
+        std::cerr << "- Port: " << db_port_ << std::endl;
+        std::cerr << "- User: " << db_user_ << std::endl;
+        std::cerr << "- DB Name: " << db_name_ << std::endl;
+        std::cerr << "- SSL Mode: " << sslModeToString(ssl_mode_) << std::endl;
+        thread_session_.reset();
+        thread_schema_.reset();
+    }
+
+    return connected;
 }
 
 std::shared_ptr<DatabaseManagerInterface> DatabaseManager::getInstance()
@@ -716,22 +775,16 @@ void DatabaseManager::destroyInstance()
 
 mysqlx::Session *DatabaseManager::getSession()
 {
-    return session;
+    return ensureThreadConnection() ? thread_session_.get() : nullptr;
 }
 
 mysqlx::Schema *DatabaseManager::getSchema()
 {
-    return schema;
+    return ensureThreadConnection() ? thread_schema_.get() : nullptr;
 }
 
 DatabaseManager::~DatabaseManager()
 {
-    if (session)
-    {
-        delete session; // 关闭数据库会话
-    }
-    if (schema)
-    {
-        delete schema; // 关闭数据库模式
-    }
+    thread_session_.reset();
+    thread_schema_.reset();
 }

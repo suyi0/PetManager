@@ -10,12 +10,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
     }
     
     CROW_ROUTE(app,"/api/doctor/getDoctor")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([&dbManager](const crow::request& req, crow::response& res){
+            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
                 try
                 {
                     int userId = isValidUserToken(req, res, dbManager);
 
-                    if(res.code == 200 || userId == -1)
+                    if(res.code != 200 || userId == -1)
                     {
                         res.end();
                         return;
@@ -30,8 +30,29 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                 res.end();
             });
 
+    CROW_ROUTE(app,"/api/doctor/dutyStatus")
+            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
+                try
+                {
+                    int userId = isValidUserToken(req, res, dbManager);
+
+                    if(res.code != 200 || userId == -1)
+                    {
+                        res.end();
+                        return;
+                    }
+                    doctorHandler doctorHandler(dbManager);
+                    crow::response response = doctorHandler.getDutyStatus(req, userId);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e) {
+                    res = ResponseHelper::system_error(req);
+                }
+                res.end();
+            });
+
     CROW_ROUTE(app, "/api/doctor/online")
-            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([&dbManager] (const crow::request& req, crow::response& res) {
+            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager] (const crow::request& req, crow::response& res) {
                 try{
                     int userId = isValidUserToken(req, res, dbManager);
 
@@ -50,7 +71,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                 res.end();
             });
     CROW_ROUTE(app, "/api/doctor/offline")
-            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([&dbManager] (const crow::request& req, crow::response& res) {
+            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager] (const crow::request& req, crow::response& res) {
               try{
                 int userId = isValidUserToken(req, res, dbManager);
 

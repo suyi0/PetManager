@@ -1,0 +1,70 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend: CMake Configure",
+      "type": "shell",
+      "command": "/opt/homebrew/bin/cmake",
+      "args": [
+        "-S",
+        "${workspaceFolder}/pethospital/backend",
+        "-B",
+        "${workspaceFolder}/pethospital/backend/build"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend: CMake Build",
+      "type": "shell",
+      "command": "/opt/homebrew/bin/cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/pethospital/backend/build",
+        "-j4"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      // 设置默认任务在我编译时
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      // 任务前运行这个命令,设置依赖
+      "dependsOn": "Backend: CMake Configure",
+      "problemMatcher": [
+        "$gcc"
+      ]
+    },
+    {
+      "label": "Backend: Build Script",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/bin/build.sh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ]
+    },
+    {
+      "label": "Backend: Start",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "${workspaceFolder}/bin/start.sh"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

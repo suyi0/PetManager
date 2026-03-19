@@ -1,5 +1,53 @@
 #include "setRoutes.h"
 
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
+namespace
+{
+bool isPortAvailable(int port)
+{
+#ifdef _WIN32
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET)
+    {
+        return false;
+    }
+#else
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+    {
+        return false;
+    }
+#endif
+
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(static_cast<uint16_t>(port));
+
+    const int yes = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&yes), sizeof(yes));
+
+    const bool available =
+        bind(sock, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0;
+
+#ifdef _WIN32
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+
+    return available;
+}
+}
+
 // 在ManagerBack.cpp中添加一个重置自增计数器的函数
 void resetAutoIncrement(const std::string &table_name)
 {
@@ -40,6 +88,11 @@ void WebSocketServer::start()
         throw std::runtime_error("App pointer is null in WebSocketServer::start");
     }
 
+    if (!isPortAvailable(8081))
+    {
+        throw std::runtime_error("Port 8081 is already in use");
+    }
+
     setupRoutes();          // 设置路由
     setupSignalHandlers();  // 设置信号处理
     startCodeCleanupTask(); // 启动定时任务
@@ -55,19 +108,35 @@ void WebSocketServer::start()
 
 void WebSocketServer::startCodeCleanupTask()
 {
-    cleanup_thread = std::thread([]()
+    cleanup_running = true;
+    cleanup_thread = std::thread([this]()
                                  {
-            while (true) {
-                // 每隔一段时间清理一次过期验证码
-                std::this_thread::sleep_for(std::chrono::minutes(5));
+            while (cleanup_running) {
+                std::unique_lock<std::mutex> lock(cleanup_mutex);
+                if (cleanup_cv.wait_for(lock, std::chrono::minutes(5), [this]() {
+                        return !cleanup_running.load();
+                    })) {
+                    break;
+                }
+                lock.unlock();
                 Verify::CleanupExpiredCodes();
             } });
-    cleanup_thread.detach();
+}
+
+void WebSocketServer::stopCodeCleanupTask()
+{
+    cleanup_running = false;
+    cleanup_cv.notify_all();
+    if (cleanup_thread.joinable())
+    {
+        cleanup_thread.join();
+    }
 }
 
 void WebSocketServer::gracefulShutdown()
 {
     heartbeat_running = false;
+    heartbeat_cv.notify_all();
     if (heartbeat_thread.joinable())
         heartbeat_thread.join();
 
@@ -106,6 +175,7 @@ void WebSocketServer::gracefulShutdown()
     {
         server_thread.join();
     }
+    stopCodeCleanupTask();
     stop_requested = true;
     std::cout << "Server shutdown complete" << std::endl;
 }
@@ -148,10 +218,13 @@ void WebSocketServer::setupRoutes()
     OrderRoutes::setupOrderRoutes(*app_ptr_, DatabaseManager::getInstance());
 
     // 注册仓库路由
-    WarehouseRoutes::setupWarehouseRoutes(*app_ptr_, DatabaseManager::getInstance());
+    warehouseManagerRoutes::setupwarehouseManagerRoutes(*app_ptr_, DatabaseManager::getInstance());
 
     // 注册医生路由
     DoctorRoutes::setupDoctorRoutes(*app_ptr_, DatabaseManager::getInstance());
+
+    // 注册管理员路由
+    adminRoutes::setupAdminRoutes(*app_ptr_, DatabaseManager::getInstance());
 
     // 使用解引用后的对象注册WebSocket路由
     auto& app_ref = *app_ptr_;
@@ -213,7 +286,13 @@ void WebSocketServer::startHeartbeat()
     heartbeat_thread = std::thread([this]
                                    {
             while (heartbeat_running) {
-                std::this_thread::sleep_for(std::chrono::seconds(30));
+                std::unique_lock<std::mutex> lock(heartbeat_mutex);
+                if (heartbeat_cv.wait_for(lock, std::chrono::seconds(30), [this]() {
+                        return !heartbeat_running.load();
+                    })) {
+                    break;
+                }
+                lock.unlock();
                 std::unordered_set<crow::websocket::connection*> connections_copy;
                 // 获取连接副本
                 {

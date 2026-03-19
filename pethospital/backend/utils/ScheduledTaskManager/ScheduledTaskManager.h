@@ -32,8 +32,10 @@ private:
         int lastExecutedMinute;                                 // 上次执行的分钟数（用于判断是否到了下一个 30 分钟节点）
     };
 
-    std::vector<Task> tasks;
-    std::mutex tasksMutex;
+    std::vector<Task> tasks;                                    // 定时任务列表
+    std::mutex tasksMutex;                                      // 任务锁
+    std::condition_variable stopCv;                             // 停止信号
+    std::mutex stopMutex;                                       // 停止信号锁
 
     // 私有构造函数
     ScheduledTaskManager() : running(false), dbManager(nullptr), logger(nullptr), updater(nullptr) {};

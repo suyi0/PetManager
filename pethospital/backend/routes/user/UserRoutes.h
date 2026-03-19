@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "../../controllers/user/UserHandler/UserHandler.h"
+#include "../../controllers/modules/user/UserHandler/UserHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
 
 class UserRoutes

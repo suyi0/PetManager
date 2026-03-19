@@ -108,6 +108,7 @@ int calcDecodeLength(const std::string &b64input)
     return (len * 3) / 4 - padding;
 }
 
+// 获取JWT密钥
 std::string get_jwt_secret()
 {
     const char *jwt_secret_env = std::getenv("JWT_SECRET");
@@ -120,7 +121,7 @@ std::string get_jwt_secret()
 }
 
 // 生成JWT
-std::string JwtUtils::createToken(int userId, const std::string &username, const std::string &identifier, bool isEmail = true)
+std::string JwtUtils::createToken(int userId, const std::string &username, const int type_id, const std::string &identifier, bool isEmail = true)
 {
     try
     {
@@ -135,6 +136,7 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         nlohmann::json payload_json;
         payload_json["id"] = userId;
         payload_json["username"] = username;
+        payload_json["type_id"] = type_id;
         payload_json["identifier"] = identifier;
 
         if(isEmail) {
@@ -144,11 +146,18 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
             payload_json["login_type"] = "phone";
             payload_json["phone"] = identifier;
         }
-        payload_json["iat"] = now;          // 签发时间
-        payload_json["exp"] = now + 36000;  // 10小时过期
+        payload_json["iat"] = now;           // 签发时间
+        if(type_id == 1)
+        {
+            payload_json["exp"] = now + 300; // 超级管理员的JWT五分钟后过期
+        }
+        else
+        {
+            payload_json["exp"] = now + 604800;  // 一周有效
+        }
     
         std::string payload = payload_json.dump();
-        std::string encoded_payload = url_safe_base64_encode(payload);
+        std::string encoded_payload = url_safe_base64_encode(payload); // 对负载进行URL安全的Base64编码
     
         // 3. Signature (使用HMAC-SHA256算法)
         std::string signature_data = encoded_header + "." + encoded_payload;
@@ -157,9 +166,13 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         std::string secret_key = get_jwt_secret();
     
         // 使用HMAC-SHA256生成签名
-        unsigned char signature[EVP_MAX_MD_SIZE];
+        unsigned char signature[EVP_MAX_MD_SIZE]; // 定义签名长度为EVP_MAX_MD_SIZE = 64 的缓冲区
         unsigned int signature_len;
     
+        // HMAC(EVP_sha256(), key, key_len, data, data_len, md, md_len)
+        // key - 密钥, key_len - 密钥长度
+        // data - 待签名的数据, data_len - 待签名的数据长度
+        // md - 签名结果, md_len - 签名结果长度
         if (HMAC(EVP_sha256(),
                  secret_key.c_str(), secret_key.length(),
                  reinterpret_cast<const unsigned char *>(signature_data.c_str()),
@@ -235,26 +248,9 @@ int JwtUtils::getUserIdFromToken(const std::string &token)
             return -3; // token已过期
         }
 
-        // 从数据库获取用户ID（基于email）
-        if (payload_json.contains("email"))
+        if (payload_json.contains("id") && payload_json["id"].is_number_integer())
         {
-            std::string email = payload_json["email"];
-            // 需要数据库查询获取用户ID
-            std::shared_ptr<DatabaseManagerInterface> dbManager = DatabaseManager::getInstance();
-            if (dbManager && dbManager->getSchema())
-            {
-                mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-                mysqlx::RowResult result = users_table.select("id")
-                                               .where("email = :email")
-                                               .bind("email", email)
-                                               .execute();
-
-                if (result.count() > 0)
-                {
-                    auto row = result.fetchOne();
-                    return row[0].get<int>();
-                }
-            }
+            return payload_json["id"].get<int>();
         }
 
         return -4; // 用户不存在
@@ -359,6 +355,7 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
     
 }
 
+// 验证用户对用户表单的访问权限
 bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try
@@ -406,6 +403,7 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
     }
 }
 
+// 验证管理员表单的访问权限
 bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try

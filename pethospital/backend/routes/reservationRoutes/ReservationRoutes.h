@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "../../controllers/reservation/ReservationHandler.h"
+#include "../../controllers/modules/reservation/ReservationHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
 
 

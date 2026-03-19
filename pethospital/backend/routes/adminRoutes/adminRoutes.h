@@ -1,7 +1,7 @@
 #ifndef ADMINROUTES_H
 #define ADMINROUTES_H
 
-#include "../../controllers/admin/adminHandler.h"
+#include "../../controllers/modules/admin/adminHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
 
 class adminRoutes : public BaseHandler

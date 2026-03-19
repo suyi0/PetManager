@@ -31,7 +31,9 @@ pnpm-debug.log*
 # IntelliJ IDEA 编辑器配置
 .idea
 # Visual Studio Code 编辑器配置
-.vscode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
 # Visual Studio 用户选项文件
 *.suo
 *.ntvs*

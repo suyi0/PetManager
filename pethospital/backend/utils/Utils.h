@@ -45,6 +45,7 @@ public:
         return res;
     }
 
+    // 创建成功响应
     static crow::response created(const crow::request &req, const nlohmann::json &data)
     {
         crow::response res(201, data.dump());
@@ -61,6 +62,7 @@ public:
         return res;
     }
 
+    // 未授权
     static crow::response unauthorized(const crow::request &req, const std::string &message = "Unauthorized")
     {
         nlohmann::json error_data;
@@ -70,6 +72,7 @@ public:
         return res;
     }
 
+    // 未找到
     static crow::response notFound(const crow::request &req, const std::string &message = "Not Found")
     {
         nlohmann::json error_data;
@@ -79,6 +82,7 @@ public:
         return res;
     }
 
+    // 验证错误
     static crow::response validation(const crow::request &req, const std::string &message = "Validation failed")
     {
         nlohmann::json error_data;
@@ -88,6 +92,7 @@ public:
         return res;
     }
 
+    // 系统错误
     static crow::response system_error(const crow::request &req, const std::string &message = "Internal Server Error")
     {
         nlohmann::json error_data;
@@ -97,6 +102,7 @@ public:
         return res;
     }
 
+    // 服务不可用
     static crow::response unavailable(const crow::request &req, const std::string &message = "Service Unavailable")
     {
         nlohmann::json error_data;
@@ -156,7 +162,7 @@ public:
         if (!json_opt) return std::nullopt;
         
         if (!checkDbConnection()) {
-            ResponseHelper::system_error(req);
+            res = ResponseHelper::system_error(req);
             return std::nullopt;
         }
         

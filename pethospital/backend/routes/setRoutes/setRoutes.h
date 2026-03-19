@@ -21,8 +21,9 @@
 #include "../orderRoutes/OrderRoutes.h"
 #include "../reservationRoutes/ReservationRoutes.h"
 #include "../doctorRoutes/doctorRoutes.h"
-#include "../warehouseRoutes/warehouseRoutes.h"
+#include "../warehouseManagerRoutes/warehouseManagerRoutes.h"
 #include "../authRoutes/authRoutes.h"
+#include "../adminRoutes/adminRoutes.h"
 
 class WebSocketServer
 {
@@ -58,11 +59,17 @@ private:
 
     // 信号处理
     void setupSignalHandlers();
+    void stopCodeCleanupTask();
 
     std::thread cleanup_thread;
+    std::atomic<bool> cleanup_running{false};
+    std::condition_variable cleanup_cv;
+    std::mutex cleanup_mutex;
     crow::App<CorsMiddleware, RateLimitMiddleware>* app_ptr_ = nullptr;  // 使用指针，以便外部传入
     std::thread server_thread;
     std::atomic<bool> heartbeat_running{true};
+    std::condition_variable heartbeat_cv;
+    std::mutex heartbeat_mutex;
     std::thread heartbeat_thread;
     std::unordered_set<crow::websocket::connection *> active_connections;
     std::mutex conn_mutex;

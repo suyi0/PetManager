@@ -1,4 +1,5 @@
 import axios from "axios";
+import { authStorage } from "@/core/auth/utils/authStorage";
 
 // 创建 axios 实例
 const apiClient = axios.create({
@@ -6,14 +7,27 @@ const apiClient = axios.create({
   timeout: 10000, // 设置超时时间
 });
 
+const shouldAttachAuthHeader = (url) => {
+  if (!url) {
+    return true;
+  }
+
+  return ![
+    "/user/login",
+    "/auth/verify",
+    "/auth/checkEmail",
+    "/auth/checkPhone",
+    "/verification/sms/send",
+    "/verification/sms/verify",
+  ].some((path) => url.startsWith(path));
+};
+
 // 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
-    // 从 localStorage 获取 token
-    const token = localStorage.getItem("auth_token");
+    const token = authStorage.getToken();
 
-    // 如果有 token，则添加到请求头中
-    if (token) {
+    if (token && shouldAttachAuthHeader(config.url)) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -30,13 +44,8 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // 如果是 401 错误，可能是 token 过期或无效
     if (error.response && error.response.status === 401) {
-      // 清除本地存储的 token
-      localStorage.removeItem("auth_token");
-      // 可以在这里触发登出操作或跳转到登录页
-      // store.dispatch('auth/logout');
-      // window.location.href = '/login';
+      authStorage.clearAuth();
     }
 
     return Promise.reject(error);

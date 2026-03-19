@@ -23,7 +23,7 @@ void OrderRoutes::setupOrderRoutes(CrowApp &app, std::shared_ptr<DatabaseManager
 
     // 获得订单列表
     CROW_ROUTE(app, "/api/order/getOrderList")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([&dbManager](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             try
             {
@@ -44,7 +44,7 @@ void OrderRoutes::setupOrderRoutes(CrowApp &app, std::shared_ptr<DatabaseManager
             res.end();    });
 
     CROW_ROUTE(app, "/api/order/getAllRecord")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([&dbManager](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             try
             {
@@ -68,7 +68,7 @@ void OrderRoutes::setupOrderRoutes(CrowApp &app, std::shared_ptr<DatabaseManager
 
     // 获得订单信息
     CROW_ROUTE(app, "/api/order/getOrderInformation/<int>")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([&dbManager](const crow::request &req, crow::response &res, int orderId)
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId)
                                                                    {
             try {
                 int userId = isValidUserorderToken(req, res, orderId, dbManager);
@@ -92,7 +92,7 @@ void OrderRoutes::setupOrderRoutes(CrowApp &app, std::shared_ptr<DatabaseManager
 
     // 修改订单
     CROW_ROUTE(app, "/api/order/changeOrder/<int>")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([&dbManager](const crow::request &req, crow::response &res, int orderId)
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId)
                                                                    {
             try
             {

@@ -12,7 +12,7 @@ bool verify_jwt_signature(const std::string &header, const std::string &payload,
 
 
 namespace JwtUtils {
-    std::string createToken(int userId, const std::string &username, const std::string &identifier, bool isEmail);
+    std::string createToken(int userId, const std::string &username, const int type_id, const std::string &identifier, bool isEmail);
     std::string decodeToken(const std::string &token);
 
     // JWT Token解析和权限验证函数

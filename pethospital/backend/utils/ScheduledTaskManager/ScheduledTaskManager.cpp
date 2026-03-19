@@ -92,9 +92,14 @@ void ScheduledTaskManager::stop()
         return; // 已经停止
     }
 
+    // notify_all() 唤醒线程stopCv.
+    stopCv.notify_all();
+
+    // 如果线程已被启动并且还没有被 join() 或 detach()，则 joinable() 返回 true
+    // 如果线程没有被启动、已经被 join() 或已经被 detach()，则返回 false
     if (workerThread.joinable())
     {
-        workerThread.join(); // 等待线程结束(防止线程意外退出)
+        workerThread.join(); // 等待线程结束(防止主线程继续往下走时，后台线程还没收尾完)
     }
 
     std::cout << "定时任务管理器已停止" << std::endl;
@@ -214,8 +219,15 @@ void ScheduledTaskManager::workerLoop()
             }
         }
 
-        // 休眠1分钟检查一次
-        std::this_thread::sleep_for(std::chrono::minutes(1));
+        // 可中断等待，避免 stop() 后还要额外卡住 1 分钟
+        std::unique_lock<std::mutex> lock(stopMutex);
+
+        // wait_for(锁对象，等待时长，可选的谓词条件（一般是判断wait_for什么情况提前结束等待）)
+        // 返回 true 表示谓语成立了，返回 false 表示超时或者谓语不成立
+        // 如果 lambda 返回 true，wait_for 立即返回 true
+        // 如果一直到超时条件都没成立，就返回 false
+        stopCv.wait_for(lock, std::chrono::minutes(1), [this]()
+                        { return !running.load(); });       //running.load() 函数返回 running 状态
     }
 }
 
