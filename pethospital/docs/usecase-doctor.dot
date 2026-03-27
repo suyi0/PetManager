@@ -1,0 +1,55 @@
+digraph UseCaseDoctor {
+  graph [
+    rankdir=LR,
+    splines=true,
+    overlap=false,
+    fontname="PingFang SC",
+    fontsize=18,
+    label="宠物医院管理系统用例图（医生）",
+    labelloc="t",
+    pad=0.4,
+    nodesep=0.5,
+    ranksep=0.9
+  ];
+
+  node [fontname="PingFang SC", fontsize=12];
+  edge [fontname="PingFang SC", fontsize=10, color="#444444"];
+
+  Doctor [label="医生", shape=plaintext, fontsize=15];
+
+  subgraph cluster_system {
+    label="宠物医院管理系统";
+    color="#444444";
+    penwidth=1.2;
+    style=rounded;
+    fontname="PingFang SC";
+    fontsize=16;
+
+    node [shape=ellipse, style="rounded", color="#222222"];
+
+    UC_Workbench [label="查看工作台"];
+    UC_Queue [label="查看候诊队列"];
+    UC_DoctorReservation [label="查看预约列表"];
+    UC_UserProfile [label="查看用户档案"];
+    UC_CreateOrder [label="创建诊疗订单"];
+    UC_DoctorOrderRecord [label="查看订单记录"];
+    UC_DutyStatus [label="查看出诊状态"];
+    UC_DoctorOnline [label="医生签到"];
+    UC_DoctorOffline [label="医生签退"];
+  }
+
+  Doctor -> UC_Workbench;
+  Doctor -> UC_Queue;
+  Doctor -> UC_DoctorReservation;
+  Doctor -> UC_UserProfile;
+  Doctor -> UC_CreateOrder;
+  Doctor -> UC_DoctorOrderRecord;
+  Doctor -> UC_DutyStatus;
+  Doctor -> UC_DoctorOnline;
+  Doctor -> UC_DoctorOffline;
+
+  edge [style=dashed, color="#666666"];
+  UC_CreateOrder -> UC_UserProfile [label="include"];
+  UC_DoctorOnline -> UC_DutyStatus [label="extend"];
+  UC_DoctorOffline -> UC_DutyStatus [label="extend"];
+}

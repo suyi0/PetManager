@@ -9,7 +9,7 @@ private:
 public:
     explicit warehouseManagerHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
 
-    crow::response uploadData(const crow::request& req); // 上传仓库资源，对应/warehouseManager/upload
+    crow::response upload(const crow::request& req); // 上传仓库资源，对应/warehouseManager/upload
     
     crow::response selectAllData(const crow::request& req); // 查询仓库信息，对应/warehouseManager/select
     

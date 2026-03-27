@@ -27,22 +27,8 @@ std::string getCreateTime()
 // 判断响应结果函数
 void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow::response &handlerResponse)
 {
-    nlohmann::json response_json;
-    if (!handlerResponse.body.empty())
-    {
-        try
-        {
-            response_json = nlohmann::json::parse(handlerResponse.body);
-        }
-        catch (const std::exception &e)
-        {
-            // 如果解析失败，使用原始响应
-            res.code = handlerResponse.code;
-            res.body = handlerResponse.body;
-            return;
-        }
-    }
-    res = ResponseHelper::custom(req, handlerResponse.code, response_json);
+    (void)req;
+    res = std::move(handlerResponse);
 }
 
 // 添加一个更严格的UTF-8字符串清理函数
@@ -206,7 +192,6 @@ std::string normalizeDate(const std::string &date_str)
     }
 }
 
-
 // 将boost::posix_time转换为MySQL datetime字符串格式 (YYYY-MM-DD HH:mm:ss)
 std::string formatDateTime(const boost::posix_time::ptime& pt)
 {
@@ -216,6 +201,7 @@ std::string formatDateTime(const boost::posix_time::ptime& pt)
     oss << pt;
     return oss.str();
 }
+
 // 只提取日期部分 YYYY-MM-DD
 std::string formatDateOnly(const boost::posix_time::ptime& pt)
 {
@@ -232,7 +218,6 @@ std::string formatTimeOnly(const boost::posix_time::ptime& pt)
     oss << time;
     return oss.str();
 }
-
 
 // 加载环境变量文件
 bool loadEnvironmentFile(const std::string &envFilePath)

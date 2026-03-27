@@ -1,4 +1,6 @@
 #include "adminHandler.h"
+#include "../../../database/UserPhoneSync.h"
+#include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
 
 crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
 {
@@ -20,8 +22,8 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
         // 获取系统设置的下班时间
         try
         {
-            mysqlx::Table workTimesTable = dbManager->getSchema()->getTable("workTimes");
-            mysqlx::RowResult workTimesTable_reslut = workTimesTable.select("check_out_time_end").execute();
+            mysqlx::SqlResult workTimesTable_reslut =
+                dbManager->getSession()->sql("SELECT check_out_time_end FROM workTimes").execute();
 
             if (workTimesTable_reslut.count() > 0)
             {
@@ -156,13 +158,11 @@ crow::response adminHandler::createUser(const crow::request& req)
             password = "123456";
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
         if (!phone.empty())
         {
-            mysqlx::RowResult phone_result = users_table.select("id")
-                .where("phone = :phone")
-                .bind("phone", phone)
+            mysqlx::SqlResult phone_result = dbManager->getSession()
+                ->sql("SELECT id FROM users WHERE phone = ?")
+                .bind(phone)
                 .execute();
 
             if (phone_result.count() > 0)
@@ -173,9 +173,9 @@ crow::response adminHandler::createUser(const crow::request& req)
 
         if (!email.empty())
         {
-            mysqlx::RowResult email_result = users_table.select("id")
-                .where("email = :email")
-                .bind("email", email)
+            mysqlx::SqlResult email_result = dbManager->getSession()
+                ->sql("SELECT id FROM users WHERE email = ?")
+                .bind(email)
                 .execute();
 
             if (email_result.count() > 0)
@@ -186,10 +186,17 @@ crow::response adminHandler::createUser(const crow::request& req)
 
         const std::string hashed_password = hash_password(password);
 
+        const int defaultUserRoleId =
+            RoleTypeUtils::getRoleId(dbManager, "普通用户");
+        if (defaultUserRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "普通用户角色不存在");
+        }
+
         mysqlx::SqlResult result = dbManager->getSession()
             ->sql("INSERT INTO users (type_id, name, phone, password, email, birthday, address_id, head_image) "
                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            .bind(3, name, phone, hashed_password, email, birthday, address_id, head_image)
+            .bind(defaultUserRoleId, name, phone, hashed_password, email, birthday, address_id, head_image)
             .execute();
         
         if(result.getAffectedItemsCount() == 0)
@@ -197,12 +204,18 @@ crow::response adminHandler::createUser(const crow::request& req)
             return ResponseHelper::system_error(req, "创建失败");
         }
 
+        if (!UserPhoneSync::upsertUserPhone(*dbManager, static_cast<int>(result.getAutoIncrementValue()), phone))
+        {
+            return ResponseHelper::system_error(req, "用户已创建，但手机号同步失败");
+        }
+
         nlohmann::json payload;
         payload["success"] = true;
         payload["message"] = "创建成功";
         payload["data"] = {
             {"id", result.getAutoIncrementValue()},
-            {"type_id", 3},
+            {"type_id", defaultUserRoleId},
+            {"type_name", "普通用户"},
             {"name", name},
             {"phone", phone},
             {"email", email},
@@ -247,10 +260,9 @@ crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
             return ResponseHelper::validation(req, "不能删除当前登录的超级管理员");
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::RowResult target_result = users_table.select("type_id")
-            .where("id = :id")
-            .bind("id", userID)
+        mysqlx::SqlResult target_result = dbManager->getSession()
+            ->sql("SELECT type_id FROM users WHERE id = ?")
+            .bind(userID)
             .execute();
 
         if (target_result.count() == 0)
@@ -259,15 +271,17 @@ crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
         }
 
         mysqlx::Row target_row = target_result.fetchOne();
-        const int target_type = target_row[0].isNull() ? 3 : target_row[0].get<int>();
-        if (target_type != 3)
+        const int target_type = target_row[0].isNull() ? 0 : target_row[0].get<int>();
+        const std::string target_role_name =
+            RoleTypeUtils::getRoleName(dbManager, target_type);
+        if (target_role_name != "普通用户")
         {
             return ResponseHelper::unavailable(req, "这里只能删除普通用户");
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-            ->sql("DELETE FROM users WHERE id = ? AND type_id = 3")
-            .bind(userID)
+            ->sql("DELETE FROM users WHERE id = ? AND type_id = ?")
+            .bind(userID, target_type)
             .execute();
 
         if(result.getAffectedItemsCount() == 0)
@@ -283,6 +297,7 @@ crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
     }
     
 }
+
 crow::response adminHandler::createDoctor(const crow::request &req)
 {
     try
@@ -300,18 +315,38 @@ crow::response adminHandler::createDoctor(const crow::request &req)
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::TableUpdate update_op = users_table.update();
+        const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
+        if (doctorRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "医生角色不存在");
+        }
 
-        update_op.set("type_id", 2);
-
-        mysqlx::Result result = update_op.where("id = :id")
-                                    .bind("id", userId)
+        mysqlx::SqlResult result = dbManager->getSession()
+                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                    .bind(doctorRoleId, userId)
                                     .execute();
 
         if (result.getAffectedItemsCount() == 0)
         {
             return ResponseHelper::notFound(req);
+        }
+
+        boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
+        std::string todayDate = formatDateOnly(currentDateTime);
+
+        mysqlx::SqlResult onlineDoctorResult = dbManager->getSession()
+            ->sql("SELECT doctor_id FROM onlineDoctors WHERE doctor_id = ? LIMIT 1")
+            .bind(userId)
+            .execute();
+
+        if (onlineDoctorResult.count() == 0)
+        {
+            dbManager->getSession()
+                ->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, check_out_time, status) "
+                      "VALUES (?, ?, NULL, NULL, 'offline')")
+                .bind(userId)
+                .bind(todayDate)
+                .execute();
         }
 
         return ResponseHelper::success(req, "给予权限成功");
@@ -339,13 +374,16 @@ crow::response adminHandler::deleteDoctor(const crow::request &req)
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::TableUpdate update_op = users_table.update();
+        const int defaultUserRoleId =
+            RoleTypeUtils::getRoleId(dbManager, "普通用户");
+        if (defaultUserRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "普通用户角色不存在");
+        }
 
-        update_op.set("type_id", 3);
-
-        mysqlx::Result result = update_op.where("id = :id")
-                                    .bind("id", userId)
+        mysqlx::SqlResult result = dbManager->getSession()
+                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                    .bind(defaultUserRoleId, userId)
                                     .execute();
 
         if (result.getAffectedItemsCount() == 0)
@@ -361,7 +399,92 @@ crow::response adminHandler::deleteDoctor(const crow::request &req)
     }
 }
 
-crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int &userId, std::string &date, std::string &identifier)
+crow::response adminHandler::createWarehouserManager(const crow::request &req)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        int userId = request_body.value("user_id", 0);
+
+        if(userId == 0)
+        {
+            return ResponseHelper::unavailable(req, "用户ID不能为空");
+        }
+
+        const int warehouseRoleId =
+            RoleTypeUtils::getRoleId(dbManager, "仓库管理员");
+        if (warehouseRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "仓库管理员角色不存在");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                    .bind(warehouseRoleId, userId)
+                                    .execute();
+
+        if (result.getAffectedItemsCount() == 0)
+        {
+            return ResponseHelper::notFound(req);
+        }
+
+        return ResponseHelper::success(req, "给予权限成功");
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response adminHandler::deleteWarehouserManager(const crow::request &req)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        int userId = request_body.value("user_id", 0);
+
+        if(userId == 0)
+        {
+            return ResponseHelper::unavailable(req, "用户ID不能为空");
+        }
+
+        const int defaultUserRoleId =
+            RoleTypeUtils::getRoleId(dbManager, "普通用户");
+        if (defaultUserRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "普通用户角色不存在");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                    .bind(defaultUserRoleId, userId)
+                                    .execute();
+        
+        if (result.getAffectedItemsCount() == 0)
+        {
+            return ResponseHelper::notFound(req);
+        }
+
+        return ResponseHelper::success(req, "删除权限成功");
+    }
+    catch(const std::exception& e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+    
+}
+
+crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int &userId, const std::string &date, const std::string &identifier)
 {
     try
     {
@@ -375,8 +498,9 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         std::string time_value;
 
         // 获取工作时间配置
-        mysqlx::Table workTime_table = dbManager->getSchema()->getTable("workTimes");
-        mysqlx::RowResult workTime_result = workTime_table.select(identifier == "check_in_time" ? "check_in_time_end" : "check_out_time_end")
+        const std::string column_name = identifier == "check_in_time" ? "check_in_time_end" : "check_out_time_end";
+        mysqlx::SqlResult workTime_result = dbManager->getSession()
+                                                ->sql("SELECT " + column_name + " FROM workTimes")
                                                 .execute();
 
         if (workTime_result.count() > 0)
@@ -386,7 +510,7 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         }
         else
         {
-            return ResponseHelper::custom(req, 404, "Work time configuration not found");
+            return ResponseHelper::notFound(req, "Work time configuration not found");
         }
 
         // 根据日期选择不同的表进行更新
@@ -394,14 +518,9 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         if (todayDate == date)
         {
             // 更新今日在线医生表
-            mysqlx::Table onlineDoctors_table = dbManager->getSchema()->getTable("onlineDoctors");
-            mysqlx::TableUpdate update_op = onlineDoctors_table.update();
-
-            update_op.set(identifier, time_value);
-
-            mysqlx::Result result = update_op.where("doctor_id = :doctor_id AND date = :date")
-                                        .bind("doctor_id", userId)
-                                        .bind("date", date)
+            mysqlx::SqlResult result = dbManager->getSession()
+                                        ->sql("UPDATE onlineDoctors SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
+                                        .bind(time_value, userId, date)
                                         .execute();
 
             affected_rows = result.getAffectedItemsCount();
@@ -409,14 +528,9 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         else
         {
             // 更新历史工作时间记录表
-            mysqlx::Table workTimeRecords_table = dbManager->getSchema()->getTable("workTimeRecords");
-            mysqlx::TableUpdate update_op = workTimeRecords_table.update();
-
-            update_op.set(identifier, time_value);
-
-            mysqlx::Result result = update_op.where("doctor_id = :doctor_id AND date = :date")
-                                        .bind("doctor_id", userId)
-                                        .bind("date", date)
+            mysqlx::SqlResult result = dbManager->getSession()
+                                        ->sql("UPDATE workTimeRecords SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
+                                        .bind(time_value, userId, date)
                                         .execute();
 
             affected_rows = result.getAffectedItemsCount();
@@ -424,7 +538,7 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
 
         if (affected_rows == 0)
         {
-            return ResponseHelper::custom(req, 404, "No matching record found to update");
+            return ResponseHelper::notFound(req, "No matching record found to update");
         }
         else
         {

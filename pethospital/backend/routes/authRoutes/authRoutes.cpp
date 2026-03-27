@@ -131,5 +131,4 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             }
             res.end();
         });
-    routes_setup = false;
 }

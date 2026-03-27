@@ -1,0 +1,46 @@
+digraph UseCaseWarehouse {
+  graph [
+    rankdir=LR,
+    splines=true,
+    overlap=false,
+    fontname="PingFang SC",
+    fontsize=18,
+    label="宠物医院管理系统用例图（仓库管理员）",
+    labelloc="t",
+    pad=0.4,
+    nodesep=0.5,
+    ranksep=0.9
+  ];
+
+  node [fontname="PingFang SC", fontsize=12];
+  edge [fontname="PingFang SC", fontsize=10, color="#444444"];
+
+  WarehouseAdmin [label="仓库管理员", shape=plaintext, fontsize=15];
+
+  subgraph cluster_system {
+    label="宠物医院管理系统";
+    color="#444444";
+    penwidth=1.2;
+    style=rounded;
+    fontname="PingFang SC";
+    fontsize=16;
+
+    node [shape=ellipse, style="rounded", color="#222222"];
+
+    UC_WarehouseDashboard [label="查看库存"];
+    UC_WarehouseSearch [label="查询物资"];
+    UC_WarehouseCreate [label="新增物资"];
+    UC_WarehouseUpdate [label="修改物资"];
+    UC_WarehouseDelete [label="删除物资"];
+    UC_WarehouseWarning [label="查看库存预警"];
+    UC_WarehouseLogs [label="查看操作日志"];
+  }
+
+  WarehouseAdmin -> UC_WarehouseDashboard;
+  WarehouseAdmin -> UC_WarehouseSearch;
+  WarehouseAdmin -> UC_WarehouseCreate;
+  WarehouseAdmin -> UC_WarehouseUpdate;
+  WarehouseAdmin -> UC_WarehouseDelete;
+  WarehouseAdmin -> UC_WarehouseWarning;
+  WarehouseAdmin -> UC_WarehouseLogs;
+}

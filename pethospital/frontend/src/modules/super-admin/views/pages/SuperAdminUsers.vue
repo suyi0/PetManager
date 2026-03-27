@@ -24,7 +24,7 @@
         <tbody>
           <tr v-for="item in users" :key="item.id">
             <td>{{ item.id }}</td>
-            <td>{{ formatRole(item.type_id) }}</td>
+            <td>{{ formatRole(item) }}</td>
             <td>{{ item.name }}</td>
             <td>{{ item.phone }}</td>
             <td>{{ item.email }}</td>
@@ -33,7 +33,7 @@
             <td>
               <button
                 class="danger"
-                :disabled="item.type_id !== 3 || deletingId === item.id"
+                :disabled="!isNormalUser(item) || deletingId === item.id"
                 @click="handleDelete(item)"
               >
                 {{ deletingId === item.id ? "删除中..." : "删除" }}
@@ -115,6 +115,7 @@
 
 <script lang="ts">
 import { defineComponent, onMounted, reactive, ref } from "vue";
+import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { superAdminApi } from "../../api/superAdminApi";
 import { UserRow } from "../../api/types";
 
@@ -139,10 +140,12 @@ export default defineComponent({
       users.value = await superAdminApi.getUsers();
     };
 
-    const formatRole = (typeId: number) => {
-      if (typeId === 1) return "超级管理员";
-      if (typeId === 2) return "医生";
-      return "普通用户";
+    const formatRole = (user: UserRow) => {
+      return resolveRoleName(user.type_name, user.type_id) || "未知角色";
+    };
+
+    const isNormalUser = (user: UserRow) => {
+      return formatRole(user) === "普通用户";
     };
 
     const resetForm = () => {
@@ -198,7 +201,7 @@ export default defineComponent({
     };
 
     const handleDelete = async (item: UserRow) => {
-      if (item.type_id !== 3) {
+      if (!isNormalUser(item)) {
         return;
       }
 
@@ -229,6 +232,7 @@ export default defineComponent({
       formError,
       loadUsers,
       formatRole,
+      isNormalUser,
       openCreateDialog,
       closeCreateDialog,
       handleCreate,

@@ -40,8 +40,11 @@ public:
     // 单例模式
     static WebSocketServer &instance();
 
-    // 提供公共方法访问 signal_received
-    bool isSignalReceived() const;
+    // 是否已收到关闭请求
+    bool isShutdownRequested() const;
+
+    // 是否已完成服务线程关闭
+    bool isServerStopped() const;
 
     // 设置app指针
     void setApp(CrowApp* app_ptr) { app_ptr_ = app_ptr; }
@@ -54,27 +57,19 @@ private:
     // 设置路由
     void setupRoutes();
 
-    // 心跳机制
-    void startHeartbeat();
-
     // 信号处理
     void setupSignalHandlers();
     void stopCodeCleanupTask();
 
     std::thread cleanup_thread;
     std::atomic<bool> cleanup_running{false};
-    std::condition_variable cleanup_cv;
-    std::mutex cleanup_mutex;
+    std::mutex cleanup_mutex;                       // 用于保护清理任务
+    std::condition_variable cleanup_cv;              // 用于等待清理任务结束
+    std::condition_variable shutdown_cv;              // 用于等待服务线程结束
     crow::App<CorsMiddleware, RateLimitMiddleware>* app_ptr_ = nullptr;  // 使用指针，以便外部传入
     std::thread server_thread;
-    std::atomic<bool> heartbeat_running{true};
-    std::condition_variable heartbeat_cv;
-    std::mutex heartbeat_mutex;
-    std::thread heartbeat_thread;
     std::unordered_set<crow::websocket::connection *> active_connections;
     std::mutex conn_mutex;
-    std::condition_variable shutdown_cv;
-    std::atomic<bool> running{true};
-    std::atomic<bool> stop_requested{false};
-    std::atomic<bool> signal_received{false};
+    std::atomic<bool> shutdown_requested{false};    // 表示“已经收到关闭请求” 在 Ctrl+C 的信号处理里设置
+    std::atomic<bool> server_stopped{false};        // 表示“Crow 的 run() 已经真正返回” 在服务线程退出时设置
 };

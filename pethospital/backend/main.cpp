@@ -8,14 +8,6 @@
 // 主函数
 int main(int argc, char *argv[])
 {
-#ifndef _WIN32
-    sigset_t signalSet;
-    sigemptyset(&signalSet);
-    sigaddset(&signalSet, SIGINT);
-    sigaddset(&signalSet, SIGTERM);
-    pthread_sigmask(SIG_BLOCK, &signalSet, nullptr);
-#endif
-
     // 初始化环境变量
     initializeEnvironment();
 
@@ -66,22 +58,19 @@ int main(int argc, char *argv[])
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     std::cout << "Server started on port 8081" << std::endl;
 
-#ifndef _WIN32
     std::cout << "Server is running. Press Ctrl+C to stop." << std::endl;
-    int receivedSignal = 0;
-    sigwait(&signalSet, &receivedSignal);       // 阻塞等待信号(直接往下运行)
-    std::cout << "Received signal: " << receivedSignal << std::endl;
-#else
-    std::cout << "Server is running. Press Ctrl+C to stop." << std::endl;
-    while (!WebSocketServer::instance().isSignalReceived())
+    while (!WebSocketServer::instance().isShutdownRequested() &&
+           !WebSocketServer::instance().isServerStopped())
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-#endif
 
-    // 由主线程触发关闭
-    std::cout << "Shutting down server..." << std::endl;
-    WebSocketServer::instance().gracefulShutdown();
+    if (!WebSocketServer::instance().isServerStopped())
+    {
+        // 由主线程触发关闭
+        std::cout << "Shutting down server..." << std::endl;
+        WebSocketServer::instance().gracefulShutdown();
+    }
 
     // 停止定时任务管理器
     taskManager->stop();

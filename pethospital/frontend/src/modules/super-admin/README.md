@@ -8,7 +8,7 @@ This module is implemented without touching user-side pages and routes.
 - Layout + pages:
   - `views/SuperAdminLayout.vue`
   - `views/pages/SuperAdminOverview.vue`
-  - `views/pages/SuperAdminDoctors.vue`
+  - `views/pages/SuperAdminRoleAccess.vue`（角色权限管理页）
   - `views/pages/SuperAdminWorktime.vue`
   - `views/pages/SuperAdminUsers.vue`
 - Backend-driven API wrapper:

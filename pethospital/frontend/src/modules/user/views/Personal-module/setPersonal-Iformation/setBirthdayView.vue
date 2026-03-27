@@ -1,105 +1,86 @@
 <template>
-  <div class="set-birthday">
-    <!-- 关闭按钮 -->
-    <div class="close-button" @click="close">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 18 18"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M14 2L2 14M14 14L2 2"
-          stroke="#333"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </div>
-
-    <!-- 页面标题 -->
-    <div class="title-container">
-      <div class="icon">
-        <svg
-          width="40"
-          height="40"
-          viewBox="0 0 40 40"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <rect x="8" y="8" width="24" height="24" rx="4" fill="#409EFF" />
-          <path d="M12 12H16V16H12V12Z" fill="white" />
-          <path d="M12 20H16V24H12V20Z" fill="white" />
-          <path d="M20 12H24V16H20V12Z" fill="white" />
-          <path d="M20 20H24V24H20V20Z" fill="white" />
-          <path d="M12 8H16V12H12V8Z" fill="white" />
-          <path d="M20 8H24V12H20V8Z" fill="white" />
-        </svg>
+  <div class="birthday-editor">
+    <div class="birthday-editor__head">
+      <div>
+        <p>Birthday Studio</p>
+        <h3>更新出生日期</h3>
+        <span>
+          生日信息会出现在个人资料里，也能帮助系统在服务推荐和资料完整度上给出更准确的提示。
+        </span>
       </div>
-      <h2>出生日期</h2>
-      <p class="description">你的出生日期用于确定符合条件的服务。</p>
+      <button class="birthday-editor__ghost" @click="close">关闭</button>
     </div>
 
-    <!-- 日期选择器 -->
-    <div class="date-selectors">
-      <div class="selector-group">
-        <label class="selector-label">年</label>
-        <select
-          v-model="year"
-          class="selector-field"
-          @change="isButtonActive = true"
-        >
-          <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
-          <!-- v-for="y in years" - 这是 Vue 的循环指令，会遍历 years 数组中的每个元素
-                :key="y" - Vue 的特殊属性，用于优化渲染，这里使用年份值作为唯一标识
-                :value="y" - 将选项的值设置为年份值
-                {{ y }} - 在选项中显示年份文本 -->
+    <section class="birthday-editor__hero">
+      <div class="birthday-editor__calendar">
+        <span>{{ monthLabel }}</span>
+        <strong>{{ dayLabel }}</strong>
+        <small>{{ yearLabel }}</small>
+      </div>
+      <div class="birthday-editor__summary">
+        <small>当前日期预览</small>
+        <strong>{{ birthdayPreview }}</strong>
+        <span>建议按实际生日填写，保存后会自动同步回个人中心总览卡片。</span>
+      </div>
+    </section>
+
+    <form class="birthday-editor__form" @submit.prevent="saveBirthday">
+      <label class="editor-field">
+        <span>年份</span>
+        <select v-model="year" @change="isButtonActive = true">
+          <option v-for="y in years" :key="y" :value="String(y)">
+            {{ y }}
+          </option>
         </select>
+      </label>
+
+      <label class="editor-field">
+        <span>月份</span>
+        <select v-model="month" @change="isButtonActive = true">
+          <option v-for="m in months" :key="m" :value="String(m)">
+            {{ m }}
+          </option>
+        </select>
+      </label>
+
+      <label class="editor-field">
+        <span>日期</span>
+        <select v-model="day" @change="isButtonActive = true">
+          <option v-for="d in days" :key="d" :value="String(d)">
+            {{ d }}
+          </option>
+        </select>
+      </label>
+
+      <div class="birthday-editor__tips">
+        <article>
+          <small>ISO 格式</small>
+          <strong>{{ birthdayPreview }}</strong>
+        </article>
+        <article>
+          <small>备注</small>
+          <span>月份和日期会自动补零，提交后会以 `YYYY-MM-DD` 形式存储。</span>
+        </article>
       </div>
 
-      <div class="selector-group">
-        <label class="selector-label">月</label>
-        <select
-          v-model="month"
-          class="selector-field"
-          @change="isButtonActive = true"
-        >
-          <option v-for="m in months" :key="m" :value="m">{{ m }}</option>
-        </select>
+      <div v-if="isButtonActive" class="birthday-editor__actions">
+        <button type="button" class="birthday-editor__ghost" @click="cancel">
+          取消
+        </button>
+        <button type="submit" class="birthday-editor__primary">保存生日</button>
       </div>
-
-      <div class="selector-group">
-        <label class="selector-label">日</label>
-        <select
-          v-model="day"
-          class="selector-field"
-          @change="isButtonActive = true"
-        >
-          <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
-        </select>
-      </div>
-    </div>
-    <!-- 按钮组 -->
-    <div v-show="isButtonActive" class="button-group">
-      <button @click="cancel" class="cancel-button">取消</button>
-      <button @click="saveBirthday" class="save-button">存储</button>
-    </div>
+    </form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 
 const store = useStore(storeKey);
-
-// 定义 emits
 const emit = defineEmits(["close", "submit"]);
 
-// 响应式数据
 const isButtonActive = ref(false);
 const year = ref("");
 const month = ref("");
@@ -108,12 +89,20 @@ const years = ref<number[]>([]);
 const months = ref([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 const days = ref<number[]>([]);
 
-// 计算属性
-const currentYear = computed(() => {
-  return new Date().getFullYear();
+const currentYear = computed(() => new Date().getFullYear());
+
+const monthLabel = computed(() => {
+  return `${String(month.value || "--").padStart(2, "0")} 月`;
+});
+const dayLabel = computed(() => String(day.value || "--").padStart(2, "0"));
+const yearLabel = computed(() => `${year.value || "----"} 年`);
+const birthdayPreview = computed(() => {
+  const y = year.value || "----";
+  const m = String(month.value || "--").padStart(2, "0");
+  const d = String(day.value || "--").padStart(2, "0");
+  return `${y}-${m}-${d}`;
 });
 
-// 监听器
 watch(year, () => {
   updateDays();
 });
@@ -122,52 +111,49 @@ watch(month, () => {
   updateDays();
 });
 
-// 初始化年份选项
 function initYears() {
+  years.value = [];
   for (let i = currentYear.value; i >= 1900; i--) {
     years.value.push(i);
   }
 }
 
-// 更新天数选项
+function getDaysInMonth(targetYear: number, targetMonth: number) {
+  return new Date(targetYear, targetMonth, 0).getDate();
+}
+
 function updateDays() {
   days.value = [];
   const daysInMonth = getDaysInMonth(
-    parseInt(year.value) || 0,
-    parseInt(month.value) || 0
+    parseInt(year.value, 10) || currentYear.value,
+    parseInt(month.value, 10) || 1
   );
   for (let i = 1; i <= daysInMonth; i++) {
     days.value.push(i);
   }
+
+  if (day.value && Number(day.value) > daysInMonth) {
+    day.value = String(daysInMonth);
+  }
 }
 
-// 获取指定年月的天数
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month, 0).getDate();
-}
-
-// 从日期字符串中提取年月日
 function parseDateString(dateString: string) {
   if (!dateString) return;
 
   const [y, m, d] = dateString.split("-");
-  year.value = y;
-  month.value = m;
-  day.value = d;
+  year.value = y || "";
+  month.value = String(Number(m || 1));
+  day.value = String(Number(d || 1));
 }
 
 function saveBirthday() {
-  // 确保月份和日期都有前导零
   const y = year.value;
-  const m = month.value.toString().padStart(2, "0");
-  const d = day.value.toString().padStart(2, "0");
-
-  const field = "userBirthday";
-  const birthday = `${y}-${m}-${d}`;
+  const m = String(month.value).padStart(2, "0");
+  const d = String(day.value).padStart(2, "0");
 
   emit("submit", {
-    field,
-    birthday,
+    field: "userBirthday",
+    birthday: `${y}-${m}-${d}`,
   });
   isButtonActive.value = false;
 }
@@ -177,143 +163,209 @@ function cancel() {
   close();
 }
 
-// 处理关闭事件
 function close() {
   emit("close");
 }
 
-// 在 created 钩子中执行初始化逻辑
 onMounted(() => {
-  // 初始化年份选项
   initYears();
 
-  // 如果有已保存的生日数据
-  const savedBirthday = store.state.currentUser.userBirthday; // 假设格式为 "2003-9-20"
+  const savedBirthday = store.state.currentUser.userBirthday;
   if (savedBirthday) {
     parseDateString(savedBirthday);
+  } else {
+    year.value = String(currentYear.value);
+    month.value = "1";
+    day.value = "1";
   }
 
-  // 初始化天数选项
   updateDays();
 });
 </script>
 
 <style scoped lang="scss">
-.set-birthday {
-  width: 100%;
-  max-width: 500px;
+.birthday-editor {
+  display: grid;
+  gap: 18px;
   padding: 24px;
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.3);
-  position: relative;
-  top: 45px;
+  border-radius: 30px;
+  border: 1px solid rgba(21, 91, 92, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
+}
 
-  .close-button {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    cursor: pointer;
-    z-index: 10;
-    color: #333;
-  }
+.birthday-editor__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
 
-  .title-container {
-    text-align: center;
-    margin-bottom: 32px;
+.birthday-editor__head p,
+.birthday-editor__summary small,
+.birthday-editor__tips small {
+  margin: 0;
+  color: #1f8e89;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
 
-    .icon {
-      margin-bottom: 24px;
-    }
+.birthday-editor__head h3 {
+  margin: 6px 0 0;
+  color: #133f42;
+  font-size: 32px;
+}
 
-    h2 {
-      font-size: 24px;
-      font-weight: 600;
-      color: #333;
-    }
+.birthday-editor__head span,
+.birthday-editor__summary span,
+.birthday-editor__tips span {
+  display: block;
+  margin-top: 10px;
+  color: #607975;
+  line-height: 1.8;
+  font-size: 14px;
+}
 
-    .description {
-      font-size: 14px;
-      color: #666;
-      margin-top: 36px;
-    }
-  }
+.birthday-editor__hero {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 18px;
+  padding: 22px;
+  border-radius: 28px;
+  background: linear-gradient(
+    135deg,
+    rgba(136, 214, 206, 0.24),
+    rgba(243, 197, 155, 0.18)
+  );
+}
 
-  .date-selectors {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    margin-top: 50px;
-  }
+.birthday-editor__calendar {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #91ddd2, #f0c29b);
+  color: #15474a;
+  box-shadow: 0 18px 34px rgba(28, 98, 99, 0.14);
+}
 
-  .selector-group {
-    flex: 1;
-    text-align: center;
-  }
+.birthday-editor__calendar span,
+.birthday-editor__calendar small {
+  margin: 0;
+  color: #15474a;
+  line-height: 1;
+}
 
-  .selector-label {
-    display: block;
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 8px;
-  }
+.birthday-editor__calendar span {
+  font-size: 13px;
+  font-weight: 700;
+}
 
-  .selector-field {
-    width: 100%;
-    padding: 12px 16px;
-    border: 1px solid #dcdfe6;
-    border-radius: 8px;
-    font-size: 16px;
-    appearance: none;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23666' d='M4 9l5 5 5-5z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    background-size: 16px;
-    transition: border-color 0.3s ease;
-    cursor: pointer;
+.birthday-editor__calendar strong {
+  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
+  font-size: 54px;
+  line-height: 1;
+}
 
-    &:focus {
-      outline: none;
-      border-color: #409eff;
-      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-    }
-  }
-  .button-group {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 62px;
+.birthday-editor__calendar small {
+  font-size: 12px;
+  opacity: 0.9;
+}
 
-    .cancel-button {
-      padding: 12px 24px;
-      border: 1px solid #409eff;
-      border-radius: 8px;
-      background-color: transparent;
-      color: #409eff;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      width: 35%;
+.birthday-editor__summary {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
 
-      &:hover {
-        background-color: rgba(64, 158, 255, 0.1);
-      }
-    }
+.birthday-editor__summary strong,
+.birthday-editor__tips strong {
+  color: #143f42;
+  font-size: 26px;
+}
 
-    .save-button {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 8px;
-      background-color: #409eff;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      width: 35%;
+.birthday-editor__form {
+  display: grid;
+  gap: 14px;
+}
 
-      &:hover {
-        background-color: #3a8ee6;
-      }
-    }
+.editor-field {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-field span {
+  color: #24484b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-field select {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid rgba(20, 82, 84, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #173f42;
+  font-size: 14px;
+}
+
+.editor-field select:focus {
+  outline: none;
+  border-color: rgba(24, 128, 127, 0.5);
+  box-shadow: 0 0 0 4px rgba(141, 218, 210, 0.18);
+}
+
+.birthday-editor__tips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.birthday-editor__tips article {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 249, 242, 0.95);
+}
+
+.birthday-editor__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.birthday-editor__ghost,
+.birthday-editor__primary {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.birthday-editor__ghost {
+  background: rgba(20, 82, 84, 0.08);
+  color: #154144;
+}
+
+.birthday-editor__primary {
+  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  color: #fff;
+  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+}
+
+@media (max-width: 900px) {
+  .birthday-editor__head,
+  .birthday-editor__hero,
+  .birthday-editor__tips {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 }
 </style>

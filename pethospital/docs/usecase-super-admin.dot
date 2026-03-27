@@ -1,0 +1,52 @@
+digraph UseCaseSuperAdmin {
+  graph [
+    rankdir=LR,
+    splines=true,
+    overlap=false,
+    fontname="PingFang SC",
+    fontsize=18,
+    label="宠物医院管理系统用例图（超级管理员）",
+    labelloc="t",
+    pad=0.4,
+    nodesep=0.5,
+    ranksep=0.9
+  ];
+
+  node [fontname="PingFang SC", fontsize=12];
+  edge [fontname="PingFang SC", fontsize=10, color="#444444"];
+
+  SuperAdmin [label="超级管理员", shape=plaintext, fontsize=15];
+
+  subgraph cluster_system {
+    label="宠物医院管理系统";
+    color="#444444";
+    penwidth=1.2;
+    style=rounded;
+    fontname="PingFang SC";
+    fontsize=16;
+
+    node [shape=ellipse, style="rounded", color="#222222"];
+
+    UC_AdminOverview [label="查看系统总览"];
+    UC_AdminUser [label="管理普通用户"];
+    UC_AdminCreateUser [label="创建用户账号"];
+    UC_AdminDeleteUser [label="删除用户账号"];
+    UC_AdminDoctor [label="管理医生权限"];
+    UC_AdminCreateDoctor [label="授予医生权限"];
+    UC_AdminDeleteDoctor [label="撤销医生权限"];
+    UC_AdminWorktime [label="管理医生工时"];
+    UC_AdminChangeWorktime [label="调整医生上下班时间"];
+  }
+
+  SuperAdmin -> UC_AdminOverview;
+  SuperAdmin -> UC_AdminUser;
+  SuperAdmin -> UC_AdminDoctor;
+  SuperAdmin -> UC_AdminWorktime;
+
+  edge [style=dashed, color="#666666"];
+  UC_AdminCreateUser -> UC_AdminUser [label="extend"];
+  UC_AdminDeleteUser -> UC_AdminUser [label="extend"];
+  UC_AdminCreateDoctor -> UC_AdminDoctor [label="extend"];
+  UC_AdminDeleteDoctor -> UC_AdminDoctor [label="extend"];
+  UC_AdminChangeWorktime -> UC_AdminWorktime [label="extend"];
+}

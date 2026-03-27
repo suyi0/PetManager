@@ -1,21 +1,54 @@
 <template>
   <section class="page">
     <div class="panel form-panel">
-      <h3>医生权限管理</h3>
-      <div class="row">
-        <label for="uid">用户ID</label>
-        <input
-          id="uid"
-          v-model.number="userID"
-          type="number"
-          min="1"
-          placeholder="输入用户ID"
-        />
+      <div class="form-panel__head">
+        <div>
+          <h3>角色权限管理</h3>
+          <p>左侧管理医生权限，右侧管理仓库管理员权限。</p>
+        </div>
+        <div class="row">
+          <label for="uid">用户ID</label>
+          <input
+            id="uid"
+            v-model.number="userID"
+            type="number"
+            min="1"
+            placeholder="输入用户ID"
+          />
+        </div>
       </div>
-      <div class="actions">
-        <button class="primary" @click="grantDoctor">授予医生权限</button>
-        <button class="danger" @click="revokeDoctor">移除医生权限</button>
+
+      <div class="grant-grid">
+        <section class="grant-card">
+          <div class="grant-card__badge">角色一</div>
+          <h4>医生权限管理</h4>
+          <p>适用于接诊、排班、创建订单等医生端功能授权。</p>
+          <div class="actions">
+            <button class="primary" @click="grantDoctor">授予医生权限</button>
+            <button class="danger" @click="revokeDoctor">移除医生权限</button>
+          </div>
+        </section>
+
+        <section class="grant-card grant-card--pending">
+          <div class="grant-card__badge grant-card__badge--warehouse">
+            角色二
+          </div>
+          <h4>仓库管理员授权</h4>
+          <p>预留库存管理、药品维护、预警查看等仓库端功能授权。</p>
+          <div class="actions">
+            <button class="primary" @click="grantWarehouseAdmin">
+              授予仓库管理员
+            </button>
+            <button class="danger" @click="revokeWarehouseAdmin">
+              移除仓库管理员
+            </button>
+          </div>
+          <span class="grant-card__tip"
+            >当前页面已接入仓库管理员授权接口。</span
+          >
+        </section>
       </div>
+
       <p class="message">{{ message }}</p>
     </div>
 
@@ -23,29 +56,23 @@
       <div class="user-panel__head">
         <div>
           <h3>用户列表</h3>
-          <p>点击卡片可快速填入上方用户 ID。</p>
+          <p>点击卡片可快速填入用户 ID。</p>
         </div>
         <div class="toolbar">
           <input
-            v-model.trim="keyword"
+            v-model.trim="keywordInput"
             class="search-input"
             type="text"
             placeholder="搜索用户名 / 邮箱 / 手机号"
+            @keyup.enter="applySearch"
           />
+          <button class="ghost" @click="applySearch">搜索</button>
           <button class="ghost" @click="loadUsers">刷新列表</button>
-          <div class="pager">
-            <button class="ghost" :disabled="page <= 1" @click="page -= 1">
-              上一页
-            </button>
-            <span>{{ page }} / {{ totalPages }}</span>
-            <button
-              class="ghost"
-              :disabled="page >= totalPages"
-              @click="page += 1"
-            >
-              下一页
-            </button>
-          </div>
+          <AppPager
+            :page="page"
+            :total-pages="totalPages"
+            @update:page="page = $event"
+          />
         </div>
       </div>
 
@@ -66,8 +93,11 @@
             @click="selectUser(item.id)"
           >
             <span class="user-card__id">#{{ item.id }}</span>
-            <span class="user-card__role" :class="roleClassName(item.type_id)">
-              {{ formatRole(item.type_id) }}
+            <span
+              class="user-card__role"
+              :class="roleClassName(item.type_name, item.type_id)"
+            >
+              {{ formatRole(item.type_name, item.type_id) }}
             </span>
             <strong class="user-card__name">{{
               item.name || "未命名用户"
@@ -99,8 +129,11 @@
             @click="selectUser(item.id)"
           >
             <span class="user-card__id">#{{ item.id }}</span>
-            <span class="user-card__role" :class="roleClassName(item.type_id)">
-              {{ formatRole(item.type_id) }}
+            <span
+              class="user-card__role"
+              :class="roleClassName(item.type_name, item.type_id)"
+            >
+              {{ formatRole(item.type_name, item.type_id) }}
             </span>
             <strong class="user-card__name">{{
               item.name || "未命名用户"
@@ -122,17 +155,21 @@
 
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
+import { resolveRoleName } from "@/core/auth/utils/roleUtils";
+import AppPager from "../../../../components/AppPager.vue";
 import { superAdminApi } from "../../api/superAdminApi";
 import { UserRow } from "../../api/types";
 
 export default defineComponent({
-  name: "SuperAdminDoctors",
+  name: "SuperAdminRoleAccess",
+  components: { AppPager },
   setup() {
     const userID = ref<number | null>(null);
     const message = ref("等待操作");
     const users = ref<UserRow[]>([]);
     const page = ref(1);
     const pageSize = 8;
+    const keywordInput = ref("");
     const keyword = ref("");
 
     const ensureUserID = () => {
@@ -142,15 +179,15 @@ export default defineComponent({
       return userID.value;
     };
 
-    const formatRole = (typeId: number) => {
-      if (typeId === 1) return "超级管理员";
-      if (typeId === 2) return "医生";
-      return "普通用户";
+    const formatRole = (typeName?: string, typeId?: number | null) => {
+      return resolveRoleName(typeName, typeId) || "未知角色";
     };
 
-    const roleClassName = (typeId: number) => {
-      if (typeId === 1) return "user-card__role--super";
-      if (typeId === 2) return "user-card__role--doctor";
+    const roleClassName = (typeName?: string, typeId?: number | null) => {
+      const role = formatRole(typeName, typeId);
+      if (role === "超级管理员") return "user-card__role--super";
+      if (role === "医生") return "user-card__role--doctor";
+      if (role === "仓库管理员") return "user-card__role--warehouse";
       return "user-card__role--user";
     };
 
@@ -204,6 +241,10 @@ export default defineComponent({
       page.value = 1;
     });
 
+    const applySearch = () => {
+      keyword.value = keywordInput.value.trim();
+    };
+
     const selectUser = (id: number) => {
       userID.value = id;
       message.value = `已选择用户 #${id}`;
@@ -229,11 +270,36 @@ export default defineComponent({
       }
     };
 
+    const grantWarehouseAdmin = async () => {
+      try {
+        await superAdminApi.createWarehouseAdmin(ensureUserID());
+        message.value = "仓库管理员授权成功";
+        await loadUsers();
+      } catch (err: unknown) {
+        message.value = `仓库管理员授权失败: ${String(
+          (err as Error).message || err
+        )}`;
+      }
+    };
+
+    const revokeWarehouseAdmin = async () => {
+      try {
+        await superAdminApi.deleteWarehouseAdmin(ensureUserID());
+        message.value = "仓库管理员权限已移除";
+        await loadUsers();
+      } catch (err: unknown) {
+        message.value = `仓库管理员移除失败: ${String(
+          (err as Error).message || err
+        )}`;
+      }
+    };
+
     onMounted(loadUsers);
 
     return {
       userID,
       page,
+      keywordInput,
       keyword,
       totalPages,
       leftColumn,
@@ -243,10 +309,13 @@ export default defineComponent({
       message,
       formatRole,
       roleClassName,
+      applySearch,
       loadUsers,
       selectUser,
       grantDoctor,
       revokeDoctor,
+      grantWarehouseAdmin,
+      revokeWarehouseAdmin,
     };
   },
 });
@@ -272,6 +341,13 @@ export default defineComponent({
 
 .form-panel p {
   color: #5c6781;
+}
+
+.form-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .user-panel {
@@ -304,6 +380,58 @@ export default defineComponent({
   max-width: 380px;
 }
 
+.grant-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.grant-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #dfe7fa;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.grant-card--pending {
+  background: linear-gradient(180deg, #fffdf8, #fff9ee);
+}
+
+.grant-card h4,
+.grant-card p {
+  margin: 0;
+}
+
+.grant-card h4 {
+  color: #1d2e57;
+}
+
+.grant-card p,
+.grant-card__tip {
+  color: #687792;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.grant-card__badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #e8f0ff;
+  color: #2f6ff3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.grant-card__badge--warehouse {
+  background: #fff1d8;
+  color: #b57400;
+}
+
 input {
   border: 1px solid #cfdcff;
   border-radius: 10px;
@@ -315,15 +443,6 @@ input {
   display: flex;
   gap: 10px;
   margin-top: 12px;
-}
-
-.pager {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #576684;
-  font-size: 13px;
-  margin-left: auto;
 }
 
 .toolbar {
@@ -491,6 +610,11 @@ button:disabled {
   color: #1f8a61;
 }
 
+.user-card__role--warehouse {
+  background: #fff1d8;
+  color: #b57400;
+}
+
 .user-card__role--user {
   background: #edf2ff;
   color: #4f67b5;
@@ -513,6 +637,14 @@ button:disabled {
 }
 
 @media (max-width: 980px) {
+  .form-panel__head {
+    flex-direction: column;
+  }
+
+  .grant-grid {
+    grid-template-columns: 1fr;
+  }
+
   .user-panel {
     min-height: auto;
   }

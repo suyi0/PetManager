@@ -1,4 +1,5 @@
 #include "authHandler.h"
+#include "RoleTypeUtils/RoleTypeUtils.h"
 
 // 验证用户token
 int isValidUserToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
@@ -203,8 +204,10 @@ crow::response authHandler::authCheckName(const crow::request &req)
             return ResponseHelper::error(req, "Missing name parameter");
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::RowResult result = users_table.select("COUNT(*) as count").where("name = :name").bind("name", name).execute();
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT COUNT(*) as count FROM users WHERE name = ?")
+                                       .bind(name)
+                                       .execute();
 
         mysqlx::Row row = result.fetchOne();
         if (row && !row[0].isNull())
@@ -227,7 +230,7 @@ crow::response authHandler::authCheckName(const crow::request &req)
     }
     catch (const mysqlx::Error &e)
     {
-        return ResponseHelper::custom(req, 500, "Database error: " + std::string(e.what()));
+        return ResponseHelper::database_error(req, "Database error", e.what());
     }
     catch (const std::exception &e)
     {
@@ -265,9 +268,10 @@ crow::response authHandler::authCheckEmail(const crow::request &req)
             return ResponseHelper::error(req, "Invalid email format");
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
-        mysqlx::RowResult result = users_table.select("COUNT(*) as count").where("email = :email").bind("email", email).execute();
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT COUNT(*) as count FROM users WHERE email = ?")
+                                       .bind(email)
+                                       .execute();
 
         auto row = result.fetchOne();
         if (row && !row[0].isNull())
@@ -290,7 +294,7 @@ crow::response authHandler::authCheckEmail(const crow::request &req)
     }
     catch (const mysqlx::Error &e)
     {
-        return ResponseHelper::custom(req, 500, "Database error: " + std::string(e.what()));
+        return ResponseHelper::database_error(req, "Database error", e.what());
     }
     catch (const std::exception &e)
     {
@@ -325,8 +329,10 @@ crow::response authHandler::authCheckPhone(const crow::request &req)
             return ResponseHelper::validation(req, "Invalid phone format");
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::RowResult result = users_table.select("COUNT(*) as count").where("phone = :phone").bind("phone", phone).execute();
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT COUNT(*) as count FROM users WHERE phone = ?")
+                                       .bind(phone)
+                                       .execute();
 
         auto row = result.fetchOne();
         if (row && row[0].isNull())
@@ -349,7 +355,7 @@ crow::response authHandler::authCheckPhone(const crow::request &req)
     }
     catch (const mysqlx::Error &e)
     {
-        return ResponseHelper::custom(req, 500, "Database error: " + std::string(e.what()));
+        return ResponseHelper::database_error(req, "Database error", e.what());
     }
     catch (const std::exception &e)
     {
@@ -375,9 +381,10 @@ crow::response authHandler::authReadyVerification(const crow::request &req)
 
         std::string email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
-        mysqlx::RowResult result = users_table.select("*").where("email = :email").bind("email", email).execute();
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT * FROM users WHERE email = ?")
+                                       .bind(email)
+                                       .execute();
 
         if (result.begin() == result.end()) // 没有匹配的用户才创建验证码并发送邮件
         {
@@ -421,16 +428,13 @@ crow::response authHandler::authReadyVerification(const crow::request &req)
                 bool sendSuccess = future.get(); // 使用之前获取的future对象
                 if (sendSuccess)                 // 使用之前获取的future对象
                 {
-                    response["data"] = true;
-                    response["message"] = "sent verification code email";
+                    response["sent"] = true;
+                    response["channel"] = "email";
                     return ResponseHelper::success(req, response);
                 }
                 else
                 {
-                    response["data"] = false;
-                    response["message"] = "failed to send verification code email";
-
-                    return ResponseHelper::error(req, response);
+                    return ResponseHelper::error(req, "failed to send verification code email");
                 }
             }
             catch (const std::exception &e)
@@ -441,9 +445,9 @@ crow::response authHandler::authReadyVerification(const crow::request &req)
                 // std::invalid_argument（无效参数）
                 // std::out_of_range（超出范围）
                 // 其他标准库抛出的异常
-                response["data"] = false;
-                response["message"] = "exception occurred while sending email: " + std::string(e.what()) + "\"";
-                return ResponseHelper::system_error(req);
+                return ResponseHelper::system_error(
+                    req,
+                    "exception occurred while sending email: " + std::string(e.what()));
             }
             catch (...)
             {
@@ -491,8 +495,10 @@ crow::response authHandler::authVerification(const crow::request &req)
         // 验证码验证
         if (isValid)
         {
-            mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-            mysqlx::RowResult result = users_table.select("id", "username").where("email = :email").bind("email", email).execute();
+            mysqlx::SqlResult result = dbManager->getSession()
+                                           ->sql("SELECT id, username FROM users WHERE email = ?")
+                                           .bind(email)
+                                           .execute();
 
             for (const auto &row : result)
             {
@@ -503,18 +509,24 @@ crow::response authHandler::authVerification(const crow::request &req)
             // 如果验证成功，返回 token
             nlohmann::json response;
             // 生成一个基于用户邮箱的JWT token
-            std::string token = JwtUtils::createToken(userID, userName, 3, email, true);
+            const int defaultUserRoleId =
+                RoleTypeUtils::getRoleId(dbManager, "普通用户");
+            std::string token = JwtUtils::createToken(
+                userID,
+                userName,
+                defaultUserRoleId,
+                "普通用户",
+                email,
+                true);
             response["token"] = token;
-            response["success"] = true;
             return ResponseHelper::success(req, response);
         }
         else
         {
-            // 验证失败
-            nlohmann::json response;
-            response["error"] = "Invalid Verification Code";
-            response["success"] = false;
-            return ResponseHelper::unauthorized(req, response["error"]);
+            return ResponseHelper::verification_failed(
+                req,
+                "Invalid Verification Code",
+                "Verification code validation failed");
         }
     }
     catch (const std::exception &e)
@@ -547,10 +559,12 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
             return ResponseHelper::unauthorized(req, "Invalid identifier in token");
         }
 
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::RowResult result = users_table.select("type_id", "name", "email", "phone")
-                                       .where("id = :id")
-                                       .bind("id", userId)
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT u.type_id, t.type, u.name, u.email, u.phone "
+                                             "FROM users AS u "
+                                             "JOIN types AS t ON u.type_id = t.id "
+                                             "WHERE u.id = ?")
+                                       .bind(userId)
                                        .execute();
 
         auto row = result.fetchOne();
@@ -560,14 +574,15 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         }
 
         int typeId = row[0].get<int>();
-        if (typeId != 1)
+        std::string typeName = row[1].get<std::string>();
+        if (typeName != "超级管理员")
         {
             return ResponseHelper::unauthorized(req, "Only super admin can refresh this token");
         }
 
-        std::string userName = clean_string(row[1].get<std::string>());
-        std::string email = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
-        std::string phone = row[3].isNull() ? "" : normalizePhoneIdentifier(row[3].get<std::string>());
+        std::string userName = clean_string(row[2].get<std::string>());
+        std::string email = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+        std::string phone = row[4].isNull() ? "" : normalizePhoneIdentifier(row[4].get<std::string>());
 
         bool isEmailLogin = !email.empty() && identifier == email;
         bool isPhoneLogin = !phone.empty() && normalizePhoneIdentifier(identifier) == phone;
@@ -582,6 +597,7 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
             userId,
             userName,
             typeId,
+            typeName,
             isEmailLogin ? email : phone,
             isEmailLogin);
         response["expiresIn"] = 300;
@@ -671,10 +687,9 @@ crow::response authHandler::sendSmsVerification(const crow::request &req)
         }
 
         // 检查手机号是否已被注册
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::RowResult result = users_table.select("COUNT(*) as count")
-                                       .where("phone = :phone")
-                                       .bind("phone", phone)
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT COUNT(*) as count FROM users WHERE phone = ?")
+                                       .bind(phone)
                                        .execute();
 
         auto row = result.fetchOne();
@@ -728,26 +743,22 @@ crow::response authHandler::sendSmsVerification(const crow::request &req)
 
             if (send_success)
             {
-                response["data"] = true;
-                response["message"] = "验证码已发送到手机";
+                response["sent"] = true;
+                response["channel"] = "sms";
                 response["phone"] = phone; // 可以考虑隐藏部分号码
                 std::cout << "[INFO] SMS verification sent successfully to: " + phone << std::endl;
                 return ResponseHelper::success(req, response);
             }
             else
             {
-                response["data"] = false;
-                response["message"] = "发送验证码失败: " + message;
                 std::cerr << "[ERROR] Failed to send SMS verification to: " + phone + ", reason: " + message << std::endl;
-                return ResponseHelper::error(req, response);
+                return ResponseHelper::error(req, "发送验证码失败: " + message);
             }
         }
         catch (const std::exception &e)
         {
-            response["data"] = false;
-            response["message"] = "系统异常: " + std::string(e.what());
             std::cerr << "[ERROR] System exception in sendSmsVerification: " + std::string(e.what()) << std::endl;
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::system_error(req, "系统异常: " + std::string(e.what()));
         }
     }
     catch (const std::exception &e)
@@ -784,10 +795,9 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
 
         if (isValid)
         {
-            mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-            mysqlx::RowResult result = users_table.select("id", "name")
-                                           .where("phone = :phone")
-                                           .bind("phone", phone)
+            mysqlx::SqlResult result = dbManager->getSession()
+                                           ->sql("SELECT id, name FROM users WHERE phone = ?")
+                                           .bind(phone)
                                            .execute();
             for (const auto &row : result)
             {
@@ -796,18 +806,24 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
             }
             // 验证成功，返回token
             nlohmann::json response;
-            std::string token = JwtUtils::createToken(userID, userName, 3, phone, false);
+            const int defaultUserRoleId =
+                RoleTypeUtils::getRoleId(dbManager, "普通用户");
+            std::string token = JwtUtils::createToken(
+                userID,
+                userName,
+                defaultUserRoleId,
+                "普通用户",
+                phone,
+                false);
             response["token"] = token;
-            response["success"] = true;
             return ResponseHelper::success(req, response);
         }
         else
         {
-            // 验证失败
-            nlohmann::json response;
-            response["error"] = "Invalid Verification Code";
-            response["success"] = false;
-            return ResponseHelper::unauthorized(req, response["error"]);
+            return ResponseHelper::verification_failed(
+                req,
+                "Invalid Verification Code",
+                "Verification code validation failed");
         }
     }
     catch (const std::exception &e)

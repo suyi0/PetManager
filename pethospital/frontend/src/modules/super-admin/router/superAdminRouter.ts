@@ -4,7 +4,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/super-admin",
     component: () => import("../views/SuperAdminLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [1] },
+    meta: { requiresAuth: true, allowedRoles: ["超级管理员"] },
     children: [
       {
         path: "",
@@ -17,8 +17,8 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: "doctors",
-        name: "superAdminDoctors",
-        component: () => import("../views/pages/SuperAdminDoctors.vue"),
+        name: "superAdminRoleAccess",
+        component: () => import("../views/pages/SuperAdminRoleAccess.vue"),
       },
       {
         path: "worktime",
@@ -29,6 +29,11 @@ const routes: Array<RouteRecordRaw> = [
         path: "users",
         name: "superAdminUsers",
         component: () => import("../views/pages/SuperAdminUsers.vue"),
+      },
+      {
+        path: "logs",
+        name: "superAdminLogs",
+        component: () => import("../views/pages/SuperAdminLogs.vue"),
       },
     ],
   },
@@ -47,8 +52,8 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: "doctors",
-        name: "previewSuperAdminDoctors",
-        component: () => import("../views/pages/SuperAdminDoctors.vue"),
+        name: "previewSuperAdminRoleAccess",
+        component: () => import("../views/pages/SuperAdminRoleAccess.vue"),
       },
       {
         path: "worktime",
@@ -59,6 +64,11 @@ const routes: Array<RouteRecordRaw> = [
         path: "users",
         name: "previewSuperAdminUsers",
         component: () => import("../views/pages/SuperAdminUsers.vue"),
+      },
+      {
+        path: "logs",
+        name: "previewSuperAdminLogs",
+        component: () => import("../views/pages/SuperAdminLogs.vue"),
       },
     ],
   },

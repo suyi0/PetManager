@@ -249,7 +249,7 @@ include_directories(middleware)
 include_directories(websocket)
 
 # 收集所有源文件（自动递归查找）
-file(GLOB_RECURSE SOURCES 
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
     "*.cpp"
     "*.cc"
 )

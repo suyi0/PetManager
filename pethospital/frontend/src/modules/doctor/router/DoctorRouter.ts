@@ -4,7 +4,7 @@ const doctorRoutes: Array<RouteRecordRaw> = [
   {
     path: "/doctor",
     component: () => import("../views/DoctorLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [2] },
+    meta: { requiresAuth: true, allowedRoles: ["医生"] },
     children: [
       {
         path: "",

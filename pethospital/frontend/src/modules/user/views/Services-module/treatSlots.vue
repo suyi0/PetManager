@@ -19,19 +19,38 @@
           v-for="doctor in doctorData"
           :key="doctor.id"
           class="doctor-card"
-          :class="{ 'doctor-card--active': upDoctorId === doctor.id }"
+          :class="{
+            'doctor-card--active': upDoctorId === doctor.id,
+            'doctor-card--disabled': doctor.status !== 'online',
+          }"
         >
           <div class="doctor-card__badge">{{ doctor.specialty || "全科" }}</div>
+          <div
+            class="doctor-card__status"
+            :class="{
+              'doctor-card__status--online': doctor.status === 'online',
+              'doctor-card__status--offline': doctor.status !== 'online',
+            }"
+          >
+            {{ formatDoctorStatus(doctor.status) }}
+          </div>
           <strong>{{ doctor.name }}</strong>
-          <span>已接入预约系统，可继续选择日期和时段。</span>
+          <span>
+            {{
+              doctor.status === "online"
+                ? "当前医生已在线，可继续选择日期和时段。"
+                : "当前医生已接入预约系统，可继续选择日期和时段。"
+            }}
+          </span>
           <button
             class="doctor-card__action"
+            :disabled="doctor.status !== 'online'"
             @click="
               choiceDoctor(doctor);
               props.switchTab('showSlots');
             "
           >
-            选择该医生
+            {{ doctor.status === "online" ? "选择该医生" : "当前不可预约" }}
           </button>
         </article>
       </div>
@@ -154,6 +173,7 @@ interface Doctor {
   id: number;
   name: string;
   specialty?: string;
+  status?: string;
 }
 
 type DateItem = {
@@ -172,14 +192,15 @@ type SlotItem = {
 };
 
 const doctorData = computed<Doctor[]>(() => {
-  const data1 = {
-    id: 1,
-    name: "张三",
-    specialty: "全科",
-  };
   const data = store.state.reservation.doctorData;
-  return Array.isArray(data) ? data.filter(Boolean) : [data1];
+  return Array.isArray(data) ? data.filter(Boolean) : [];
 });
+
+const formatDoctorStatus = (status?: string) => {
+  if (status === "online") return "今日在线";
+  if (status === "offline") return "今日离线";
+  return "待排班";
+};
 
 const availableDates = computed<DateItem[]>(() => {
   const years = store.state.reservation.year || [];
@@ -405,6 +426,27 @@ function removeSubmitAfter() {
   padding: 22px;
 }
 
+.doctor-card__status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.doctor-card__status--online {
+  background: rgba(49, 173, 109, 0.12);
+  color: #1e8a57;
+}
+
+.doctor-card__status--offline {
+  background: rgba(29, 134, 135, 0.08);
+  color: #4c6f73;
+}
+
 .doctor-card--active {
   border-color: rgba(29, 134, 135, 0.22);
   background: linear-gradient(
@@ -412,6 +454,10 @@ function removeSubmitAfter() {
     rgba(136, 214, 206, 0.22),
     rgba(243, 197, 155, 0.16)
   );
+}
+
+.doctor-card--disabled {
+  opacity: 0.74;
 }
 
 .doctor-card strong,
@@ -449,6 +495,12 @@ function removeSubmitAfter() {
 .reservation-actions__ghost {
   background: rgba(29, 134, 135, 0.08);
   color: #166968;
+}
+
+.doctor-card__action:disabled {
+  background: rgba(120, 138, 145, 0.12);
+  color: #7c8c95;
+  cursor: not-allowed;
 }
 
 .date-grid {

@@ -76,7 +76,12 @@ function previewAdminRouter() {
 
 onMounted(() => {
   if (isLoggedIn.value) {
-    router.push(getHomeRouteByUserType(store.state.auth.userType));
+    router.push(
+      getHomeRouteByUserType(
+        store.state.auth.userType,
+        store.state.auth.userRole
+      )
+    );
   }
 });
 </script>

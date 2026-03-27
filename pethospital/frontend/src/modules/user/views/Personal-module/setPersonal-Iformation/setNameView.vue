@@ -1,122 +1,119 @@
 <template>
-  <div class="setName">
-    <!-- 关闭按钮 -->
-    <div class="close-button" @click="close">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 18 18"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M14 2L2 14M14 14L2 2"
-          stroke="#333"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </div>
-
-    <!-- 页面标题 -->
-    <div class="title-container">
-      <div class="icon">
-        <svg
-          width="40"
-          height="40"
-          viewBox="0 0 40 40"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M20 15C23.3137 15 26 12.3137 26 9C26 5.68629 23.3137 3 20 3C16.6863 3 14 5.68629 14 9C14 12.3137 16.6863 15 20 15Z"
-            fill="#409EFF"
-          />
-          <path
-            d="M14 19H26C27.1046 19 28 18.1046 28 17V15C28 13.8954 27.1046 13 26 13H14C12.8954 13 12 13.8954 12 15V17C12 18.1046 12.8954 19 14 19Z"
-            fill="#409EFF"
-          />
-        </svg>
+  <div class="profile-editor">
+    <div class="profile-editor__head">
+      <div>
+        <p>Name Studio</p>
+        <h3>更新姓名展示</h3>
+        <span>
+          当前姓名会同步用于预约卡片、订单联系人和个人资料页展示，建议保持为你平时最常用的称呼。
+        </span>
       </div>
-      <h2>姓名</h2>
+      <button class="profile-editor__ghost" @click="close">关闭</button>
     </div>
 
-    <div class="input-container">
-      <!-- 姓氏输入框 -->
-      <div class="input-group">
-        <label class="input-label">姓氏</label>
+    <section class="profile-editor__hero">
+      <div class="profile-editor__badge">{{ userInitial }}</div>
+      <div class="profile-editor__summary">
+        <small>当前显示名</small>
+        <strong>{{ previewName }}</strong>
+        <span>
+          支持把姓名拆成三段来维护，空白项会自动忽略，不会影响最终显示。
+        </span>
+      </div>
+    </section>
+
+    <form class="profile-editor__form" @submit.prevent="handleContinue">
+      <label class="editor-field">
+        <span>姓氏</span>
         <input
-          v-model="lastName"
+          v-model.trim="lastName"
           type="text"
-          placeholder="请输入姓氏"
-          class="input-field"
+          placeholder="例如：林"
           @input="isButtonActive = true"
         />
-      </div>
+      </label>
 
-      <!-- 中间名输入框 -->
-      <div class="input-group">
-        <label class="input-label">中间名（可选）</label>
+      <label class="editor-field">
+        <span>中间名</span>
         <input
-          v-model="middleName"
+          v-model.trim="middleName"
           type="text"
-          placeholder="请输入中间名"
-          class="input-field"
+          placeholder="可选，例如：小"
           @input="isButtonActive = true"
         />
-      </div>
+      </label>
 
-      <!-- 名字输入框 -->
-      <div class="input-group">
-        <label class="input-label">名字</label>
+      <label class="editor-field">
+        <span>名字</span>
         <input
-          v-model="firstName"
+          v-model.trim="firstName"
           type="text"
-          placeholder="请输入名字"
-          class="input-field"
+          placeholder="例如：满"
           @input="isButtonActive = true"
         />
+      </label>
+
+      <div class="editor-tips">
+        <article>
+          <small>格式预览</small>
+          <strong>{{ previewName }}</strong>
+        </article>
+        <article>
+          <small>填写建议</small>
+          <span>如果你习惯只显示一个昵称，也可以只填一个字段。</span>
+        </article>
       </div>
-    </div>
-    <!-- 按钮组 -->
-    <div v-show="isButtonActive" class="button-group">
-      <button @click="cancel" class="cancel-button">取消</button>
-      <button @click="handleContinue" class="save-button">存储</button>
-    </div>
+
+      <div v-if="isButtonActive" class="editor-actions">
+        <button type="button" class="profile-editor__ghost" @click="cancel">
+          取消
+        </button>
+        <button type="submit" class="profile-editor__primary">保存姓名</button>
+      </div>
+    </form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 
-// 定义 emits
 const emit = defineEmits(["close", "submit"]);
-
-// 使用 store
 const store = useStore(storeKey);
 
-// 响应式数据
 const isButtonActive = ref(false);
 const lastName = ref("");
 const middleName = ref("");
 const firstName = ref("");
-const isValidPhoneNumber = ref(true); // 这个变量在原代码中被引用但未定义，这里添加定义
 
-// 分离姓名字符串
-function parseDateString(dateString: string) {
-  if (!dateString) return;
+function parseNameString(nameString: string) {
+  if (!nameString) return;
 
-  const [lastNameVal, middleNameVal, firstNameVal] = dateString.split("·");
-  lastName.value = lastNameVal || "";
-  middleName.value = middleNameVal || "";
-  // （ || "" ） 确保变量始终是字符串类型
-  // 提供默认值，避免 undefined 或 null 值
-  // 保持代码的健壮性
-  firstName.value = firstNameVal || "";
+  const parts = nameString
+    .split("·")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  lastName.value = parts[0] || "";
+  middleName.value = parts[1] || "";
+  firstName.value = parts[2] || "";
 }
+
+const previewName = computed(() => {
+  const parts = [lastName.value, middleName.value, firstName.value]
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  return parts.join("·") || "未设置姓名";
+});
+
+const userInitial = computed(() =>
+  String(previewName.value || "U")
+    .trim()
+    .charAt(0)
+    .toUpperCase()
+);
 
 function cancel() {
   isButtonActive.value = false;
@@ -125,136 +122,193 @@ function cancel() {
 
 function handleContinue() {
   isButtonActive.value = false;
-  if (isValidPhoneNumber.value) {
-    const field = "userName";
-    const name =
-      lastName.value + "·" + middleName.value + "·" + firstName.value;
-    emit("submit", {
-      field,
-      name,
-    });
-  }
+  emit("submit", {
+    field: "userName",
+    name: previewName.value === "未设置姓名" ? "" : previewName.value,
+  });
 }
 
-// 处理关闭事件
 function close() {
   emit("close");
 }
 
-// 在 mounted 钩子中执行初始化逻辑
 onMounted(() => {
-  const saveName = store.state.currentUser.userName;
-
-  if (saveName) {
-    parseDateString(saveName);
+  const savedName = store.state.currentUser.userName;
+  if (savedName) {
+    parseNameString(savedName);
   }
 });
 </script>
 
 <style scoped lang="scss">
-.setName {
-  width: 100%;
-  max-width: 500px;
+.profile-editor {
+  display: grid;
+  gap: 18px;
   padding: 24px;
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.3);
-  position: relative;
-  top: 45px;
+  border-radius: 30px;
+  border: 1px solid rgba(21, 91, 92, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
+}
 
-  .close-button {
-    position: absolute;
-    top: 12px;
-    right: 16px;
-    font-size: 24px;
-    cursor: pointer;
-    color: #333;
-    z-index: 10;
+.profile-editor__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-editor__head p,
+.profile-editor__summary small,
+.editor-tips small {
+  margin: 0;
+  color: #1f8e89;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.profile-editor__head h3 {
+  margin: 6px 0 0;
+  color: #133f42;
+  font-size: 32px;
+}
+
+.profile-editor__head span,
+.profile-editor__summary span,
+.editor-tips span {
+  display: block;
+  margin-top: 10px;
+  color: #607975;
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.profile-editor__hero {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 18px;
+  padding: 22px;
+  border-radius: 28px;
+  background: linear-gradient(
+    135deg,
+    rgba(136, 214, 206, 0.24),
+    rgba(243, 197, 155, 0.18)
+  );
+}
+
+.profile-editor__badge {
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #91ddd2, #f0c29b);
+  color: #15474a;
+  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  box-shadow: 0 18px 34px rgba(28, 98, 99, 0.14);
+}
+
+.profile-editor__summary {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.profile-editor__summary strong,
+.editor-tips strong {
+  color: #143f42;
+  font-size: 26px;
+}
+
+.profile-editor__form {
+  display: grid;
+  gap: 14px;
+}
+
+.editor-field {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-field span {
+  color: #24484b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-field input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid rgba(20, 82, 84, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #173f42;
+  font-size: 14px;
+}
+
+.editor-field input:focus {
+  outline: none;
+  border-color: rgba(24, 128, 127, 0.5);
+  box-shadow: 0 0 0 4px rgba(141, 218, 210, 0.18);
+}
+
+.editor-tips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.editor-tips article {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 249, 242, 0.95);
+}
+
+.editor-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.profile-editor__ghost,
+.profile-editor__primary {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.profile-editor__ghost {
+  background: rgba(20, 82, 84, 0.08);
+  color: #154144;
+}
+
+.profile-editor__primary {
+  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  color: #fff;
+  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+}
+
+@media (max-width: 900px) {
+  .profile-editor__head,
+  .profile-editor__hero,
+  .editor-tips {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 
-  .title-container {
-    text-align: center;
-    margin-bottom: 32px;
-
-    .icon {
-      margin-bottom: 12px;
-    }
-
-    h2 {
-      font-size: 24px;
-      font-weight: 600;
-      color: #333;
-    }
-  }
-
-  .input-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .input-group {
-    width: 300px;
-    margin-bottom: 20px;
-
-    .input-label {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 14px;
-      color: #666;
-    }
-
-    .input-field {
-      width: 100%;
-      padding: 12px 16px;
-      border: 1px solid #dcdfe6;
-      border-radius: 8px;
-      font-size: 16px;
-      transition: border-color 0.3s ease;
-
-      &:focus {
-        outline: none;
-        border-color: #409eff;
-        box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-      }
-    }
-  }
-  .button-group {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 32px;
-
-    .cancel-button {
-      padding: 12px 24px;
-      border: 1px solid #409eff;
-      border-radius: 8px;
-      background-color: transparent;
-      color: #409eff;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      width: 35%;
-
-      &:hover {
-        background-color: rgba(64, 158, 255, 0.1);
-      }
-    }
-
-    .save-button {
-      padding: 12px 24px;
-      border: none;
-      border-radius: 8px;
-      background-color: #409eff;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      width: 35%;
-
-      &:hover {
-        background-color: #3a8ee6;
-      }
-    }
+  .profile-editor__badge {
+    width: 88px;
+    height: 88px;
+    border-radius: 24px;
+    font-size: 36px;
   }
 }
 </style>

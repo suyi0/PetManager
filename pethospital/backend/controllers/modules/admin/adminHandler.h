@@ -20,8 +20,12 @@ public:
 
     crow::response deleteDoctor(const crow::request& req);          // 删除医生权限 对应 /admin/deleteDoctor
 
+    crow::response createWarehouserManager(const crow::request &req);    // 创建仓库管理员权限 对应 /admin/createWarehouserManager
+
+    crow::response deleteWarehouserManager(const crow::request &req);    // 删除仓库管理员权限 对应 /admin/deleteWarehouserManager
+
     // 修改医生工作时间 对应 /admin/changeDoctorWorkTime
-    crow::response changeDoctorWorkTime(const crow::request& req, int& userId, std::string &date, std::string &identifier);
+    crow::response changeDoctorWorkTime(const crow::request& req, int& userId, const std::string &date, const std::string &identifier);
 
 };
 

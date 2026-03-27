@@ -6,6 +6,7 @@ export const createAuthState = (): AuthState => {
 
   return {
     userType: persistedSession.userType,
+    userRole: persistedSession.userRole,
     token: persistedSession.token,
     isLoggedIn: persistedSession.isLoggedIn,
   };

@@ -1,5 +1,7 @@
 #include "UserHandler.h"
 #include "../../../../utils/AuthIdentifierUtils.h"
+#include "../../../../database/UserPhoneSync.h"
+#include "RoleTypeUtils/RoleTypeUtils.h"
 
 // 在文件顶部添加常量定义
 #define UPLOADS_DIR "/Users/yanghang/Code/PetManager/pethospital/frontend/src/assets/uploads"
@@ -153,17 +155,15 @@ std::string generateUniqueFilename(const std::string &original_filename)
 // 添加获取地址数据库最大ID的函数
 int getAddressDatabaseMaxID(const std::shared_ptr<DatabaseManagerInterface>& dbManager)
 {
-    if (!dbManager || !dbManager->getSchema())
+    if (!dbManager || !dbManager->getSession())
     {
         return 0;
     }
 
-    mysqlx::Table address_table = dbManager->getSchema()->getTable("address_small");
-
     int new_id = 0; // 默认ID为0
     try
     {
-        mysqlx::RowResult result = address_table.select("MAX(id)").execute();
+        mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT MAX(id) FROM address_small").execute();
         auto row = result.fetchOne();
         if (row)
         {
@@ -193,9 +193,6 @@ bool saveAddressToDatabase(const std::shared_ptr<DatabaseManagerInterface>& dbMa
             return false;
         }
 
-        // 获取 address_small 表
-        mysqlx::Table address_table = dbManager->getSchema()->getTable("address_small");
-
         if (DBaddress_id <= 0)
         {
             // 传入地址ID无效，取消存储地址信息操作
@@ -203,29 +200,26 @@ bool saveAddressToDatabase(const std::shared_ptr<DatabaseManagerInterface>& dbMa
         }
         else
         {
-            // 检查该ID是否已存在
-            mysqlx::RowResult result = address_table.select("id")
-                                           .where("id = :id")
-                                           .bind("id", DBaddress_id)
-                                           .execute();
+            mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT id FROM address_small WHERE address_id = ?")
+                                                                    .bind(DBaddress_id)
+                                                                    .execute();
 
             // 如果已存在，使用这个ID更新对应地址信息
             if (result.fetchOne())
             {
                 // 如果已存在，则更新该地址信息
-                mysqlx::TableUpdate update_op = address_table.update();
-                update_op.set("address_text", address_text)
-                    .set("longitude", longitude)
-                    .set("latitude", latitude)
-                    .where("id = :id")
-                    .bind("id", DBaddress_id)
-                    .execute();
+                mysqlx::SqlResult result = dbManager->getSession()->sql("UPDATE address_small SET address_text = ?, longitude = ?, latitude = ? "
+                                                                        "WHERE id = ?")
+                                                                        .bind(address_text, longitude, latitude, DBaddress_id)
+                                                                        .execute();
             }
             else // 不存在，直接使用该地址ID存储地址信息
             {
                 // 插入新的地址记录
-                mysqlx::TableInsert insert_op = address_table.insert("id", "address_text", "longitude", "latitude");
-                insert_op.values(DBaddress_id, address_text, longitude, latitude).execute();
+                mysqlx::SqlResult result = dbManager->getSession()->sql("INSERT INTO address_small (id, address_text, longitude, latitude) "
+                                                                          "VALUES (?, ?, ?, ?)")
+                                                                          .bind(DBaddress_id, address_text, longitude, latitude)
+                                                                          .execute();
             }
             return true; // 成功
         }
@@ -256,16 +250,15 @@ std::string getLastFileName(const std::string &url)
 
 nlohmann::json UserHandler::getUserData(const int &id)
 {
-    if (!dbManager || !dbManager->getSchema())
+    if (!dbManager || !dbManager->getSession())
     {
         return nlohmann::json::object();
     }
 
-    mysqlx::Table user_table = dbManager->getSchema()->getTable("users");
-
-    mysqlx::RowResult result = user_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
-                                   .where("id = :id")
-                                   .bind("id", id)
+    mysqlx::SqlResult result = dbManager->getSession()
+                                   ->sql("SELECT id, name, password, phone, email, CAST(birthday AS CHAR), address_id, head_image "
+                                         "FROM users WHERE id = ?")
+                                   .bind(id)
                                    .execute();
     nlohmann::json user_data;
     for (auto row : result)
@@ -375,30 +368,35 @@ crow::response UserHandler::userLogin(const crow::request &req)
         try
         {
             // 获取表
-            mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
-            // 查询用户
-            mysqlx::RowResult result;
+            mysqlx::SqlResult result;
             if (!email.empty())
             {
                 // 通过email查询用户
-                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
-                             .where("email = :email")
-                             .bind("email", email)
+                result = dbManager->getSession()
+                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, u.phone, u.email, "
+                                   "CAST(u.birthday AS CHAR), u.address_id, u.head_image "
+                                   "FROM users AS u "
+                                   "LEFT JOIN types AS t ON u.type_id = t.id "
+                                   "WHERE u.email = ?")
+                             .bind(email)
                              .execute();
             }
             else if (!phone.empty())
             {
                 // 通过phone查询用户
-                result = users_table.select("id", "type_id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
-                             .where("phone = :phone")
-                             .bind("phone", phone)
+                result = dbManager->getSession()
+                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, u.phone, u.email, "
+                                   "CAST(u.birthday AS CHAR), u.address_id, u.head_image "
+                                   "FROM users AS u "
+                                   "LEFT JOIN types AS t ON u.type_id = t.id "
+                                   "WHERE u.phone = ?")
+                             .bind(phone)
                              .execute();
             }
             else
             {
                 // 理论上不会到达这里，因为前面已经检查过了
-                return crow::response(500, R"({"error": "Either email or phone must be provided"})");
+                return ResponseHelper::system_error(req, "Either email or phone must be provided");
             }
 
             // 即使email变量包含恶意代码，也会被当作普通字符串值处理
@@ -418,7 +416,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    user->setName(clean_string(row[2].get<std::string>()));
+                    user->setName(clean_string(row[3].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -426,7 +424,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    user->setPassword(clean_string(row[3].get<std::string>()));
+                    user->setPassword(clean_string(row[4].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -434,7 +432,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    user->setPhone(clean_string(row[4].get<std::string>()));
+                    user->setPhone(clean_string(row[5].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -442,7 +440,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    user->setEmail(clean_string(row[5].get<std::string>()));
+                    user->setEmail(clean_string(row[6].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -451,7 +449,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 // 处理生日字段，确保其格式正确
                 try
                 {
-                    auto birthday_value = row[6];
+                    auto birthday_value = row[7];
                     if (birthday_value.isNull())
                     {
                         user->setBirthday(boost::gregorian::date(1970, 1, 1));
@@ -490,9 +488,9 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    if (!row[7].isNull())
+                    if (!row[8].isNull())
                     {
-                        DBaddress_id = row[7].get<int>();
+                        DBaddress_id = row[8].get<int>();
                         user->setAddressID(DBaddress_id); // 设置地址ID
                     }
                     else
@@ -506,7 +504,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    user->setHeadImage(clean_string(row[8].get<std::string>()));
+                    user->setHeadImage(clean_string(row[9].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -521,14 +519,14 @@ crow::response UserHandler::userLogin(const crow::request &req)
             // 数据库操作错误
             std::cerr << "Database error: " << e.what() << std::endl;
 
-            return ResponseHelper::custom(req, 500, "Database operation failed");
+            return ResponseHelper::database_error(req, "Database operation failed", e.what());
         }
         catch (const std::exception &e)
         {
             // 其他错误
             std::cerr << "Error: " << e.what() << std::endl;
 
-            return ResponseHelper::custom(req, 500, "Operation failed");
+            return ResponseHelper::operation_failed(req, "Operation failed", e.what());
         }
 
         // 在这里验证用户名和密码
@@ -544,11 +542,9 @@ crow::response UserHandler::userLogin(const crow::request &req)
             {
                 try
                 {
-                    mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-                    users_table.update()
-                        .set("password", hash_password(password))
-                        .where("id = :id")
-                        .bind("id", user->getID())
+                    dbManager->getSession()
+                        ->sql("UPDATE users SET password = ? WHERE id = ?")
+                        .bind(hash_password(password), user->getID())
                         .execute();
                 }
                 catch (const std::exception &e)
@@ -562,10 +558,13 @@ crow::response UserHandler::userLogin(const crow::request &req)
             // 生成一个基于用户邮箱的JWT token
             const bool loggedInWithEmail = !email.empty();
             const std::string loginIdentifier = loggedInWithEmail ? user->getEmail() : user->getPhone();
+            const std::string role_name =
+                RoleTypeUtils::getRoleName(dbManager, user->getTypeID());
             std::string token = JwtUtils::createToken(
                 user->getID(),
                 user->getName(),
                 user->getTypeID(),
+                role_name,
                 loginIdentifier,
                 loggedInWithEmail);
             response["token"] = token;
@@ -575,6 +574,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
             nlohmann::json user_json;
             user_json["id"] = user->getID();
             user_json["type_id"] = user->getTypeID();
+            user_json["type_name"] = role_name;
             user_json["name"] = user->getName();
             user_json["email"] = user->getEmail();
             user_json["phone"] = user->getPhone();
@@ -616,10 +616,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             return ResponseHelper::system_error(req);
         }
 
-        // 获取打开对应的表
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
-        int type_id = 3;
+        int type_id = RoleTypeUtils::getRoleId(dbManager, "普通用户");
         std::string name = "";
         std::string password = "";
         std::string phone = "";
@@ -643,9 +640,6 @@ crow::response UserHandler::userUpdate(const crow::request &req)
         if ((request_body.find("password") != request_body.end() && request_body.find("email") != request_body.end()) ||
             (request_body.find("password") != request_body.end() && request_body.find("phone") != request_body.end()))
         {
-            // 创建数据库操作(插入)
-            mysqlx::TableInsert insert_op = users_table.insert("type_id", "name", "phone", "password", "email", "birthday", "address_id", "head_image");
-
             // 从请求中获取数据并确保它们是字符串类型
             if (request_body.find("type_id") != request_body.end() && !request_body["type_id"].is_null())
             {
@@ -653,7 +647,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             }
             else
             {
-                type_id = 3;
+                type_id = RoleTypeUtils::getRoleId(dbManager, "普通用户");
             }
             if (request_body.find("name") != request_body.end() && !request_body["name"].is_null())
             {
@@ -731,8 +725,15 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 
             std::string hashed_password = hash_password(password);
 
-            insert_op.values(type_id, name, phone, hashed_password, email, birthday, address_id, headImage).execute();
-            // 用于执行 INSERT 操作并将数据插入到数据库.
+            mysqlx::SqlResult result = dbManager->getSession()->sql("INSERT INTO users(type_id, name, phone, email, password, birthday, address_id, headImage ) "
+                                                                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                                                                     .bind(type_id, name, phone, email, hashed_password, birthday, address_id, headImage)
+                                                                     .execute();
+
+            if(!UserPhoneSync::upsertUserPhone(*dbManager, static_cast<int>(result.getAutoIncrementValue()), phone))
+            {
+                return ResponseHelper::error(req, "用户手机号同步失败");
+            }
 
             return ResponseHelper::success(req, "用户注册成功");
         }
@@ -892,27 +893,26 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             // 从数据库中获取用户信息
             try
             {
-                // 获取表
-                mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-
-                mysqlx::RowResult result;
+                mysqlx::SqlResult result;
 
                 // 直接通过email查询用户，而不是获取所有用户
                 if (!email.empty())
                 {
                     // 通过email查询用户
-                    result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
-                                 .where("email = :email")
-                                 .bind("email", email) // email变量的值被安全处理
+                    result = dbManager->getSession()
+                                 ->sql("SELECT id, name, password, phone, email, CAST(birthday AS CHAR), address_id, head_image "
+                                       "FROM users WHERE email = ?")
+                                 .bind(email) // email变量的值被安全处理
                                  .execute();
                 }
                 // 通过phone查询用户
                 else if (!phone.empty())
                 {
                     // 通过phone查询用户
-                    result = users_table.select("id", "name", "password", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image")
-                                 .where("phone = :phone")
-                                 .bind("phone", phone) // phone变量的值被安全处理
+                    result = dbManager->getSession()
+                                 ->sql("SELECT id, name, password, phone, email, CAST(birthday AS CHAR), address_id, head_image "
+                                       "FROM users WHERE phone = ?")
+                                 .bind(phone) // phone变量的值被安全处理
                                  .execute();
                 }
 
@@ -1147,31 +1147,24 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 return ResponseHelper::system_error(req, "Error: " + std::string(e.what()) + "\"");
             }
 
-            // 创建数据库更新操作
-            mysqlx::TableUpdate update_op = users_table.update();
             bool has_changes = false; // 添加一个标志来跟踪是否有字段需要更新
 
             // 只有当前端数据与数据库数据不同时才更新
             if (!name.empty() && DBname != name)
             {
-                update_op.set("name", name);
                 has_changes = true;
             }
             // 对比哈希密码，值不相同才更新
             if (!hashed_password.empty() && DBpassword != hashed_password)
             {
-                update_op.set("password", hashed_password);
                 has_changes = true;
             }
             if (!phone.empty() && DBphone != phone)
             {
-
-                update_op.set("phone", phone);
                 has_changes = true;
             }
             if (!email.empty() && DBemail != email)
             {
-                update_op.set("email", email);
                 has_changes = true;
             }
             if (!birthday.empty() && birthday != "\t" && birthday != "1970-01-01")
@@ -1182,7 +1175,6 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     boost::gregorian::date birthday_date = boost::gregorian::from_simple_string(birthday);
                     if (DBbirthday != birthday_date)
                     {
-                        update_op.set("birthday", birthday);
                         has_changes = true;
                     }
                 }
@@ -1192,7 +1184,6 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     boost::gregorian::date default_date(1970, 1, 1);
                     if (DBbirthday != default_date)
                     {
-                        update_op.set("birthday", birthday);
                         has_changes = true;
                     }
                 }
@@ -1222,7 +1213,6 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     std::cout << "Old avatar file does not exist or is a directory: " << oldFilePath << std::endl;
                 }
 
-                update_op.set("head_image", headImage);
                 has_changes = true;
             }
             // 从请求中获取地址信息
@@ -1307,7 +1297,65 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     // 根据id进行更新
                     if (DBid != 0)
                     {
-                        update_op.where("id = :id").bind("id", DBid).execute();
+                        if (!name.empty() && DBname != name)
+                        {
+                            dbManager->getSession()->sql("UPDATE users SET name = ? WHERE id = ?")
+                                .bind(name, DBid)
+                                .execute();
+                        }
+                        if (!hashed_password.empty() && DBpassword != hashed_password)
+                        {
+                            dbManager->getSession()->sql("UPDATE users SET password = ? WHERE id = ?")
+                                .bind(hashed_password, DBid)
+                                .execute();
+                        }
+                        if (!phone.empty() && DBphone != phone)
+                        {
+                            dbManager->getSession()->sql("UPDATE users SET phone = ? WHERE id = ?")
+                                .bind(phone, DBid)
+                                .execute();
+                        }
+                        if (!email.empty() && DBemail != email)
+                        {
+                            dbManager->getSession()->sql("UPDATE users SET email = ? WHERE id = ?")
+                                .bind(email, DBid)
+                                .execute();
+                        }
+                        if (!birthday.empty() && birthday != "\t" && birthday != "1970-01-01")
+                        {
+                            try
+                            {
+                                boost::gregorian::date birthday_date = boost::gregorian::from_simple_string(birthday);
+                                if (DBbirthday != birthday_date)
+                                {
+                                    dbManager->getSession()->sql("UPDATE users SET birthday = ? WHERE id = ?")
+                                        .bind(birthday, DBid)
+                                        .execute();
+                                }
+                            }
+                            catch (const std::exception &)
+                            {
+                                boost::gregorian::date default_date(1970, 1, 1);
+                                if (DBbirthday != default_date)
+                                {
+                                    dbManager->getSession()->sql("UPDATE users SET birthday = ? WHERE id = ?")
+                                        .bind(birthday, DBid)
+                                        .execute();
+                                }
+                            }
+                        }
+                        if (!headImage.empty() && DBheadImage != headImage)
+                        {
+                            dbManager->getSession()->sql("UPDATE users SET head_image = ? WHERE id = ?")
+                                .bind(headImage, DBid)
+                                .execute();
+                        }
+
+                        if (!phone.empty() && DBphone != phone &&
+                            !UserPhoneSync::upsertUserPhone(*dbManager, DBid, phone))
+                        {
+                            return ResponseHelper::system_error(req, "用户信息已更新，但手机号同步失败");
+                        }
                     }
                     std::cout << "User data updated successfully" << std::endl;
                 }
@@ -1315,13 +1363,12 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 {
                     std::cerr << "Database update error: " << e.what() << std::endl;
 
-                    return ResponseHelper::custom(req, 500, "error: Failed to update user data, details: " + std::string(e.what()) + "\"");
+                    return ResponseHelper::database_error(req, "Failed to update user data", e.what());
                 }
                 // 返回成功响应
                 nlohmann::json response;
-                response["success"] = true;
                 response["message"] = "Form data saved successfully";
-                response["data"] = getUserData(DBid);
+                response["user"] = getUserData(DBid);
 
                 return ResponseHelper::success(req, response);
             }
@@ -1341,14 +1388,14 @@ crow::response UserHandler::userUpdate(const crow::request &req)
         // 数据库连接错误
         std::cerr << "Database connection error: " << e.what() << std::endl;
 
-        return ResponseHelper::custom(req, 500, "error: Database connection failed, details: " + std::string(e.what()) + "\"");
+        return ResponseHelper::database_error(req, "Database connection failed", e.what());
     }
     catch (const std::exception &e)
     {
         // 其他错误
         std::cerr << "Error: " << e.what() << std::endl;
 
-        return ResponseHelper::custom(req, 500, "error: " + std::string(e.what()));
+        return ResponseHelper::operation_failed(req, "Failed to update user data", e.what());
     }
 }
 
@@ -1405,7 +1452,7 @@ crow::response UserHandler::userUploadAvatar(const crow::request &req)
                 // 验证文件类型
                 if (!isValidImageExtension(file_extension))
                 {
-                    return ResponseHelper::custom(req, 400, "error: Invalid file type. Only image files are allowed.");
+                    return ResponseHelper::validation(req, "Invalid file type. Only image files are allowed.");
                 }
 
                 // 生成唯一文件名
@@ -1429,7 +1476,7 @@ crow::response UserHandler::userUploadAvatar(const crow::request &req)
                 }
                 else
                 {
-                    return ResponseHelper::custom(req, 500, "Failed to save file");
+                    return ResponseHelper::operation_failed(req, "Failed to save file", "Unable to write avatar file to disk");
                 }
             }
         }
@@ -1437,7 +1484,6 @@ crow::response UserHandler::userUploadAvatar(const crow::request &req)
         // 构建响应
         std::string avatar_url = "http://localhost:8081/uploads/" + unique_filename;
         nlohmann::json response;
-        response["success"] = true;
         response["message"] = "File uploaded successfully";
         response["avatarUrl"] = avatar_url;
         response["filename"] = unique_filename;
@@ -1509,21 +1555,26 @@ crow::response UserHandler::getData(const crow::request &req)
 
     try
     {
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-        mysqlx::RowResult result = users_table.select("id", "type_id", "name", "phone", "email", "CAST(birthday AS CHAR)", "address_id", "head_image").execute();
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, u.phone, u.email, CAST(u.birthday AS CHAR), "
+                                             "u.address_id, u.head_image "
+                                             "FROM users AS u "
+                                             "LEFT JOIN types AS t ON u.type_id = t.id")
+                                       .execute();
 
         nlohmann::json response_data = nlohmann::json::array();
         for (auto row : result)
         {
             nlohmann::json user_json;
             user_json["id"] = row[0].get<int>();
-            user_json["type_id"] = row[1].isNull() ? 3 : row[1].get<int>();
-            user_json["name"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
-            user_json["phone"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
-            user_json["email"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
-            user_json["birthday"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
-            user_json["address_id"] = row[6].isNull() ? nullptr : nlohmann::json(row[6].get<int>());
-            user_json["head_image"] = row[7].isNull() ? "" : clean_string(row[7].get<std::string>());
+            user_json["type_id"] = row[1].isNull() ? nullptr : nlohmann::json(row[1].get<int>());
+            user_json["type_name"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
+            user_json["name"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            user_json["phone"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            user_json["email"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
+            user_json["birthday"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
+            user_json["address_id"] = row[7].isNull() ? nullptr : nlohmann::json(row[7].get<int>());
+            user_json["head_image"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
 
             response_data.push_back(user_json);
         }
@@ -1533,6 +1584,6 @@ crow::response UserHandler::getData(const crow::request &req)
     }
     catch (const std::exception &e)
     {
-        return ResponseHelper::custom(req, 500, "error: Failed to fetch data, details: " + std::string(e.what()) + "\"");
+        return ResponseHelper::operation_failed(req, "Failed to fetch data", e.what());
     }
 }

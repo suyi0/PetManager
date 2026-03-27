@@ -20,7 +20,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     }
 
                     warehouseManagerHandler handler(dbManager);
-                    crow::response response = handler.uploadData(req);
+                    crow::response response = handler.upload(req);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
                     res = ResponseHelper::system_error(

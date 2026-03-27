@@ -7,12 +7,18 @@
         <p class="subcopy">查看本次接诊的基础信息、诊断结论和用药明细。</p>
       </div>
       <button class="back-link" type="button" @click="goBack">
-        返回用户档案
+        {{ backLabel }}
       </button>
     </header>
 
     <section class="detail-grid">
-      <article class="detail-card detail-card--deep">
+      <article
+        class="detail-card detail-card--deep-green"
+        :class="{
+          'detail-card detail-card--deep-red': order.status === '已取消',
+          'detail-card detail-card--deep-yellow': order.status === '待付款',
+        }"
+      >
         <small>本次接诊</small>
         <strong>¥{{ order.totalFee.toFixed(2) }}</strong>
         <span>{{ order.status }} · {{ order.createdAt }}</span>
@@ -127,12 +133,21 @@ export default defineComponent({
     const pet = computed(() =>
       profile.value?.pets.find((item) => item.id === order.value?.petId)
     );
+    const fromRecords = computed(() => route.query.from === "records");
+    const backLabel = computed(() =>
+      fromRecords.value ? "返回订单记录" : "返回用户档案"
+    );
 
     const goBackToWorkbench = () => {
       router.push(`${basePath.value}/home`);
     };
 
     const goBack = () => {
+      if (fromRecords.value) {
+        router.push(`${basePath.value}/order-records`);
+        return;
+      }
+
       if (profile.value) {
         router.push(`${basePath.value}/users/${profile.value.id}`);
         return;
@@ -145,6 +160,7 @@ export default defineComponent({
       profile,
       order,
       pet,
+      backLabel,
       goBack,
       goBackToWorkbench,
     };
@@ -230,8 +246,6 @@ export default defineComponent({
   padding: 22px;
 }
 
-.detail-card small,
-.detail-card span,
 .fact-list span,
 .text-block label,
 .medicine-card span {
@@ -245,8 +259,14 @@ export default defineComponent({
   font-size: 24px;
 }
 
-.detail-card--deep {
-  background: linear-gradient(135deg, #1f5057, #255d64);
+.detail-card--deep-green {
+  background: linear-gradient(135deg, #16ef7f, #83c683);
+}
+.detail-card--deep-yellow {
+  background: linear-gradient(135deg, #e9b311, #f9e0a1);
+}
+.detail-card--deep-red {
+  background: linear-gradient(135deg, #f81212, #bd7373);
 }
 
 .detail-card--deep small,

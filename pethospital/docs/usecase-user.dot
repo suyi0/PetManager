@@ -1,0 +1,68 @@
+digraph UseCaseUser {
+  graph [
+    rankdir=LR,
+    splines=true,
+    overlap=false,
+    fontname="PingFang SC",
+    fontsize=18,
+    label="宠物医院管理系统用例图（普通用户）",
+    labelloc="t",
+    pad=0.4,
+    nodesep=0.5,
+    ranksep=0.9
+  ];
+
+  node [fontname="PingFang SC", fontsize=12];
+  edge [fontname="PingFang SC", fontsize=10, color="#444444"];
+
+  Guest [label="访客", shape=plaintext, fontsize=15];
+  User [label="普通用户", shape=plaintext, fontsize=15];
+
+  subgraph cluster_system {
+    label="宠物医院管理系统";
+    color="#444444";
+    penwidth=1.2;
+    style=rounded;
+    fontname="PingFang SC";
+    fontsize=16;
+
+    node [shape=ellipse, style="rounded", color="#222222"];
+
+    UC_Register [label="注册账号"];
+    UC_Login [label="登录系统"];
+    UC_Verify [label="发送/校验验证码"];
+    UC_Profile [label="维护个人资料"];
+    UC_Avatar [label="上传头像"];
+    UC_DoctorList [label="查看医生列表"];
+    UC_Schedule [label="查看可预约时段"];
+    UC_CreateReservation [label="提交预约"];
+    UC_ViewReservation [label="查看预约记录"];
+    UC_UpdateReservation [label="修改预约"];
+    UC_CancelReservation [label="取消预约"];
+    UC_DeleteReservation [label="删除预约记录"];
+    UC_OrderList [label="查看订单列表"];
+    UC_OrderDetail [label="查看订单详情"];
+  }
+
+  {rank=same; Guest; User;}
+
+  Guest -> UC_Register;
+  Guest -> UC_Login;
+  Guest -> UC_Verify;
+
+  User -> UC_Profile;
+  User -> UC_CreateReservation;
+  User -> UC_ViewReservation;
+  User -> UC_OrderList;
+  User -> UC_OrderDetail;
+
+  edge [style=dashed, color="#666666"];
+  UC_Register -> UC_Verify [label="include"];
+  UC_Profile -> UC_Avatar [label="include"];
+  UC_CreateReservation -> UC_DoctorList [label="include"];
+  UC_CreateReservation -> UC_Schedule [label="include"];
+  UC_UpdateReservation -> UC_ViewReservation [label="extend"];
+  UC_CancelReservation -> UC_ViewReservation [label="extend"];
+  UC_DeleteReservation -> UC_ViewReservation [label="extend"];
+  UC_OrderDetail -> UC_OrderList [label="extend"];
+}

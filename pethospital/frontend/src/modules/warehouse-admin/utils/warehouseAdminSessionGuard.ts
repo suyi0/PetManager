@@ -29,7 +29,7 @@ const isWarehouseRoute = () =>
 const isWarehouseSessionActive = () =>
   Boolean(
     boundStore?.state.auth.isLoggedIn &&
-      boundStore.state.auth.userType === 1 &&
+      boundStore.state.auth.userRole === "仓库管理员" &&
       isWarehouseRoute()
   );
 
@@ -65,8 +65,10 @@ const refreshAdminTokenIfNeeded = async () => {
   refreshPromise = (async () => {
     try {
       const response = await superAdminApi.refreshAdminSession();
-      if (response.status === 200 && response.data?.token) {
-        boundStore?.commit("auth/refreshToken", response.data.token);
+      const refreshData = response.data?.data ?? response.data;
+
+      if (response.status === 200 && refreshData?.token) {
+        boundStore?.commit("auth/refreshToken", refreshData.token);
       }
     } catch {
       boundStore?.commit("auth/clearSession");

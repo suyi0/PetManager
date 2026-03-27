@@ -66,6 +66,7 @@ export const reservationActions: ActionTree<ReservationModuleState, State> = {
               id: item.id,
               name: item.name,
               specialty: item.specialty,
+              status: item.status,
             }))
           );
         }

@@ -6,43 +6,97 @@
           <h3>待接诊队列</h3>
           <p>按照到院时间和优先等级快速排序，保持桌面式临床清单感。</p>
         </div>
-        <button>刷新队列</button>
+        <div class="panel-head__actions">
+          <AppPager
+            :page="page"
+            :total-pages="totalPages"
+            @update:page="page = $event"
+          />
+          <button>刷新队列</button>
+        </div>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>宠物</th>
-            <th>主人</th>
-            <th>主诉</th>
-            <th>优先级</th>
-            <th>到院时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in items" :key="item.id">
-            <td>{{ item.petName }}</td>
-            <td>{{ item.ownerName }}</td>
-            <td>{{ item.symptom }}</td>
-            <td>
-              <span class="tag" :class="item.level">{{ item.level }}</span>
-            </td>
-            <td>{{ item.arrivedAt }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>宠物</th>
+              <th>主人</th>
+              <th>主诉</th>
+              <th>优先级</th>
+              <th>到院时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in visibleItems" :key="item.id">
+              <td>{{ item.petName }}</td>
+              <td>{{ item.ownerName }}</td>
+              <td>{{ item.symptom }}</td>
+              <td>
+                <span class="tag" :class="item.level">{{ item.level }}</span>
+              </td>
+              <td>{{ item.arrivedAt }}</td>
+            </tr>
+            <tr
+              v-for="placeholder in placeholderRows"
+              :key="`placeholder-${placeholder}`"
+              class="placeholder-row"
+            >
+              <td colspan="5"></td>
+            </tr>
+            <tr v-if="visibleItems.length === 0">
+              <td colspan="5" class="empty-cell">当前页暂无待接诊记录。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { computed, defineComponent, ref, watch } from "vue";
+import AppPager from "../../../../components/AppPager.vue";
 import { queueItems } from "../../api/doctorMock";
 
 export default defineComponent({
   name: "DoctorQueue",
+  components: { AppPager },
   setup() {
-    return { items: queueItems };
+    const items = queueItems;
+    const page = ref(1);
+    const pageSize = 10;
+
+    const totalPages = computed(() =>
+      Math.max(1, Math.ceil(items.length / pageSize))
+    );
+
+    const visibleItems = computed(() => {
+      const start = (page.value - 1) * pageSize;
+      return items.slice(start, start + pageSize);
+    });
+
+    const placeholderRows = computed(() =>
+      visibleItems.value.length === 0
+        ? []
+        : Array.from(
+            { length: Math.max(0, pageSize - visibleItems.value.length) },
+            (_, index) => index + 1
+          )
+    );
+
+    watch(totalPages, (value) => {
+      if (page.value > value) {
+        page.value = value;
+      }
+    });
+
+    return {
+      page,
+      totalPages,
+      visibleItems,
+      placeholderRows,
+    };
   },
 });
 </script>
@@ -53,11 +107,16 @@ export default defineComponent({
 }
 
 .panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid rgba(157, 188, 178, 0.24);
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
   padding: 22px;
+  max-height: min(100vh - 140px, 760px);
   box-shadow: 0 20px 38px rgba(49, 82, 77, 0.06);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .panel-head {
@@ -79,6 +138,12 @@ export default defineComponent({
   line-height: 1.6;
 }
 
+.panel-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 button {
   border: 1px solid rgba(144, 175, 166, 0.24);
   border-radius: 16px;
@@ -89,10 +154,22 @@ button {
   box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
 }
 
+button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.table-shell {
+  min-height: 0;
+  overflow: hidden;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
   overflow: hidden;
+  table-layout: fixed;
 }
 
 th,
@@ -114,6 +191,17 @@ td {
 
 tbody tr {
   background: rgba(255, 255, 255, 0.46);
+}
+
+.placeholder-row td {
+  height: 52px;
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.empty-cell {
+  height: 120px;
+  color: #708682;
+  text-align: center;
 }
 
 .tag {
@@ -143,6 +231,11 @@ tbody tr {
   .panel-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .panel-head__actions {
+    width: 100%;
+    flex-wrap: wrap;
   }
 
   .panel {

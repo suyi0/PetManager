@@ -1,6 +1,6 @@
 #include "warehouseManagerHandler.h"
 
-crow::response warehouseManagerHandler::uploadData(const crow::request &req)
+crow::response warehouseManagerHandler::upload(const crow::request &req)
 {
     crow::response res;
     auto request_body_opt = validateRequest(req, res);
@@ -56,7 +56,7 @@ crow::response warehouseManagerHandler::uploadData(const crow::request &req)
         }
         else
         {
-            return ResponseHelper::custom(req, 500, "数据上传失败");
+            return ResponseHelper::system_error(req, "数据上传失败");
         }
     }
     catch(const std::exception& e)

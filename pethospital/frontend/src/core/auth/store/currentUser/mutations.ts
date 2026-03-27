@@ -25,10 +25,12 @@ const normalizeAddress = (payload: SetCurrentUserPayload) => {
 // 持久化当前用户
 const persistCurrentUser = (
   state: CurrentUserState,
-  userType?: number | null
+  userType?: number | null,
+  userRole?: string | null
 ) => {
   authStorage.saveCurrentUserProfile({
     userType,
+    userRole,
     userName: state.userName || "",
     userBirthday: state.userBirthday || "",
     userEmail: state.userEmail || "",
@@ -61,7 +63,7 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
     state.userAddressId = payload.userAddressId ?? null;
     state.userAddress = normalizeAddress(payload);
 
-    persistCurrentUser(state, payload.userType);
+    persistCurrentUser(state, payload.userType, payload.userRole);
   },
 
   // 更新当前用户特定字段
@@ -77,6 +79,7 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
         | "userHeadImage";
       value: string;
       userType?: number | null;
+      userRole?: string | null;
     }
   ) {
     switch (payload.field) {
@@ -102,7 +105,7 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
         break;
     }
 
-    persistCurrentUser(state, payload.userType);
+    persistCurrentUser(state, payload.userType, payload.userRole);
   },
 
   // 清空当前用户

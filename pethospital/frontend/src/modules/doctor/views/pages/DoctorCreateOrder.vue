@@ -37,7 +37,7 @@
 
         <div class="medicine-board">
           <div class="board-head">
-            <span>选择</span>
+            <span>添加</span>
             <span>药品名</span>
             <span>类型</span>
             <span>价格</span>
@@ -53,9 +53,9 @@
                 <button
                   type="button"
                   class="selector-button"
-                  @click="toggleMedicine(item)"
+                  @click="addMedicine(item)"
                 >
-                  <i class="selector" :class="{ active: item.selected }"></i>
+                  <i class="selector selector--add">+</i>
                 </button>
               </span>
               <span>{{ item.name }}</span>
@@ -167,7 +167,7 @@ export default defineComponent({
   setup() {
     const searchQuery = ref("");
     const medicines = ref<MedicineSearchItem[]>(
-      medicineSearchItems.map((item) => ({ ...item, selected: false }))
+      medicineSearchItems.map((item) => ({ ...item }))
     );
     const selected = ref<SelectedMedicineItem[]>([]);
 
@@ -204,14 +204,17 @@ export default defineComponent({
       });
     });
 
-    const toggleMedicine = (item: MedicineSearchItem) => {
-      const existingIndex = selected.value.findIndex(
+    const addMedicine = (item: MedicineSearchItem) => {
+      const existingItem = selected.value.find(
         (selectedItem) => selectedItem.id === item.id
       );
 
-      if (existingIndex >= 0) {
-        selected.value.splice(existingIndex, 1);
-        item.selected = false;
+      if (existingItem) {
+        const stockLimit =
+          medicineStockMap[item.name] ?? Number.MAX_SAFE_INTEGER;
+        const nextCount = Math.min(stockLimit, existingItem.days + 1);
+        existingItem.days = nextCount;
+        existingItem.subtotal = existingItem.unitPrice * nextCount;
         return;
       }
 
@@ -223,18 +226,12 @@ export default defineComponent({
         unitPrice: item.price,
         subtotal: item.price,
       });
-      item.selected = true;
     };
 
     const removeSelected = (id: number) => {
       const targetIndex = selected.value.findIndex((item) => item.id === id);
       if (targetIndex >= 0) {
         selected.value.splice(targetIndex, 1);
-      }
-
-      const targetMedicine = medicines.value.find((item) => item.id === id);
-      if (targetMedicine) {
-        targetMedicine.selected = false;
       }
     };
 
@@ -271,7 +268,7 @@ export default defineComponent({
       total,
       medicineTypeMap,
       medicineStockMap,
-      toggleMedicine,
+      addMedicine,
       removeSelected,
       updateQuantity,
       resetSearch,
@@ -444,11 +441,19 @@ button {
   border-radius: 6px;
   border: 1px solid #86a8a1;
   background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #214f4b;
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1;
 }
 
-.selector.active {
-  background: #214f4b;
-  box-shadow: inset 0 0 0 4px #eaf5f2;
+.selector--add {
+  background: #eef7f4;
+  border-color: #7ea9a0;
+  font-weight: 800;
 }
 
 .sheet {

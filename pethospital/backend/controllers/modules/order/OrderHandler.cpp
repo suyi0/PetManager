@@ -20,7 +20,7 @@ crow::response OrderHandler::createOrder(const crow::request &req)
         int doctor_id = request_body["doctor_id"].get<int>();
 
         std::string order_type = request_body.contains("order_type") ? request_body["order_type"].get<std::string>() : "";
-        std::string order_date = request_body.contains("order_date") ? request_body["order_date"].get<std::string>() : "";
+        std::string order_data = request_body.contains("order_data") ? request_body["order_data"].get<std::string>() : "";
 
         int medicine_id = 0;
         int quantity = 0;
@@ -76,9 +76,9 @@ crow::response OrderHandler::createOrder(const crow::request &req)
             std::string order_status = "待付款";
 
             mysqlx::SqlResult orders = session->sql(
-                                                  "INSERT INTO orders (pet_id, doctor_id, order_type, order_date, order_status, order_totalprice) VALUES "
+                                                  "INSERT INTO orders (pet_id, doctor_id, order_type, order_data, order_status, order_totalprice) VALUES "
                                                   "(?, ?, ?, ?, ?, ?)")
-                                           .bind(pet_id, doctor_id, order_type, order_date, order_status, order_totalprice)
+                                           .bind(pet_id, doctor_id, order_type, order_data, order_status, order_totalprice)
                                            .execute();
 
             unsigned long long orderId = orders.getAutoIncrementValue();
@@ -125,7 +125,7 @@ crow::response OrderHandler::getOrderList(const crow::request &req, int &userId)
 
         mysqlx::SqlResult result = dbManager->getSession()->sql(
                                                               "SELECT o.id, o.pet_id, p.pet_name, o.doctor_id, o.order_type, "
-                                                              "o.order_date, o.order_status, o.order_totalprice, o.created_at "
+                                                              "o.order_data, o.order_status, o.order_totalprice, o.created_at "
                                                               "FROM orders as o "
                                                               "JOIN pets as p ON o.pet_id = p.id "
                                                               "WHERE p.user_id = ?")
@@ -141,7 +141,7 @@ crow::response OrderHandler::getOrderList(const crow::request &req, int &userId)
             orderList["pet_name"] = row[2].get<std::string>();
             orderList["doctor_id"] = row[3].get<int>();
             orderList["order_type"] = row[4].get<std::string>();
-            orderList["order_date"] = row[5].get<std::string>();
+            orderList["order_data"] = row[5].get<std::string>();
             orderList["order_status"] = row[6].get<std::string>();
             orderList["order_totalprice"] = row[7].get<double>();
             orderList["created_at"] = row[8].get<std::string>();
@@ -168,11 +168,11 @@ crow::response OrderHandler::getAllRecord(const crow::request &req, int &userId,
         // 使用 JOIN 一次性查询，避免 N+1 查询问题
         mysqlx::SqlResult orders_result = dbManager->getSession()->sql(
                                                                      "SELECT o.id, o.pet_id, p.pet_name, o.doctor_id, o.order_type, "
-                                                                     "o.order_date, o.order_status, o.order_totalprice, o.created_at "
+                                                                     "o.order_data, o.order_status, o.order_totalprice, o.created_at "
                                                                      "FROM orders as o "
                                                                      "JOIN pets as p ON o.pet_id = p.id "
                                                                      "WHERE p.user_id = ? "
-                                                                     "ORDER BY o.order_date DESC, o.created_at DESC "
+                                                                     "ORDER BY o.order_data DESC, o.created_at DESC "
                                                                      "LIMIT ? offset ? ")
                                               .bind(userId, batch_size, (offset - 1) * batch_size)
                                               .execute();
@@ -186,7 +186,7 @@ crow::response OrderHandler::getAllRecord(const crow::request &req, int &userId,
             order["pet_name"] = order_row[2].get<std::string>();
             order["doctor_id"] = order_row[3].get<int>();
             order["order_type"] = order_row[4].get<std::string>();
-            order["order_date"] = order_row[5].get<std::string>();
+            order["order_data"] = order_row[5].get<std::string>();
             order["order_status"] = order_row[6].get<std::string>();
             order["order_totalprice"] = order_row[7].get<double>();
             order["created_at"] = order_row[8].get<std::string>();
@@ -241,9 +241,9 @@ nlohmann::json OrderHandler::getOrderData(const int &orderId)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT o.id, o.pet_id, p.pet_name, p.pet_type, p.pet_age, p.pet_sex, o.doctor_id, "
-                                                                "o.order_type, o.order_date, o.order_status, o.order_totalprice, o.created_at"
+                                                                "o.order_type, o.order_data, o.order_status, o.order_totalprice, o.created_at "
                                                                 "FROM orders o "
-                                                                "JOIN pets as p ON o.pet_id = p.id"
+                                                                "JOIN pets as p ON o.pet_id = p.id "
                                                                 "WHERE o.id = ?")
                                        .bind(orderId)
                                        .execute();
@@ -257,13 +257,16 @@ nlohmann::json OrderHandler::getOrderData(const int &orderId)
         return {
             {"id", row[0].get<int>()},
             {"pet_id", row[1].get<int>()},
-            {"doctor_id", row[2].get<int>()},
-            {"pet_name", row[3].get<std::string>()},
-            {"order_type", row[4].get<std::string>()},
-            {"order_date", row[5].get<std::string>()},
-            {"order_status", row[6].get<std::string>()},
-            {"order_totalprice", row[7].get<double>()},
-            {"created_at", row[8].get<std::string>()}};
+            {"pet_name", row[2].get<std::string>()},
+            {"pet_type", row[3].get<std::string>()},
+            {"pet_age", row[4].get<std::string>()},
+            {"pet_sex", row[5].get<std::string>()},
+            {"doctor_id", row[6].get<int>()},
+            {"order_type", row[7].get<std::string>()},
+            {"order_data", row[8].get<std::string>()},
+            {"order_status", row[9].get<std::string>()},
+            {"order_totalprice", row[10].get<double>()},
+            {"created_at", row[11].get<std::string>()}};
     }
     catch (const std::exception &)
     {
@@ -288,9 +291,6 @@ crow::response OrderHandler::getOrderInformation(const crow::request &req, int &
             return ResponseHelper::notFound(req);
         }
 
-        response["success"] = true;
-        response["order"] = response;
-
         return ResponseHelper::success(req, response);
     }
     catch (const std::exception &e)
@@ -313,13 +313,13 @@ crow::response OrderHandler::changeOrder(const crow::request &req, int &orderId)
         int DBpet_id = 0;
         int DBdoctor_id = 0;
         std::string DBorder_type = "";
-        std::string DBorder_date = "";
+        std::string DBorder_data = "";
         std::string DBorder_status = "";
 
-        mysqlx::Table orders_table = dbManager->getSchema()->getTable("orders");
-        mysqlx::RowResult orders_result = orders_table.select("id", "pet_id", "doctor_id", "order_type", "order_date", "order_status")
-                                              .where("id = :order_id")
-                                              .bind("order_id", order_id)
+        mysqlx::SqlResult orders_result = dbManager->getSession()
+                                              ->sql("SELECT id, pet_id, doctor_id, order_type, order_data, order_status "
+                                                    "FROM orders WHERE id = ?")
+                                              .bind(order_id)
                                               .execute();
         if (orders_result.count() == 0)
         {
@@ -342,7 +342,7 @@ crow::response OrderHandler::changeOrder(const crow::request &req, int &orderId)
             }
             if (!row[4].isNull())
             {
-                DBorder_date = clean_string(row[4].get<std::string>());
+                DBorder_data = clean_string(row[4].get<std::string>());
             }
             if (!row[5].isNull())
             {
@@ -350,49 +350,43 @@ crow::response OrderHandler::changeOrder(const crow::request &req, int &orderId)
             }
         }
 
-        // 创建数据库更新操作
-        mysqlx::TableUpdate order_update = orders_table.update();
         bool has_changes = false;
 
         if (DBpet_id != request_body["pet_id"].get<int>())
         {
-            order_update.set("pet_id", request_body["pet_id"].get<int>());
             has_changes = true;
         }
         if (DBdoctor_id != request_body["doctor_id"].get<int>())
         {
-            order_update.set("doctor_id", request_body["doctor_id"].get<int>());
             has_changes = true;
         }
         if (DBorder_type != request_body["order_type"].get<std::string>())
         {
-            order_update.set("order_type", request_body["order_type"].get<std::string>());
             has_changes = true;
         }
-        if (DBorder_date != request_body["order_date"].get<std::string>())
+        if (DBorder_data != request_body["order_data"].get<std::string>())
         {
-            order_update.set("order_date", request_body["order_date"].get<std::string>());
             has_changes = true;
         }
         if (DBorder_status != request_body["order_status"].get<std::string>())
         {
-            order_update.set("order_status", request_body["order_status"].get<std::string>());
             has_changes = true;
         }
 
         if (has_changes)
         {
-            order_update.where("order_id = :order_id")
-                .bind("order_id", order_id)
+            dbManager->getSession()
+                ->sql("UPDATE orders SET pet_id = ?, doctor_id = ?, order_type = ?, order_data = ?, order_status = ? WHERE id = ?")
+                .bind(
+                    request_body["pet_id"].get<int>(),
+                    request_body["doctor_id"].get<int>(),
+                    request_body["order_type"].get<std::string>(),
+                    request_body["order_data"].get<std::string>(),
+                    request_body["order_status"].get<std::string>(),
+                    order_id)
                 .execute();
             std::cout << "Order updated successfully" << std::endl;
-
-            nlohmann::json response;
-            response["success"] = true;
-            response["message"] = "Form data saved successfully";
-            response["data"] = getOrderData(order_id);
-
-            return ResponseHelper::success(req, response);
+            return ResponseHelper::success(req, getOrderData(order_id));
         }
         else
         {

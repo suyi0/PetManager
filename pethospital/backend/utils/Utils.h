@@ -14,6 +14,7 @@
 #include "../controllers/auth/Encrypt/Encrypt.h"
 #include "../controllers/auth/JwtUtils/JwtUtils.h"
 #include "../database/DatabaseManager.h"
+#include "ResponseCodes.h"
 
 // 工具函数声明
 std::tm safeLocalTime(std::time_t time_value);
@@ -38,84 +39,142 @@ void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow:
 class ResponseHelper
 {
 public:
-    // 成功响应需要求对象以构建响应
+    // 统一成功响应：
+    // 返回固定结构 { success, code, message, data, error }，
+    // 其中 code=0 表示业务成功。
     static crow::response success(const crow::request &req, const nlohmann::json &data)
     {
-        crow::response res(200, data.dump());
-        return res;
+        return buildResponse(200, ResponseCode::Success, "success", data, nullptr);
     }
 
-    // 创建成功响应
+    // 统一创建成功响应：
+    // 适用于新增资源等场景，HTTP 状态码为 201。
     static crow::response created(const crow::request &req, const nlohmann::json &data)
     {
-        crow::response res(201, data.dump());
-        return res;
+        return buildResponse(201, ResponseCode::Success, "created", data, nullptr);
     }
 
-    // 错误响应直接返回错误消息和状态码即可
+    // 通用失败响应：
+    // 用于需要明确指定 HTTP 状态码、业务码、错误类型和细节的场景。
+    static crow::response fail(
+        const crow::request &req,
+        int httpStatus,
+        int businessCode,
+        const std::string &message,
+        const std::string &errorType,
+        const std::string &details = "")
+    {
+        nlohmann::json error = {
+            {"type", errorType},
+            {"details", details.empty() ? message : details},
+        };
+
+        return buildResponse(httpStatus, businessCode, message, nullptr, error);
+    }
+
+    // 通用客户端错误响应：
+    // 默认用于参数错误或普通业务失败。
     static crow::response error(const crow::request &req, const std::string &message)
     {
-        nlohmann::json error_data;
-        error_data["error"] = message;
-        error_data["success"] = false;
-        crow::response res(400, error_data.dump());
-        return res;
+        return fail(req, 400, ResponseCode::BadRequest, message, ResponseErrorType::BadRequest, message);
     }
 
-    // 未授权
+    // 未授权响应：
+    // 适用于 token 缺失、无效、过期等场景。
     static crow::response unauthorized(const crow::request &req, const std::string &message = "Unauthorized")
     {
-        nlohmann::json error_data;
-        error_data["error"] = message;
-        error_data["success"] = false;
-        crow::response res(401, error_data.dump());
-        return res;
+        return fail(req, 401, ResponseCode::AuthError, message, ResponseErrorType::AuthError, message);
     }
 
-    // 未找到
+    // 未找到响应：
+    // 适用于用户、订单、预约记录不存在等场景。
     static crow::response notFound(const crow::request &req, const std::string &message = "Not Found")
     {
-        nlohmann::json error_data;
-        error_data["error"] = message;
-        error_data["success"] = false;
-        crow::response res(404, error_data.dump());
-        return res;
+        return fail(req, 404, ResponseCode::NotFound, message, ResponseErrorType::NotFound, message);
     }
 
-    // 验证错误
+    // 参数校验失败响应：
+    // 适用于字段缺失、格式不正确、输入非法等场景。
     static crow::response validation(const crow::request &req, const std::string &message = "Validation failed")
     {
-        nlohmann::json error_data;
-        error_data["error"] = message;
-        error_data["success"] = false;
-        crow::response res(422, error_data.dump());
-        return res;
+        return fail(req, 422, ResponseCode::ValidationError, message, ResponseErrorType::ValidationError, message);
     }
 
-    // 系统错误
+    // 系统内部错误响应：
+    // 适用于数据库不可用、内部异常、未知错误等场景。
     static crow::response system_error(const crow::request &req, const std::string &message = "Internal Server Error")
     {
-        nlohmann::json error_data;
-        error_data["error"] = message;
-        error_data["success"] = false;
-        crow::response res(500, error_data.dump());
-        return res;
+        return fail(req, 500, ResponseCode::InternalServerError, message, ResponseErrorType::SystemError, message);
     }
 
-    // 服务不可用
+    // 服务不可用响应：
+    // 适用于依赖服务故障、临时不可用或降级场景。
     static crow::response unavailable(const crow::request &req, const std::string &message = "Service Unavailable")
     {
-        nlohmann::json error_data;
-        error_data["error"] = message;
-        error_data["success"] = false;
-        crow::response res(503, error_data.dump());
-        return res;
+        return fail(req, 503, ResponseCode::ServiceUnavailable, message, ResponseErrorType::ServiceUnavailable, message);
     }
 
-    // 自定义响应传输状态码和对象
-    static crow::response custom(const crow::request &req, int status, const nlohmann::json &data)
+    // 数据库错误响应：
+    // 适用于 SQL 执行失败、数据库查询异常、连接后续操作失败等场景。
+    static crow::response database_error(
+        const crow::request &req,
+        const std::string &message = "Database error",
+        const std::string &details = "")
     {
-        crow::response res(status, data.dump());
+        return fail(req, 500, ResponseCode::DatabaseError, message, ResponseErrorType::DatabaseError, details);
+    }
+
+    // 权限不足响应：
+    // 适用于当前用户无权访问目标资源或无权执行当前操作的场景。
+    static crow::response permission_denied(
+        const crow::request &req,
+        const std::string &message = "Permission denied",
+        const std::string &details = "")
+    {
+        return fail(req, 403, ResponseCode::PermissionDenied, message, ResponseErrorType::PermissionError, details);
+    }
+
+    // 验证码失败响应：
+    // 适用于短信验证码、邮箱验证码校验失败等认证流程场景。
+    static crow::response verification_failed(
+        const crow::request &req,
+        const std::string &message = "Invalid verification code",
+        const std::string &details = "")
+    {
+        return fail(req, 401, ResponseCode::VerificationCodeInvalid, message, ResponseErrorType::AuthError, details);
+    }
+
+    // 操作失败响应：
+    // 适用于带有具体错误细节的通用服务端失败场景。
+    static crow::response operation_failed(
+        const crow::request &req,
+        const std::string &message = "Operation failed",
+        const std::string &details = "")
+    {
+        return fail(req, 500, ResponseCode::SystemError, message, ResponseErrorType::SystemError, details);
+    }
+
+private:
+    // 构造最终响应对象，并补齐统一的协议字段。
+    static crow::response buildResponse(
+        int httpStatus, 
+        int businessCode,
+        const std::string &message,
+        const nlohmann::json &data,
+        const nlohmann::json &error)
+    {
+        const bool ok = httpStatus >= 200 && httpStatus < 300;
+
+        nlohmann::json payload = {
+            {"success", ok},
+            {"code", businessCode},
+            {"message", message},
+            {"data", data.is_null() ? nlohmann::json(nullptr) : data},
+            {"error", error.is_null() ? nlohmann::json(nullptr) : error},
+        };
+
+        crow::response res(httpStatus, payload.dump());
+        res.set_header("Content-Type", "application/json");
         return res;
     }
 };
@@ -129,19 +188,19 @@ private:
 public:
     explicit BaseHandler(std::shared_ptr<DatabaseManagerInterface> db) : dbManager(db) {}
 
-    // 公共的 JSON 解析方法
+    // 公共 JSON 解析方法：
+    // 当请求体不是合法 JSON 时，直接返回统一的参数校验失败响应。
     std::optional<nlohmann::json> parseJson(const crow::request& req, crow::response& res) {
         try {
             return nlohmann::json::parse(req.body);
         } catch (...) {
-            res.code = 400;
-            res.set_header("Content-Type", "application/json");
-            std::string origin = req.get_header_value("Origin");
-            if (!origin.empty()) {
-                res.set_header("Access-Control-Allow-Origin", origin);
-            }
-            res.write(R"({"error": "Invalid JSON"})");
-            res.end();
+            res = ResponseHelper::fail(
+                req,
+                400,
+                ResponseCode::ValidationError,
+                "Invalid JSON",
+                ResponseErrorType::ValidationError,
+                "Request body is not valid JSON");
             return std::nullopt;
         }
     }
@@ -156,7 +215,8 @@ public:
         return true;
     }
 
-    // 一键验证：JSON + 数据库（返回 optional）
+    // 一键验证请求：
+    // 同时完成 JSON 解析和数据库连接检查，失败时返回统一错误响应。
     std::optional<nlohmann::json> validateRequest(const crow::request& req, crow::response& res) {
         auto json_opt = parseJson(req, res);
         if (!json_opt) return std::nullopt;

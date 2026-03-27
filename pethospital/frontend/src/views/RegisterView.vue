@@ -1,44 +1,68 @@
 <template>
   <div v-show="showRegister" class="Register-mask">
     <div class="RegisterView">
-      <div class="login-back">
-        <button @click="back" class="login-back-button">
-          <img src="@/assets/photo/上一步.svg" alt="上一步" />
-        </button>
+      <button @click="back" class="floating-action back-button">
+        <img src="@/assets/photo/上一步.svg" alt="上一步" />
+      </button>
+      <button @click="closeRegister" class="floating-action close-button">
+        <img src="@/assets/photo/叉.svg" alt="关闭" />
+      </button>
+
+      <div class="Register-hero">
+        <div class="Register-hero-badge">Pet Manager</div>
+        <h1 class="Register-hero-title">创建你的宠物健康档案</h1>
+        <p class="Register-hero-text">
+          通过邮箱快速注册，完成后即可进入系统查看预约、诊疗与订单信息。
+        </p>
+        <div class="Register-hero-points">
+          <div class="Register-hero-point">
+            <span class="Register-hero-point-index">01</span>
+            <span>填写邮箱并获取验证码</span>
+          </div>
+          <div class="Register-hero-point">
+            <span class="Register-hero-point-index">02</span>
+            <span>设置安全密码并确认</span>
+          </div>
+          <div class="Register-hero-point">
+            <span class="Register-hero-point-index">03</span>
+            <span>注册成功后自动登录</span>
+          </div>
+        </div>
       </div>
-      <div class="login-cha">
-        <button @click="closeRegister" class="login-cha-button">
-          <img src="@/assets/photo/叉.svg" alt="叉" />
-        </button>
-      </div>
-      <span class="Register-form-title">注册</span>
+
       <div class="Register-form-container">
-        <form @submit.prevent="" class="Register-form">
+        <div class="Register-form-header">
+          <span class="Register-form-title">账号注册</span>
+          <span class="Register-form-subtitle">请使用常用邮箱完成验证</span>
+        </div>
+        <form @submit.prevent="Verify" class="Register-form">
           <div class="Register-form-div">
             <div class="Register-form-minContainser">
               <div class="Register-form-minContainser-first">
                 <div class="Register-form-minContainser-first-left-icon">
                   <span class="rq">*</span>
-                  <label for="Email">邮箱：</label>
+                  <label for="Email">邮箱地址</label>
                 </div>
-                <input
-                  id="Email"
-                  v-model="Email"
-                  placeholder="Email"
-                  type="text"
-                  class="Register-form-minContainser-first-input"
-                  autocomplete="off"
-                  @input="CheckEmail"
-                />
-                <div
-                  v-show="isEmailValid && !EmailEffect"
-                  class="Register-form-minContainser-first-right"
-                >
-                  <img
-                    src="@/assets/photo/勾.png"
-                    alt="正确"
-                    class="Register-form-minContainser-first-right-img"
+                <div class="Register-input-shell">
+                  <input
+                    id="Email"
+                    v-model="Email"
+                    placeholder="请输入常用邮箱"
+                    type="text"
+                    class="Register-form-minContainser-first-input"
+                    autocomplete="off"
+                    @input="CheckEmail"
                   />
+                  <div
+                    v-show="isEmailValid && EmailEffect"
+                    class="Register-form-minContainser-first-right"
+                  >
+                    <img
+                      src="@/assets/photo/勾.png"
+                      alt="正确"
+                      class="Register-form-minContainser-first-right-img"
+                    />
+                  </div>
                 </div>
               </div>
               <div
@@ -48,41 +72,43 @@
                 <span
                   v-if="!isEmailValid"
                   class="Register-form-minContainser-second-span"
-                  >请输入正确的邮箱
-                </span>
+                  >请输入正确的邮箱地址</span
+                >
                 <span
                   v-else-if="!EmailEffect"
                   class="Register-form-minContainser-second-span"
+                  >此邮箱已经被注册，请更换后重试</span
                 >
-                  此邮箱已经被注册，请换一个邮箱
-                </span>
               </div>
             </div>
+
             <div class="Register-form-minContainser">
               <div class="Register-form-minContainser-first">
                 <div class="Register-form-minContainser-first-left-icon">
                   <span class="rq">*</span>
-                  <label for="Password1">密码：</label>
+                  <label for="Password1">登录密码</label>
                 </div>
-                <input
-                  id="Password1"
-                  :type="inputType"
-                  v-model="Password1"
-                  placeholder="Password"
-                  class="Register-form-minContainser-first-input"
-                  @input="CheckPassword"
-                  @focus="CheckSpaceIn()"
-                  @blur="CheckSpaceOut()"
-                />
-                <div
-                  v-show="isPasswordValid"
-                  class="Register-form-minContainser-first-right"
-                >
-                  <img
-                    src="@/assets/photo/勾.png"
-                    alt="正确"
-                    class="Register-form-minContainser-first-right-img"
+                <div class="Register-input-shell Register-input-shell-password">
+                  <input
+                    id="Password1"
+                    :type="inputType"
+                    v-model="Password1"
+                    placeholder="8-16 位，包含两种以上字符类型"
+                    class="Register-form-minContainser-first-input"
+                    @input="CheckPassword"
+                    @focus="CheckSpaceIn()"
+                    @blur="CheckSpaceOut()"
                   />
+                  <div
+                    v-show="isPasswordValid"
+                    class="Register-form-minContainser-first-right"
+                  >
+                    <img
+                      src="@/assets/photo/勾.png"
+                      alt="正确"
+                      class="Register-form-minContainser-first-right-img"
+                    />
+                  </div>
                 </div>
               </div>
               <div
@@ -93,41 +119,23 @@
                   <li
                     v-show="!PasswordPromptNoSpace && !PasswordActive"
                     class="Register-form-minContainser-second-ul-li"
-                    :class="{ ' nospace  ': nospace }"
+                    :class="{ nospace: nospace }"
                   >
-                    不能包括空格
-                    <img
-                      v-show="nospace"
-                      src="@/assets/photo/勾.png"
-                      alt="正确"
-                      class="Register-form-minContainser-second-ul-li-img"
-                    />
+                    不能包含空格
                   </li>
                   <li
                     v-show="!PasswordPromptspecial && !PasswordActive"
                     class="Register-form-minContainser-second-ul-li"
-                    :class="{ ' specialChar  ': specialChar }"
+                    :class="{ specialChar: specialChar }"
                   >
-                    必须包含字母、数字、符号中至少2种
-                    <img
-                      v-show="specialChar"
-                      src="@/assets/photo/勾.png"
-                      alt="正确"
-                      class="Register-form-minContainser-second-ul-li-img"
-                    />
+                    必须包含字母、数字、符号中至少 2 种
                   </li>
                   <li
                     v-show="!PasswordPromptLength && !PasswordActive"
                     class="Register-form-minContainser-second-ul-li"
-                    :class="{ ' passwordLength  ': passwordLength }"
+                    :class="{ passwordLength: passwordLength }"
                   >
-                    长度为8-16个字符
-                    <img
-                      v-show="passwordLength"
-                      src="@/assets/photo/勾.png"
-                      alt="正确"
-                      class="Register-form-minContainser-second-ul-li-img"
-                    />
+                    长度为 8-16 个字符
                   </li>
                 </ul>
                 <span
@@ -138,62 +146,65 @@
                 </span>
               </div>
             </div>
+
             <div class="Register-form-minContainser">
               <div class="Register-form-minContainser-first">
                 <div class="Register-form-minContainser-first-left-icon">
                   <span class="rq">*</span>
-                  <label for="Password2">确定密码：</label>
+                  <label for="Password2">确认密码</label>
                 </div>
-                <input
-                  id="Password2"
-                  :type="inputType"
-                  v-model="Password2"
-                  placeholder="Password2"
-                  class="Register-form-minContainser-first-input"
-                  @input="checkPasswordConfirm"
-                  @blur="checkPasswordConfirm"
-                />
-                <div class="Register-form-Password-eye">
-                  <svg
-                    @click="togglePasswordVisibility"
-                    data-v-1a96ced4=""
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <!-- 闭眼图标（隐藏状态） -->
-                    <path
-                      v-show="!showPassword"
-                      id="eye-closed"
-                      data-v-1a96ced4=""
-                      fill-rule="evenodd"
-                      clip-rule="evenodd"
-                      d="M17.5753 6.85456C17.7122 6.71896 17.8939 6.63806 18.0866 6.63806C18.7321 6.63806 19.0436 7.42626 18.5748 7.87006C18.1144 8.30554 17.457 8.69885 16.6478 9.03168L18.1457 10.5296C18.2101 10.5941 18.2613 10.6706 18.2962 10.7548C18.331 10.839 18.349 10.9293 18.349 11.0204C18.349 11.1116 18.331 11.2019 18.2962 11.2861C18.2613 11.3703 18.2101 11.4468 18.1457 11.5113C18.0812 11.5757 18.0047 11.6269 17.9205 11.6618C17.8363 11.6967 17.746 11.7146 17.6548 11.7146C17.5637 11.7146 17.4734 11.6967 17.3892 11.6618C17.305 11.6269 17.2284 11.5757 17.164 11.5113L15.3409 9.68819C15.2898 9.63708 15.247 9.57838 15.2141 9.51428C14.4874 9.71293 13.6876 9.87122 12.8344 9.98119C12.8363 9.99011 12.8381 9.99908 12.8397 10.0081L13.2874 12.5472C13.315 12.7266 13.2713 12.9098 13.1656 13.0573C13.0598 13.2049 12.9005 13.3052 12.7217 13.3367C12.5429 13.3683 12.3589 13.3285 12.2091 13.2259C12.0592 13.1234 11.9555 12.9663 11.9202 12.7882L11.4725 10.2491C11.4645 10.2039 11.4611 10.1581 11.4621 10.1125C10.9858 10.1428 10.4976 10.1586 10.0002 10.1586C9.57059 10.1586 9.14778 10.1468 8.73362 10.1241C8.73477 10.1656 8.7322 10.2074 8.72578 10.249L8.27808 12.7881C8.24612 12.9694 8.14345 13.1306 7.99265 13.2362C7.84186 13.3418 7.65528 13.3831 7.47398 13.3512C7.29268 13.3192 7.1315 13.2166 7.0259 13.0658C6.9203 12.915 6.87892 12.7284 6.91088 12.5471L7.35858 10.008C7.35877 10.007 7.35896 10.0061 7.35915 10.0052C6.50085 9.90284 5.6941 9.75191 4.95838 9.56025C4.93012 9.60634 4.89634 9.64933 4.85748 9.68819L3.03438 11.5113C2.96992 11.5757 2.8934 11.6269 2.80918 11.6618C2.72496 11.6967 2.63469 11.7146 2.54353 11.7146C2.45237 11.7146 2.36211 11.6967 2.27789 11.6618C2.19367 11.6269 2.11714 11.5757 2.05268 11.5113C1.98822 11.4468 1.93709 11.3703 1.90221 11.2861C1.86732 11.2019 1.84937 11.1116 1.84937 11.0204C1.84937 10.9293 1.86732 10.839 1.90221 10.7548C1.93709 10.6706 1.98822 10.5941 2.05268 10.5296L3.49373 9.08855C2.6197 8.744 1.91247 8.33062 1.42559 7.87006C0.956591 7.42636 1.26799 6.63816 1.91359 6.63816C2.10629 6.63816 2.28789 6.71896 2.42489 6.85456C2.70009 7.12696 3.19529 7.45886 3.98459 7.77796C5.54429 8.40856 7.73699 8.77016 10.0001 8.77016C12.2632 8.77016 14.4558 8.40856 16.0156 7.77796C16.8049 7.45886 17.3001 7.12696 17.5753 6.85456Z"
-                      fill="#9499A0"
-                    ></path>
-                    <!-- 睁眼图标（可见状态） -->
-                    <path
-                      v-show="showPassword"
-                      id="eye-open"
-                      data-v-1a96ced4=""
-                      fill-rule="evenodd"
-                      clip-rule="evenodd"
-                      d="M2.11069 9.43732C3.21647 7.77542 5.87904 4.58331 9.89458 4.58331C13.8801 4.58331 16.6483 7.72502 17.8345 9.4049C18.0905 9.76747 18.0905 10.2325 17.8345 10.5951C16.6483 12.2749 13.8801 15.4166 9.89458 15.4166C5.87904 15.4166 3.21647 12.2245 2.11069 10.5626C1.88009 10.2161 1.88009 9.7839 2.11069 9.43732ZM9.89458 3.33331C5.19832 3.33331 2.20919 7.03277 1.07001 8.74489C0.560324 9.51091 0.560323 10.4891 1.07001 11.2551C2.20919 12.9672 5.19832 16.6666 9.89458 16.6666C14.5412 16.6666 17.6368 13.0422 18.8556 11.3161C19.4168 10.5213 19.4168 9.4787 18.8556 8.68391C17.6368 6.95774 14.5412 3.33331 9.89458 3.33331ZM7.29165 9.99998C7.29165 8.50421 8.50421 7.29165 9.99998 7.29165C11.4958 7.29165 12.7083 8.50421 12.7083 9.99998C12.7083 11.4958 11.4958 12.7083 9.99998 12.7083C8.50421 12.7083 7.29165 11.4958 7.29165 9.99998ZM9.99998 6.04165C7.81385 6.04165 6.04165 7.81385 6.04165 9.99998C6.04165 12.1861 7.81385 13.9583 9.99998 13.9583C12.1861 13.9583 13.9583 12.1861 13.9583 9.99998C13.9583 7.81385 12.1861 6.04165 9.99998 6.04165Z"
-                      fill="#9499A0"
-                    ></path>
-                  </svg>
-                </div>
-                <div
-                  v-show="isPasswordConfirmValid"
-                  class="Register-form-minContainser-first-right-password2"
-                >
-                  <img
-                    src="@/assets/photo/勾.png"
-                    alt="正确"
-                    class="Register-form-minContainser-first-right-password2-img"
+                <div class="Register-input-shell Register-input-shell-password">
+                  <input
+                    id="Password2"
+                    :type="inputType"
+                    v-model="Password2"
+                    placeholder="请再次输入密码"
+                    class="Register-form-minContainser-first-input"
+                    @input="checkPasswordConfirm"
+                    @blur="checkPasswordConfirm"
                   />
+                  <div class="Register-form-Password-eye">
+                    <svg
+                      @click="togglePasswordVisibility"
+                      data-v-1a96ced4=""
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <!-- 闭眼图标（隐藏状态） -->
+                      <path
+                        v-show="!showPassword"
+                        id="eye-closed"
+                        data-v-1a96ced4=""
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M17.5753 6.85456C17.7122 6.71896 17.8939 6.63806 18.0866 6.63806C18.7321 6.63806 19.0436 7.42626 18.5748 7.87006C18.1144 8.30554 17.457 8.69885 16.6478 9.03168L18.1457 10.5296C18.2101 10.5941 18.2613 10.6706 18.2962 10.7548C18.331 10.839 18.349 10.9293 18.349 11.0204C18.349 11.1116 18.331 11.2019 18.2962 11.2861C18.2613 11.3703 18.2101 11.4468 18.1457 11.5113C18.0812 11.5757 18.0047 11.6269 17.9205 11.6618C17.8363 11.6967 17.746 11.7146 17.6548 11.7146C17.5637 11.7146 17.4734 11.6967 17.3892 11.6618C17.305 11.6269 17.2284 11.5757 17.164 11.5113L15.3409 9.68819C15.2898 9.63708 15.247 9.57838 15.2141 9.51428C14.4874 9.71293 13.6876 9.87122 12.8344 9.98119C12.8363 9.99011 12.8381 9.99908 12.8397 10.0081L13.2874 12.5472C13.315 12.7266 13.2713 12.9098 13.1656 13.0573C13.0598 13.2049 12.9005 13.3052 12.7217 13.3367C12.5429 13.3683 12.3589 13.3285 12.2091 13.2259C12.0592 13.1234 11.9555 12.9663 11.9202 12.7882L11.4725 10.2491C11.4645 10.2039 11.4611 10.1581 11.4621 10.1125C10.9858 10.1428 10.4976 10.1586 10.0002 10.1586C9.57059 10.1586 9.14778 10.1468 8.73362 10.1241C8.73477 10.1656 8.7322 10.2074 8.72578 10.249L8.27808 12.7881C8.24612 12.9694 8.14345 13.1306 7.99265 13.2362C7.84186 13.3418 7.65528 13.3831 7.47398 13.3512C7.29268 13.3192 7.1315 13.2166 7.0259 13.0658C6.9203 12.915 6.87892 12.7284 6.91088 12.5471L7.35858 10.008C7.35877 10.007 7.35896 10.0061 7.35915 10.0052C6.50085 9.90284 5.6941 9.75191 4.95838 9.56025C4.93012 9.60634 4.89634 9.64933 4.85748 9.68819L3.03438 11.5113C2.96992 11.5757 2.8934 11.6269 2.80918 11.6618C2.72496 11.6967 2.63469 11.7146 2.54353 11.7146C2.45237 11.7146 2.36211 11.6967 2.27789 11.6618C2.19367 11.6269 2.11714 11.5757 2.05268 11.5113C1.98822 11.4468 1.93709 11.3703 1.90221 11.2861C1.86732 11.2019 1.84937 11.1116 1.84937 11.0204C1.84937 10.9293 1.86732 10.839 1.90221 10.7548C1.93709 10.6706 1.98822 10.5941 2.05268 10.5296L3.49373 9.08855C2.6197 8.744 1.91247 8.33062 1.42559 7.87006C0.956591 7.42636 1.26799 6.63816 1.91359 6.63816C2.10629 6.63816 2.28789 6.71896 2.42489 6.85456C2.70009 7.12696 3.19529 7.45886 3.98459 7.77796C5.54429 8.40856 7.73699 8.77016 10.0001 8.77016C12.2632 8.77016 14.4558 8.40856 16.0156 7.77796C16.8049 7.45886 17.3001 7.12696 17.5753 6.85456Z"
+                        fill="#9499A0"
+                      ></path>
+                      <!-- 睁眼图标（可见状态） -->
+                      <path
+                        v-show="showPassword"
+                        id="eye-open"
+                        data-v-1a96ced4=""
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M2.11069 9.43732C3.21647 7.77542 5.87904 4.58331 9.89458 4.58331C13.8801 4.58331 16.6483 7.72502 17.8345 9.4049C18.0905 9.76747 18.0905 10.2325 17.8345 10.5951C16.6483 12.2749 13.8801 15.4166 9.89458 15.4166C5.87904 15.4166 3.21647 12.2245 2.11069 10.5626C1.88009 10.2161 1.88009 9.7839 2.11069 9.43732ZM9.89458 3.33331C5.19832 3.33331 2.20919 7.03277 1.07001 8.74489C0.560324 9.51091 0.560323 10.4891 1.07001 11.2551C2.20919 12.9672 5.19832 16.6666 9.89458 16.6666C14.5412 16.6666 17.6368 13.0422 18.8556 11.3161C19.4168 10.5213 19.4168 9.4787 18.8556 8.68391C17.6368 6.95774 14.5412 3.33331 9.89458 3.33331ZM7.29165 9.99998C7.29165 8.50421 8.50421 7.29165 9.99998 7.29165C11.4958 7.29165 12.7083 8.50421 12.7083 9.99998C12.7083 11.4958 11.4958 12.7083 9.99998 12.7083C8.50421 12.7083 7.29165 11.4958 7.29165 9.99998ZM9.99998 6.04165C7.81385 6.04165 6.04165 7.81385 6.04165 9.99998C6.04165 12.1861 7.81385 13.9583 9.99998 13.9583C12.1861 13.9583 13.9583 12.1861 13.9583 9.99998C13.9583 7.81385 12.1861 6.04165 9.99998 6.04165Z"
+                        fill="#9499A0"
+                      ></path>
+                    </svg>
+                  </div>
+                  <div
+                    v-show="isPasswordConfirmValid"
+                    class="Register-form-minContainser-first-right-password2"
+                  >
+                    <img
+                      src="@/assets/photo/勾.png"
+                      alt="正确"
+                      class="Register-form-minContainser-first-right-password2-img"
+                    />
+                  </div>
                 </div>
               </div>
               <div
@@ -203,52 +214,60 @@
                 <span
                   v-show="Password2 && !isPasswordConfirmValid"
                   class="Register-form-minContainser-second-span"
-                  >两次密码不相同
-                  <img
-                    v-show="isPasswordConfirmValid"
-                    src="@/assets/photo/勾.png"
-                    alt="正确"
-                    class="Register-form-minContainser-first-right-img"
-                  />
-                </span>
+                  >两次输入的密码不一致</span
+                >
               </div>
             </div>
+
             <div class="Register-form-minContainser">
               <div class="Register-form-minContainser-first">
                 <div class="Register-form-minContainser-first-left-icon">
                   <span class="rq">*</span>
-                  <label for="VerificationCode">验证码：</label>
+                  <label for="VerificationCode">邮箱验证码</label>
                 </div>
-                <input
-                  id="VerificationCode"
-                  v-model="VerificationCode"
-                  placeholder="VerificationCode"
-                  type="text"
-                  class="Register-form-minContainser-first-input"
-                  autocomplete="off"
-                />
-                <div class="Register-form-minContainser-first-right">
-                  <button
-                    class="Register-form-minContainser-first-right-button"
-                    :class="{ ' after  ': isgetVerificationCode }"
-                    :disabled="
-                      isgetVerificationCode || !isEmailValid || !EmailEffect
-                    "
-                    @click="getVerificationCode"
+                <div class="Register-code-row">
+                  <div class="Register-input-shell Register-code-input-shell">
+                    <input
+                      id="VerificationCode"
+                      v-model="VerificationCode"
+                      placeholder="请输入邮箱中的验证码"
+                      type="text"
+                      class="Register-form-minContainser-first-input"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div
+                    class="Register-form-minContainser-first-right-button-wrap"
                   >
-                    {{
-                      isgetVerificationCode
-                        ? `${count}秒后重新获取`
-                        : "获取验证码"
-                    }}
-                  </button>
+                    <button
+                      type="button"
+                      class="Register-form-minContainser-first-right-button"
+                      :class="{ after: isgetVerificationCode }"
+                      :disabled="!canRequestVerification"
+                      @click="getVerificationCode"
+                    >
+                      {{
+                        isgetVerificationCode
+                          ? `${count}秒后重新获取`
+                          : "获取验证码"
+                      }}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
+
             <div class="Register-form-submit">
-              <button @click="Verify" class="Register-form-submit-button">
-                注册
+              <button
+                type="submit"
+                class="Register-form-submit-button"
+                :disabled="!canSubmit"
+              >
+                立即注册
               </button>
+              <span class="Register-form-submit-tip"
+                >提交后会自动登录并进入对应首页</span
+              >
             </div>
           </div>
         </form>
@@ -312,6 +331,22 @@ const passwordRegex =
 
 const showRegister = computed(() => store.state.ui.showRegister);
 const inputType = computed(() => (showPassword.value ? "text" : "password"));
+const canRequestVerification = computed(
+  () =>
+    !isgetVerificationCode.value &&
+    isEmailValid.value &&
+    EmailEffect.value &&
+    !requestInProgress
+);
+const canSubmit = computed(
+  () =>
+    isEmailValid.value &&
+    EmailEffect.value &&
+    isPasswordValid.value &&
+    isPasswordConfirmValid.value &&
+    !!VerificationCode.value &&
+    !registerInProgress
+);
 
 // 当注册窗口关闭时，重置所有表单数据
 watch(showRegister, (newVal) => {
@@ -575,11 +610,16 @@ function getVerificationCode() {
       })
       .catch((error) => {
         if (error.response) {
+          const errorMessage =
+            error.response.data?.error?.details ||
+            error.response.data?.message ||
+            "请求失败";
+
           if (error.response.status === 400) {
-            alert("错误：" + error.response.data.error);
+            alert("错误：" + errorMessage);
           } else {
             console.log(error.response.status);
-            alert("服务器错误: " + error.response.data.error);
+            alert("服务器错误: " + errorMessage);
           }
         } else if (error.request) {
           // 请求已发出但没有收到响应
@@ -645,8 +685,15 @@ function Verify() {
       }
     })
     .then((loginResponse) => {
+      const loginData = loginResponse.data?.data ?? loginResponse.data;
+      const user = loginData?.user;
+
       if (loginResponse.status === 200) {
-        router.push(getHomeRouteByUserType(loginResponse.data.user.type_id));
+        if (!user) {
+          throw new Error("注册后登录返回数据缺少 user 字段");
+        }
+
+        router.push(getHomeRouteByUserType(user.type_id, user.type_name));
       } else {
         throw new Error(`登录失败: ${loginResponse.status}`);
       }
@@ -691,284 +738,475 @@ onUnmounted(() => {
 button {
   border: none;
 }
+
 .Register-mask {
   position: fixed;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
+  padding: 28px;
   top: 0;
   left: 0;
+  z-index: 1000;
+  background: radial-gradient(
+      circle at top left,
+      rgba(84, 153, 255, 0.28),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(35, 185, 125, 0.2),
+      transparent 28%
+    ),
+    rgba(8, 15, 27, 0.52);
+  backdrop-filter: blur(10px);
+}
+
+.RegisterView {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.92fr 1.08fr;
+  width: min(1080px, 100%);
+  min-height: 720px;
+  border-radius: 30px;
+  overflow: hidden;
+  background: #f6f8fb;
+  box-shadow: 0 26px 70px rgba(9, 20, 45, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.floating-action {
+  position: absolute;
+  top: 18px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 12px 24px rgba(21, 36, 66, 0.12);
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.floating-action:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.back-button {
+  left: 18px;
+}
+
+.close-button {
+  right: 18px;
+}
+
+.Register-hero {
+  position: relative;
+  padding: 92px 44px 44px;
+  color: #f9fbff;
+  background: linear-gradient(
+      180deg,
+      rgba(15, 39, 87, 0.2),
+      rgba(15, 39, 87, 0.2)
+    ),
+    linear-gradient(145deg, #0f2b5b 0%, #1d447d 42%, #2f7e8a 100%);
+}
+
+.Register-hero::before {
+  content: "";
+  position: absolute;
+  inset: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 24px;
+}
+
+.Register-hero::after {
+  content: "";
+  position: absolute;
+  right: -72px;
+  bottom: -84px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.32),
+    transparent 66%
+  );
+}
+
+.Register-hero-badge,
+.Register-hero-title,
+.Register-hero-text,
+.Register-hero-points {
+  position: relative;
+  z-index: 1;
+}
+
+.Register-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.Register-hero-title {
+  margin: 26px 0 14px;
+  font-size: clamp(34px, 4vw, 48px);
+  line-height: 1.15;
+  font-family: "STSong", "Songti SC", serif;
+  font-weight: 700;
+}
+
+.Register-hero-text {
+  margin: 0;
+  max-width: 360px;
+  color: rgba(245, 249, 255, 0.82);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.Register-hero-points {
+  display: grid;
+  gap: 14px;
+  margin-top: 42px;
+}
+
+.Register-hero-point {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(250, 252, 255, 0.92);
+}
+
+.Register-hero-point-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  font-weight: 700;
+}
+
+.Register-form-container {
+  display: flex;
+  flex-direction: column;
+  padding: 92px 44px 44px;
+  background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(247, 250, 255, 0.98)
+    ),
+    #ffffff;
+}
+
+.Register-form-header {
+  margin-bottom: 28px;
+}
+
+.Register-form-title {
+  display: block;
+  color: #122033;
+  font-size: 32px;
+  font-weight: 700;
+  font-family: "STSong", "Songti SC", serif;
+}
+
+.Register-form-subtitle {
+  display: inline-block;
+  margin-top: 10px;
+  color: #6b7a90;
+  font-size: 14px;
+}
+
+.Register-form {
+  flex: 1;
+}
+
+.Register-form-div {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.Register-form-minContainser {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.Register-form-minContainser-first {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.Register-form-minContainser-first-left-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #344258;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rq {
+  color: #ef5350;
+}
+
+.Register-input-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  padding: 0 16px;
+  border: 1px solid #d7e1f0;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.Register-input-shell:focus-within {
+  border-color: #6ca9ff;
+  box-shadow: 0 0 0 4px rgba(108, 169, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transform: translateY(-1px);
+}
+
+.Register-input-shell-password {
+  padding-right: 84px;
+}
+
+.Register-form-minContainser-first-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #14243b;
+  font-size: 16px;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.Register-form-minContainser-first-input::placeholder {
+  color: #93a1b5;
+}
+
+.Register-form-minContainser-first-right,
+.Register-form-minContainser-first-right-password2 {
+  position: absolute;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.Register-form-minContainser-first-right-img,
+.Register-form-minContainser-first-right-password2-img {
+  width: 22px;
+  height: 22px;
+}
+
+.Register-form-Password-eye {
+  position: absolute;
+  right: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.Register-form-minContainser-second {
+  margin-left: 114px;
+  color: #ef5350;
+  font-size: 13px;
+}
+
+.Register-form-minContainser-second-span {
+  display: inline-block;
+  line-height: 1.6;
+}
+
+.Register-form-minContainser-second-ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.Register-form-minContainser-second-ul-li {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-width: 250px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff3f1;
+  color: #c04b3d;
+  line-height: 1.4;
+}
+
+.Register-form-minContainser-second-ul-li.nospace,
+.Register-form-minContainser-second-ul-li.specialChar,
+.Register-form-minContainser-second-ul-li.passwordLength {
+  background: #edf9f0;
+  color: #1b8f52;
+}
+
+.Register-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 148px;
+  gap: 12px;
+  align-items: center;
+}
+
+.Register-code-input-shell {
+  min-width: 0;
+}
+
+.Register-form-minContainser-first-right-button-wrap {
+  width: 148px;
+}
+
+.Register-form-minContainser-first-right-button {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #123f84, #2f8fa2);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 12px 24px rgba(27, 66, 125, 0.22);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.Register-form-minContainser-first-right-button.after {
+  font-size: 13px;
+}
+
+.Register-form-minContainser-first-right-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 28px rgba(27, 66, 125, 0.28);
+}
+
+.Register-form-minContainser-first-right-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.Register-form-submit {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 8px;
+  margin-left: 114px;
+  gap: 10px;
+}
+
+.Register-form-submit-button {
+  min-height: 58px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #0f2f6d, #2a7e90);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow: 0 16px 28px rgba(17, 48, 103, 0.2);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.Register-form-submit-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 32px rgba(17, 48, 103, 0.25);
+}
+
+.Register-form-submit-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.Register-form-submit-tip {
+  color: #7d8aa0;
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .RegisterView {
+    grid-template-columns: 1fr;
+    width: min(680px, 100%);
+    min-height: auto;
+  }
+
+  .Register-hero {
+    padding: 86px 28px 28px;
+  }
+
+  .Register-form-container {
+    padding: 30px 28px 32px;
+  }
+}
+
+@media (max-width: 640px) {
+  .Register-mask {
+    padding: 12px;
+  }
 
   .RegisterView {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 601px;
-    height: 663px;
-    padding: 20px;
-    border-radius: 15px;
-    background-color: rgba(246, 248, 250, 1);
-    box-sizing: border-box;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 10001;
+    border-radius: 24px;
+  }
 
-    .login-back {
-      position: absolute;
-      top: 13px;
-      left: 10px;
-      cursor: pointer;
-    }
-    .login-cha {
-      position: absolute;
-      top: 13px;
-      right: 10px;
-      cursor: pointer;
+  .Register-hero {
+    padding: 80px 22px 24px;
+  }
 
-      .login-cha-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 30px;
-        height: 30px;
-        padding: 0;
-        border: none;
-        border-radius: 12px;
-        background-color: transparent;
-        box-shadow: none;
-        cursor: pointer;
-      }
-    }
+  .Register-hero-title {
+    font-size: 30px;
+  }
 
-    .Register-form-title {
-      color: #000;
-      position: absolute;
-      top: 12px;
-      font-weight: 600;
-      text-align: center;
-      font-style: italic;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      /* 响应式字体大小 */
-      font-size: calc(28px - 0.5vw);
-    }
+  .Register-form-container {
+    padding: 24px 18px 20px;
+  }
 
-    .Register-form-container {
-      width: 100%;
-      height: 92%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      background-color: rgb(255, 255, 255);
-      border-radius: 15px;
-      overflow: hidden; /* 溢出部分隐藏 */
+  .Register-form-minContainser-first {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 
-      .Register-form {
-        display: flex;
-        position: relative;
-        gap: 15px; /*设置元素间的间距*/
+  .Register-form-minContainser-second,
+  .Register-form-submit {
+    margin-left: 0;
+  }
 
-        .Register-form-div {
-          /* 响应式输入框大小 */
-          width: 100%; /* 考虑到标签和右侧提示文字的宽度 */
-          max-width: 70vw;
-          box-sizing: border-box;
+  .Register-code-row {
+    grid-template-columns: 1fr;
+  }
 
-          .Register-form-minContainser {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-
-            .Register-form-minContainser-first {
-              margin-bottom: 15px;
-              width: 554px;
-              display: flex;
-              align-items: center;
-              position: relative;
-
-              .Register-form-minContainser-first-left-icon {
-                display: flex;
-                justify-content: end;
-                align-items: center;
-                font-size: 20px;
-                width: 115px;
-                height: 46px;
-                padding-left: 28px;
-                cursor: pointer;
-
-                .rq {
-                  color: red;
-                }
-              }
-
-              .Register-form-minContainser-first-input {
-                font-size: 23px;
-                width: 270px;
-                height: 46px;
-                border-radius: 15px;
-                border: 2px solid;
-                font-family: PingFang Songti SC;
-                box-sizing: border-box;
-                margin-right: 16px;
-              }
-
-              .Register-form-Password-eye {
-                position: relative;
-                width: 20px;
-                height: 20px;
-                top: 10px;
-                cursor: pointer;
-                transform: translateY(-50%);
-              }
-
-              .Register-form-minContainser-first-right {
-                width: 114px;
-                height: 40px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-
-                .Register-form-minContainser-first-right-img {
-                  width: 30px;
-                  height: 30px;
-                  position: absolute;
-                }
-
-                .Register-form-minContainser-first-right-button,
-                .Register-form-minContainser-first-right-button.after {
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  width: 114px;
-                  height: 40px;
-                  margin-bottom: 15px;
-                  font-size: 18px;
-                  font-weight: 520;
-                  border: #000 3px solid;
-                  border-radius: 10px;
-                  position: relative;
-                  top: 8px;
-                  padding-inline-start: 0px;
-                  padding-block-end: 0px;
-                }
-                .Register-form-minContainser-first-right-button.after {
-                  font-size: 14px;
-                }
-                .Register-form-minContainser-first-right-button:hover {
-                  background-color: rgb(148, 232, 130);
-                  border: rgb(148, 232, 130) 3px solid;
-                  color: rgb(255, 255, 255);
-                }
-                .Register-form-minContainser-first-right-button:active {
-                  background-color: rgb(255, 102, 102);
-                  border: rgb(255, 102, 102) 3px solid;
-                }
-                .Register-form-minContainser-first-right-button:disabled {
-                  background-color: light-dark(
-                    rgba(239, 239, 239, 0.3),
-                    rgba(19, 1, 1, 0.3)
-                  );
-                  color: light-dark(
-                    rgba(16, 16, 16, 0.3),
-                    rgba(255, 255, 255, 0.3)
-                  );
-                  border-color: light-dark(
-                    rgba(118, 118, 118, 0.3),
-                    rgba(195, 195, 195, 0.3)
-                  );
-                  cursor: default;
-                }
-              }
-              .Register-form-minContainser-first-right-password2 {
-                width: 94px;
-                height: 40px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-
-                .Register-form-minContainser-first-right-password2-img {
-                  width: 30px;
-                  height: 30px;
-                  position: absolute;
-                }
-              }
-            }
-            .Register-form-minContainser-second {
-              color: rgb(26, 171, 91);
-              font-size: 13px;
-              width: 554px;
-              margin-bottom: 15px;
-
-              .Register-form-minContainser-second-span {
-                position: relative;
-                left: 135px;
-                margin-bottom: 15px;
-                color: rgb(255, 0, 0);
-              }
-
-              .Register-form-minContainser-second-ul {
-                width: 286px;
-                position: relative;
-                left: 135px;
-                margin-block-start: 0px;
-                margin-block-end: 0px;
-                padding-inline-start: 0;
-                color: rgb(255, 0, 0);
-                list-style: none;
-
-                .Register-form-minContainser-second-ul-li,
-                .Register-form-minContainser-second-ul-li.nospace,
-                .Register-form-minContainser-second-ul-li.specialChar,
-                .Register-form-minContainser-second-ul-li.passwordLength {
-                  display: flex;
-                  align-items: center;
-                  height: 25px;
-                  margin-bottom: 1px;
-
-                  .Register-form-minContainser-second-ul-li-img {
-                    width: 30px;
-                    height: 30px;
-                    position: absolute;
-                    right: 10px;
-                  }
-                }
-                .Register-form-minContainser-second-ul-li.nospace,
-                .Register-form-minContainser-second-ul-li.specialChar,
-                .Register-form-minContainser-second-ul-li.passwordLength {
-                  color: rgb(48, 178, 54);
-                }
-              }
-            }
-            .Register-form-minContainser-second {
-              bottom: calc(10% - 13px - 1px);
-            }
-          }
-
-          .Register-form-submit {
-            position: absolute;
-            padding: 10px;
-            left: 178px;
-
-            .Register-form-submit-button {
-              width: 188px;
-              height: 46px;
-              font-size: 24px;
-              background-color: rgb(67, 176, 223);
-              border-radius: 15px;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-            }
-          }
-        }
-      }
-    }
+  .Register-form-minContainser-first-right-button-wrap {
+    width: 100%;
   }
 }
 </style>

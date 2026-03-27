@@ -1,185 +1,142 @@
 <template>
-  <div class="set-phone">
-    <!-- 关闭按钮 -->
-    <div class="close-button" @click="close">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 18 18"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M14 2L2 14M14 14L2 2"
-          stroke="#333"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </div>
-    <div v-show="!showChangePhoneModal">
-      <div class="logo">
-        <svg
-          width="60"
-          height="60"
-          viewBox="0 0 60 60"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <circle
-            cx="30"
-            cy="30"
-            r="28"
-            stroke="currentColor"
-            stroke-width="2"
-          />
-          <path
-            d="M30 12C35.5228 12 40 16.4772 40 22C40 27.5228 35.5228 32 30 32C24.4772 32 20 27.5228 20 22C20 16.4772 24.4772 12 30 12Z"
-            fill="currentColor"
-          />
-          <path
-            d="M30 32C35.5228 32 40 27.5228 40 22C40 16.4772 35.5228 12 30 12C24.4772 12 20 16.4772 20 22C20 27.5228 24.4772 32 30 32Z"
-            fill="currentColor"
-          />
-          <path
-            d="M30 32C35.5228 32 40 27.5228 40 22C40 16.4772 35.5228 12 30 12C24.4772 12 20 16.4772 20 22C20 27.5228 24.4772 32 30 32Z"
-            fill="currentColor"
-          />
-        </svg>
+  <div class="phone-editor">
+    <div class="phone-editor__head">
+      <div>
+        <p>Phone Studio</p>
+        <h3>{{ showChangePhoneModal ? "更换手机号" : "维护登录手机号" }}</h3>
+        <span>
+          {{
+            showChangePhoneModal
+              ? "先校验新手机号是否可用，再通过短信验证码完成替换。"
+              : "当前手机号会用于登录、预约通知和客服联系。"
+          }}
+        </span>
       </div>
-      <h2 class="modal-title">电话号码</h2>
-      <p class="modal-description">电话号码可用于登录</p>
-
-      <div class="phone-list">
-        <div class="phone-item">
-          <div class="phone-content">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M11 11L9 9M9 9L7 11M9 9L11 7M9 9L7 7M9 9L9 13M9 9L13 9M9 9L9 5M9 9L5 9"
-                stroke="currentColor"
-                stroke-width="2"
-              />
-            </svg>
-            <span class="phone-text">{{ userPhone }}</span>
-          </div>
-          <button class="change-button" @click="changePhoneModal">
-            <span>更改</span>
-          </button>
-        </div>
-      </div>
+      <button class="phone-editor__ghost" @click="close">关闭</button>
     </div>
 
-    <div v-show="showChangePhoneModal">
-      <div class="logo">
-        <svg
-          width="60"
-          height="60"
-          viewBox="0 0 60 60"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
+    <section v-if="!showChangePhoneModal" class="phone-editor__hero">
+      <div class="phone-editor__badge">
+        <span>{{ phoneInitial }}</span>
+      </div>
+      <div class="phone-editor__summary">
+        <small>当前绑定手机号</small>
+        <strong>{{ userPhone || "暂未绑定" }}</strong>
+        <span
+          >如果你已经更换号码，建议立刻更新，避免收不到预约和服务提醒。</span
         >
-          <circle
-            cx="30"
-            cy="30"
-            r="28"
-            stroke="currentColor"
-            stroke-width="2"
-          />
-          <path
-            d="M30 12C35.5228 12 40 16.4772 40 22C40 27.5228 35.5228 32 30 32C24.4772 32 20 27.5228 20 22C20 16.4772 24.4772 12 30 12Z"
-            fill="currentColor"
-          />
-          <path
-            d="M30 32C35.5228 32 40 27.5228 40 22C40 16.4772 35.5228 12 30 12C24.4772 12 20 16.4772 20 22C20 27.5228 24.4772 32 30 32Z"
-            fill="currentColor"
-          />
-          <path
-            d="M30 32C35.5228 32 40 27.5228 40 22C40 16.4772 35.5228 12 30 12C24.4772 12 20 16.4772 20 22C20 27.5228 24.4772 32 30 32Z"
-            fill="currentColor"
-          />
-        </svg>
+      </div>
+      <button class="phone-editor__primary" @click="changePhoneModal">
+        更换手机号
+      </button>
+    </section>
+
+    <section v-else class="phone-editor__panel">
+      <div class="phone-editor__preview">
+        <article>
+          <small>当前号码</small>
+          <strong>{{ userPhone || "暂未绑定" }}</strong>
+        </article>
+        <article>
+          <small>目标号码</small>
+          <strong>{{ fullPhonePreview }}</strong>
+        </article>
       </div>
 
-      <h2 class="modal-title">添加新电话号码</h2>
-      <p class="modal-description">验证码将发送至此号码。</p>
-      <p class="modal-warning">可能会产生短信和数据费用。</p>
+      <form class="phone-editor__form" @submit.prevent="changePhone">
+        <label class="editor-field editor-field--compact">
+          <span>国家 / 地区</span>
+          <select v-model="countryCode">
+            <option value="+86">+86 (中国大陆)</option>
+            <option value="+1">+1 (美国)</option>
+            <option value="+44">+44 (英国)</option>
+            <option value="+81">+81 (日本)</option>
+            <option value="+82">+82 (韩国)</option>
+            <option value="+49">+49 (德国)</option>
+            <option value="+33">+33 (法国)</option>
+            <option value="+39">+39 (意大利)</option>
+            <option value="+34">+34 (西班牙)</option>
+          </select>
+        </label>
 
-      <div class="form-container-group">
-        <select v-model="countryCode" class="country-code-select">
-          <option value="+86">+86 (中国大陆)</option>
-          <option value="+1">+1 (美国)</option>
-          <option value="+44">+44 (英国)</option>
-          <option value="+81">+81 (日本)</option>
-          <option value="+82">+82 (韩国)</option>
-          <option value="+49">+49 (德国)</option>
-          <option value="+33">+33 (法国)</option>
-          <option value="+39">+39 (意大利)</option>
-          <option value="+34">+34 (西班牙)</option>
-        </select>
-
-        <input
-          v-model="newUserPhone"
-          type="tel"
-          placeholder="电话号码"
-          class="phone-input"
-          @keyup.enter="changePhone"
-          @input="checkPhone"
-        />
-        <div v-show="!newPhoneEffect && ischeckPhone" class="phone-effect">
-          电话号码已存在不可用
-        </div>
-
-        <div class="verification-container">
+        <label class="editor-field">
+          <span>新手机号</span>
           <input
-            id="VerificationCode"
-            type="text"
-            class="verification-code"
-            v-model="VerificationCode"
-            placeholder="VerificationCode"
+            v-model.trim="newUserPhone"
+            type="tel"
+            placeholder="请输入新的手机号码"
+            @keyup.enter="changePhone"
+            @input="checkPhone"
           />
+        </label>
+
+        <p v-if="!newPhoneEffect && ischeckPhone" class="editor-error">
+          该手机号已存在，当前无法继续使用。
+        </p>
+
+        <div class="verification-strip">
+          <label class="editor-field">
+            <span>短信验证码</span>
+            <input
+              id="VerificationCode"
+              v-model.trim="VerificationCode"
+              type="text"
+              placeholder="请输入 6 位验证码"
+            />
+          </label>
           <button
-            class="verification-button"
-            :class="{ ' after  ': isgetVerificationCode }"
+            type="button"
+            class="phone-editor__ghost"
             :disabled="
               isgetVerificationCode || !isPhoneValid || !newPhoneEffect
             "
             @click="getVerificationCode"
           >
-            {{ isgetVerificationCode ? `${count}秒后重新获取` : "获取验证码" }}
+            {{ isgetVerificationCode ? `${count} 秒后重发` : "获取验证码" }}
           </button>
         </div>
 
-        <div v-show="isButtonActive" class="button-group">
-          <button class="cancel-button" @click="cancel">取消</button>
+        <div class="phone-editor__tips">
+          <article>
+            <small>校验状态</small>
+            <strong>{{
+              !newUserPhone
+                ? "等待输入"
+                : isPhoneValid && newPhoneEffect
+                ? "号码可用"
+                : "请先完成校验"
+            }}</strong>
+          </article>
+          <article>
+            <small>提交流程</small>
+            <span>发送验证码后输入收到的短信，再点击保存完成替换。</span>
+          </article>
+        </div>
+
+        <div v-if="isButtonActive" class="phone-editor__actions">
+          <button type="button" class="phone-editor__ghost" @click="cancel">
+            取消
+          </button>
           <button
-            class="continue-button"
-            :disabled="!isPhoneValid"
-            @click="changePhone"
+            type="submit"
+            class="phone-editor__primary"
+            :disabled="!isPhoneValid || !newPhoneEffect"
           >
-            继续
+            保存手机号
           </button>
         </div>
-      </div>
-    </div>
+      </form>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 import { isPhone } from "@/utils/authValidators";
 
 const emit = defineEmits(["close", "submit"]);
-
-// 使用 store
 const store = useStore(storeKey);
 
 const showChangePhoneModal = ref(false);
@@ -188,9 +145,8 @@ const VerificationCode = ref("");
 const isgetVerificationCode = ref(false);
 const isButtonActive = ref(false);
 const ischeckPhone = ref(false);
-let count = ref(60);
+const count = ref(60);
 
-// 定时器
 const phoneCheckTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 const phoneChangeTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 
@@ -198,15 +154,24 @@ let checkPhoneInProgress = false;
 let requestInProgress = false;
 let changePhoneInProgress = false;
 
-// 新电话号码
 const countryCode = ref("+86");
 const newUserPhone = ref("");
 
-// 验证状态
 const isPhoneValid = ref(false);
 const newPhoneEffect = ref(false);
 
-// 方法
+const phoneInitial = computed(() => {
+  const currentPhone = userPhone.value || "P";
+  return currentPhone.slice(-2).toUpperCase();
+});
+
+const fullPhonePreview = computed(() => {
+  if (!newUserPhone.value) {
+    return "等待输入";
+  }
+  return `${countryCode.value} ${newUserPhone.value}`;
+});
+
 function checkPhone() {
   if (phoneCheckTimeout.value) {
     clearTimeout(phoneCheckTimeout.value);
@@ -231,17 +196,15 @@ function checkPhone() {
       })
       .then((response) => {
         if (response.status === 200) {
-          // 手机号未被注册，可以使用
           newPhoneEffect.value = true;
+          ischeckPhone.value = false;
         } else if (response.status === 400) {
-          // 手机号已被注册，不能使用
           newPhoneEffect.value = false;
           ischeckPhone.value = true;
         }
       })
       .catch((error) => {
-        if (error.response.status === 400) {
-          // 后端返回400错误，表示手机号已被注册
+        if (error.response?.status === 400) {
           newPhoneEffect.value = false;
           ischeckPhone.value = true;
         }
@@ -275,17 +238,19 @@ async function getVerificationCode() {
       })
       .catch((error) => {
         if (error.response) {
+          const errorMessage =
+            error.response.data?.error?.details ||
+            error.response.data?.message ||
+            "请求失败";
+
           if (error.response.status === 400) {
-            alert("错误：" + error.response.data.error);
+            alert("错误：" + errorMessage);
           } else {
-            console.log(error.response.status);
-            alert("服务器错误: " + error.response.data.error);
+            alert("服务器错误: " + errorMessage);
           }
         } else if (error.request) {
-          // 请求已发出但没有收到响应
           alert("网络错误，请检查网络连接");
         } else {
-          // 其他错误
           alert("请求错误: " + error.message);
         }
       })
@@ -295,7 +260,6 @@ async function getVerificationCode() {
   }
 }
 
-// 修改电话号码
 function changePhone() {
   if (phoneChangeTimeout.value) {
     clearTimeout(phoneChangeTimeout.value);
@@ -322,41 +286,41 @@ function changePhone() {
                 value: newUserPhone.value,
               });
 
-              // 验证码验证成功，更新用户数据
               return store.dispatch("currentUser/updateUserData");
             }
           }
         })
         .then((updateResponse) => {
-          if (updateResponse.status === 200) {
+          if (updateResponse?.status === 200) {
             alert("修改成功");
             resetForm();
           }
         })
         .catch((error) => {
-          if (error.response.status === 400) {
+          if (error.response?.status === 400) {
             alert("修改操作失败");
           }
         })
         .finally(() => {
           checkPhoneInProgress = false;
-          newPhoneEffect.value = false; // 重置手机号可用标志
+          changePhoneInProgress = false;
+          newPhoneEffect.value = false;
         });
+    } else {
+      changePhoneInProgress = false;
     }
   }, 1000);
 }
 
-// 修改电话号码页面
 function changePhoneModal() {
   showChangePhoneModal.value = true;
+  isButtonActive.value = true;
 }
 
 function startCountdown() {
-  // 每秒减少倒计时
   const timer = setInterval(() => {
     count.value--;
     if (count.value <= 0) {
-      // 倒计时结束，清除定时器并重置按钮状态
       clearInterval(timer);
       isgetVerificationCode.value = false;
     }
@@ -372,302 +336,236 @@ function resetForm() {
   newPhoneEffect.value = false;
   ischeckPhone.value = false;
   isButtonActive.value = false;
+  changePhoneInProgress = false;
 }
 
-// 取消操作
 function cancel() {
   resetForm();
 }
-// 关闭模态框
+
 function close() {
-  if (showChangePhoneModal.value === true) {
+  if (showChangePhoneModal.value) {
     cancel();
     return;
-  } else {
-    emit("close");
   }
+  emit("close");
 }
 
-// 生命周期钩子
 onMounted(() => {
-  // 可以在这里执行初始化操作
+  // reserved for future init
 });
 </script>
 
 <style scoped lang="scss">
-.set-phone {
-  width: 500px;
-  max-width: 500px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.3);
-  padding: 32px;
-  text-align: center;
-  position: relative;
-  top: 45px;
+.phone-editor {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 30px;
+  border: 1px solid rgba(21, 91, 92, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
 }
 
-.close-button {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  font-size: 24px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  color: #000;
-  font-weight: bold;
-  padding: 4px;
-  border-radius: 50%;
-}
-
-.logo {
-  margin-bottom: 24px;
-  text-align: center;
-  svg {
-    fill: #007aff;
-  }
-}
-
-.modal-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #000;
-  margin-bottom: 8px;
-  text-align: center;
-}
-
-.modal-description {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 32px;
-  text-align: center;
-  line-height: 1.5;
-}
-
-.phone-text {
-  font-size: 20px;
-  color: #333;
-}
-
-.change-button {
-  width: 60px;
-  border-radius: 50%;
-  color: #999;
-  border: none;
-  display: flex; // 启用 Flex 布局
-  align-items: center; // 垂直居中
-  justify-content: center; // 水平居中
-  flex-shrink: 0; // 防止按钮缩小
-  padding: 0;
-}
-.change-button:hover {
-  color: #333;
-}
-
-.phone-list {
-  margin-bottom: 32px;
-}
-
-.phone-item {
+.phone-editor__head {
   display: flex;
+  align-items: start;
   justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid #eaeaea;
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.phone-content {
-  display: flex;
-  align-items: center;
   gap: 16px;
 }
 
-.primary-label {
-  font-size: 14px;
-  color: #007aff;
-  font-weight: 500;
+.phone-editor__head p,
+.phone-editor__summary small,
+.phone-editor__tips small,
+.phone-editor__preview small {
+  margin: 0;
+  color: #1f8e89;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.set-primary-button {
-  font-size: 14px;
-  color: #007aff;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: #e6f2ff;
-  }
+.phone-editor__head h3 {
+  margin: 6px 0 0;
+  color: #133f42;
+  font-size: 32px;
 }
 
-.modal-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #000;
+.phone-editor__head span,
+.phone-editor__summary span,
+.phone-editor__tips span {
+  display: block;
+  margin-top: 10px;
+  color: #607975;
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.phone-editor__hero,
+.phone-editor__panel {
+  padding: 22px;
+  border-radius: 28px;
+  border: 1px solid rgba(21, 91, 92, 0.08);
+  background: linear-gradient(
+    135deg,
+    rgba(136, 214, 206, 0.18),
+    rgba(243, 197, 155, 0.14)
+  );
+}
+
+.phone-editor__hero {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.phone-editor__badge {
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #91ddd2, #f0c29b);
+  color: #15474a;
+  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  box-shadow: 0 18px 34px rgba(28, 98, 99, 0.14);
+}
+
+.phone-editor__summary {
+  display: grid;
+  gap: 6px;
+}
+
+.phone-editor__summary strong,
+.phone-editor__preview strong,
+.phone-editor__tips strong {
+  color: #143f42;
+  font-size: 24px;
+}
+
+.phone-editor__preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   margin-bottom: 16px;
 }
 
-.modal-description {
+.phone-editor__preview article,
+.phone-editor__tips article {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.phone-editor__form {
+  display: grid;
+  gap: 14px;
+}
+
+.editor-field {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-field--compact {
+  max-width: 240px;
+}
+
+.editor-field span {
+  color: #24484b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-field input,
+.editor-field select {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid rgba(20, 82, 84, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #173f42;
   font-size: 14px;
-  color: #666;
-  margin-bottom: 16px;
 }
 
-.modal-warning {
-  font-size: 14px;
-  color: #999;
-  margin-bottom: 24px;
+.editor-field input:focus,
+.editor-field select:focus {
+  outline: none;
+  border-color: rgba(24, 128, 127, 0.5);
+  box-shadow: 0 0 0 4px rgba(141, 218, 210, 0.18);
 }
 
-.form-container-group {
-  .country-code-select {
-    width: 334px;
-    padding: 12px 16px;
-    border: 1px solid #dcdfe6;
-    margin-bottom: 12px;
-    border-radius: 8px;
-    font-size: 16px;
-    appearance: none;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23666' d='M4 9l5 5 5-5z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    background-size: 16px;
-    transition: border-color 0.3s ease;
-
-    &:focus {
-      outline: none;
-      border-color: #409eff;
-      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-    }
-  }
-  .phone-effect {
-    color: red;
-    font-size: 16px;
-  }
-
-  .phone-input {
-    width: 300px;
-    padding: 12px 16px;
-    border: 1px solid #dcdfe6;
-    border-radius: 8px;
-    font-size: 16px;
-    transition: border-color 0.3s ease;
-
-    &:focus {
-      outline: none;
-      border-color: #409eff;
-      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
-    }
-  }
-
-  .verification-container {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    justify-content: center;
-    margin-top: 12px;
-
-    .verification-code {
-      width: 174px;
-      padding: 12px 16px;
-      border: 1px solid #dcdfe6;
-      border-radius: 8px;
-      font-size: 16px;
-      transition: border-color 0.3s ease;
-    }
-
-    .verification-button,
-    .verification-button.after {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 114px;
-      height: 40px;
-      margin-bottom: 15px;
-      font-size: 18px;
-      font-weight: 520;
-      border: #000 3px solid;
-      border-radius: 10px;
-      position: relative;
-      top: 8px;
-      padding-inline-start: 0px;
-      padding-block-end: 0px;
-    }
-    .verification-button.after {
-      font-size: 14px;
-    }
-    .verification-button:hover {
-      background-color: rgb(148, 232, 130);
-      border: rgb(148, 232, 130) 3px solid;
-      color: rgb(255, 255, 255);
-    }
-    .verification-button:active {
-      background-color: rgb(255, 102, 102);
-      border: rgb(255, 102, 102) 3px solid;
-    }
-    .verification-button:disabled {
-      background-color: light-dark(
-        rgba(239, 239, 239, 0.3),
-        rgba(19, 1, 1, 0.3)
-      );
-      color: light-dark(rgba(16, 16, 16, 0.3), rgba(255, 255, 255, 0.3));
-      border-color: light-dark(
-        rgba(118, 118, 118, 0.3),
-        rgba(195, 195, 195, 0.3)
-      );
-      cursor: default;
-    }
-  }
+.editor-error {
+  margin: -2px 0 0;
+  color: #a94949;
+  font-size: 13px;
 }
 
-.button-group {
+.verification-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.phone-editor__tips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.phone-editor__actions {
   display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-top: 28px;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
-.cancel-button {
-  padding: 12px 24px;
-  border: 1px solid #007aff;
-  border-radius: 8px;
-  background: white;
-  color: #007aff;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: #f0f8ff;
-  }
-}
-
-.continue-button {
-  padding: 12px 24px;
+.phone-editor__ghost,
+.phone-editor__primary {
   border: none;
-  border-radius: 8px;
-  background: #007aff;
-  color: white;
-  font-size: 16px;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
+}
 
-  &:disabled {
-    background: #cccccc;
-    cursor: not-allowed;
+.phone-editor__ghost {
+  background: rgba(20, 82, 84, 0.08);
+  color: #154144;
+}
+
+.phone-editor__ghost:disabled,
+.phone-editor__primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.phone-editor__primary {
+  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  color: #fff;
+  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+}
+
+@media (max-width: 900px) {
+  .phone-editor__head,
+  .phone-editor__hero,
+  .phone-editor__preview,
+  .verification-strip,
+  .phone-editor__tips {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 
-  &:hover:not(:disabled) {
-    background: #0066cc;
+  .phone-editor__badge {
+    width: 88px;
+    height: 88px;
+    border-radius: 24px;
   }
 }
 </style>

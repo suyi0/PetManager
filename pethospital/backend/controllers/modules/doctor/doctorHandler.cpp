@@ -1,10 +1,12 @@
 #include "doctorHandler.h"
+#include "../../../database/UserPhoneSync.h"
+#include "RoleTypeUtils/RoleTypeUtils.h"
 
 crow::response doctorHandler::getDoctor(const crow::request &req)
 {
     try
     {
-        crow::response res;
+        // crow::response res;
         // auto request_body_opt = validateRequest(req, res);
         // if (!request_body_opt) return res;
         // auto& request_body = request_body_opt.value();
@@ -13,8 +15,8 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
                                                                 "FROM users as u "
                                                                 "JOIN onlineDoctors as od ON u.id = od.doctor_id "
                                                                 "JOIN types as t ON u.type_id = t.id "
-                                                                "WHERE t.type = 'doctor' AND od.status = 'online'")
-                                                            .execute();
+                                                                "WHERE t.type = '医生' AND od.status = 'online'")
+                                       .execute();
 
         nlohmann::json response = nlohmann::json::array();
 
@@ -36,17 +38,11 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
     }
 }
 
-crow::response doctorHandler::getUserList(const crow::request &req, const std::string &name)
-{
-
-    return ResponseHelper::success(req, "");
-}
-
 crow::response doctorHandler::getDutyStatus(const crow::request &req, int &userId)
 {
     try
     {
-        if(!checkDbConnection())
+        if (!checkDbConnection())
         {
             return ResponseHelper::system_error(req);
         }
@@ -58,9 +54,9 @@ crow::response doctorHandler::getDutyStatus(const crow::request &req, int &userI
                                                                 "FROM onlineDoctors "
                                                                 "WHERE doctor_id = ? AND date = ? "
                                                                 "LIMIT 1")
-                                                            .bind(userId)
-                                                            .bind(today)
-                                                            .execute();
+                                       .bind(userId)
+                                       .bind(today)
+                                       .execute();
 
         nlohmann::json response = nlohmann::json::object();
         response["is_online"] = false;
@@ -87,11 +83,145 @@ crow::response doctorHandler::getDutyStatus(const crow::request &req, int &userI
     }
 }
 
+crow::response doctorHandler::createUser(const crow::request &req)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        std::string username = request_body.contains("username") ? request_body["username"].get<std::string>() : "";
+        std::string phone = request_body.contains("phone") ? request_body["phone"].get<std::string>() : "";
+        std::string password = "123456";
+
+        if (username.empty() || phone.empty())
+        {
+            return ResponseHelper::error(req, "用户名或手机号不能为空");
+        }
+
+        const int defaultUserRoleId =
+            RoleTypeUtils::getRoleId(dbManager, "普通用户");
+        if (defaultUserRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "普通用户角色不存在");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()->sql("INSERT INTO users (type_id, username, password, phone) "
+                                                                "VALUES (?, ?, ?, ?)")
+                                       .bind(defaultUserRoleId, username, password, phone)
+                                       .execute();
+
+        if (result.getAffectedItemsCount() == 0)
+        {
+            return ResponseHelper::error(req, "创建用户失败");
+        }
+
+        if (!UserPhoneSync::upsertUserPhone(*dbManager, static_cast<int>(result.getAutoIncrementValue()), phone))
+        {
+            return ResponseHelper::system_error(req, "创建用户成功，但手机号同步失败");
+        }
+
+        return ResponseHelper::success(req, "创建用户成功");
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response doctorHandler::getUserList(const crow::request &req, const std::string data, const std::string &identifier)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::system_error(req);
+        }
+
+        if (data.empty())
+        {
+            return ResponseHelper::validation(req, "搜索关键词不能为空");
+        }
+
+        mysqlx::SqlResult result;
+        if (identifier == "name")
+        {
+            result = dbManager->getSession()->sql("SELECT id, type_id, name, phone, email, birthday, head_image, created_at "
+                                                  "FROM users "
+                                                  "WHERE name LIKE ? "
+                                                  "ORDER BY name ASC "
+                                                  "LIMIT 20")
+                         .bind(data + "%")
+                         .execute();
+        }
+        else if (identifier == "phone")
+        {
+            std::string sql;
+            if (data.size() == 4)
+            {
+                sql =
+                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.birthday, u.head_image, u.created_at "
+                    "FROM phones AS p "
+                    "JOIN users AS u ON p.user_id = u.id "
+                    "WHERE p.phone_lastfour = ? "
+                    "ORDER BY u.name ASC";
+            }
+            else
+            {
+                sql =
+                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.birthday, u.head_image, u.created_at "
+                    "FROM phones AS p "
+                    "JOIN users AS u ON p.user_id = u.id "
+                    "WHERE p.phone = ? "
+                    "LIMIT 1";
+            }
+
+            result = dbManager->getSession()->sql(sql)
+                         .bind(data)
+                         .execute();
+
+            if(result.count() == 0)
+            {
+                return ResponseHelper::error(req, "用户不存在");
+            }
+        }
+        else
+        {
+            return ResponseHelper::validation(req, "identifier 仅支持 name 或 phone");
+        }
+
+        nlohmann::json response = nlohmann::json::array();
+        for (auto row : result)
+        {
+            nlohmann::json user;
+            user["id"] = row[0].get<int>();
+            user["type_id"] = row[1].get<int>();
+            user["name"] = row[2].get<std::string>();
+            user["phone"] = row[3].get<std::string>();
+            user["email"] = row[4].get<std::string>();
+            user["birthday"] = row[5].get<std::string>();
+            user["head_image"] = row[6].get<std::string>();
+            user["created_at"] = row[7].get<std::string>();
+
+            response.push_back(user);
+        }
+
+        return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
 crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId)
 {
     try
     {
-        if(!checkDbConnection())
+        if (!checkDbConnection())
         {
             return ResponseHelper::system_error(req);
         }
@@ -102,8 +232,9 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId
         std::string check_in_time_start;
         std::string check_in_time_end;
 
-        mysqlx::Table workTime_table = dbManager->getSchema()->getTable("workTimes");
-        mysqlx::RowResult workTime_result = workTime_table.select("check_in_time_start", "check_in_time_end").execute();
+        mysqlx::SqlResult workTime_result = dbManager->getSession()
+                                                ->sql("SELECT check_in_time_start, check_in_time_end FROM workTimes")
+                                                .execute();
 
         auto work_time_row = workTime_result.fetchOne();
         if (work_time_row)
@@ -116,7 +247,7 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId
         {
             return ResponseHelper::error(req, "未到签到时间，请确认签到时间!!!");
         }
-        else if(time >= check_in_time_end)
+        else if (time >= check_in_time_end)
         {
             return ResponseHelper::error(req, "已超过签到时间，如果有特殊情况导致请与管理人员确认!!!");
         }
@@ -126,8 +257,8 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId
                                                                              "FROM onlineDoctors "
                                                                              "WHERE doctor_id = ? "
                                                                              "LIMIT 1")
-                                                                         .bind(userId)
-                                                                         .execute();
+                                                    .bind(userId)
+                                                    .execute();
 
             auto existing_row = existing_result.fetchOne();
             if (existing_row)
@@ -156,10 +287,9 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId
                     .bind(time)
                     .execute();
             }
-    
+
             return ResponseHelper::success(req, "签到成功!");
         }
-
     }
     catch (const std::exception &e)
     {
@@ -171,7 +301,7 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userI
 {
     try
     {
-        if(!checkDbConnection())
+        if (!checkDbConnection())
         {
             return ResponseHelper::system_error(req);
         }
@@ -182,8 +312,9 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userI
         std::string check_out_time_start;
         std::string check_out_time_end;
 
-        mysqlx::Table workTime_table = dbManager->getSchema()->getTable("workTimes");
-        mysqlx::RowResult workTime_result = workTime_table.select("check_out_time_start", "check_out_time_end").execute();
+        mysqlx::SqlResult workTime_result = dbManager->getSession()
+                                                ->sql("SELECT check_out_time_start, check_out_time_end FROM workTimes")
+                                                .execute();
 
         auto work_time_row = workTime_result.fetchOne();
         if (work_time_row)
@@ -192,11 +323,11 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userI
             check_out_time_end = work_time_row[1].get<std::string>();
         }
 
-        if(time <= check_out_time_start)
+        if (time <= check_out_time_start)
         {
             return ResponseHelper::error(req, "未到签退时间，如要提前签退请与管理人员确认!!!");
         }
-        else if(time >= check_out_time_end)
+        else if (time >= check_out_time_end)
         {
             return ResponseHelper::error(req, "已超过签退时间，如果有特殊情况导致请与管理人员确认!!!");
         }
@@ -209,7 +340,7 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userI
                               .bind(userId)
                               .bind(date)
                               .execute();
-    
+
             // 检查是否更新了记录
             if (result.getAffectedItemsCount() > 0)
             {
@@ -220,7 +351,6 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userI
                 return ResponseHelper::error(req, "签退失败,请联系管理员!!!");
             }
         }
-
     }
     catch (const std::exception &e)
     {

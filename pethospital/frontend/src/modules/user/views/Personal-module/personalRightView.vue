@@ -1,49 +1,61 @@
 <template>
   <div class="profile-overview">
     <section class="profile-overview__hero">
+      <div class="hero-copy">
+        <p>Profile Snapshot</p>
+        <h3>{{ userName }}</h3>
+        <span>
+          当前资料会同步用于预约卡片、订单联系人与服务通知，建议把常用信息保持为最新。
+        </span>
+
+        <div class="hero-tags">
+          <span>{{ userPhone || "未绑定手机" }}</span>
+          <span>{{ userEmail || "未绑定邮箱" }}</span>
+          <span>{{ userBirthday || "生日待补充" }}</span>
+        </div>
+      </div>
+
       <button class="hero-avatar" @click="emit('switchTab', 'head')">
         <img v-if="avatar" :src="avatar" alt="头像" class="hero-avatar__img" />
         <span v-else>{{ userInitial }}</span>
       </button>
-      <div class="hero-copy">
-        <p>Profile Snapshot</p>
-        <h3>{{ userName }}</h3>
-        <span>点选下方卡片可单独编辑对应字段，修改后会自动同步保存。</span>
-      </div>
     </section>
 
     <section class="profile-grid">
-      <button class="profile-card" @click="emit('switchTab', 'name')">
-        <p>姓名</p>
+      <button
+        class="profile-card profile-card--accent"
+        @click="emit('switchTab', 'name')"
+      >
+        <div class="profile-card__eyebrow">Identity</div>
         <strong>{{ userName }}</strong>
-        <span>维护用于预约与订单展示的用户姓名。</span>
+        <span>维护用户姓名，预约单和订单展示会直接使用这里的名字。</span>
       </button>
 
       <button class="profile-card" @click="emit('switchTab', 'birthday')">
-        <p>出生日期</p>
+        <div class="profile-card__eyebrow">Birthday</div>
         <strong>{{ userBirthday || "未设置" }}</strong>
-        <span>用于资料完整度与必要时的年龄信息确认。</span>
+        <span>完善生日信息后，资料完整度和服务提醒会更准确。</span>
       </button>
 
       <button class="profile-card" @click="emit('switchTab', 'phone')">
-        <p>手机号</p>
+        <div class="profile-card__eyebrow">Mobile</div>
         <strong>{{ userPhone || "未设置" }}</strong>
-        <span>预约通知、诊疗提醒和客服联系都会优先使用。</span>
+        <span>预约通知、医生回访与紧急联系优先使用当前手机号。</span>
       </button>
 
       <button class="profile-card" @click="emit('switchTab', 'email')">
-        <p>邮箱</p>
+        <div class="profile-card__eyebrow">Mail</div>
         <strong>{{ userEmail || "未设置" }}</strong>
-        <span>适合接收回执、服务说明与资料备份。</span>
+        <span>适合接收账单回执、护理说明与系统通知。</span>
       </button>
 
       <button
         class="profile-card profile-card--wide"
         @click="emit('switchTab', 'address')"
       >
-        <p>家庭地址</p>
+        <div class="profile-card__eyebrow">Address</div>
         <strong>{{ userAddress || "未设置" }}</strong>
-        <span>配送药品、护理用品或建立完整资料时会用到此地址。</span>
+        <span>配送药品、寄送护理用品和确认服务范围时会直接复用此地址。</span>
       </button>
     </section>
   </div>
@@ -81,58 +93,38 @@ const userInitial = computed(() =>
 
 .profile-overview__hero {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 150px;
   gap: 18px;
-  padding: 24px;
-  border-radius: 28px;
+  padding: 26px;
+  border-radius: 30px;
   background: linear-gradient(
     135deg,
-    rgba(132, 214, 206, 0.2),
+    rgba(132, 214, 206, 0.22),
     rgba(243, 197, 155, 0.18)
   );
-}
-
-.hero-avatar {
-  width: 120px;
-  height: 120px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 32px;
-  background: linear-gradient(135deg, #91ddd2, #f0c29b);
-  color: #15474a;
-  cursor: pointer;
-  box-shadow: 0 20px 40px rgba(28, 98, 99, 0.14);
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: 42px;
-  font-weight: 700;
-}
-
-.hero-avatar__img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 32px;
+  border: 1px solid rgba(29, 134, 135, 0.08);
 }
 
 .hero-copy {
   display: grid;
+  gap: 10px;
   align-content: center;
-  gap: 8px;
 }
 
-.hero-copy p {
+.hero-copy p,
+.profile-card__eyebrow {
   margin: 0;
   color: #1e8a88;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .hero-copy h3 {
   margin: 0;
-  font-size: clamp(30px, 3vw, 42px);
+  font-size: clamp(32px, 3vw, 46px);
+  line-height: 1.05;
   color: #153f42;
 }
 
@@ -140,6 +132,46 @@ const userInitial = computed(() =>
   color: #607975;
   line-height: 1.8;
   font-size: 14px;
+}
+
+.hero-tags {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.hero-tags span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #254f51;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.hero-avatar {
+  width: 150px;
+  height: 150px;
+  justify-self: end;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 40px;
+  background: linear-gradient(135deg, #91ddd2, #f0c29b);
+  color: #15474a;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(28, 98, 99, 0.14);
+  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
+  font-size: 54px;
+  font-weight: 700;
+}
+
+.hero-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 40px;
 }
 
 .profile-grid {
@@ -154,25 +186,32 @@ const userInitial = computed(() =>
   gap: 10px;
   padding: 22px;
   border: 1px solid rgba(21, 91, 92, 0.08);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.7);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.74);
   color: #163f42;
   text-align: left;
   cursor: pointer;
   box-shadow: 0 18px 40px rgba(25, 92, 93, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.profile-card p {
-  margin: 0;
-  color: #1d8b89;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.profile-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(21, 91, 92, 0.12);
+  box-shadow: 0 22px 44px rgba(25, 92, 93, 0.08);
+}
+
+.profile-card--accent {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 248, 237, 0.96),
+    rgba(239, 251, 248, 0.96)
+  );
 }
 
 .profile-card strong {
-  font-size: 22px;
+  font-size: 24px;
+  line-height: 1.2;
 }
 
 .profile-card span {
@@ -192,8 +231,15 @@ const userInitial = computed(() =>
   }
 
   .hero-avatar {
-    width: 96px;
-    height: 96px;
+    width: 110px;
+    height: 110px;
+    justify-self: start;
+    border-radius: 28px;
+    font-size: 42px;
+  }
+
+  .hero-avatar__img {
+    border-radius: 28px;
   }
 }
 </style>

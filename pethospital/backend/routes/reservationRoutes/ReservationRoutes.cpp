@@ -25,6 +25,11 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 
                 // 解析请求体中的 JSON 数据
                 auto jsonOpt = handler.parseJson(req, res);
+                if (!jsonOpt)
+                {
+                    res.end();
+                    return;
+                }
                 nlohmann::json& request_body = jsonOpt.value();
 
                 std::string name = request_body["name"].is_string() ? request_body["name"].get<std::string>() : request_body["name"].dump();
@@ -61,7 +66,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
             
             } catch (const std::exception& e) {
-                res = ResponseHelper::custom(req, 500, "error: Failed to save reservation");
+                res = ResponseHelper::operation_failed(req, "Failed to save reservation", e.what());
             }
             res.end(); });
 
@@ -86,7 +91,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
-                res = ResponseHelper::system_error(req, "error: Failed to fetch reservations, details: " + std::string(e.what()) + "\"");
+                res = ResponseHelper::operation_failed(req, "Failed to fetch reservations", e.what());
             }
             res.end(); });
 
@@ -101,7 +106,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
 
                 res = ResponseHelper::success(req, schedule);
             } catch (const std::exception& e) {
-                res = ResponseHelper::custom(req, 500, "error: Failed to generate schedule");
+                res = ResponseHelper::operation_failed(req, "Failed to generate schedule", e.what());
             }
             res.end(); });
 
@@ -116,7 +121,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
-                res = ResponseHelper::custom(req, 500, "error, Failed to get doctor list");
+                res = ResponseHelper::operation_failed(req, "Failed to get doctor list", e.what());
             }
             res.end(); });
 
@@ -139,7 +144,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                     ProcessHandlerResponse(req, res, handlerResponse);
 
                 } catch (const std::exception& e) {
-                    res = ResponseHelper::custom(req, 500, "error: Failed to update reservation, details: " + std::string(e.what()) + "\"}");
+                    res = ResponseHelper::operation_failed(req, "Failed to update reservation", e.what());
                 }
                 res.end(); });
 
@@ -163,7 +168,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
-                res = ResponseHelper::custom(req, 500, "error: Failed to cancel reservation");
+                res = ResponseHelper::operation_failed(req, "Failed to cancel reservation", e.what());
             } 
             res.end(); });
 
@@ -187,7 +192,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
-                res = ResponseHelper::custom(req, 500, "error: Failed to delete reservation, details: " + std::string(e.what()) + "\"");
+                res = ResponseHelper::operation_failed(req, "Failed to delete reservation", e.what());
             }
             res.end(); });
 

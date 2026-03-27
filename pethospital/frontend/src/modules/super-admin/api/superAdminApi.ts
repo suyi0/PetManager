@@ -49,6 +49,14 @@ export const superAdminApi = {
     await http.post("/api/admin/deleteDoctor", { user_id: userID });
   },
 
+  async createWarehouseAdmin(userID: number): Promise<void> {
+    await http.post("/api/admin/createWarehouserManager", { user_id: userID });
+  },
+
+  async deleteWarehouseAdmin(userID: number): Promise<void> {
+    await http.post("/api/admin/deleteWarehouserManager", { user_id: userID });
+  },
+
   async changeDoctorWorkTime(params: {
     user_id: number;
     date: string;

@@ -48,39 +48,6 @@ bool isPortAvailable(int port)
 }
 }
 
-// 在ManagerBack.cpp中添加一个重置自增计数器的函数
-void resetAutoIncrement(const std::string &table_name)
-{
-    try
-    {
-        // 使用TRUNCATE TABLE来清空表并重置自增计数器
-        std::string sql = "TRUNCATE TABLE " + table_name;
-        DatabaseManager::getInstance()->getSession()->sql(sql).execute();
-
-        std::cout << "Table '" << table_name << "' truncated and auto-increment reset." << std::endl;
-    }
-    catch (const mysqlx::Error &e)
-    {
-        std::cerr << "Error truncating table '" << table_name << "': " << e.what() << std::endl;
-    }
-}
-// 在ManagerBack.cpp中添加一个手动设置自增计数器的函数
-void setAutoIncrement(const std::string &table_name, int new_value)
-{
-    try
-    {
-        // 设置自增计数器的下一个值
-        std::string sql = "ALTER TABLE " + table_name + " AUTO_INCREMENT = " + std::to_string(new_value);
-        DatabaseManager::getInstance()->getSession()->sql(sql).execute();
-
-        std::cout << "Auto-increment for table '" << table_name << "' set to " << new_value << "." << std::endl;
-    }
-    catch (const mysqlx::Error &e)
-    {
-        std::cerr << "Error setting auto-increment for table '" << table_name << "': " << e.what() << std::endl;
-    }
-}
-
 void WebSocketServer::start()
 {
     if (!app_ptr_)
@@ -96,6 +63,8 @@ void WebSocketServer::start()
     setupRoutes();          // 设置路由
     setupSignalHandlers();  // 设置信号处理
     startCodeCleanupTask(); // 启动定时任务
+    shutdown_requested = false;
+    server_stopped = false;
 
     server_thread = std::thread([this]
                                 {
@@ -103,7 +72,9 @@ void WebSocketServer::start()
                 app_ptr_->port(8081).multithreaded().run();
             } catch (const std::exception& e) {
                 std::cerr << "Server fatal error: " << e.what() << std::endl;
-            } });
+            }
+            server_stopped = true;
+            shutdown_cv.notify_all(); });
 }
 
 void WebSocketServer::startCodeCleanupTask()
@@ -135,11 +106,7 @@ void WebSocketServer::stopCodeCleanupTask()
 
 void WebSocketServer::gracefulShutdown()
 {
-    heartbeat_running = false;
-    heartbeat_cv.notify_all();
-    if (heartbeat_thread.joinable())
-        heartbeat_thread.join();
-
+    shutdown_requested = true;
     std::cout << "Initiating graceful shutdown..." << std::endl;
 
     // 关闭所有活跃连接 [1,5](@ref)
@@ -176,7 +143,7 @@ void WebSocketServer::gracefulShutdown()
         server_thread.join();
     }
     stopCodeCleanupTask();
-    stop_requested = true;
+    server_stopped = true;
     std::cout << "Server shutdown complete" << std::endl;
 }
 
@@ -187,14 +154,14 @@ WebSocketServer &WebSocketServer::instance()
     return instance;
 }
 
-// 提供公共方法访问 signal_received
-bool WebSocketServer::isSignalReceived() const
+bool WebSocketServer::isShutdownRequested() const
 {
-    return signal_received.load();
-    /*load() 方法支持显式指定内存顺序（默认为std::memory_order_seq_cst）。该顺序要求：
-    当前线程的后续操作不会重排到load()之前。
-    其他线程对同一原子的写入对所有线程可见。
-    在信号处理场景中，这确保主线程能立即感知到信号标志的变化，避免因编译器/CPU指令重排导致延迟可见。*/
+    return shutdown_requested.load();
+}
+
+bool WebSocketServer::isServerStopped() const
+{
+    return server_stopped.load();
 }
 
 // 设置路由
@@ -280,57 +247,22 @@ void WebSocketServer::setupRoutes()
                  { std::cerr << "WebSocket error: " << reason << std::endl; });
 }
 
-// 启动心跳线程，定期发送ping消息
-void WebSocketServer::startHeartbeat()
-{
-    heartbeat_thread = std::thread([this]
-                                   {
-            while (heartbeat_running) {
-                std::unique_lock<std::mutex> lock(heartbeat_mutex);
-                if (heartbeat_cv.wait_for(lock, std::chrono::seconds(30), [this]() {
-                        return !heartbeat_running.load();
-                    })) {
-                    break;
-                }
-                lock.unlock();
-                std::unordered_set<crow::websocket::connection*> connections_copy;
-                // 获取连接副本
-                {
-                    std::lock_guard<std::mutex> lock(conn_mutex);
-                    connections_copy = active_connections;
-                }
-                // 创建可能需要移除的连接列表
-                std::vector<crow::websocket::connection*> to_remove;
-                for (auto* conn : connections_copy) {
-                    try {
-                        if (conn) {
-                            conn->send_ping("ping"); // Crow支持ping/pong
-                        }
-                    } catch (const std::exception& e) {
-                        std::cerr << "Error sending ping: " << e.what() << std::endl;
-                        to_remove.push_back(conn);
-                    }
-                }
-                // 移除无效连接
-                if (!to_remove.empty()) {
-                    std::lock_guard<std::mutex> lock(conn_mutex);
-                    for (auto* conn : to_remove) {
-                        active_connections.erase(conn);
-                    }
-                }
-            } });
-}
-
 // 设置信号处理函数
 void WebSocketServer::setupSignalHandlers()
 {
-    // 使用更安全的 sigaction 替代 signal
+    // 使用更安全的 sigaction
     struct sigaction sa;
-    sa.sa_handler = [](int)
-    { instance().signal_received = true; };
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    sa.sa_handler = [](int) { instance().shutdown_requested = true; };
 
+    sigemptyset(&sa.sa_mask);   // 清空信号掩码
+
+    // SA_RESTART - 让被信号中断的系统调用自动重启
+    // SA_NOCLDWAIT - 防止产生僵尸进程
+    // SA_NODEFER - 允许在处理信号期间接收同类型的信号
+    // SA_SIGINFO - 使用带扩展信息的信号处理函数
+    sa.sa_flags = 0;             // 默认标志，设置信号处理标志为0
+
+    // 注册对SIGINT(Ctrl+C)和SIGTERM(终止信号)的处理，当接收到这些信号时执行上面定义的lambda函数
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
 }

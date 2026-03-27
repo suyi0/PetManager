@@ -116,10 +116,10 @@ const detail = computed(() => {
     preview?.name ||
     (tabValue.value === "reservation" ? "预约记录" : "订单记录");
 
-  const dateText = summary?.order_date || formatDate(preview?.time);
+  const dateText = summary?.order_data || formatDate(preview?.time);
   const priceText =
-    typeof summary?.order_totalpice === "number"
-      ? `¥ ${summary.order_totalpice.toFixed(2)}`
+    typeof summary?.order_totalprice === "number"
+      ? `¥ ${summary.order_totalprice.toFixed(2)}`
       : typeof preview?.price === "number"
       ? `¥ ${preview.price.toFixed(2)}`
       : "待结算";
@@ -136,8 +136,8 @@ const detail = computed(() => {
         : preview?.id !== undefined
         ? `NO.${preview.id}`
         : "NO.--",
-    createTime: summary?.order_time || dateText || "待同步",
-    reservateTime: summary?.order_date || dateText || "待同步",
+    createTime: summary?.created_at || dateText || "待同步",
+    reservateTime: summary?.order_data || dateText || "待同步",
     status:
       summary?.order_status ||
       (tabValue.value === "reservation" ? "预约处理中" : "处理中"),

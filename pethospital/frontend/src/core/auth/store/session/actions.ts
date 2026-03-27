@@ -1,6 +1,7 @@
 import { ActionContext, ActionTree } from "vuex";
 import { authApi } from "@/core/auth/api/authApi";
 import { profileApi } from "@/modules/user/api/profileApi";
+import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { State } from "@/store/types";
 import { AuthState } from "./types";
 
@@ -57,6 +58,8 @@ type LoginStatusPayload = {
   user?: string;
   type_id?: number;
   userType?: number;
+  type_name?: string;
+  userRole?: string;
 };
 
 // 登录状态响应
@@ -85,7 +88,11 @@ const isLoginStatusPayload = (value: unknown): value is LoginStatusPayload => {
     (candidate.user === undefined || typeof candidate.user === "string") &&
     (candidate.type_id === undefined ||
       typeof candidate.type_id === "number") &&
-    (candidate.userType === undefined || typeof candidate.userType === "number")
+    (candidate.userType === undefined ||
+      typeof candidate.userType === "number") &&
+    (candidate.type_name === undefined ||
+      typeof candidate.type_name === "string") &&
+    (candidate.userRole === undefined || typeof candidate.userRole === "string")
   );
 };
 
@@ -134,22 +141,34 @@ export const authActions: ActionTree<AuthState, State> = {
     return authApi
       .login(payload)
       .then((response) => {
+        const loginData = response.data?.data ?? response.data;
+        const user = loginData?.user;
+        const token = loginData?.token;
+
         if (response.status === 200) {
+          if (!user || !token) {
+            throw new Error("Login response payload is missing user or token");
+          }
+
+          const userRole = resolveRoleName(user.type_name, user.type_id);
+
           commit("setSession", {
-            userType: response.data.user.type_id,
-            token: response.data.token,
+            userType: user.type_id,
+            userRole,
+            token,
           });
           commit(
             "currentUser/setCurrentUser",
             {
-              userType: response.data.user.type_id,
-              userName: response.data.user.name,
-              userEmail: response.data.user.email,
-              userPhone: response.data.user.phone,
-              userBirthday: response.data.user.birthday,
-              userAddressId: response.data.user.address_id,
-              userAddress: response.data.user.address,
-              userHeadImage: response.data.user.head_image,
+              userType: user.type_id,
+              userRole,
+              userName: user.name,
+              userEmail: user.email,
+              userPhone: user.phone,
+              userBirthday: user.birthday,
+              userAddressId: user.address_id,
+              userAddress: user.address,
+              userHeadImage: user.head_image,
             },
             { root: true }
           );
@@ -258,6 +277,7 @@ export const authActions: ActionTree<AuthState, State> = {
                   field: "userName",
                   value: parsed.data.username || parsed.data.user || "",
                   userType: rootState.auth.userType,
+                  userRole: rootState.auth.userRole,
                 },
                 { root: true }
               );

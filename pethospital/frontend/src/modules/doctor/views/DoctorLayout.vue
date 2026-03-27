@@ -56,11 +56,13 @@ export default defineComponent({
       store.commit("auth/setSession", {
         token: bridge.token,
         userType: bridge.userType,
+        userRole: bridge.userRole,
       });
       store.commit(
         "currentUser/setCurrentUser",
         {
           userType: bridge.userType,
+          userRole: bridge.userRole,
           userName: bridge.userName,
           userPhone: bridge.userPhone,
           userEmail: bridge.userEmail,

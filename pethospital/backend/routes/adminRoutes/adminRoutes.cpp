@@ -110,6 +110,48 @@ void adminRoutes::setupAdminRoutes(
             }
         );
 
+    CROW_ROUTE(app, "/api/admin/createWarehouserManager")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res) {
+                try {
+                    int userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        res.end();
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    crow::response response = handler.createWarehouserManager(req);
+                    ProcessHandlerResponse(req, res, response);
+                } catch (const std::exception &) {
+                    res = ResponseHelper::system_error(req);
+                }
+                res.end();
+            }
+        );
+
+    CROW_ROUTE(app, "/api/admin/deleteWarehouserManager")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res) {
+                try {
+                    int userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        res.end();
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    crow::response response = handler.deleteWarehouserManager(req);
+                    ProcessHandlerResponse(req, res, response);
+                } catch (const std::exception &) {
+                    res = ResponseHelper::system_error(req);
+                }
+                res.end();
+            }
+        );
+
     CROW_ROUTE(app, "/api/admin/changeDoctorWorkTime")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res) {

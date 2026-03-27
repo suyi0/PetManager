@@ -5,9 +5,10 @@
       <div class="sidebar-logo"></div>
       <nav>
         <RouterLink :to="`${routePrefix}/overview`">总览</RouterLink>
-        <RouterLink :to="`${routePrefix}/doctors`">医生权限</RouterLink>
+        <RouterLink :to="`${routePrefix}/doctors`">权限授予</RouterLink>
         <RouterLink :to="`${routePrefix}/worktime`">考勤记录</RouterLink>
         <RouterLink :to="`${routePrefix}/users`">用户管理</RouterLink>
+        <RouterLink :to="`${routePrefix}/logs`">日志审计</RouterLink>
       </nav>
       <section class="portal-switcher">
         <p class="portal-switcher__title">快捷进入其他端</p>
@@ -53,7 +54,7 @@ export default defineComponent({
     const router = useRouter();
     const route = useRoute();
 
-    const createFrontendToken = (userType: number) => {
+    const createFrontendToken = (userType: number, userRole: string) => {
       const encode = (value: string) =>
         btoa(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 
@@ -62,6 +63,7 @@ export default defineComponent({
         JSON.stringify({
           exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
           type_id: userType,
+          type_name: userRole,
         })
       );
 
@@ -101,7 +103,8 @@ export default defineComponent({
         key: "user",
         label: "进入用户端",
         hint: "写入用户基础资料并跳转首页",
-        userType: 3,
+        userType: 4,
+        userRole: "普通用户",
         to: isPreviewRoute.value ? "/preview/user/home" : "/user/home",
         profile: {
           userName: "体验用户 林小满",
@@ -118,6 +121,7 @@ export default defineComponent({
         label: "进入医生端",
         hint: "写入医生基础资料并打开工作台",
         userType: 2,
+        userRole: "医生",
         to: isPreviewRoute.value ? "/preview/doctor/home" : "/doctor/home",
         profile: {
           userName: "值班医生 周予安",
@@ -133,7 +137,8 @@ export default defineComponent({
         key: "warehouse",
         label: "进入仓库端",
         hint: "写入仓库管理员资料并打开仪表盘",
-        userType: 1,
+        userType: 3,
+        userRole: "仓库管理员",
         to: isPreviewRoute.value
           ? "/preview/warehouse-admin/dashboard"
           : "/warehouse-admin/dashboard",
@@ -166,8 +171,9 @@ export default defineComponent({
       const nextToken =
         !isPreviewRoute.value && store.state.auth.token
           ? store.state.auth.token
-          : createFrontendToken(portal.userType);
-      const returnToken = store.state.auth.token || createFrontendToken(1);
+          : createFrontendToken(portal.userType, portal.userRole);
+      const returnToken =
+        store.state.auth.token || createFrontendToken(1, "超级管理员");
 
       authStorage.saveAdminPortalBridge({
         returnTo: isPreviewRoute.value
@@ -175,18 +181,21 @@ export default defineComponent({
           : "/super-admin/overview",
         token: returnToken,
         userType: 1,
+        userRole: "超级管理员",
         ...currentProfile,
       });
 
       store.commit("auth/setSession", {
         token: nextToken,
         userType: portal.userType,
+        userRole: portal.userRole,
       });
       store.commit(
         "currentUser/setCurrentUser",
         {
           ...portal.profile,
           userType: portal.userType,
+          userRole: portal.userRole,
         },
         { root: true }
       );

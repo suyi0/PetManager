@@ -60,13 +60,14 @@ Verify::Verify(std::string emailaddress)
 bool Verify::VerifyEmailAddress(std::string emailaddress)
 {
     // 正确的邮箱验证正则表达式
-    std::regex emailRegex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    std::regex emailRegex("^[A-Za-z0-9\u4e00-\u9fa5]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$");
     return std::regex_match(emailaddress, emailRegex);
 }
 
 bool Verify::VerifyPassword(std::string password)
 {
-    std::regex strongPasswordRegex("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"); // 强密码正则
+    // 密码验证正则表达式
+    std::regex strongPasswordRegex("^(?![a-zA-Z]+$)(?![A-Z0-9]+$)(?![A-Z\W_!@#$%^&*`~()-+=]+$)(?![a-z0-9]+$)(?![a-z\W_!@#$%^&*`~()-+=]+$)(?![0-9\W_!@#$%^&*`~()-+=]+$)[a-zA-Z0-9\W_!@#$%^&*`~()-+=]"); // 强密码正则
     std::regex passwordRegex("^{6,}$");                                                                       // 6以上位密码 - 密码正则
     return std::regex_match(password, strongPasswordRegex) || std::regex_match(password, passwordRegex);
 }

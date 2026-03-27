@@ -25,4 +25,5 @@ export interface SetCurrentUserPayload {
   userHeadImage: string;
   userAddressId?: string;
   userType?: number | null;
+  userRole?: string | null;
 }

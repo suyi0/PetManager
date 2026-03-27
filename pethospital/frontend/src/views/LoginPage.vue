@@ -386,8 +386,15 @@ const handleLogin = () => {
       password: Password.value,
     })
     .then((response) => {
+      const loginData = response.data?.data ?? response.data;
+      const user = loginData?.user;
+
       if (response.status === 200) {
-        router.push(getHomeRouteByUserType(response.data.user.type_id));
+        if (!user) {
+          throw new Error("登录返回数据缺少 user 字段");
+        }
+
+        router.push(getHomeRouteByUserType(user.type_id, user.type_name));
       }
     })
     .catch((error) => {

@@ -13,10 +13,10 @@ export interface OrderSummary {
   pet_name: string;
   doctor_id: number;
   order_type: string;
-  order_date: string;
+  order_data: string;
   order_status: string;
-  order_totalpice: number;
-  order_time: string;
+  order_totalprice: number;
+  created_at: string;
 }
 
 export interface OrderMedicine {

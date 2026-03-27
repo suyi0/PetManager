@@ -1,0 +1,43 @@
+digraph UserReservationSequence {
+  graph [
+    rankdir=LR,
+    splines=polyline,
+    overlap=false,
+    fontname="PingFang SC",
+    fontsize=18,
+    label="用户预约交互图",
+    labelloc="t",
+    pad=0.4,
+    nodesep=0.5,
+    ranksep=0.8
+  ];
+
+  node [shape=box, style="rounded", fontname="PingFang SC", fontsize=12, color="#222222"];
+  edge [fontname="PingFang SC", fontsize=10, color="#444444"];
+
+  User [label="用户"];
+  Frontend [label="前端页面"];
+  ReservationModule [label="预约模块"];
+  DoctorModule [label="医生模块"];
+  DB [label="数据库"];
+
+  User -> Frontend [label="1. 进入预约页面"];
+  Frontend -> DoctorModule [label="2. 请求医生列表"];
+  DoctorModule -> DB [label="3. 查询医生信息"];
+  DB -> DoctorModule [label="4. 返回医生列表"];
+  DoctorModule -> Frontend [label="5. 返回医生列表"];
+
+  Frontend -> ReservationModule [label="6. 请求可预约时段"];
+  ReservationModule -> DB [label="7. 查询排班与预约数据"];
+  DB -> ReservationModule [label="8. 返回时段数据"];
+  ReservationModule -> Frontend [label="9. 返回可预约时段"];
+
+  User -> Frontend [label="10. 选择医生、日期、时段并提交"];
+  Frontend -> ReservationModule [label="11. 提交预约请求"];
+  ReservationModule -> DB [label="12. 校验用户与时段信息"];
+  DB -> ReservationModule [label="13. 校验通过"];
+  ReservationModule -> DB [label="14. 保存预约记录"];
+  DB -> ReservationModule [label="15. 返回保存结果"];
+  ReservationModule -> Frontend [label="16. 返回预约成功"];
+  Frontend -> User [label="17. 显示预约成功信息"];
+}

@@ -4,7 +4,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: "/warehouse-admin",
     component: () => import("../views/WarehouseAdminLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [1] },
+    meta: { requiresAuth: true, allowedRoles: ["仓库管理员"] },
     children: [
       {
         path: "",

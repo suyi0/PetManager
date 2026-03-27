@@ -14,7 +14,8 @@ export interface WorkTimeRecord {
 
 export interface UserRow {
   id: number;
-  type_id: number;
+  type_id: number | null;
+  type_name?: string;
   name: string;
   phone: string;
   email: string;

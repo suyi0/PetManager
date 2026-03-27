@@ -1,73 +1,55 @@
 <template>
-  <div class="setHead">
-    <!-- 关闭按钮 -->
-    <div class="close-button" @click="close">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 18 18"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M14 2L2 14M14 14L2 2"
-          stroke="#333"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
+  <div class="avatar-editor">
+    <div class="avatar-editor__head">
+      <div>
+        <p>Avatar Studio</p>
+        <h3>{{ imageSrc ? "裁剪新的头像" : "更新个人头像" }}</h3>
+        <span>
+          {{
+            imageSrc
+              ? "拖入的图片会先进入裁剪区，确认后再上传到服务器。"
+              : "支持拖拽或选择图片，建议使用清晰的人像或宠物陪伴照。"
+          }}
+        </span>
+      </div>
+      <button class="avatar-editor__ghost" @click="close">关闭</button>
     </div>
 
-    <div
+    <section
       v-if="!imageSrc"
-      class="setHead-container"
+      class="avatar-editor__dropzone"
       @dragover.prevent
       @drop.prevent="handleDrop"
     >
-      <div class="setHead-top">
-        <img :src="headImage" class="head-img" />
-      </div>
-      <div class="setHead-bottom">
-        <div class="setHead-bottom1">
-          <span class="upload-text"
-            >可以把图片拖进来选择或者点击下方的选择图片</span
-          >
-          <div class="upload-content">
-            <button @click="triggerFileInput" class="upload-btn">
-              <span class="upload-span">选择图片</span>
-              <div class="ImageSVG">
-                <svg
-                  width="36"
-                  height="36"
-                  viewBox="0 0 36 36"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle cx="18" cy="13" r="9" fill="#e0e0e0" />
-                  <path d="M10 23 L26 23 L26 31 L10 31 Z" fill="#e0e0e0" />
-                  <path
-                    d="M12 23 L18 17 L24 23"
-                    stroke="#e0e0e0"
-                    stroke-width="1.5"
-                    fill="none"
-                  />
-                </svg>
-              </div>
-            </button>
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              @change="handleFileSelect"
-              style="display: none"
-            />
-          </div>
+      <div class="avatar-editor__hero">
+        <div class="avatar-editor__current">
+          <img :src="headImage" class="avatar-editor__current-image" />
+        </div>
+        <div class="avatar-editor__copy">
+          <small>当前头像</small>
+          <strong>{{ displayName }}</strong>
+          <span>拖拽一张图片到这里，或者点击下方按钮从本地相册中选择。</span>
         </div>
       </div>
-    </div>
 
-    <div v-else class="cropper">
-      <div class="cropper-container">
+      <div class="avatar-editor__actions">
+        <button class="avatar-editor__primary" @click="triggerFileInput">
+          选择图片
+        </button>
+        <span>支持 JPG、PNG 格式，大小不超过 5MB。</span>
+      </div>
+
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/*"
+        @change="handleFileSelect"
+        style="display: none"
+      />
+    </section>
+
+    <section v-else class="avatar-editor__cropper">
+      <div class="avatar-editor__workspace">
         <div class="cropper-wrapper">
           <img
             ref="cropperImage"
@@ -76,37 +58,43 @@
             class="cropper-image"
           />
         </div>
-      </div>
-      <div class="border-line"></div>
-      <div class="preview-container">
-        <div class="preview-croppedImage">
-          <h3>预览</h3>
-          <img :src="previewImage || headImage" class="preview-image" />
+
+        <div class="avatar-editor__preview">
+          <small>上传预览</small>
+          <img
+            :src="previewImage || headImage"
+            class="avatar-editor__preview-image"
+          />
+          <span>裁剪区域会自动限制为头像比例，方便直接使用。</span>
         </div>
       </div>
-    </div>
-    <div v-if="cropperImage" class="bottom">
-      <p class="tips">支持 JPG、PNG 格式，大小不超过 5MB</p>
-      <div class="cropper-bottom">
-        <button class="cancel-button" @click="cancel">取消</button>
-        <button class="save-button" @click="getcroppedImage('upload')">
-          确定
-        </button>
+
+      <div class="avatar-editor__bottom">
+        <p class="avatar-editor__tip">
+          确认后会立即上传新头像，并自动同步到个人中心和顶部菜单。
+        </p>
+        <div class="avatar-editor__button-row">
+          <button class="avatar-editor__ghost" @click="cancel">取消</button>
+          <button
+            class="avatar-editor__primary"
+            @click="getcroppedImage('upload')"
+          >
+            确认上传
+          </button>
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-// eslint-disable-next-line no-unused-vars
-import { ref, onBeforeUnmount, nextTick, onMounted } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 import Cropper from "cropperjs";
 import axios from "axios";
 import "cropperjs/dist/cropper.css";
 
-// 定义组件属性
 interface Props {
   aspectRatio?: number;
   previewWidth?: number;
@@ -119,17 +107,8 @@ const props = withDefaults(defineProps<Props>(), {
   previewHeight: 200,
 });
 
-// 定义事件
-const emit = defineEmits<{
-  // eslint-disable-next-line no-unused-vars
-  (e: "close"): void;
-  // eslint-disable-next-line no-unused-vars
-  (e: "crop-complete", dataUrl: string, blob: Blob): void;
-  // eslint-disable-next-line no-unused-vars
-  (e: "cancel"): void;
-}>();
+const emit = defineEmits(["close", "crop-complete", "cancel"]);
 
-// 响应式数据
 const store = useStore(storeKey);
 const headImage = ref("");
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -139,12 +118,14 @@ const croppedImage = ref<string>();
 const previewImage = ref<string>();
 const cropper = ref<Cropper | null>(null);
 
-// 触发文件选择
+const displayName = computed(
+  () => store.getters["auth/formattedUserName"] || "当前用户"
+);
+
 const triggerFileInput = () => {
   fileInput.value?.click();
 };
 
-// 处理文件选择
 const handleFileSelect = (e: Event) => {
   const target = e.target as HTMLInputElement;
   const file = target.files?.[0];
@@ -153,7 +134,6 @@ const handleFileSelect = (e: Event) => {
   }
 };
 
-//处理拖拽上传
 const handleDrop = (e: DragEvent) => {
   const file = e.dataTransfer?.files?.[0];
   if (file && file.type.startsWith("image/")) {
@@ -161,7 +141,6 @@ const handleDrop = (e: DragEvent) => {
   }
 };
 
-// 加载图片
 const loadImage = (file: File) => {
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -173,16 +152,13 @@ const loadImage = (file: File) => {
   reader.readAsDataURL(file);
 };
 
-// 初始化裁剪器
 const initCropper = () => {
   if (!cropperImage.value) return;
 
-  // 销毁已有的裁剪器实例
   if (cropper.value) {
     cropper.value.destroy();
   }
 
-  // 创建新的裁剪器实例
   cropper.value = new Cropper(cropperImage.value, {
     aspectRatio: props.aspectRatio,
     viewMode: 1,
@@ -195,18 +171,15 @@ const initCropper = () => {
     cropBoxMovable: true,
     cropBoxResizable: true,
     toggleDragModeOnDblclick: false,
-    ready: function () {
-      // 当裁剪器准备就绪时，先生成一次预览
+    ready() {
       getcroppedImage();
     },
-    crop: function () {
-      // 当裁剪框移动或调整大小时，更新预览
+    crop() {
       getcroppedImage();
     },
   });
 };
 
-// 获取裁剪后的图像
 const getcroppedImage = async (fileName?: string) => {
   if (!cropper.value) return;
 
@@ -240,7 +213,7 @@ const getcroppedImage = async (fileName?: string) => {
     previewImage.value = circularCanvas.toDataURL();
     croppedImage.value = circularCanvas.toDataURL();
 
-    if (fileName == "upload") {
+    if (fileName === "upload") {
       circularCanvas.toBlob(
         (blob) => {
           if (blob) {
@@ -252,30 +225,27 @@ const getcroppedImage = async (fileName?: string) => {
         "image/jpeg",
         0.8
       );
-      // 在这里添加这一行，确保预览区域能正确显示
     }
+
     await nextTick();
   } catch (error) {
     console.error("裁剪图片时出错:", error);
   }
 };
+
 const uploadImage = async (formData: FormData) => {
   try {
-    // 第一步：上传图片到服务器
     const uploadResponse = await axios.post("/api/upload/avatar", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
 
-    // 假设服务器返回的是真实图片 URL，例如：
     const avatarUrl = uploadResponse.data.avatarUrl;
 
-    // 更新本地状态
     store.dispatch("currentUser/updateUserField", {
       field: "userHeadImage",
       value: avatarUrl,
     });
 
-    // 更新完 store，关闭设置界面
     croppedImage.value = undefined;
     close();
   } catch (error) {
@@ -284,7 +254,6 @@ const uploadImage = async (formData: FormData) => {
   }
 };
 
-// 取消操作
 const cancel = () => {
   imageSrc.value = null;
   croppedImage.value = undefined;
@@ -297,266 +266,229 @@ const cancel = () => {
   emit("cancel");
 };
 
-// 关闭操作
 const close = () => {
   if (croppedImage.value) {
     cancel();
     return;
-  } else {
-    imageSrc.value = null;
-    cropper.value?.destroy();
-    cropper.value = null;
-    emit("close");
   }
+
+  imageSrc.value = null;
+  cropper.value?.destroy();
+  cropper.value = null;
 
   if (fileInput.value) {
     fileInput.value.value = "";
   }
+
+  emit("close");
 };
 
-// 组件初始化
 onMounted(() => {
   headImage.value = store.state.currentUser.userHeadImage || "";
 });
 
-// 组件卸载前清理
 onBeforeUnmount(() => {
   cropper.value?.destroy();
 });
 </script>
 
 <style scoped lang="scss">
-.setHead {
-  min-width: 500px;
-  padding: 32px;
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0px 0px 5px 2px rgba(0, 0, 0, 0.3);
-  position: relative;
-  text-align: center;
+.avatar-editor {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 30px;
+  border: 1px solid rgba(21, 91, 92, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
+}
+
+.avatar-editor__head {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-button {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  font-size: 24px;
-  cursor: pointer;
-  background: none;
-  border: none;
-  color: #000;
-  font-weight: bold;
-  padding: 4px;
-  border-radius: 50%;
-}
-
-.setHead-container {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.setHead-top {
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  margin-top: 40px;
-  margin-bottom: 40px;
-  background-color: #000;
-}
-.head-img {
-  width: 100%;
-  height: 100%;
-  border-radius: 90px;
-}
-
-.setHead-bottom1 {
-  width: 180px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.image-cropper {
-  max-width: 100%;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-}
-
-.upload-area {
-  width: 100%;
-  height: 100%;
-  left: 0px;
-  top: 0px;
-  position: relative;
-  border-radius: 12px;
-  z-index: 1;
-
-  &:hover {
-    border-color: #409eff;
-  }
-}
-
-.upload-content {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: rgba(255, 255, 255, 0.8);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  .upload-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-  }
-
-  p {
-    font-size: 16px;
-    color: #666;
-    margin-bottom: 20px;
-  }
-}
-.upload-text {
-  width: 250px;
-  font-size: 16px;
-  background: rgba(130, 190, 19, 0.1);
-  color: #000000;
-}
-
-.upload-btn {
-  background-color: #409eff;
-  color: white;
-  border: none;
-  display: flex;
+  align-items: start;
   justify-content: space-between;
-  padding: 10px 20px;
-  border-radius: 4px;
-  cursor: pointer;
+  gap: 16px;
+}
+
+.avatar-editor__head p,
+.avatar-editor__copy small,
+.avatar-editor__preview small {
+  margin: 0;
+  color: #1f8e89;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.avatar-editor__head h3 {
+  margin: 6px 0 0;
+  color: #133f42;
+  font-size: 32px;
+}
+
+.avatar-editor__head span,
+.avatar-editor__copy span,
+.avatar-editor__preview span,
+.avatar-editor__tip {
+  display: block;
+  margin-top: 10px;
+  color: #607975;
+  line-height: 1.8;
   font-size: 14px;
-  transition: background-color 0.3s;
-
-  &:hover {
-    background-color: #66b1ff;
-  }
-}
-.upload-span {
-  display: flex;
-  align-items: center;
-  width: 100px;
-  height: 36px;
-  font-size: 20px;
-}
-.ImageSVG {
-  width: 36px;
-  height: 36px;
 }
 
-.cropper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 40px;
+.avatar-editor__dropzone,
+.avatar-editor__cropper {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 28px;
+  border: 1px solid rgba(21, 91, 92, 0.08);
+  background: linear-gradient(
+    135deg,
+    rgba(136, 214, 206, 0.18),
+    rgba(243, 197, 155, 0.14)
+  );
 }
-.cropper-container {
-  display: flex;
-  flex-direction: column;
+
+.avatar-editor__hero {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 18px;
   align-items: center;
-  margin-right: 40px;
+}
+
+.avatar-editor__current {
+  width: 160px;
+  height: 160px;
+  display: grid;
+  place-items: center;
+  border-radius: 42px;
+  background: linear-gradient(135deg, #91ddd2, #f0c29b);
+  box-shadow: 0 18px 34px rgba(28, 98, 99, 0.14);
+}
+
+.avatar-editor__current-image {
+  width: 136px;
+  height: 136px;
+  object-fit: cover;
+  border-radius: 34px;
+}
+
+.avatar-editor__copy {
+  display: grid;
+  gap: 6px;
+}
+
+.avatar-editor__copy strong {
+  color: #143f42;
+  font-size: 28px;
+}
+
+.avatar-editor__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.avatar-editor__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 18px;
+  align-items: start;
 }
 
 .cropper-wrapper {
-  width: 300px;
-  height: 300px;
-  margin-bottom: 20px;
-
-  .cropper-image {
-    height: 300px;
-    object-fit: contain;
-  }
+  min-height: 360px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.74);
 }
 
-.border-line {
-  height: 300px;
-  width: 3px;
-  background: #e5e9ef;
-  float: left;
-  position: relative;
-  left: 20px;
-}
-
-.preview-container {
-  width: 300px;
-  height: 300px;
-  text-align: center;
-
-  h3 {
-    font-size: 30px;
-    font-weight: 900;
-    margin-bottom: 10px;
-    color: #333;
-  }
-
-  .preview-image {
-    width: 137px;
-    height: 137px;
-    border-radius: 50%;
-    position: relative;
-    top: 25px;
-    background-color: rgb(0, 0, 0);
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  }
-}
-
-.tips {
-  display: block;
-  font-size: 16px;
-  line-height: 1.4; /* 明确设置行高 */
-  min-height: 24px; /* 强制最小高度 */
-  margin-top: 10px;
-  margin-bottom: 20px;
-}
-
-.cropper-bottom {
+.cropper-image {
   width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+}
+
+.avatar-editor__preview {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.74);
+  text-align: center;
+}
+
+.avatar-editor__preview-image {
+  width: 148px;
+  height: 148px;
+  justify-self: center;
+  object-fit: cover;
+  border-radius: 50%;
+  box-shadow: 0 18px 34px rgba(24, 90, 91, 0.1);
+}
+
+.avatar-editor__bottom {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
-.cancel-button {
-  padding: 12px 24px;
-  border: 1px solid #409eff;
-  border-radius: 8px;
-  background-color: transparent;
-  color: #409eff;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  width: 35%;
-
-  &:hover {
-    background-color: rgba(64, 158, 255, 0.1);
-  }
+.avatar-editor__button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.save-button {
-  padding: 12px 24px;
+.avatar-editor__ghost,
+.avatar-editor__primary {
   border: none;
-  border-radius: 8px;
-  background-color: #409eff;
-  color: white;
-  font-size: 16px;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
-  width: 35%;
+}
 
-  &:hover {
-    background-color: #3a8ee6;
+.avatar-editor__ghost {
+  background: rgba(20, 82, 84, 0.08);
+  color: #154144;
+}
+
+.avatar-editor__primary {
+  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  color: #fff;
+  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+}
+
+@media (max-width: 960px) {
+  .avatar-editor__head,
+  .avatar-editor__hero,
+  .avatar-editor__workspace {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .avatar-editor__current {
+    width: 124px;
+    height: 124px;
+    border-radius: 30px;
+  }
+
+  .avatar-editor__current-image {
+    width: 104px;
+    height: 104px;
+    border-radius: 24px;
+  }
+
+  .cropper-wrapper {
+    min-height: 280px;
   }
 }
 </style>

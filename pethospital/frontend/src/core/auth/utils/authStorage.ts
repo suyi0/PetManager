@@ -2,6 +2,7 @@
 const STORAGE_KEYS = {
   token: "auth_token",
   userType: "user_type",
+  userRole: "user_role",
   userName: "user_name",
   userBirthday: "user_birthday",
   userEmail: "user_email",
@@ -22,6 +23,7 @@ const STORAGE_KEYS = {
 const AUTH_STORAGE_KEYS = [
   STORAGE_KEYS.token,
   STORAGE_KEYS.userType,
+  STORAGE_KEYS.userRole,
   STORAGE_KEYS.userName,
   STORAGE_KEYS.userBirthday,
   STORAGE_KEYS.userEmail,
@@ -57,6 +59,7 @@ const clearKeysFromStorage = (
 type PersistedUser = {
   userName: string | null;
   userType: number | null;
+  userRole: string | null;
   userBirthday: string | null;
   userEmail: string | null;
   userPhone: string | null;
@@ -69,6 +72,7 @@ type PersistedUser = {
 
 type PersistedSession = {
   userType: number | null;
+  userRole: string | null;
   token: string | null;
   isLoggedIn: boolean;
 };
@@ -100,6 +104,7 @@ type AdminPortalBridge = {
   returnTo: string;
   token: string;
   userType: number;
+  userRole?: string;
   userName: string;
   userBirthday: string;
   userEmail: string;
@@ -215,6 +220,7 @@ export const authStorage = {
       return {
         userName: null,
         userType: null,
+        userRole: null,
         userBirthday: null,
         userEmail: null,
         userPhone: null,
@@ -227,10 +233,16 @@ export const authStorage = {
     }
 
     const userTypeRaw = activeStorage.getItem(STORAGE_KEYS.userType);
+    const payload = parseTokenPayload(token);
+    const payloadRole =
+      payload && typeof payload.type_name === "string"
+        ? payload.type_name
+        : null;
 
     return {
       userName: activeStorage.getItem(STORAGE_KEYS.userName),
       userType: userTypeRaw ? Number(userTypeRaw) : null,
+      userRole: activeStorage.getItem(STORAGE_KEYS.userRole) || payloadRole,
       userBirthday: activeStorage.getItem(STORAGE_KEYS.userBirthday),
       userEmail: activeStorage.getItem(STORAGE_KEYS.userEmail),
       userPhone: activeStorage.getItem(STORAGE_KEYS.userPhone),
@@ -248,6 +260,7 @@ export const authStorage = {
 
     return {
       userType: persistedUser.userType,
+      userRole: persistedUser.userRole,
       token: persistedUser.token,
       isLoggedIn: persistedUser.isLoggedIn,
     };
@@ -269,9 +282,13 @@ export const authStorage = {
   },
 
   // 保存会话信息到持久化存储
-  saveSession(payload: { token: string; userType?: number | null }) {
+  saveSession(payload: {
+    token: string;
+    userType?: number | null;
+    userRole?: string | null;
+  }) {
     const authStorageTarget =
-      payload.userType === 1 ? sessionStorage : localStorage;
+      payload.userRole === "超级管理员" ? sessionStorage : localStorage;
     const otherStorage =
       authStorageTarget === sessionStorage ? localStorage : sessionStorage;
 
@@ -281,6 +298,7 @@ export const authStorage = {
       STORAGE_KEYS.userType,
       payload.userType?.toString() || ""
     );
+    authStorageTarget.setItem(STORAGE_KEYS.userRole, payload.userRole || "");
   },
 
   // 保存当前用户信息到持久化存储
@@ -293,9 +311,10 @@ export const authStorage = {
     userAddressId?: string;
     userAddress?: string;
     userType?: number | null;
+    userRole?: string | null;
   }) {
     const authStorageTarget =
-      payload.userType === 1
+      payload.userRole === "超级管理员"
         ? sessionStorage
         : getActiveAuthStorage() ?? localStorage;
 
@@ -315,12 +334,14 @@ export const authStorage = {
       STORAGE_KEYS.userAddress,
       payload.userAddress || ""
     );
+    authStorageTarget.setItem(STORAGE_KEYS.userRole, payload.userRole || "");
   },
 
   // 存储用户信息
   saveUser(payload: {
     token: string;
     userType?: number | null;
+    userRole?: string | null;
     userName: string;
     userBirthday: string;
     userEmail: string;
@@ -332,9 +353,11 @@ export const authStorage = {
     this.saveSession({
       token: payload.token,
       userType: payload.userType,
+      userRole: payload.userRole,
     });
     this.saveCurrentUserProfile({
       userType: payload.userType,
+      userRole: payload.userRole,
       userName: payload.userName,
       userBirthday: payload.userBirthday,
       userEmail: payload.userEmail,
@@ -346,9 +369,15 @@ export const authStorage = {
   },
 
   // 更新令牌
-  updateToken(token: string, userType?: number | null) {
+  updateToken(
+    token: string,
+    userType?: number | null,
+    userRole?: string | null
+  ) {
     const activeStorage =
-      userType === 1 ? sessionStorage : getActiveAuthStorage() ?? localStorage;
+      userRole === "超级管理员"
+        ? sessionStorage
+        : getActiveAuthStorage() ?? localStorage;
 
     activeStorage.setItem(STORAGE_KEYS.token, token);
   },

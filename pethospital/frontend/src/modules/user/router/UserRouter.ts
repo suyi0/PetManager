@@ -4,7 +4,7 @@ const UserRoutes: Array<RouteRecordRaw> = [
   {
     path: "/user",
     component: () => import("../views/UserHome-module/UserLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [3] },
+    meta: { requiresAuth: true, allowedRoles: ["普通用户"] },
     children: [
       {
         path: "",
@@ -27,21 +27,21 @@ const UserRoutes: Array<RouteRecordRaw> = [
         name: "userPersonal",
         component: () =>
           import("../views/Personal-module/UserPersonalView.vue"),
-        meta: { requiresAuth: true, allowedRoles: [3] }, // 需要认证才能访问
+        meta: { requiresAuth: true, allowedRoles: ["普通用户"] }, // 需要认证才能访问
       },
       {
         path: "/user/order",
         component: () =>
           import("../views/Personal-module/order-module/orderView.vue"),
         name: "userOrder",
-        meta: { requiresAuth: true, allowedRoles: [3] }, // 需要认证才能访问
+        meta: { requiresAuth: true, allowedRoles: ["普通用户"] }, // 需要认证才能访问
       },
       {
         path: "/user/orderDetail",
         component: () =>
           import("../views/Personal-module/order-module/orderDetail.vue"),
         name: "userOrderDetail",
-        meta: { requiresAuth: true, allowedRoles: [3] }, // 需要认证才能访问
+        meta: { requiresAuth: true, allowedRoles: ["普通用户"] }, // 需要认证才能访问
       },
     ],
   },

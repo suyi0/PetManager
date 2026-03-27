@@ -4,6 +4,7 @@ import adminRouters from "@/modules/super-admin/router/superAdminRouter"; // 引
 import warehouseAdminRouters from "@/modules/warehouse-admin/router/warehouseAdminRouter";
 import doctorRouters from "@/modules/doctor/router/DoctorRouter";
 import { appStore } from "@/store/appStore";
+import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -43,8 +44,8 @@ router.beforeEach((to, from, next) => {
   // 只对需要认证的路由进行检查
   if (to.matched.some((record) => record.meta.requiresAuth)) {
     const allowedRoles = to.matched
-      .map((record) => record.meta.allowedRoles as number[] | undefined)
-      .filter((roles): roles is number[] => Array.isArray(roles))
+      .map((record) => record.meta.allowedRoles as string[] | undefined)
+      .filter((roles): roles is string[] => Array.isArray(roles))
       .flat();
 
     // 确保当前用户角色匹配
@@ -54,8 +55,11 @@ router.beforeEach((to, from, next) => {
         return;
       }
 
-      const currentUserType = appStore.state.auth.userType;
-      if (currentUserType && allowedRoles.includes(currentUserType)) {
+      const currentUserRole = resolveRoleName(
+        appStore.state.auth.userRole,
+        appStore.state.auth.userType
+      );
+      if (currentUserRole && allowedRoles.includes(currentUserRole)) {
         next();
         return;
       }

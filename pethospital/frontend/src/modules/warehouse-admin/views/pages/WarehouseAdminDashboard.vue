@@ -174,7 +174,7 @@
 
           <div class="panel-actions">
             <button class="ghost" @click="openCreatePreset">填入示例</button>
-            <button @click="saveEdit">发布入库</button>
+            <button @click="saveEdit">修改入库</button>
           </div>
         </section>
 

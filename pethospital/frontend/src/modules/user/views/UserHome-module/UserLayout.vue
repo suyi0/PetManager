@@ -127,16 +127,16 @@ const quickActions = computed(() => [
     hint: "查看资料与地址",
     to: `${basePath.value}/personal`,
   },
-  { label: "我的订单", hint: "订单与预约记录", to: `${basePath.value}/order` },
   {
-    label: "帮助中心",
-    hint: "了解服务与联系入口",
-    to: `${basePath.value}/home`,
+    label: "宠物档案",
+    hint: "维护宠物资料与护理备注",
+    to: `${basePath.value}/personal?tab=pet`,
   },
+  { label: "我的订单", hint: "订单与预约记录", to: `${basePath.value}/order` },
   {
     label: "账号安全",
     hint: "返回个人资料页维护信息",
-    to: `${basePath.value}/personal`,
+    to: `${basePath.value}/personal?tab=personal`,
   },
 ]);
 
@@ -191,11 +191,13 @@ const returnToSuperAdmin = async () => {
   store.commit("auth/setSession", {
     token: bridge.token,
     userType: bridge.userType,
+    userRole: bridge.userRole,
   });
   store.commit(
     "currentUser/setCurrentUser",
     {
       userType: bridge.userType,
+      userRole: bridge.userRole,
       userName: bridge.userName,
       userPhone: bridge.userPhone,
       userEmail: bridge.userEmail,

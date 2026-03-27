@@ -1,0 +1,73 @@
+digraph PetManagerMainArchitecture {
+  graph [
+    charset="UTF-8",
+    rankdir=TB,
+    splines=ortho,
+    nodesep=0.55,
+    ranksep=0.95,
+    pad=0.35,
+    bgcolor="white",
+    fontname="PingFang SC"
+  ];
+
+  node [
+    shape=box,
+    style="rounded",
+    color="#333333",
+    fontname="PingFang SC",
+    fontsize=18,
+    margin="0.22,0.12"
+  ];
+
+  edge [
+    color="#444444",
+    arrowsize=0.8,
+    penwidth=1.2
+  ];
+
+  system [label="宠物医院管理系统", fontsize=24, width=3.2, height=0.8];
+
+  user_mgmt [label="用户管理"];
+  reservation_mgmt [label="预约管理"];
+  order_mgmt [label="订单管理"];
+  inventory_mgmt [label="库存管理"];
+  homepage [label="系统主页"];
+
+  user_register [label="用户注册"];
+  password_reset [label="密码修改"];
+  role_mgmt [label="角色管理"];
+  permission_mgmt [label="用户授权"];
+
+  doctor_schedule [label="医生排班"];
+  reservation_record [label="预约记录"];
+
+  order_create [label="订单创建"];
+  order_query [label="订单查询"];
+
+  item_category [label="商品类别"];
+  item_manage [label="商品管理"];
+  price_strategy [label="价格策略"];
+  stock_info [label="库存信息"];
+
+  system -> user_mgmt;
+  system -> reservation_mgmt;
+  system -> order_mgmt;
+  system -> inventory_mgmt;
+  system -> homepage;
+
+  user_mgmt -> user_register;
+  user_mgmt -> password_reset;
+  user_mgmt -> role_mgmt;
+  user_mgmt -> permission_mgmt;
+
+  reservation_mgmt -> doctor_schedule;
+  reservation_mgmt -> reservation_record;
+
+  order_mgmt -> order_create;
+  order_mgmt -> order_query;
+
+  inventory_mgmt -> item_category;
+  inventory_mgmt -> item_manage;
+  inventory_mgmt -> price_strategy;
+  inventory_mgmt -> stock_info;
+}

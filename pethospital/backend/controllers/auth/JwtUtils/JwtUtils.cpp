@@ -121,7 +121,7 @@ std::string get_jwt_secret()
 }
 
 // 生成JWT
-std::string JwtUtils::createToken(int userId, const std::string &username, const int type_id, const std::string &identifier, bool isEmail = true)
+std::string JwtUtils::createToken(int userId, const std::string &username, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail)
 {
     try
     {
@@ -137,6 +137,7 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         payload_json["id"] = userId;
         payload_json["username"] = username;
         payload_json["type_id"] = type_id;
+        payload_json["type_name"] = type_name;
         payload_json["identifier"] = identifier;
 
         if(isEmail) {
@@ -147,7 +148,7 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
             payload_json["phone"] = identifier;
         }
         payload_json["iat"] = now;           // 签发时间
-        if(type_id == 1)
+        if(type_name == "超级管理员")
         {
             payload_json["exp"] = now + 300; // 超级管理员的JWT五分钟后过期
         }
@@ -332,10 +333,9 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
         // SELECT user_id FROM orders WHERE id = orderId
         // 然后比较查询结果中的user_id是否等于传入的userId
     
-        mysqlx::Table orders_table = dbManager->getSchema()->getTable("orders");
-        mysqlx::RowResult result = orders_table.select("user_id")
-                                       .where("id = :order_id")
-                                       .bind("order_id", orderId)
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT user_id FROM orders WHERE id = ?")
+                                       .bind(orderId)
                                        .execute();
     
         if (result.count() == 0)
@@ -366,18 +366,20 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
         mysqlx::RowResult result;
         if(isEmail)
         {
-            mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-            result = users_table.select("id", "type_id")
-                        .where("email = :email")
-                        .bind("email", identifier)
+            result = dbManager->getSession()
+                        ->sql("SELECT u.id, t.type FROM users AS u "
+                              "JOIN types AS t ON u.type_id = t.id "
+                              "WHERE u.email = ?")
+                        .bind(identifier)
                         .execute();
         }
         else
         {
-            mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
-            result = users_table.select("id", "type_id")
-                        .where("phone =:phone")
-                        .bind("phone", identifier)
+            result = dbManager->getSession()
+                        ->sql("SELECT u.id, t.type FROM users AS u "
+                              "JOIN types AS t ON u.type_id = t.id "
+                              "WHERE u.phone = ?")
+                        .bind(identifier)
                         .execute();
         }
     
@@ -389,8 +391,8 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
     
         auto row = result.fetchOne();
         int userOwnerId = row[0].get<int>();
-        int userTypeId = row[1].get<int>();
-        if(userTypeId == 1)                 // 超级管理员允许大部份的操作
+        std::string userRoleName = row[1].get<std::string>();
+        if(userRoleName == "超级管理员")                 // 超级管理员允许大部份的操作
         {
             return true;
         }
@@ -410,20 +412,23 @@ bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier,
     {
 
         mysqlx::RowResult result;
-        mysqlx::Table users_table = dbManager->getSchema()->getTable("users");
     
         if(isEmail)
         {
-            result = users_table.select("id", "type_id")
-                        .where("email = :email")
-                        .bind("email", identifier)
+            result = dbManager->getSession()
+                        ->sql("SELECT u.id, t.type FROM users AS u "
+                              "JOIN types AS t ON u.type_id = t.id "
+                              "WHERE u.email = ?")
+                        .bind(identifier)
                         .execute();
         }
         else
         {
-            result = users_table.select("id", "type_id")
-                        .where("phone =:phone")
-                        .bind("phone", identifier)
+            result = dbManager->getSession()
+                        ->sql("SELECT u.id, t.type FROM users AS u "
+                              "JOIN types AS t ON u.type_id = t.id "
+                              "WHERE u.phone = ?")
+                        .bind(identifier)
                         .execute();
         }
     
@@ -435,9 +440,9 @@ bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier,
     
         auto row = result.fetchOne();
         int foundUserId = row[0].get<int>();
-        int userTypeId = row[1].get<int>();
+        std::string userRoleName = row[1].get<std::string>();
     
-        if(foundUserId == userId && userTypeId == 1)                 // 只有超级管理员才能通过这个权限认证
+        if(foundUserId == userId && userRoleName == "超级管理员")                 // 只有超级管理员才能通过这个权限认证
         {
             return true;
         }
