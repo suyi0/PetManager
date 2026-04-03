@@ -1,5 +1,5 @@
 import { ActionContext, ActionTree } from "vuex";
-import { profileApi } from "@/modules/user/api/profileApi";
+import { profileApi } from "@/modules/user/api/userApi";
 import { State } from "@/store/types";
 import { CurrentUserState } from "./types";
 

@@ -10,7 +10,7 @@ crow::response ReservationHandler::createReservation(const crow::request &req, i
         // 检查数据库连接是否存在
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req, "Database connection not available");
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         // 检查必要字段是否存在
@@ -55,7 +55,7 @@ crow::response ReservationHandler::getReservations(const crow::request &req, int
         // 检查数据库连接是否存在
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req, "Database connection not available");
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         try
@@ -168,7 +168,7 @@ crow::response ReservationHandler::getDoctorList(const crow::request &req)
         // 检查数据库连接是否存在
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         try
@@ -325,7 +325,7 @@ crow::response ReservationHandler::deleteReservation(const crow::request &req, i
         // 检查数据库连接是否存在
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req, "Database connection not available");
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         mysqlx::SqlResult reservation_result = dbManager->getSession()

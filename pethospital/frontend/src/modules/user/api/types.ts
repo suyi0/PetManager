@@ -1,4 +1,4 @@
-import { State as RootState } from "@/store/types";
+import { DoctorDataItem } from "@/modules/doctor/api/types";
 
 export interface OrderRecordItem {
   id: number;
@@ -33,14 +33,11 @@ export interface OrderDetail extends OrderSummary {
   orderMedicines: OrderMedicine[];
 }
 
-export interface OrderState {
-  orders: OrderRecordItem[];
-  orderList: OrderSummary[];
-  orderDetails: Record<number, OrderDetail>;
-  loading: boolean;
-  error: string | null;
-}
-
-export interface OrderRootState extends RootState {
-  order: OrderState;
+export interface ReservationScheduleState {
+  doctorData: DoctorDataItem[];
+  year: string[];
+  month: string[];
+  day: string[];
+  weekday: string[];
+  slots: string[][];
 }

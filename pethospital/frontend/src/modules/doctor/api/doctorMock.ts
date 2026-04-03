@@ -8,44 +8,66 @@ import {
   SelectedMedicineItem,
 } from "./types";
 
+/**
+ * 医生工作台数据统计项列表
+ *  - label: 显示在界面上的统计项名称
+ *  - value: 统计项的数值
+ *  - hint: 对统计项数值的简要说明，显示在界面上以辅助理解数据来源和含义
+ */
 export const doctorWorkbenchStats: DoctorStat[] = [
   { label: "今日待接诊", value: 12, hint: "来自接诊队列" },
   { label: "今日预约", value: 8, hint: "待确认 + 已确认" },
   { label: "已开诊单", value: 16, hint: "今日订单记录" },
 ];
 
-export const queueItems: QueueItem[] = [
+/**
+ * 待接诊队列，展示最近到院且等待接诊的宠物。
+ */
+export const queueItemsMock: QueueItem[] = [
   {
-    id: 1,
+    id: 201,
     petName: "可乐",
     ownerName: "周女士",
     symptom: "呕吐、精神不振",
-    level: "优先",
-    arrivedAt: "09:15",
-  },
-  {
-    id: 2,
-    petName: "奶糖",
-    ownerName: "张先生",
-    symptom: "皮肤瘙痒复查",
-    level: "普通",
-    arrivedAt: "09:30",
-  },
-  {
-    id: 3,
-    petName: "布丁",
-    ownerName: "陈女士",
-    symptom: "腹泻、脱水风险",
     level: "紧急",
-    arrivedAt: "09:42",
+    arrivedAt: "09:45",
+    sex: "公",
+    breed: "柯基",
+    age: "4岁",
+  },
+  {
+    id: 202,
+    petName: "团子",
+    ownerName: "李先生",
+    symptom: "腹泻两天",
+    level: "优先",
+    arrivedAt: "10:05",
+    sex: "母",
+    breed: "布偶猫",
+    age: "2岁",
+  },
+  {
+    id: 203,
+    petName: "糯米",
+    ownerName: "吴女士",
+    symptom: "免疫复诊",
+    level: "普通",
+    arrivedAt: "10:20",
+    sex: "母",
+    breed: "银渐层",
+    age: "1岁",
   },
 ];
 
-export const reservationItems: ReservationItem[] = [
+/**
+ * 预约列表，包含预约的宠物信息、预约项目和当前状态
+ */
+export const reservationItemsMock: ReservationItem[] = [
   {
     id: 101,
     petName: "团子",
     ownerName: "李先生",
+    phone: "13800138000",
     doctorName: "林安 医师",
     schedule: "2026-03-10 14:00",
     project: "肠胃检查",
@@ -55,6 +77,7 @@ export const reservationItems: ReservationItem[] = [
     id: 102,
     petName: "糯米",
     ownerName: "吴女士",
+    phone: "13666661234",
     doctorName: "林安 医师",
     schedule: "2026-03-10 15:30",
     project: "免疫复诊",
@@ -64,6 +87,7 @@ export const reservationItems: ReservationItem[] = [
     id: 103,
     petName: "小七",
     ownerName: "王女士",
+    phone: "13988884321",
     doctorName: "林安 医师",
     schedule: "2026-03-10 16:10",
     project: "呼吸道复查",
@@ -71,7 +95,10 @@ export const reservationItems: ReservationItem[] = [
   },
 ];
 
-export const orderRecordItems: OrderRecordItem[] = [
+/**
+ * 订单记录列表，包含订单的基本信息和当前状态
+ */
+export const orderRecordItemsMock: OrderRecordItem[] = [
   {
     id: "ZD-0310-08",
     petName: "可乐",
@@ -101,7 +128,10 @@ export const orderRecordItems: OrderRecordItem[] = [
   },
 ];
 
-export const medicineSearchItems: MedicineSearchItem[] = [
+/**
+ * 仓库药品列表，包含药品的基本信息和库存状态
+ */
+export const medicineSearchItemsMock: MedicineSearchItem[] = [
   {
     id: 1,
     name: "胃复安片",
@@ -131,7 +161,10 @@ export const medicineSearchItems: MedicineSearchItem[] = [
   },
 ];
 
-export const selectedMedicines: SelectedMedicineItem[] = [
+/**
+ * 选中的药品列表，包含药品的基本信息和数量
+ */
+export const selectedMedicinesMock: SelectedMedicineItem[] = [
   {
     id: 1,
     name: "胃复安片",
@@ -150,7 +183,10 @@ export const selectedMedicines: SelectedMedicineItem[] = [
   },
 ];
 
-export const doctorUserProfiles: DoctorUserProfile[] = [
+/**
+ * 医生获取到的用户基本信息列表，包含用户的个人资料、宠物信息和订单记录等详细数据
+ */
+export const userProfilesMock: DoctorUserProfile[] = [
   {
     id: "owner-zhou",
     ownerName: "周女士",
@@ -167,7 +203,7 @@ export const doctorUserProfiles: DoctorUserProfile[] = [
         species: "犬",
         breed: "柯基",
         age: "4岁",
-        gender: "公",
+        sex: "公",
         weight: "11.2kg",
         orderIds: ["ZD-0310-08", "ZD-0227-03"],
       },
@@ -177,7 +213,7 @@ export const doctorUserProfiles: DoctorUserProfile[] = [
         species: "猫",
         breed: "橘猫",
         age: "2岁",
-        gender: "母",
+        sex: "母",
         weight: "4.3kg",
         orderIds: ["ZD-0215-06"],
       },
@@ -288,7 +324,7 @@ export const doctorUserProfiles: DoctorUserProfile[] = [
         species: "犬",
         breed: "比熊",
         age: "3岁",
-        gender: "母",
+        sex: "母",
         weight: "6.1kg",
         orderIds: ["ZD-0312-04", "ZD-0301-11"],
       },
@@ -357,7 +393,7 @@ export const doctorUserProfiles: DoctorUserProfile[] = [
         species: "猫",
         breed: "英短",
         age: "5岁",
-        gender: "公",
+        sex: "公",
         weight: "5.8kg",
         orderIds: ["ZD-0314-02", "ZD-0210-09"],
       },
@@ -367,7 +403,7 @@ export const doctorUserProfiles: DoctorUserProfile[] = [
         species: "猫",
         breed: "狸花",
         age: "1岁",
-        gender: "母",
+        sex: "母",
         weight: "3.7kg",
         orderIds: ["ZD-0308-10"],
       },

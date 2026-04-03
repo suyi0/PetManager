@@ -1,10 +1,18 @@
 import axios from "axios";
+import { unwrapList } from "@/api/response";
 import { authStorage } from "@/core/auth/utils/authStorage";
 import {
-  ApiListResponse,
+  superAdminSystemLogsMock,
+  superAdminUserLogsMock,
+  superAdminUserRowsMock,
+  superAdminWorkTimeRecordsMock,
+} from "./superAdminMock";
+import {
   CreateUserPayload,
   UserRow,
   WorkTimeRecord,
+  UserLogs,
+  SystemLogs,
 } from "./types";
 
 const http = axios.create({
@@ -20,25 +28,19 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-// 统一处理列表数据
-const unwrapList = <T>(payload: unknown): T[] => {
-  if (Array.isArray(payload)) return payload as T[]; // 假设 payload 是一个数组,直接返回数组
-  if (payload && typeof payload === "object") {
-    // 假设 payload 是一个对象,尝试将其进行 ApiListResponse<T>函数转换为数组
-    const maybe = payload as ApiListResponse<T>;
-    if (Array.isArray(maybe.data)) return maybe.data;
-  }
-  return []; // 其他情况返回一个空数组
-};
-
 export const superAdminApi = {
   refreshAdminSession() {
     return http.post("/api/auth/admin/refresh");
   },
 
   async getWorkTimeRecord(): Promise<WorkTimeRecord[]> {
-    const { data } = await http.get("/api/admin/getWorkTimeRecord");
-    return unwrapList<WorkTimeRecord>(data);
+    try {
+      const { data } = await http.get("/api/admin/getWorkTimeRecord");
+      const rows = unwrapList<WorkTimeRecord>(data);
+      return rows.length ? rows : superAdminWorkTimeRecordsMock;
+    } catch {
+      return superAdminWorkTimeRecordsMock;
+    }
   },
 
   async createDoctor(userID: number): Promise<void> {
@@ -66,8 +68,13 @@ export const superAdminApi = {
   },
 
   async getUsers(): Promise<UserRow[]> {
-    const { data } = await http.get("/api/allUser/getdata");
-    return unwrapList<UserRow>(data);
+    try {
+      const { data } = await http.get("/api/admin/getUsers");
+      const rows = unwrapList<UserRow>(data);
+      return rows.length ? rows : superAdminUserRowsMock;
+    } catch {
+      return superAdminUserRowsMock;
+    }
   },
 
   async createUser(payload: CreateUserPayload): Promise<void> {
@@ -76,5 +83,23 @@ export const superAdminApi = {
 
   async deleteUser(userID: number): Promise<void> {
     await http.post("/api/admin/deleteUser", { user_id: userID });
+  },
+
+  async getLogs(): Promise<{ userLogs: UserLogs[]; systemLogs: SystemLogs[] }> {
+    try {
+      const { data } = await http.get("/api/admin/getLogs");
+      const userLogs = unwrapList<UserLogs>(data?.userLogs);
+      const systemLogs = unwrapList<SystemLogs>(data?.systemLogs);
+
+      return {
+        userLogs: userLogs.length ? userLogs : superAdminUserLogsMock,
+        systemLogs: systemLogs.length ? systemLogs : superAdminSystemLogsMock,
+      };
+    } catch {
+      return {
+        userLogs: superAdminUserLogsMock,
+        systemLogs: superAdminSystemLogsMock,
+      };
+    }
   },
 };

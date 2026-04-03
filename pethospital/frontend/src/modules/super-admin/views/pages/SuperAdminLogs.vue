@@ -115,7 +115,7 @@
               <span>
                 <em
                   class="logs-badge"
-                  :class="badgeClass(item.category, item.userRole)"
+                  :class="badgeClass(item.category, getUserRole(item))"
                 >
                   {{ displayCategory(item) }}
                 </em>
@@ -166,7 +166,9 @@
             <article class="logs-detail__hero">
               <span
                 class="logs-badge"
-                :class="badgeClass(selectedLog.category, selectedLog.userRole)"
+                :class="
+                  badgeClass(selectedLog.category, getUserRole(selectedLog))
+                "
               >
                 {{ displayCategory(selectedLog) }}
               </span>
@@ -220,154 +222,64 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from "vue";
+import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import AppPager from "../../../../components/AppPager.vue";
+import { superAdminApi } from "../../api/superAdminApi";
+import {
+  UserLogs,
+  SystemLogs,
+  MajorTab,
+  UserRole,
+  LogCategory,
+  AuditLogItem,
+} from "../../api/types";
 
-type MajorTab = "user" | "system";
-type UserRole = "all" | "普通用户" | "医生" | "仓库管理员" | "超级管理员";
-type LogCategory = "用户类" | "系统类";
-type LogResult = "成功" | "警告" | "失败";
-
-interface AuditLog {
-  id: string;
-  category: LogCategory;
-  userRole?: Exclude<UserRole, "all">;
-  operator: string;
-  module: string;
-  action: string;
-  result: LogResult;
-  time: string;
-  summary: string;
-  details: string;
-  source: string;
-}
-
-const auditLogs: AuditLog[] = [
-  {
-    id: "user-001",
-    category: "用户类",
-    userRole: "普通用户",
-    operator: "体验用户 林小满",
-    module: "预约服务",
-    action: "创建预约",
-    result: "成功",
-    time: "2026-03-27 09:12",
-    summary: "普通用户提交了新的宠物医治预约。",
-    details: "预约医生为周予安，时间段为 2026-03-28 上午。",
-    source: "user_operations",
-  },
-  {
-    id: "user-002",
-    category: "用户类",
-    userRole: "医生",
-    operator: "值班医生 周予安",
-    module: "诊疗订单",
-    action: "创建订单",
-    result: "成功",
-    time: "2026-03-27 10:05",
-    summary: "医生为已接诊宠物创建了诊疗订单。",
-    details: "订单包含基础检查与两项药品明细。",
-    source: "user_operations",
-  },
-  {
-    id: "user-003",
-    category: "用户类",
-    userRole: "仓库管理员",
-    operator: "仓库管理员 陈序",
-    module: "库存管理",
-    action: "更新药品库存",
-    result: "警告",
-    time: "2026-03-27 10:48",
-    summary: "仓库管理员调整库存时触发低库存预警。",
-    details: "猫三联疫苗库存调整后仅剩 4 支，系统记录为预警状态。",
-    source: "user_operations",
-  },
-  {
-    id: "user-004",
-    category: "用户类",
-    userRole: "超级管理员",
-    operator: "超级管理员 沈知序",
-    module: "角色权限管理",
-    action: "授予仓库管理员",
-    result: "成功",
-    time: "2026-03-27 11:16",
-    summary: "超级管理员完成了一次仓库管理员权限授予。",
-    details: "目标用户 ID 为 18，角色由普通用户切换为仓库管理员。",
-    source: "user_operations",
-  },
-  {
-    id: "user-005",
-    category: "用户类",
-    userRole: "普通用户",
-    operator: "体验用户 林小满",
-    module: "个人资料",
-    action: "修改手机号",
-    result: "成功",
-    time: "2026-03-27 12:03",
-    summary: "普通用户完成手机号更新。",
-    details: "系统同步更新了 users 与 phones 两张表中的相关记录。",
-    source: "user_operations",
-  },
-  {
-    id: "sys-001",
-    category: "系统类",
-    operator: "系统任务调度器",
-    module: "迁移模块",
-    action: "回填 phones 数据",
-    result: "成功",
-    time: "2026-03-27 08:10",
-    summary: "系统启动阶段完成手机号关系表历史数据回填。",
-    details: "根据 users.phone 自动补全 phones.user_id 与 phone_lastfour。",
-    source: "system_operations",
-  },
-  {
-    id: "sys-002",
-    category: "系统类",
-    operator: "认证服务",
-    module: "短信服务",
-    action: "发送验证码",
-    result: "成功",
-    time: "2026-03-27 08:56",
-    summary: "系统通过阿里云短信服务完成验证码发送。",
-    details: "后端调用 Python 脚本，再通过阿里云 SDK 发送验证码。",
-    source: "system_operations",
-  },
-  {
-    id: "sys-003",
-    category: "系统类",
-    operator: "数据库连接层",
-    module: "MySQL 会话",
-    action: "重连数据库",
-    result: "警告",
-    time: "2026-03-27 09:41",
-    summary: "数据库连接短暂中断后自动恢复。",
-    details: "系统记录了一次连接恢复事件，未影响当前业务提交。",
-    source: "system_operations",
-  },
-  {
-    id: "sys-004",
-    category: "系统类",
-    operator: "预约服务",
-    module: "医生列表",
-    action: "补齐默认在线记录",
-    result: "成功",
-    time: "2026-03-27 10:20",
-    summary: "系统为缺失 onlineDoctors 记录的医生自动补齐默认数据。",
-    details: "默认写入当天离线状态，保证预约页可展示医生卡片。",
-    source: "system_operations",
-  },
-];
+const isUserLog = (item: AuditLogItem): item is UserLogs =>
+  item.category === "用户类";
 
 export default defineComponent({
   name: "SuperAdminLogs",
   components: { AppPager },
   setup() {
+    /**
+     * 用户类日志列表
+     */
+    const userLogsData = ref<UserLogs[]>([]);
+    /**
+     * 系统类日志列表
+     */
+    const systemLogsData = ref<SystemLogs[]>([]);
+    /**
+     * 获取日志的大类：用户类 / 系统类
+     */
     const activeMajorTab = ref<MajorTab>("user");
+    /**
+     * 获取用户类日志时的角色筛选：全部用户 / 普通用户 / 医生 / 仓库管理员 / 超级管理员
+       仅在用户类日志下生效，系统类日志不区分角色
+       选择“全部用户”时不过滤角色，选择其他选项时仅展示对应角色的日志
+     */
     const activeUserRole = ref<UserRole>("all");
+    // 搜索关键字
     const keyword = ref("");
-    const selectedLogId = ref<string>(auditLogs[0]?.id ?? "");
+    /**
+     *
+     * 选中的日志ID
+     */
+    const selectedLogId = ref<string>("");
+    // 日志列表分页
     const page = ref(1);
+    // 分页大小
     const pageSize = 5;
+
+    /**
+     * 调用API获取日志列表
+     */
+    const loadLogs = async () => {
+      const data = await superAdminApi.getLogs();
+      userLogsData.value = data.userLogs;
+      systemLogsData.value = data.systemLogs;
+      selectedLogId.value = filteredLogs.value[0]?.id ?? "";
+    };
 
     const majorTabs = [
       {
@@ -390,20 +302,27 @@ export default defineComponent({
       { key: "超级管理员" as UserRole, label: "超级管理员" },
     ];
 
-    const userLogs = computed(() =>
-      auditLogs.filter((item) => item.category === "用户类")
-    );
-    const systemLogs = computed(() =>
-      auditLogs.filter((item) => item.category === "系统类")
-    );
+    const userLogs = computed(() => userLogsData.value);
+    const systemLogs = computed(() => systemLogsData.value);
 
-    const filteredLogs = computed(() => {
+    /**
+     * 获取日志大类对应的角色和搜索关键词筛选后的结果列表,
+      结果按照时间降序排序，最新的日志排在前面
+     */
+    const filteredLogs = computed<AuditLogItem[]>(() => {
+      // 获取日志大类对应的基础数据
       const base =
         activeMajorTab.value === "user" ? userLogs.value : systemLogs.value;
 
+      // 筛选角色
       const byRole =
         activeMajorTab.value === "user" && activeUserRole.value !== "all"
-          ? base.filter((item) => item.userRole === activeUserRole.value)
+          ? base.filter((item) => {
+              if (isUserLog(item)) {
+                return item.userRole === activeUserRole.value;
+              }
+              return false;
+            })
           : base;
 
       const search = keyword.value.trim().toLowerCase();
@@ -416,9 +335,19 @@ export default defineComponent({
               item.action,
               item.summary,
               item.details,
-              item.userRole,
+              isUserLog(item) ? item.userRole : null,
             ]
+              // .filter() 方法用于从数组中筛选元素
+              // (field): field is string => typeof field === "string" 是一个类型守卫函数
+              // 它检查每个 field 是否为字符串类型
+              // field is string 告诉TypeScript将过滤后的结果视为字符串数组
+              // 最终返回原数组中所有字符串类型的元素
               .filter((field): field is string => typeof field === "string")
+
+              // .some() 方法用于检查数组中是否有至少一个元素满足指定条件
+              // 对数组中的每个 field 元素执行 field.toLowerCase().includes(search) 检查
+              // 将字段转换为小写后检查是否包含搜索关键词 search
+              // 如果任一字段包含搜索词则返回 true，否则返回 false
               .some((field) => field.toLowerCase().includes(search))
           );
 
@@ -444,7 +373,11 @@ export default defineComponent({
 
     const todayCount = computed(
       () =>
-        auditLogs.filter((item) => item.time.startsWith("2026-03-27")).length
+        userLogsData.value
+          .concat(systemLogsData.value)
+          .filter((item) =>
+            item.time.startsWith(new Date().toISOString().split("T")[0])
+          ).length
     );
 
     const panelTitle = computed(() => {
@@ -467,11 +400,14 @@ export default defineComponent({
         : `当前仅展示${activeUserRole.value}相关的操作记录，便于按角色快速审计。`;
     });
 
-    const displayCategory = (item: AuditLog) => {
+    const getUserRole = (item: AuditLogItem) =>
+      isUserLog(item) ? item.userRole : undefined;
+
+    const displayCategory = (item: AuditLogItem) => {
       if (item.category === "系统类") {
         return "系统日志";
       }
-      return item.userRole || "用户日志";
+      return getUserRole(item) || "用户日志";
     };
 
     const badgeClass = (
@@ -528,6 +464,10 @@ export default defineComponent({
       }
     });
 
+    onMounted(() => {
+      void loadLogs();
+    });
+
     return {
       activeMajorTab,
       activeUserRole,
@@ -545,6 +485,7 @@ export default defineComponent({
       todayCount,
       panelTitle,
       panelDescription,
+      getUserRole,
       displayCategory,
       badgeClass,
       resetFilters,

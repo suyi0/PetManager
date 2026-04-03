@@ -250,7 +250,7 @@ std::string getLastFileName(const std::string &url)
 
 nlohmann::json UserHandler::getUserData(const int &id)
 {
-    if (!dbManager || !dbManager->getSession())
+    if (!checkDbConnection())
     {
         return nlohmann::json::object();
     }
@@ -281,10 +281,11 @@ crow::response UserHandler::userLogin(const crow::request &req)
 {
     try
     {
-        // 解析请求体中的 JSON 数据
         crow::response res;
-        auto jsonOpt = parseJson(req, res);
-        nlohmann::json &request_body = jsonOpt.value();
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
 
         // 检查必要字段是否存在
         bool hasIdentifier = (request_body.find("identifier") != request_body.end());
@@ -610,11 +611,6 @@ crow::response UserHandler::userUpdate(const crow::request &req)
         if (!request_body_opt)
             return res;
         auto &request_body = request_body_opt.value();
-
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::system_error(req);
-        }
 
         int type_id = RoleTypeUtils::getRoleId(dbManager, "普通用户");
         std::string name = "";
@@ -1542,48 +1538,4 @@ crow::response UserHandler::upload(const crow::request &req, const std::string &
 
     res.end();
     return res;
-}
-
-// 获取用户数据
-crow::response UserHandler::getData(const crow::request &req)
-{
-    crow::response res;
-    // auto request_body_opt = validateRequest(req, res);
-    // if (!request_body_opt)
-    //     return res;
-    // auto &request_body = request_body_opt.value();
-
-    try
-    {
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, u.phone, u.email, CAST(u.birthday AS CHAR), "
-                                             "u.address_id, u.head_image "
-                                             "FROM users AS u "
-                                             "LEFT JOIN types AS t ON u.type_id = t.id")
-                                       .execute();
-
-        nlohmann::json response_data = nlohmann::json::array();
-        for (auto row : result)
-        {
-            nlohmann::json user_json;
-            user_json["id"] = row[0].get<int>();
-            user_json["type_id"] = row[1].isNull() ? nullptr : nlohmann::json(row[1].get<int>());
-            user_json["type_name"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
-            user_json["name"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
-            user_json["phone"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
-            user_json["email"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
-            user_json["birthday"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
-            user_json["address_id"] = row[7].isNull() ? nullptr : nlohmann::json(row[7].get<int>());
-            user_json["head_image"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
-
-            response_data.push_back(user_json);
-        }
-
-
-        return ResponseHelper::success(req, response_data);
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::operation_failed(req, "Failed to fetch data", e.what());
-    }
 }

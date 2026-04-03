@@ -1,0 +1,11 @@
+[Unit]
+Description=PetManager Frontend Build Helper
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/petmanager/pethospital/frontend
+ExecStart=/usr/bin/npm run build
+
+[Install]
+WantedBy=multi-user.target

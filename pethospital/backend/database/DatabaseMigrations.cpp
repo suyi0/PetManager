@@ -383,10 +383,19 @@ void run(DatabaseManagerInterface &dbManager)
         std::cout << "system_operations table does not exist. Creating..." << std::endl;
         session->sql("CREATE TABLE system_operations( "
                      "id INT AUTO_INCREMENT PRIMARY KEY, "
-                     "operation VARCHAR(100) NOT NULL, "
+                     "category ENUM('系统类') NOT NULL DEFAULT '系统类', "
+                     "system_role ENUM('普通用户', '医生', '仓库管理员', '超级管理员') NULL, "
+                     "operator VARCHAR(255) NOT NULL DEFAULT '系统', "
+                     "module VARCHAR(255) NOT NULL DEFAULT '', "
+                     "action VARCHAR(100) NOT NULL, "
+                     "result ENUM('成功', '警告', '失败') NOT NULL DEFAULT '成功', "
+                     "summary TEXT, "
                      "details TEXT, "
+                     "source VARCHAR(255) NOT NULL DEFAULT 'system_operations', "
                      "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                     "INDEX idx_time (created_at)"
+                     "INDEX idx_time (created_at), "
+                     "INDEX idx_system_category (category), "
+                     "INDEX idx_system_result (result)"
                      ")")
             .execute();
         std::cout << "system_operations table created successfully." << std::endl;
@@ -403,10 +412,19 @@ void run(DatabaseManagerInterface &dbManager)
         session->sql("CREATE TABLE user_operations( "
                      "id INT AUTO_INCREMENT PRIMARY KEY, "
                      "user_id INT NOT NULL, "
-                     "operation VARCHAR(100) NOT NULL, "
+                     "category ENUM('用户类') NOT NULL DEFAULT '用户类', "
+                     "user_role ENUM('普通用户', '医生', '仓库管理员', '超级管理员') NULL, "
+                     "operator VARCHAR(255) NOT NULL DEFAULT '', "
+                     "module VARCHAR(255) NOT NULL DEFAULT '', "
+                     "action VARCHAR(100) NOT NULL, "
+                     "result ENUM('成功', '警告', '失败') NOT NULL DEFAULT '成功', "
+                     "summary TEXT, "
                      "details TEXT, "
+                     "source VARCHAR(255) NOT NULL DEFAULT 'user_operations', "
                      "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                      "INDEX idx_user_time (user_id, created_at), "
+                     "INDEX idx_user_category (category), "
+                     "INDEX idx_user_result (result), "
                      "CONSTRAINT fk_user_operations_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE "
                      ")")
             .execute();

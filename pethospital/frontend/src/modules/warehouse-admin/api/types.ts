@@ -27,6 +27,13 @@ export interface WarehouseWarningItem {
   level: "normal" | "warning" | "danger";
 }
 
+export interface WarehouseLogItem {
+  time: string;
+  title: string;
+  description: string;
+  tag: string;
+}
+
 export interface ApiListResponse<T> {
   success?: boolean;
   data?: T[];

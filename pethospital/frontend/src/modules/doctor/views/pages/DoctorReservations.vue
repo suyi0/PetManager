@@ -1,7 +1,7 @@
 <template>
   <section class="panel">
     <div class="panel-head">
-      <div>
+      <div class="panel-head__intro">
         <h3>预约订单</h3>
         <p>以预约卡片快速处理待确认、已确认和到院状态。</p>
       </div>
@@ -15,6 +15,47 @@
       </div>
     </div>
 
+    <div class="search-bar">
+      <label class="search-field">
+        <span class="search-field__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle
+              cx="11"
+              cy="11"
+              r="6.5"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M16 16L21 21"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </span>
+        <input
+          v-model.trim="searchKeyword"
+          type="text"
+          inputmode="numeric"
+          placeholder="输入完整手机号或后四位"
+        />
+      </label>
+      <div class="search-meta">
+        <span class="search-meta__count">
+          {{ searchSummary }}
+        </span>
+        <button
+          v-if="searchKeyword"
+          type="button"
+          class="search-meta__reset"
+          @click="searchKeyword = ''"
+        >
+          清空
+        </button>
+      </div>
+    </div>
+
     <div class="cards">
       <article v-for="item in visibleItems" :key="item.id" class="card">
         <div class="card-top">
@@ -22,6 +63,7 @@
           <span class="status">{{ item.status }}</span>
         </div>
         <p>{{ item.ownerName }} · {{ item.project }}</p>
+        <p class="card-phone">手机号 {{ item.phone }}</p>
         <small>{{ item.schedule }} · {{ item.doctorName }}</small>
       </article>
       <article
@@ -30,7 +72,7 @@
         class="card card--placeholder"
       ></article>
       <div v-if="visibleItems.length === 0" class="empty-state">
-        当前页暂无预约记录。
+        {{ emptyStateText }}
       </div>
     </div>
   </section>
@@ -39,23 +81,48 @@
 <script lang="ts">
 import { computed, defineComponent, ref, watch } from "vue";
 import AppPager from "../../../../components/AppPager.vue";
-import { reservationItems } from "../../api/doctorMock";
+import { reservationItemsMock } from "../../api/doctorMock";
 
 export default defineComponent({
   name: "DoctorReservations",
   components: { AppPager },
   setup() {
-    const items = reservationItems;
+    const items = reservationItemsMock;
     const page = ref(1);
+    const searchKeyword = ref("");
     const pageSize = 9;
 
+    const normalizedSearchKeyword = computed(() =>
+      searchKeyword.value.replace(/\D/g, "")
+    );
+
+    const filteredItems = computed(() => {
+      const keyword = normalizedSearchKeyword.value;
+
+      if (!keyword) {
+        return items;
+      }
+
+      return items.filter((item) => {
+        if (keyword.length === 4) {
+          return item.phone.endsWith(keyword);
+        }
+
+        if (keyword.length >= 11) {
+          return item.phone === keyword;
+        }
+
+        return item.phone.includes(keyword);
+      });
+    });
+
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(items.length / pageSize))
+      Math.max(1, Math.ceil(filteredItems.value.length / pageSize))
     );
 
     const visibleItems = computed(() => {
       const start = (page.value - 1) * pageSize;
-      return items.slice(start, start + pageSize);
+      return filteredItems.value.slice(start, start + pageSize);
     });
 
     const placeholderCards = computed(() =>
@@ -67,17 +134,38 @@ export default defineComponent({
           )
     );
 
+    const searchSummary = computed(() => {
+      if (!normalizedSearchKeyword.value) {
+        return `共 ${items.length} 条预约记录`;
+      }
+
+      return `匹配到 ${filteredItems.value.length} 条预约记录`;
+    });
+
+    const emptyStateText = computed(() =>
+      normalizedSearchKeyword.value
+        ? "没有找到符合该手机号的预约，请检查完整号码或后四位。"
+        : "当前页暂无预约记录。"
+    );
+
     watch(totalPages, (value) => {
       if (page.value > value) {
         page.value = value;
       }
     });
 
+    watch(searchKeyword, () => {
+      page.value = 1;
+    });
+
     return {
       page,
+      searchKeyword,
       totalPages,
       visibleItems,
       placeholderCards,
+      searchSummary,
+      emptyStateText,
     };
   },
 });
@@ -105,6 +193,11 @@ export default defineComponent({
   gap: 12px;
 }
 
+.panel-head__intro {
+  display: grid;
+  gap: 6px;
+}
+
 .panel-head h3,
 .panel-head p {
   margin: 0;
@@ -120,6 +213,86 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background: radial-gradient(
+      circle at left top,
+      rgba(215, 233, 225, 0.72),
+      transparent 55%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(241, 249, 244, 0.88)
+    );
+  border: 1px solid rgba(163, 192, 184, 0.24);
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  padding: 0 2px;
+}
+
+.search-field__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #426260;
+  background: rgba(223, 238, 232, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(163, 192, 184, 0.2);
+}
+
+.search-field__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.search-field input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #173739;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.search-field input::placeholder {
+  color: #7d938d;
+}
+
+.search-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-meta__count {
+  font-size: 13px;
+  color: #5d7671;
+  white-space: nowrap;
+}
+
+.search-meta__reset {
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #355c5f;
+  box-shadow: none;
 }
 
 button {
@@ -201,6 +374,13 @@ button:disabled {
   z-index: 1;
 }
 
+.card-phone {
+  margin-top: 10px !important;
+  color: #355658 !important;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
 .card small {
   margin-top: 8px;
 }
@@ -226,10 +406,19 @@ button:disabled {
     align-items: flex-start;
   }
 
+  .search-bar,
   .panel-head__actions,
   .panel-head__actions {
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .search-bar {
+    align-items: stretch;
+  }
+
+  .search-meta {
+    justify-content: space-between;
   }
 
   .cards {

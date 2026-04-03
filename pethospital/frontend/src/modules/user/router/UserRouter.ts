@@ -32,14 +32,16 @@ const UserRoutes: Array<RouteRecordRaw> = [
       {
         path: "/user/order",
         component: () =>
-          import("../views/Personal-module/order-module/orderView.vue"),
+          import("../views/UserHome-module/HomeNav/order-module/orderView.vue"),
         name: "userOrder",
         meta: { requiresAuth: true, allowedRoles: ["普通用户"] }, // 需要认证才能访问
       },
       {
         path: "/user/orderDetail",
         component: () =>
-          import("../views/Personal-module/order-module/orderDetail.vue"),
+          import(
+            "../views/UserHome-module/HomeNav/order-module/orderDetail.vue"
+          ),
         name: "userOrderDetail",
         meta: { requiresAuth: true, allowedRoles: ["普通用户"] }, // 需要认证才能访问
       },
@@ -75,13 +77,15 @@ const UserRoutes: Array<RouteRecordRaw> = [
         path: "order",
         name: "previewUserOrder",
         component: () =>
-          import("../views/Personal-module/order-module/orderView.vue"),
+          import("../views/UserHome-module/HomeNav/order-module/orderView.vue"),
       },
       {
         path: "orderDetail",
         name: "previewUserOrderDetail",
         component: () =>
-          import("../views/Personal-module/order-module/orderDetail.vue"),
+          import(
+            "../views/UserHome-module/HomeNav/order-module/orderDetail.vue"
+          ),
       },
     ],
   },

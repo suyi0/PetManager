@@ -72,7 +72,7 @@
           <small>当前宠物</small>
           <h4>{{ selectedPet.name }}</h4>
           <p>
-            {{ selectedPet.gender }} · {{ selectedPet.age }} ·
+            {{ selectedPet.sex }} · {{ selectedPet.age }} ·
             {{ selectedPet.weight }}
           </p>
         </div>
@@ -155,7 +155,7 @@
 <script lang="ts">
 import { computed, defineComponent, ref, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { doctorUserProfiles } from "../../api/doctorMock";
+import { userProfilesMock } from "../../api/doctorMock";
 
 export default defineComponent({
   name: "DoctorUserProfile",
@@ -167,7 +167,7 @@ export default defineComponent({
     );
 
     const profile = computed(() =>
-      doctorUserProfiles.find((item) => item.id === route.params.userId)
+      userProfilesMock.find((item) => item.id === route.params.userId)
     );
     const selectedPetId = ref("");
 

@@ -36,6 +36,16 @@ const doctorRoutes: Array<RouteRecordRaw> = [
         component: () => import("../views/pages/DoctorCreateOrder.vue"),
       },
       {
+        path: "drafts",
+        name: "doctorDrafts",
+        component: () => import("../views/pages/DoctorDrafts.vue"),
+      },
+      {
+        path: "create-order/:queueId",
+        name: "doctorCreateOrderFromQueue",
+        component: () => import("../views/pages/DoctorCreateOrder.vue"),
+      },
+      {
         path: "users/:userId",
         name: "doctorUserProfile",
         component: () => import("../views/pages/DoctorUserProfile.vue"),
@@ -78,6 +88,16 @@ const doctorRoutes: Array<RouteRecordRaw> = [
       {
         path: "create-order",
         name: "previewDoctorCreateOrder",
+        component: () => import("../views/pages/DoctorCreateOrder.vue"),
+      },
+      {
+        path: "drafts",
+        name: "previewDoctorDrafts",
+        component: () => import("../views/pages/DoctorDrafts.vue"),
+      },
+      {
+        path: "create-order/:queueId",
+        name: "previewDoctorCreateOrderFromQueue",
         component: () => import("../views/pages/DoctorCreateOrder.vue"),
       },
       {

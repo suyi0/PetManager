@@ -1,10 +1,8 @@
 import axios from "axios";
+import { unwrapList } from "@/api/response";
 import { authStorage } from "@/core/auth/utils/authStorage";
-import {
-  ApiListResponse,
-  WarehouseCreatePayload,
-  WarehouseItem,
-} from "./types";
+import { warehouseItemsMock } from "./warehouseAdminMock";
+import { WarehouseCreatePayload, WarehouseItem } from "./types";
 
 const http = axios.create({
   baseURL: "",
@@ -19,36 +17,43 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
-const unwrapList = <T>(payload: unknown): T[] => {
-  if (Array.isArray(payload)) return payload as T[];
-  if (payload && typeof payload === "object") {
-    const maybe = payload as ApiListResponse<T>;
-    if (Array.isArray(maybe.data)) return maybe.data;
-  }
-  return [];
-};
-
 export const warehouseAdminApi = {
   async getAllItems(): Promise<WarehouseItem[]> {
-    const { data } = await http.get("/api/warehouseManager/select");
-    return unwrapList<WarehouseItem>(data);
+    try {
+      const { data } = await http.get("/api/warehouseManager/select");
+      const rows = unwrapList<WarehouseItem>(data);
+      return rows.length ? rows : warehouseItemsMock;
+    } catch {
+      return warehouseItemsMock;
+    }
   },
 
   async getItemById(id: number): Promise<WarehouseItem | null> {
-    const { data } = await http.get(
-      `/api/warehouseManager/select/dataID/${id}`
-    );
-    if (data && typeof data === "object" && !Array.isArray(data)) {
-      return data as WarehouseItem;
+    try {
+      const { data } = await http.get(
+        `/api/warehouseManager/select/dataID/${id}`
+      );
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        return data as WarehouseItem;
+      }
+    } catch {
+      return warehouseItemsMock.find((item) => item.id === id) || null;
     }
-    return null;
+    return warehouseItemsMock.find((item) => item.id === id) || null;
   },
 
   async getItemsByName(name: string): Promise<WarehouseItem[]> {
-    const { data } = await http.get(
-      `/api/warehouseManager/select/item_name/${encodeURIComponent(name)}`
-    );
-    return unwrapList<WarehouseItem>(data);
+    try {
+      const { data } = await http.get(
+        `/api/warehouseManager/select/item_name/${encodeURIComponent(name)}`
+      );
+      const rows = unwrapList<WarehouseItem>(data);
+      return rows.length
+        ? rows
+        : warehouseItemsMock.filter((item) => item.item_name.includes(name));
+    } catch {
+      return warehouseItemsMock.filter((item) => item.item_name.includes(name));
+    }
   },
 
   async createItem(payload: WarehouseCreatePayload): Promise<void> {

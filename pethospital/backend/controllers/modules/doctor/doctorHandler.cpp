@@ -6,10 +6,10 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
 {
     try
     {
-        // crow::response res;
-        // auto request_body_opt = validateRequest(req, res);
-        // if (!request_body_opt) return res;
-        // auto& request_body = request_body_opt.value();
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
 
         mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT u.name, u.user_specialty, u.user_introduction, u.user_level "
                                                                 "FROM users as u "
@@ -44,7 +44,7 @@ crow::response doctorHandler::getDutyStatus(const crow::request &req, int &userI
     {
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
@@ -138,7 +138,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
     {
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         if (data.empty())
@@ -223,7 +223,7 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId
     {
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         boost::posix_time::ptime onlineDateTime = boost::posix_time::second_clock::local_time();
@@ -303,7 +303,7 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userI
     {
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         boost::posix_time::ptime offlineDateTime = boost::posix_time::microsec_clock::local_time();

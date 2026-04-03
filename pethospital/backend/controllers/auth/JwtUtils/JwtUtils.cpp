@@ -1,6 +1,43 @@
 #include "JwtUtils.h"
 #include <cstring>
 
+namespace
+{
+    // 解析并验证JWT Token的有效性，返回解析后的payload数据
+    std::optional<nlohmann::json> parseValidatedTokenPayload(const std::string &token)
+    {
+        size_t first_dot = token.find('.');
+        size_t second_dot = token.find('.', first_dot + 1);
+
+        if (first_dot == std::string::npos || second_dot == std::string::npos)
+        {
+            return std::nullopt;
+        }
+
+        std::string header_encoded = token.substr(0, first_dot);
+        std::string payload_encoded = token.substr(first_dot + 1, second_dot - first_dot - 1);
+        std::string signature_encoded = token.substr(second_dot + 1);
+
+        std::string secret_key = get_jwt_secret();
+        if (!verify_jwt_signature(header_encoded, payload_encoded, signature_encoded, secret_key))
+        {
+            return std::nullopt;
+        }
+
+        // 解码payload，解析JSON数据为nlohmann::json对象
+        std::string payload_decoded = url_safe_base64_decode(payload_encoded);
+        nlohmann::json payload_json = nlohmann::json::parse(payload_decoded);
+
+        time_t now = time(nullptr);
+        if (payload_json.contains("exp") && payload_json["exp"].get<time_t>() < now)
+        {
+            return std::nullopt;
+        }
+
+        return payload_json;
+    }
+}
+
 // URL安全的Base64编码函数
 std::string url_safe_base64_encode(const std::string &data)
 {
@@ -126,11 +163,11 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
     try
     {
         // JWT由三部分组成: header.payload.signature
-    
+
         // 1. Header
         std::string header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
         std::string encoded_header = url_safe_base64_encode(header);
-    
+
         // 2. Payload
         time_t now = time(nullptr);
         nlohmann::json payload_json;
@@ -140,36 +177,39 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         payload_json["type_name"] = type_name;
         payload_json["identifier"] = identifier;
 
-        if(isEmail) {
+        if (isEmail)
+        {
             payload_json["login_type"] = "email";
             payload_json["email"] = identifier;
-        } else {
+        }
+        else
+        {
             payload_json["login_type"] = "phone";
             payload_json["phone"] = identifier;
         }
-        payload_json["iat"] = now;           // 签发时间
-        if(type_name == "超级管理员")
+        payload_json["iat"] = now; // 签发时间
+        if (type_name == "超级管理员")
         {
             payload_json["exp"] = now + 300; // 超级管理员的JWT五分钟后过期
         }
         else
         {
-            payload_json["exp"] = now + 604800;  // 一周有效
+            payload_json["exp"] = now + 604800; // 一周有效
         }
-    
+
         std::string payload = payload_json.dump();
         std::string encoded_payload = url_safe_base64_encode(payload); // 对负载进行URL安全的Base64编码
-    
+
         // 3. Signature (使用HMAC-SHA256算法)
         std::string signature_data = encoded_header + "." + encoded_payload;
-    
+
         // 获取JWT密钥
         std::string secret_key = get_jwt_secret();
-    
+
         // 使用HMAC-SHA256生成签名
         unsigned char signature[EVP_MAX_MD_SIZE]; // 定义签名长度为EVP_MAX_MD_SIZE = 64 的缓冲区
         unsigned int signature_len;
-    
+
         // HMAC(EVP_sha256(), key, key_len, data, data_len, md, md_len)
         // key - 密钥, key_len - 密钥长度
         // data - 待签名的数据, data_len - 待签名的数据长度
@@ -182,13 +222,15 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         {
             throw std::runtime_error("HMAC signature generation failed");
         }
-    
+
         // 对签名进行URL安全的Base64编码
         std::string signature_str(reinterpret_cast<char *>(signature), 32); // SHA256 produces 32 bytes
         std::string encoded_signature = url_safe_base64_encode(signature_str);
-    
+
         return encoded_header + "." + encoded_payload + "." + encoded_signature;
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "Token生成错误: " << e.what() << std::endl;
         throw; // 重新抛出异常
     }
@@ -213,114 +255,76 @@ bool verify_jwt_signature(const std::string &header, const std::string &payload,
     return expected_signature_str == actual_signature;
 }
 
-// 解析JWT token获取用户ID
+// 解析Token并提取Claims信息
+std::optional<JwtUtils::TokenClaims> JwtUtils::getTokenClaims(const std::string &token)
+{
+    try
+    {
+        auto payload_opt = parseValidatedTokenPayload(token);
+        if (!payload_opt)
+        {
+            return std::nullopt;
+        }
+
+        const auto &payload_json = payload_opt.value();
+        if (!payload_json.contains("id") || !payload_json["id"].is_number_integer())
+        {
+            return std::nullopt;
+        }
+
+        TokenClaims claims{
+            payload_json["id"].get<int>(),
+            payload_json.contains("type_id") && payload_json["type_id"].is_number_integer() ? payload_json["type_id"].get<int>() : 0,
+            payload_json.contains("type_name") && payload_json["type_name"].is_string() ? payload_json["type_name"].get<std::string>() : "",
+            "",
+            false};
+
+        if (payload_json.contains("identifier") && payload_json["identifier"].is_string())
+        {
+            claims.identifier = payload_json["identifier"].get<std::string>();
+        }
+        else if (payload_json.contains("email") && payload_json["email"].is_string())
+        {
+            claims.identifier = payload_json["email"].get<std::string>();
+            claims.isEmailLogin = true;
+        }
+        else if (payload_json.contains("phone") && payload_json["phone"].is_string())
+        {
+            claims.identifier = payload_json["phone"].get<std::string>();
+            claims.isEmailLogin = false;
+        }
+
+        if (payload_json.contains("login_type") && payload_json["login_type"].is_string())
+        {
+            claims.isEmailLogin = payload_json["login_type"].get<std::string>() == "email";
+        }
+
+        return claims;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "JWT claims解析错误: " << e.what() << std::endl;
+        return std::nullopt;
+    }
+}
+
+// 获取用户存储在JWT中的用户ID
 int JwtUtils::getUserIdFromToken(const std::string &token)
 {
     try
     {
-        // 分割JWT的三个部分
-        size_t first_dot = token.find('.');
-        size_t second_dot = token.find('.', first_dot + 1);
-
-        if (first_dot == std::string::npos || second_dot == std::string::npos)
+        auto claims = getTokenClaims(token);
+        if (claims)
         {
-            return -1; // 无效的JWT格式
+            return claims->userId;
         }
 
-        std::string header_encoded = token.substr(0, first_dot);
-        std::string payload_encoded = token.substr(first_dot + 1, second_dot - first_dot - 1);
-        std::string signature_encoded = token.substr(second_dot + 1);
-
-        // 验证签名
-        std::string secret_key = get_jwt_secret();
-        if (!verify_jwt_signature(header_encoded, payload_encoded, signature_encoded, secret_key))
-        {
-            return -2; // 签名验证失败
-        }
-
-        // 解码payload
-        std::string payload_decoded = url_safe_base64_decode(payload_encoded);
-        nlohmann::json payload_json = nlohmann::json::parse(payload_decoded);
-
-        // 检查过期时间
-        time_t now = time(nullptr);
-        if (payload_json.contains("exp") && payload_json["exp"].get<time_t>() < now)
-        {
-            return -3; // token已过期
-        }
-
-        if (payload_json.contains("id") && payload_json["id"].is_number_integer())
-        {
-            return payload_json["id"].get<int>();
-        }
-
-        return -4; // 用户不存在
+        return -1;
     }
     catch (const std::exception &e)
     {
         std::cerr << "JWT解析错误: " << e.what() << std::endl;
-        return -5; // 解析异常
-    }
-}
-
-// 获取用户
-std::string JwtUtils::getUserIdentifierFromToken(const std::string &token)
-{
-    try
-    {
-        // 分割JWT的三个部分
-        size_t first_dot = token.find('.');
-        size_t second_dot = token.find('.', first_dot + 1);
-
-        if (first_dot == std::string::npos || second_dot == std::string::npos)
-        {
-            return ""; // 无效的JWT格式
-        }
-
-        std::string header_encoded = token.substr(0, first_dot);
-        std::string payload_encoded = token.substr(first_dot + 1, second_dot - first_dot - 1);
-        std::string signature_encoded = token.substr(second_dot + 1);
-
-        // 验证签名
-        std::string secret_key = get_jwt_secret();
-        if (!verify_jwt_signature(header_encoded, payload_encoded, signature_encoded, secret_key))
-        {
-            return ""; // 签名验证失败
-        }
-
-        // 解码payload
-        std::string payload_decoded = url_safe_base64_decode(payload_encoded);
-        nlohmann::json payload_json = nlohmann::json::parse(payload_decoded);
-
-        // 检查过期时间
-        time_t now = time(nullptr);
-        if (payload_json.contains("exp") && payload_json["exp"].get<time_t>() < now)
-        {
-            return ""; // token已过期
-        }
-
-        // 直接从payload中获取identifier字段
-        if (payload_json.contains("identifier"))
-        {
-            return payload_json["identifier"].get<std::string>();
-        }
-
-        // 如果没有identifier字段，尝试从email或phone字段获取
-        if (payload_json.contains("email"))
-        {
-            return payload_json["email"].get<std::string>();
-        }
-        else if (payload_json.contains("phone"))
-        {
-            return payload_json["phone"].get<std::string>();
-        }
-
-        return ""; // 用户不存在
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "JWT解析错误: " << e.what() << std::endl;
-        return ""; // 解析异常
+        return -1;
     }
 }
 
@@ -332,27 +336,27 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
         // 需要执行SQL查询：
         // SELECT user_id FROM orders WHERE id = orderId
         // 然后比较查询结果中的user_id是否等于传入的userId
-    
+
         mysqlx::SqlResult result = dbManager->getSession()
                                        ->sql("SELECT user_id FROM orders WHERE id = ?")
                                        .bind(orderId)
                                        .execute();
-    
+
         if (result.count() == 0)
         {
             return false; // 订单不存在
         }
-    
+
         auto row = result.fetchOne();
         int orderOwnerId = row[0].get<int>();
-    
+
         return orderOwnerId == userId; // 验证所有权
     }
-    catch (const std::exception& e) {
+    catch (const std::exception &e)
+    {
         std::cerr << "Error in isUserAuthorizedForOrder: " << e.what() << std::endl;
         return false;
     }
-    
 }
 
 // 验证用户对用户表单的访问权限
@@ -362,44 +366,45 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
     {
         // 需要执行SQL查询：
         // SELECT user_id From users WHERE id = orderId
-    
+
         mysqlx::RowResult result;
-        if(isEmail)
+        if (isEmail)
         {
             result = dbManager->getSession()
-                        ->sql("SELECT u.id, t.type FROM users AS u "
-                              "JOIN types AS t ON u.type_id = t.id "
-                              "WHERE u.email = ?")
-                        .bind(identifier)
-                        .execute();
+                         ->sql("SELECT u.id, t.type FROM users AS u "
+                               "JOIN types AS t ON u.type_id = t.id "
+                               "WHERE u.email = ?")
+                         .bind(identifier)
+                         .execute();
         }
         else
         {
             result = dbManager->getSession()
-                        ->sql("SELECT u.id, t.type FROM users AS u "
-                              "JOIN types AS t ON u.type_id = t.id "
-                              "WHERE u.phone = ?")
-                        .bind(identifier)
-                        .execute();
+                         ->sql("SELECT u.id, t.type FROM users AS u "
+                               "JOIN types AS t ON u.type_id = t.id "
+                               "WHERE u.phone = ?")
+                         .bind(identifier)
+                         .execute();
         }
-    
+
         // 检查是否找到用户
-        if(result.count() == 0)
+        if (result.count() == 0)
         {
             return false;
         }
-    
+
         auto row = result.fetchOne();
         int userOwnerId = row[0].get<int>();
         std::string userRoleName = row[1].get<std::string>();
-        if(userRoleName == "超级管理员")                 // 超级管理员允许大部份的操作
+        if (userRoleName == "超级管理员") // 超级管理员允许大部份的操作
         {
             return true;
         }
-    
-        return userOwnerId == userId;       // 普通用户和医生只能操作自己
+
+        return userOwnerId == userId; // 普通用户和医生只能操作自己
     }
-    catch (const std::exception& e) {
+    catch (const std::exception &e)
+    {
         std::cerr << "Error in isUserAuthorizedForUserForm: " << e.what() << std::endl;
         return false;
     }
@@ -412,37 +417,37 @@ bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier,
     {
 
         mysqlx::RowResult result;
-    
-        if(isEmail)
+
+        if (isEmail)
         {
             result = dbManager->getSession()
-                        ->sql("SELECT u.id, t.type FROM users AS u "
-                              "JOIN types AS t ON u.type_id = t.id "
-                              "WHERE u.email = ?")
-                        .bind(identifier)
-                        .execute();
+                         ->sql("SELECT u.id, t.type FROM users AS u "
+                               "JOIN types AS t ON u.type_id = t.id "
+                               "WHERE u.email = ?")
+                         .bind(identifier)
+                         .execute();
         }
         else
         {
             result = dbManager->getSession()
-                        ->sql("SELECT u.id, t.type FROM users AS u "
-                              "JOIN types AS t ON u.type_id = t.id "
-                              "WHERE u.phone = ?")
-                        .bind(identifier)
-                        .execute();
+                         ->sql("SELECT u.id, t.type FROM users AS u "
+                               "JOIN types AS t ON u.type_id = t.id "
+                               "WHERE u.phone = ?")
+                         .bind(identifier)
+                         .execute();
         }
-    
+
         // 检查是否找到用户
-        if(result.count() == 0)
+        if (result.count() == 0)
         {
             return false;
         }
-    
+
         auto row = result.fetchOne();
         int foundUserId = row[0].get<int>();
         std::string userRoleName = row[1].get<std::string>();
-    
-        if(foundUserId == userId && userRoleName == "超级管理员")                 // 只有超级管理员才能通过这个权限认证
+
+        if (foundUserId == userId && userRoleName == "超级管理员") // 只有超级管理员才能通过这个权限认证
         {
             return true;
         }
@@ -451,7 +456,8 @@ bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier,
             return false;
         }
     }
-    catch (const std::exception& e) {
+    catch (const std::exception &e)
+    {
         std::cerr << "Error in isUserAuthorizedForAdminForm: " << e.what() << std::endl;
         return false;
     }

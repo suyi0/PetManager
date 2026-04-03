@@ -21,7 +21,7 @@ This module is implemented without touching user-side pages and routes.
 - `POST /admin/createDoctor`
 - `POST /admin/deleteDoctor`
 - `POST /admin/changeDoctorWorkTime`
-- `GET /api/allUser/getdata`
+- `GET /api/admin/getUsers`
 
 ## Notes
 

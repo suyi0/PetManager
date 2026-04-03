@@ -86,6 +86,8 @@
         </div>
         <treatSlots
           :active-tab="normalizedSlotTab"
+          :doctor-data="doctorData"
+          :schedule-data="scheduleData"
           :switchTab="switchTab"
           @close="close"
           @cancle="cancel"
@@ -100,14 +102,21 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
 import treatSlots from "@/modules/user/views/Services-module/treatSlots.vue";
-
-const store = useStore(storeKey);
+import { reservationApi } from "@/modules/user/api/userApi";
+import { DoctorDataItem } from "@/modules/doctor/api/types";
+import { ReservationScheduleState } from "@/modules/user/api/types";
 
 const activeTab = ref("reservation");
 const submitAfter = ref(false);
+const doctorData = ref<DoctorDataItem[]>([]);
+const scheduleData = ref<Omit<ReservationScheduleState, "doctorData">>({
+  year: [],
+  month: [],
+  day: [],
+  weekday: [],
+  slots: [],
+});
 
 const serviceCards = [
   {
@@ -210,8 +219,13 @@ const close = () => {
 };
 
 onMounted(() => {
-  store.dispatch("reservation/scheduleDoctor");
-  store.dispatch("reservation/scheduleTime");
+  void reservationApi.getDoctorOptions().then((doctorList) => {
+    doctorData.value = doctorList;
+  });
+
+  void reservationApi.getScheduleOptions().then((schedule) => {
+    scheduleData.value = schedule;
+  });
 });
 </script>
 

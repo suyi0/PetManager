@@ -10,12 +10,6 @@ const STORAGE_KEYS = {
   userAddressId: "address_id",
   userAddress: "user_address",
   userHeadImage: "user_head_image",
-  reservateYear: "reservate_year",
-  reservateMonth: "reservate_month",
-  reservateDay: "reservate_day",
-  reservateWeekday: "reservate_weekday",
-  reservateSlots: "reservate_slots",
-  reservateDoctorData: "reservate_doctorData",
   adminPortalBridge: "admin_portal_bridge",
 } as const;
 
@@ -87,19 +81,6 @@ type PersistedCurrentUser = {
   userHeadImage: string | null;
 };
 
-type PersistedReservate = {
-  year: string[];
-  month: string[];
-  day: string[];
-  weekday: string[];
-  slots: string[][];
-  doctorData: {
-    id: number;
-    name: string;
-    specialty: string;
-  }[];
-};
-
 type AdminPortalBridge = {
   returnTo: string;
   token: string;
@@ -112,21 +93,6 @@ type AdminPortalBridge = {
   userAddressId?: string;
   userAddress?: string;
   userHeadImage?: string;
-};
-
-// 读取 JSON
-const readJson = <T>(key: string, fallback: T): T => {
-  const raw = localStorage.getItem(key);
-
-  if (!raw) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
 };
 
 // 解析 token 返回对象
@@ -412,67 +378,5 @@ export const authStorage = {
 
   clearAdminPortalBridge() {
     localStorage.removeItem(STORAGE_KEYS.adminPortalBridge);
-  },
-
-  // 读取预约信息
-  loadReservate(): PersistedReservate {
-    return {
-      year: readJson<string[]>(STORAGE_KEYS.reservateYear, []),
-      month: readJson<string[]>(STORAGE_KEYS.reservateMonth, []),
-      day: readJson<string[]>(STORAGE_KEYS.reservateDay, []),
-      weekday: readJson<string[]>(STORAGE_KEYS.reservateWeekday, []),
-      slots: readJson<string[][]>(STORAGE_KEYS.reservateSlots, []),
-      doctorData: readJson<
-        {
-          id: number;
-          name: string;
-          specialty: string;
-        }[]
-      >(STORAGE_KEYS.reservateDoctorData, []),
-    };
-  },
-
-  // 持久化预约信息
-  saveReservate(payload: {
-    year: string[];
-    month: string[];
-    day: string[];
-    weekday: string[];
-    slots: string[][];
-  }) {
-    localStorage.setItem(
-      STORAGE_KEYS.reservateYear,
-      JSON.stringify(payload.year)
-    );
-    localStorage.setItem(
-      STORAGE_KEYS.reservateMonth,
-      JSON.stringify(payload.month)
-    );
-    localStorage.setItem(
-      STORAGE_KEYS.reservateDay,
-      JSON.stringify(payload.day)
-    );
-    localStorage.setItem(
-      STORAGE_KEYS.reservateWeekday,
-      JSON.stringify(payload.weekday)
-    );
-    localStorage.setItem(
-      STORAGE_KEYS.reservateSlots,
-      JSON.stringify(payload.slots)
-    );
-  },
-
-  // 持久化医生信息
-  saveDoctorData(
-    payload: {
-      id: number;
-      name: string;
-      specialty: string;
-    }[]
-  ) {
-    localStorage.setItem(
-      STORAGE_KEYS.reservateDoctorData,
-      JSON.stringify(payload)
-    );
   },
 };

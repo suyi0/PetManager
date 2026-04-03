@@ -76,19 +76,19 @@
         <div class="info-grid">
           <div class="info-row">
             <label>姓名：</label>
-            <input type="text" value="可乐" />
+            <input v-model="patientForm.petName" type="text" />
           </div>
           <div class="info-row">
             <label>性别：</label>
-            <input type="text" value="母" />
+            <input v-model="patientForm.sex" type="text" />
           </div>
           <div class="info-row">
             <label>品种：</label>
-            <input type="text" value="英短" />
+            <input v-model="patientForm.breed" type="text" />
           </div>
           <div class="info-row">
             <label>年龄：</label>
-            <input type="text" value="4 岁 2 月" />
+            <input v-model="patientForm.age" type="text" />
           </div>
         </div>
 
@@ -138,15 +138,27 @@
 
         <div class="sheet-section notes">
           <h4>病历描述：</h4>
-          <div class="notes-box"></div>
+          <div class="notes-box">
+            <p v-if="patientForm.ownerName">
+              主人：{{ patientForm.ownerName }}
+            </p>
+            <p v-if="patientForm.symptom">主诉：{{ patientForm.symptom }}</p>
+          </div>
         </div>
 
         <div class="print-row">
-          <button type="button" class="print-button">打印诊单</button>
+          <button type="button" class="ghost-button" @click="clearDraft">
+            清空草稿
+          </button>
+          <button type="button" class="print-button" @click="submitOrder">
+            打印诊单
+          </button>
         </div>
 
         <div class="sheet-footer">
-          <div class="visit-meta">林安 医师 · 内科门诊 · 编号 ZD-0310-08</div>
+          <div class="visit-meta">
+            林安 医师 · 内科门诊 · 编号 {{ visitCode }}
+          </div>
           <div class="total">
             <span>总费用</span>
             <strong>¥{{ total.toFixed(2) }}</strong>
@@ -158,18 +170,53 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref } from "vue";
-import { medicineSearchItems } from "../../api/doctorMock";
+import {
+  computed,
+  defineComponent,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
+import { useRoute } from "vue-router";
+import { medicineSearchItemsMock } from "../../api/doctorMock";
 import { MedicineSearchItem, SelectedMedicineItem } from "../../api/types";
+import {
+  DoctorOrderDraft,
+  buildDoctorOrderDraftKey,
+  readDoctorOrderDraft,
+  removeDoctorOrderDraft,
+  saveDoctorOrderDraft,
+} from "../../utils/orderDrafts";
 
 export default defineComponent({
   name: "DoctorCreateOrder",
   setup() {
+    const route = useRoute();
     const searchQuery = ref("");
     const medicines = ref<MedicineSearchItem[]>(
-      medicineSearchItems.map((item) => ({ ...item }))
+      medicineSearchItemsMock.map((item) => ({ ...item }))
     );
     const selected = ref<SelectedMedicineItem[]>([]);
+    const initialPatientForm = {
+      petName: String(route.query.petName || ""),
+      sex: String(route.query.sex || ""),
+      breed: String(route.query.breed || ""),
+      age: String(route.query.age || ""),
+      ownerName: String(route.query.ownerName || ""),
+      symptom: String(route.query.symptom || ""),
+    };
+    const patientForm = reactive({
+      ...initialPatientForm,
+    });
+    const visitCode = computed(() => {
+      const queueId = String(route.params.queueId || "").trim();
+      return queueId ? `Q-${queueId}` : "ZD-0310-08";
+    });
+    const draftStorageKey = computed(() => {
+      const queueId = String(route.params.queueId || "").trim();
+      return buildDoctorOrderDraftKey(queueId);
+    });
 
     const total = computed(() =>
       selected.value.reduce((sum, item) => sum + item.unitPrice * item.days, 0)
@@ -260,11 +307,71 @@ export default defineComponent({
       searchQuery.value = "";
     };
 
+    /**
+     * 恢复草稿
+     */
+    const restoreDraft = () => {
+      const draft = readDoctorOrderDraft(draftStorageKey.value);
+
+      if (!draft) {
+        return;
+      }
+
+      Object.assign(patientForm, draft.patientForm);
+      selected.value = Array.isArray(draft.selected) ? draft.selected : [];
+    };
+
+    /**
+     * 持久化草稿
+     */
+    const persistDraft = () => {
+      const draft: DoctorOrderDraft = {
+        patientForm: {
+          petName: patientForm.petName,
+          sex: patientForm.sex,
+          breed: patientForm.breed,
+          age: patientForm.age,
+          ownerName: patientForm.ownerName,
+          symptom: patientForm.symptom,
+        },
+        selected: selected.value.map((item) => ({ ...item })),
+        updatedAt: Date.now(),
+      };
+
+      saveDoctorOrderDraft(draftStorageKey.value, draft);
+    };
+
+    const clearDraft = () => {
+      removeDoctorOrderDraft(draftStorageKey.value);
+      Object.assign(patientForm, initialPatientForm);
+      selected.value = [];
+      searchQuery.value = "";
+    };
+
+    const submitOrder = () => {
+      clearDraft();
+      window.alert(`诊单 ${visitCode.value} 已提交`);
+    };
+
+    onMounted(() => {
+      restoreDraft();
+    });
+
+    watch(
+      [patientForm, selected],
+      () => {
+        persistDraft();
+      },
+      { deep: true }
+    );
+
     return {
       searchQuery,
       medicines,
       filteredMedicines,
       selected,
+      patientForm,
+      visitCode,
       total,
       medicineTypeMap,
       medicineStockMap,
@@ -272,6 +379,8 @@ export default defineComponent({
       removeSelected,
       updateQuantity,
       resetSearch,
+      clearDraft,
+      submitOrder,
     };
   },
 });
@@ -614,6 +723,7 @@ button {
 .print-row {
   display: flex;
   justify-content: center;
+  gap: 12px;
   padding: 14px 18px 6px;
 }
 
@@ -623,6 +733,13 @@ button {
   background: linear-gradient(135deg, #29565a, #7d5348);
   color: #fffdfb;
   box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
+}
+
+.ghost-button {
+  min-width: 160px;
+  border: 1px solid rgba(175, 198, 190, 0.34);
+  background: #f3f9f5;
+  color: #214f4b;
 }
 
 .sheet-footer {

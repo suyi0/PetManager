@@ -95,7 +95,10 @@
         </article>
       </section>
 
-      <section class="order-list-panel">
+      <section
+        class="order-list-panel"
+        :class="{ 'order-list-panel--editing': editTab }"
+      >
         <div class="order-list-panel__head">
           <div>
             <p>
@@ -121,7 +124,6 @@
                 type="checkbox"
                 @change="ordersButton(item.id)"
               />
-              <span></span>
             </label>
 
             <button class="order-item__content" @click="goToDetail(item)">
@@ -130,6 +132,10 @@
                 <span>ID {{ item.id }}</span>
               </div>
               <div class="order-item__meta">
+                <div class="order-item_meta-Introduction">
+                  <small>简介</small>
+                  <span>{{}}</span>
+                </div>
                 <div>
                   <small>时间</small>
                   <span>{{ formatTimeValue(item.time) }}</span>
@@ -169,6 +175,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 import { useRoute, useRouter } from "vue-router";
+import { orderApi, reservationApi } from "@/modules/user/api/userApi";
 
 type SearchableOrderItem = {
   id: number;
@@ -361,21 +368,25 @@ const deleteSelected = () => {
 };
 
 const goToDetail = (item: SearchableOrderItem) => {
-  sessionStorage.setItem(
-    "userOrderDetailPreview",
-    JSON.stringify({
-      ...item,
-      tab: activeTab.value,
-    })
-  );
+  if (editTab.value) {
+    ordersButton(item.id);
+  } else {
+    sessionStorage.setItem(
+      "userOrderDetailPreview",
+      JSON.stringify({
+        ...item,
+        tab: activeTab.value,
+      })
+    );
 
-  router.push({
-    path: `${basePath.value}/orderDetail`,
-    query: {
-      tab: activeTab.value,
-      id: String(item.id),
-    },
-  });
+    router.push({
+      path: `${basePath.value}/orderDetail`,
+      query: {
+        tab: activeTab.value,
+        id: String(item.id),
+      },
+    });
+  }
 };
 
 const formatPrice = (value?: number) =>
@@ -397,17 +408,25 @@ onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   loadSearchHistory();
 
-  store.dispatch("order/getOrders").then((response) => {
-    if (Array.isArray(response?.data?.data)) {
-      orders.value = response.data.data;
-    }
-  });
+  void orderApi
+    .getOrderRecords({
+      name: store.state.currentUser.userName,
+      phone: store.state.currentUser.userPhone,
+      email: store.state.currentUser.userEmail,
+    })
+    .then((records) => {
+      orders.value = records;
+    });
 
-  store.dispatch("reservation/getReservation").then((response) => {
-    if (Array.isArray(response?.data?.data)) {
-      reservationOrder.value = response.data.data;
-    }
-  });
+  void reservationApi
+    .getReservationRecords({
+      name: store.state.currentUser.userName,
+      phone: store.state.currentUser.userPhone,
+      email: store.state.currentUser.userEmail,
+    })
+    .then((records) => {
+      reservationOrder.value = records;
+    });
 });
 
 onBeforeUnmount(() => {
@@ -420,7 +439,10 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 20px;
+  height: calc(100vh - 170px);
   min-height: calc(100vh - 170px);
+  max-height: calc(100vh - 170px);
+  overflow: hidden;
 }
 
 .order-sidebar,
@@ -455,7 +477,7 @@ onBeforeUnmount(() => {
   color: #1e8a88;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 9px;
   font-weight: 700;
 }
 
@@ -463,7 +485,7 @@ onBeforeUnmount(() => {
 .order-list-panel__head h3 {
   margin: 0;
   color: #143d40;
-  font-size: 30px;
+  font-size: 25px;
 }
 
 .order-sidebar__hero span,
@@ -471,7 +493,7 @@ onBeforeUnmount(() => {
 .order-empty span {
   color: #607975;
   line-height: 1.8;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .order-sidebar__item {
@@ -498,8 +520,12 @@ onBeforeUnmount(() => {
 
 .order-stage {
   display: grid;
-  gap: 18px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 22px;
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .order-stage__toolbar {
@@ -507,14 +533,20 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
-  padding: 20px 22px;
+  align-items: center;
+  height: 80px;
+  min-height: 80px;
+  max-height: 80px;
+  padding: 0 22px;
 }
 
 .toolbar-search {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   align-items: center;
-  min-height: 64px;
+  height: 56px;
+  max-height: 56px;
+  min-height: 56px;
   border-radius: 20px;
   border: 1px solid rgba(29, 134, 135, 0.1);
   background: rgba(255, 255, 255, 0.64);
@@ -598,7 +630,8 @@ onBeforeUnmount(() => {
 
 .toolbar-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
 }
@@ -619,15 +652,19 @@ onBeforeUnmount(() => {
 }
 
 .toolbar-pill {
-  min-height: 52px;
+  min-height: 56px;
+  height: 56px;
   background: rgba(29, 134, 135, 0.08);
   color: #155a5d;
+  white-space: nowrap;
 }
 
 .toolbar-edit {
-  min-height: 52px;
+  min-height: 56px;
+  height: 56px;
   background: linear-gradient(135deg, #268f90, #156b6b);
   color: #fffdf7;
+  white-space: nowrap;
 }
 
 .order-summary {
@@ -637,7 +674,8 @@ onBeforeUnmount(() => {
 }
 
 .order-summary article {
-  padding: 18px 20px;
+  min-height: 125px;
+  padding: 16px 20px;
 }
 
 .order-summary p {
@@ -651,19 +689,25 @@ onBeforeUnmount(() => {
 
 .order-summary strong {
   display: block;
-  margin-bottom: 8px;
-  font-size: 28px;
+  margin-bottom: 6px;
+  font-size: 26px;
   color: #143d40;
 }
 
 .order-summary span {
   color: #607975;
   font-size: 13px;
-  line-height: 1.8;
+  line-height: 1.65;
 }
 
 .order-list-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
   padding: 22px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .order-list-panel__head {
@@ -671,23 +715,37 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
 .order-list {
   display: grid;
+  align-content: start;
   gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.order-list::-webkit-scrollbar {
+  display: none;
 }
 
 .order-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   padding: 16px;
   border-radius: 24px;
   border: 1px solid rgba(21, 91, 92, 0.08);
   background: rgba(255, 255, 255, 0.64);
+}
+
+.order-item--editing {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .order-item__checkbox {
@@ -699,12 +757,13 @@ onBeforeUnmount(() => {
   width: 18px;
   height: 18px;
   accent-color: #1b8585;
+  cursor: pointer;
 }
 
 .order-item__content {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, auto) minmax(360px, auto);
   gap: 14px;
   align-items: center;
   padding: 0;
@@ -729,12 +788,29 @@ onBeforeUnmount(() => {
 .order-item__meta {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 18px;
+  width: 100%;
+
+  small {
+    font-size: 18px;
+    text-align: center;
+  }
+  span {
+    font-size: 14px;
+    color: #173f42;
+    font-weight: 700;
+    text-align: center;
+  }
+  .order-item_meta-Introduction {
+    min-width: 450px;
+  }
 }
 
 .order-item__meta div {
   display: grid;
   gap: 4px;
+  min-width: 84px;
 }
 
 .order-item__meta span {
@@ -771,6 +847,7 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 20px;
+  flex: 0 0 auto;
 }
 
 .batch-actions__ghost,
@@ -794,7 +871,6 @@ onBeforeUnmount(() => {
 @media (max-width: 1100px) {
   .order-page,
   .order-summary,
-  .order-stage__toolbar,
   .order-item__content {
     grid-template-columns: 1fr;
   }
@@ -803,7 +879,32 @@ onBeforeUnmount(() => {
     position: static;
   }
 
-  .toolbar-actions,
+  .order-stage__toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    justify-content: center;
+    gap: 12px;
+    padding: 0 18px;
+  }
+
+  .toolbar-search {
+    width: min(100%, 720px);
+    justify-self: center;
+  }
+
+  .toolbar-search input {
+    width: 100%;
+  }
+
+  .toolbar-actions {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .toolbar-pill,
+  .toolbar-edit {
+    padding: 0 14px;
+  }
+
   .batch-actions {
     justify-content: flex-start;
   }

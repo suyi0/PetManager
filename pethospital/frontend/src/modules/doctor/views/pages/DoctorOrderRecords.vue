@@ -78,11 +78,11 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from "vue";
+import { computed, defineComponent, ref, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AppPager from "../../../../components/AppPager.vue";
-import { doctorUserProfiles } from "../../api/doctorMock";
 import { OrderRecordItem } from "../../api/types";
+import { doctorApi } from "../../api/doctorApi";
 
 export default defineComponent({
   name: "DoctorOrderRecords",
@@ -93,30 +93,29 @@ export default defineComponent({
     const activeStatus = ref<"全部" | OrderRecordItem["status"]>("全部");
     const page = ref(1);
     const pageSize = 10;
+    const orderRecords = ref<OrderRecordItem[]>([]);
 
     const basePath = computed(() =>
       route.path.startsWith("/preview/doctor") ? "/preview/doctor" : "/doctor"
     );
 
-    const items = computed<OrderRecordItem[]>(() =>
-      doctorUserProfiles
-        .flatMap((profile) =>
-          profile.orders.map((order) => ({
-            id: order.id,
-            petName: order.petName,
-            ownerName: order.ownerName,
-            createdAt: order.createdAt,
-            medicineCount: order.medicines.reduce(
-              (sum, medicine) => sum + medicine.quantity,
-              0
-            ),
-            totalFee: order.totalFee,
-            status: order.status,
-          }))
-        )
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const loadOrderRecords = async () => {
+      orderRecords.value = await doctorApi.getOrderRecords();
+    };
+
+    /**
+     * 重新排序订单记录列表，默认按照创建时间降序排列，以确保最新的订单记录显示在最前面。
+      如果需要按照其他字段排序，可以在这里进行调整。
+     */
+    const items = computed(() =>
+      [...orderRecords.value].sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt)
+      )
     );
 
+    /**
+     * 根据订单状态筛选出当前页需要展示的订单记录数据，如果状态为“全部”则返回所有订单记录
+     */
     const visibleItems = computed(() => {
       if (activeStatus.value === "全部") {
         return items.value;
@@ -142,6 +141,9 @@ export default defineComponent({
           )
     );
 
+    /**
+     * 状态标签
+     */
     const statusTabs = computed(() => {
       const statuses: Array<"全部" | OrderRecordItem["status"]> = [
         "全部",
@@ -181,6 +183,10 @@ export default defineComponent({
       if (page.value > value) {
         page.value = value;
       }
+    });
+
+    onMounted(() => {
+      void loadOrderRecords();
     });
 
     return {

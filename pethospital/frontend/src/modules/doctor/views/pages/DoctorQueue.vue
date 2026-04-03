@@ -12,7 +12,7 @@
             :total-pages="totalPages"
             @update:page="page = $event"
           />
-          <button>刷新队列</button>
+          <button @click="loadQueueItems">刷新队列</button>
         </div>
       </div>
 
@@ -25,6 +25,7 @@
               <th>主诉</th>
               <th>优先级</th>
               <th>到院时间</th>
+              <th class="action-column-th">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -36,16 +37,25 @@
                 <span class="tag" :class="item.level">{{ item.level }}</span>
               </td>
               <td>{{ item.arrivedAt }}</td>
+              <td class="action-column-td">
+                <button
+                  type="button"
+                  class="action-button"
+                  @click="goToCreateOrder(item)"
+                >
+                  就医
+                </button>
+              </td>
             </tr>
             <tr
               v-for="placeholder in placeholderRows"
               :key="`placeholder-${placeholder}`"
               class="placeholder-row"
             >
-              <td colspan="5"></td>
+              <td colspan="6"></td>
             </tr>
             <tr v-if="visibleItems.length === 0">
-              <td colspan="5" class="empty-cell">当前页暂无待接诊记录。</td>
+              <td colspan="6" class="empty-cell">当前页暂无待接诊记录。</td>
             </tr>
           </tbody>
         </table>
@@ -55,25 +65,53 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from "vue";
+import { computed, defineComponent, ref, watch, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import AppPager from "../../../../components/AppPager.vue";
-import { queueItems } from "../../api/doctorMock";
+import { QueueItem } from "../../api/types";
+import { doctorApi } from "../../api/doctorApi";
 
 export default defineComponent({
   name: "DoctorQueue",
   components: { AppPager },
   setup() {
-    const items = queueItems;
+    const route = useRoute();
+    const router = useRouter();
+    /**
+     * 待接诊队列数据列表
+     */
+    const queueItems = ref<QueueItem[]>([]);
     const page = ref(1);
     const pageSize = 10;
+    const basePath = computed(() =>
+      route.path.startsWith("/preview/doctor") ? "/preview/doctor" : "/doctor"
+    );
+
+    const loadQueueItems = async () => {
+      queueItems.value = await doctorApi.getQueueItems();
+    };
+
+    const goToCreateOrder = (item: QueueItem) => {
+      router.push({
+        path: `${basePath.value}/create-order/${item.id}`,
+        query: {
+          petName: item.petName,
+          sex: item.sex || "",
+          breed: item.breed || "",
+          age: item.age || "",
+          ownerName: item.ownerName,
+          symptom: item.symptom,
+        },
+      });
+    };
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(items.length / pageSize))
+      Math.max(1, Math.ceil(queueItems.value.length / pageSize))
     );
 
     const visibleItems = computed(() => {
       const start = (page.value - 1) * pageSize;
-      return items.slice(start, start + pageSize);
+      return queueItems.value.slice(start, start + pageSize);
     });
 
     const placeholderRows = computed(() =>
@@ -91,11 +129,17 @@ export default defineComponent({
       }
     });
 
+    onMounted(() => {
+      void loadQueueItems();
+    });
+
     return {
       page,
       totalPages,
       visibleItems,
       placeholderRows,
+      loadQueueItems,
+      goToCreateOrder,
     };
   },
 });
@@ -154,6 +198,14 @@ button {
   box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
 }
 
+.action-button {
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ecf8f3, #d7ebe4);
+  color: #214f4b;
+  box-shadow: none;
+}
+
 button:disabled {
   opacity: 0.52;
   cursor: not-allowed;
@@ -187,6 +239,17 @@ th {
 
 td {
   color: #19383b;
+}
+
+.action-column-th {
+  width: 110px;
+  padding: 14px 24px 14px 12px;
+  text-align: right;
+}
+
+.action-column-td {
+  width: 110px;
+  text-align: right;
 }
 
 tbody tr {

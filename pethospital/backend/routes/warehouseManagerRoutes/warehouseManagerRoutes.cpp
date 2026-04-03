@@ -106,12 +106,11 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             }
         );
 
-    CROW_ROUTE(app, "/api/warehouseManager/delete/<int>")
+    CROW_ROUTE(app, "/api/warehouseManager/delete")
         .methods(crow::HTTPMethod::DELETE, crow::HTTPMethod::OPTIONS)(
             [dbManager](
                 const crow::request &req,
-                crow::response &res,
-                const int& dataID
+                crow::response &res
             ) {
                 try {
                     isValidUserToken(req, res, dbManager);
@@ -121,7 +120,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     }
 
                     warehouseManagerHandler handler(dbManager);
-                    crow::response response = handler.deleteData(req, dataID);
+                    crow::response response = handler.deleteData(req);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
                     res = ResponseHelper::system_error(

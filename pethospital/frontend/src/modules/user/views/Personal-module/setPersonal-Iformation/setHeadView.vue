@@ -92,7 +92,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 import Cropper from "cropperjs";
-import axios from "axios";
+import { profileApi } from "@/modules/user/api/userApi";
 import "cropperjs/dist/cropper.css";
 
 interface Props {
@@ -235,9 +235,7 @@ const getcroppedImage = async (fileName?: string) => {
 
 const uploadImage = async (formData: FormData) => {
   try {
-    const uploadResponse = await axios.post("/api/upload/avatar", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const uploadResponse = await profileApi.uploadAvatar(formData);
 
     const avatarUrl = uploadResponse.data.avatarUrl;
 

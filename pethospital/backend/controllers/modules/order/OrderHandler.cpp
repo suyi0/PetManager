@@ -117,11 +117,10 @@ crow::response OrderHandler::getOrderList(const crow::request &req, int &userId)
 {
     try
     {
-        crow::response res;
-        // auto request_body_opt = validateRequest(req, res);
-        // if (!request_body_opt)
-        //     return res;
-        // auto &request_body = request_body_opt.value();
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
 
         mysqlx::SqlResult result = dbManager->getSession()->sql(
                                                               "SELECT o.id, o.pet_id, p.pet_name, o.doctor_id, o.order_type, "
@@ -159,11 +158,10 @@ crow::response OrderHandler::getAllRecord(const crow::request &req, int &userId,
 {
     try
     {
-        crow::response res;
-        // auto request_body_opt = validateRequest(req, res);
-        // if (!request_body_opt)
-        //     return res;
-        // auto &request_body = request_body_opt.value();
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
 
         // 使用 JOIN 一次性查询，避免 N+1 查询问题
         mysqlx::SqlResult orders_result = dbManager->getSession()->sql(
@@ -235,7 +233,7 @@ nlohmann::json OrderHandler::getOrderData(const int &orderId)
 {
     try
     {
-        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
+        if (!checkDbConnection())
         {
             return nlohmann::json(); // 返回空JSON表示错误
         }
@@ -278,11 +276,10 @@ crow::response OrderHandler::getOrderInformation(const crow::request &req, int &
 {
     try
     {
-        crow::response res;
-        // auto request_body_opt = validateRequest(req, res);
-        // if (!request_body_opt)
-        //     return res;
-        // auto &request_body = request_body_opt.value();
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
 
         // 反馈json
         nlohmann::json response = getOrderData(orderId);

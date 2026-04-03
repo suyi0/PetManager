@@ -71,7 +71,7 @@ crow::response warehouseManagerHandler::selectAllData(const crow::request &req)
     {
         if(!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         mysqlx::SqlResult result = dbManager->getSession()->sql(
@@ -112,7 +112,7 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
     {
         if(!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         mysqlx::SqlResult result;
@@ -265,18 +265,21 @@ crow::response warehouseManagerHandler::updata(const crow::request &req, const i
     }
 }
 
-crow::response warehouseManagerHandler::deleteData(const crow::request &req, const int& dataID)
+crow::response warehouseManagerHandler::deleteData(const crow::request &req)
 {
     try
     {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        int dataID = request_body.contains("dataID") ? request_body["dataID"].get<int>() : -1;
+
         if(dataID <= 0)
         {
             return ResponseHelper::validation(req, "无效的数据ID");
-        }
-
-        if(!checkDbConnection())
-        {
-            return ResponseHelper::system_error(req);
         }
 
         mysqlx::RowResult result = dbManager->getSession()->sql("DELETE FROM warehouse WHERE id = ?")

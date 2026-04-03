@@ -159,11 +159,16 @@
 import { computed, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
+import { reservationApi } from "@/modules/user/api/userApi";
+import { DoctorDataItem } from "@/modules/doctor/api/types";
+import { ReservationScheduleState } from "@/modules/user/api/types";
 
 const store = useStore(storeKey);
 
 const props = defineProps<{
   activeTab: string;
+  doctorData: DoctorDataItem[];
+  scheduleData: Omit<ReservationScheduleState, "doctorData">;
   switchTab(_tab: string): void;
 }>();
 
@@ -191,10 +196,9 @@ type SlotItem = {
   value: string;
 };
 
-const doctorData = computed<Doctor[]>(() => {
-  const data = store.state.reservation.doctorData;
-  return Array.isArray(data) ? data.filter(Boolean) : [];
-});
+const doctorData = computed<Doctor[]>(() =>
+  Array.isArray(props.doctorData) ? props.doctorData.filter(Boolean) : []
+);
 
 const formatDoctorStatus = (status?: string) => {
   if (status === "online") return "今日在线";
@@ -203,11 +207,11 @@ const formatDoctorStatus = (status?: string) => {
 };
 
 const availableDates = computed<DateItem[]>(() => {
-  const years = store.state.reservation.year || [];
-  const months = store.state.reservation.month || [];
-  const days = store.state.reservation.day || [];
-  const weekdays = store.state.reservation.weekday || [];
-  const slotGroups = store.state.reservation.slots || [];
+  const years = props.scheduleData.year || [];
+  const months = props.scheduleData.month || [];
+  const days = props.scheduleData.day || [];
+  const weekdays = props.scheduleData.weekday || [];
+  const slotGroups = props.scheduleData.slots || [];
 
   return years.map((year, index) => ({
     key: `date${index + 1}`,
@@ -254,18 +258,26 @@ const splitSlots = (slots: string[]) => {
   };
 };
 
+/**
+ * 获取当前选中的日期的预约信息(上午)
+ */
 const morningSlots = computed<SlotItem[]>(() => {
   const current = selectedDate.value;
   if (!current) return [];
+
   return splitSlots(current.slots).morning.map((value, index) => ({
     key: `morning-${index}`,
     value,
   }));
 });
 
+/**
+ * 获取当前选中的日期的预约信息(下午)
+ */
 const afternoonSlots = computed<SlotItem[]>(() => {
   const current = selectedDate.value;
   if (!current) return [];
+
   return splitSlots(current.slots).afternoon.map((value, index) => ({
     key: `afternoon-${index}`,
     value,
@@ -318,16 +330,14 @@ async function submit() {
   upSlot.value = selectedSlot;
 
   try {
-    const response = await store.dispatch(
-      "reservation/createReservationRecord",
-      {
-        upDoctorId: upDoctorId.value,
-        upYear: upYear.value,
-        upMonth: upMonth.value,
-        upDay: upDay.value,
-        upSlot: upSlot.value,
-      }
-    );
+    const response = await reservationApi.createReservationRecord({
+      name: store.state.currentUser.userName,
+      phone: store.state.currentUser.userPhone,
+      email: store.state.currentUser.userEmail,
+      doctorId: upDoctorId.value,
+      date: `${upYear.value}-${upMonth.value}-${upDay.value}`,
+      slot: upSlot.value,
+    });
 
     if (response?.data?.success && response.status === 200) {
       submitAfter.value = true;

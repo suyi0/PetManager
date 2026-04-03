@@ -75,9 +75,6 @@ int main(int argc, char *argv[])
     // 停止定时任务管理器
     taskManager->stop();
 
-    // 关闭HTTP服务器
-    app.stop();
-
     // 释放数据库单例
     DatabaseManager::destroyInstance();
 

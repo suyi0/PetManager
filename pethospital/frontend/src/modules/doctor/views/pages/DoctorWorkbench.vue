@@ -30,8 +30,8 @@
                 {{ item.symptom }}</strong
               >
               <span>{{ item.arrivedAt }} · 等待中 · 预约ID {{ item.id }}</span>
-              <button class="row-action">
-                {{ item.level === "紧急" ? "叫号" : "查看" }}
+              <button class="row-action" @click="goToCreateOrder(item)">
+                就医
               </button>
             </li>
           </ul>
@@ -171,11 +171,16 @@ import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 import { doctorApi } from "../../api/doctorApi";
+import { QueueItem } from "../../api/types";
 import {
-  doctorUserProfiles,
+  userProfilesMock,
   doctorWorkbenchStats,
-  queueItems,
+  queueItemsMock,
 } from "../../api/doctorMock";
+import {
+  DoctorOrderDraftSummary,
+  listDoctorOrderDrafts,
+} from "../../utils/orderDrafts";
 
 type SearchUserItem = {
   id: string;
@@ -190,8 +195,19 @@ export default defineComponent({
     const store = useStore(storeKey);
     const router = useRouter();
     const route = useRoute();
-    const stats = doctorWorkbenchStats;
-    const priorityQueue = computed(() => queueItems.slice(0, 2));
+    const draftSummaries = ref<DoctorOrderDraftSummary[]>([]);
+    const stats = computed(() =>
+      doctorWorkbenchStats.map((item, index) =>
+        index === 0
+          ? {
+              label: "诊单草稿",
+              value: draftSummaries.value.length,
+              hint: "可继续编辑未提交诊单",
+            }
+          : item
+      )
+    );
+    const priorityQueue = computed(() => queueItemsMock.slice(0, 2));
     const doctorName = computed(
       () => store.getters["auth/formattedUserName"] || "当前值班医生"
     );
@@ -203,7 +219,7 @@ export default defineComponent({
     const dutyActionLoading = ref(false);
     const lastDutyActionAt = ref("");
     const searchKeyword = ref("");
-    const searchSource: SearchUserItem[] = doctorUserProfiles.map((item) => ({
+    const searchSource: SearchUserItem[] = userProfilesMock.map((item) => ({
       id: item.id,
       ownerName: item.ownerName,
       phone: item.phone,
@@ -212,11 +228,17 @@ export default defineComponent({
     const searchResults = ref<SearchUserItem[]>(searchSource.slice(0, 6));
     const now = ref(new Date());
     let timer: number | undefined;
+    const syncDrafts = () => {
+      draftSummaries.value = listDoctorOrderDrafts();
+    };
 
     onMounted(() => {
+      syncDrafts();
       timer = window.setInterval(() => {
         now.value = new Date();
       }, 1000);
+      window.addEventListener("focus", syncDrafts);
+      window.addEventListener("storage", syncDrafts);
 
       void doctorApi
         .getDutyStatus()
@@ -240,6 +262,8 @@ export default defineComponent({
       if (timer) {
         window.clearInterval(timer);
       }
+      window.removeEventListener("focus", syncDrafts);
+      window.removeEventListener("storage", syncDrafts);
     });
     const time = computed(() => {
       const current = now.value;
@@ -376,6 +400,20 @@ export default defineComponent({
       router.push(`${basePath.value}/users/${userId}`);
     };
 
+    const goToCreateOrder = (item: QueueItem) => {
+      router.push({
+        path: `${basePath.value}/create-order/${item.id}`,
+        query: {
+          petName: item.petName,
+          sex: item.sex || "",
+          breed: item.breed || "",
+          age: item.age || "",
+          ownerName: item.ownerName,
+          symptom: item.symptom,
+        },
+      });
+    };
+
     const logout = () => {
       store.dispatch("auth/logout");
       router.push({
@@ -403,6 +441,7 @@ export default defineComponent({
       searchResults,
       handleUserSearch,
       goToUserProfile,
+      goToCreateOrder,
       logout,
     };
   },

@@ -11,7 +11,7 @@
         <RouterLink :to="`${basePath}/queue`">待接诊队列</RouterLink>
         <RouterLink :to="`${basePath}/reservations`">预约订单</RouterLink>
         <RouterLink :to="`${basePath}/order-records`">订单记录</RouterLink>
-        <RouterLink :to="`${basePath}/create-order`">创建诊单</RouterLink>
+        <RouterLink :to="`${basePath}/drafts`">诊单草稿</RouterLink>
       </nav>
 
       <div v-if="showAdminReturn" class="sidebar-footer">

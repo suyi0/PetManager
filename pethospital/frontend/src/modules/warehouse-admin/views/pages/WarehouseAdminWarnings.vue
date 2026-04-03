@@ -50,31 +50,13 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { WarehouseWarningItem } from "../../api/types";
+import { warehouseWarningsMock } from "../../api/warehouseAdminMock";
 
 export default defineComponent({
   name: "WarehouseAdminWarnings",
   setup() {
-    const warnings: WarehouseWarningItem[] = [
-      {
-        title: "犬用营养膏",
-        description: "临期 5 天",
-        level: "warning",
-      },
-      {
-        title: "麻醉针剂",
-        description: "库存仅 6",
-        level: "danger",
-      },
-      {
-        title: "兔粮补充剂",
-        description: "单价上升 32%",
-        level: "normal",
-      },
-    ];
-
     return {
-      warnings,
+      warnings: warehouseWarningsMock,
     };
   },
 });

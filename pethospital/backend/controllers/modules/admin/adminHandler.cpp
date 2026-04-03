@@ -2,13 +2,54 @@
 #include "../../../database/UserPhoneSync.h"
 #include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
 
+crow::response adminHandler::getUsers(const crow::request &req)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, u.phone, u.email, CAST(u.birthday AS CHAR), "
+                                             "u.address_id, u.head_image "
+                                             "FROM users AS u "
+                                             "LEFT JOIN types AS t ON u.type_id = t.id")
+                                       .execute();
+
+        nlohmann::json response_data = nlohmann::json::array();
+        for (auto row : result)
+        {
+            nlohmann::json user_json;
+            user_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+            user_json["type_id"] = row[1].isNull() ? nullptr : nlohmann::json(row[1].get<int>());
+            user_json["type_name"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
+            user_json["name"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            user_json["phone"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            user_json["email"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
+            user_json["birthday"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
+            user_json["address_id"] = row[7].isNull() ? nullptr : nlohmann::json(row[7].get<int>());
+            user_json["head_image"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
+
+            response_data.push_back(user_json);
+        }
+
+        return ResponseHelper::success(req, response_data);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::operation_failed(req, "Failed to fetch data", e.what());
+    }
+}
+
 crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
 {
     try
     {
         if (!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         nlohmann::json response = nlohmann::json::array();
@@ -238,11 +279,6 @@ crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
 {
     try
     {
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::system_error(req);
-        }
-
         crow::response res;
         auto request_body_opt = validateRequest(req, res);
         if (!request_body_opt)
@@ -490,7 +526,7 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
     {
         if(!checkDbConnection())
         {
-            return ResponseHelper::system_error(req);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         boost::posix_time::ptime onlineDateTime = boost::posix_time::second_clock::local_time();
@@ -546,6 +582,81 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         }
     }
     catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response adminHandler::getLogs(const crow::request &req)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        mysqlx::SqlResult userLogs_result = dbManager->getSession()
+                                            ->sql("SELECT CAST(id AS CHAR), category, user_role, operator, module, action, result, "
+                                                  "CAST(created_at AS CHAR), summary, details, source "
+                                                  "FROM user_operations "
+                                                  "ORDER BY created_at DESC")
+                                            .execute();
+
+        mysqlx::SqlResult systemLogs_result = dbManager->getSession()
+                                              ->sql("SELECT CAST(id AS CHAR), category, system_role, operator, module, action, result, "
+                                                    "CAST(created_at AS CHAR), summary, details, source "
+                                                    "FROM system_operations "
+                                                    "ORDER BY created_at DESC")
+                                              .execute();
+
+        nlohmann::json response;
+        response["userLogs"] = nlohmann::json::array();
+        response["systemLogs"] = nlohmann::json::array();
+
+        for (auto row : userLogs_result)
+        {
+            nlohmann::json log;
+            log["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
+            log["category"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+            log["userRole"] = row[2].isNull()
+                ? nlohmann::json(nullptr)
+                : nlohmann::json(clean_string(row[2].get<std::string>()));
+            log["operator"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            log["module"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            log["action"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
+            log["result"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
+            log["time"] = row[7].isNull() ? "" : clean_string(row[7].get<std::string>());
+            log["summary"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
+            log["details"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
+            log["source"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+
+            response["userLogs"].push_back(log);
+        }
+
+        for (auto row : systemLogs_result)
+        {
+            nlohmann::json log;
+            log["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
+            log["category"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+            log["systemRole"] = row[2].isNull()
+                ? nlohmann::json(nullptr)
+                : nlohmann::json(clean_string(row[2].get<std::string>()));
+            log["operator"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            log["module"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            log["action"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
+            log["result"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
+            log["time"] = row[7].isNull() ? "" : clean_string(row[7].get<std::string>());
+            log["summary"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
+            log["details"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
+            log["source"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+
+            response["systemLogs"].push_back(log);
+        }
+
+        return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception& e)
     {
         return ResponseHelper::system_error(req, e.what());
     }

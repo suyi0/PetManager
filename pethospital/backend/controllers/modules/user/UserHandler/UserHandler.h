@@ -29,8 +29,6 @@ public:
 
     crow::response upload(const crow::request& req, const std::string& filename); // 对应 "/uploads/<string>"
 
-    crow::response getData(const crow::request& req); // 对应 "/api/user/data"
-
     nlohmann::json getUserData(const int &id);
 
 };

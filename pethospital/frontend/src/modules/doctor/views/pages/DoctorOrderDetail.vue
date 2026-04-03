@@ -109,30 +109,49 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, ref, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { doctorUserProfiles } from "../../api/doctorMock";
+import { DoctorUserProfile } from "../../api/types";
+import { doctorApi } from "../../api/doctorApi";
 
 export default defineComponent({
   name: "DoctorOrderDetail",
   setup() {
+    const doctorUserProfiles = ref<DoctorUserProfile[]>([]);
     const route = useRoute();
     const router = useRouter();
     const basePath = computed(() =>
       route.path.startsWith("/preview/doctor") ? "/preview/doctor" : "/doctor"
     );
+    const orderId = computed(() => String(route.params.orderId ?? ""));
 
+    const loadDoctorUserProfiles = async () => {
+      doctorUserProfiles.value = await doctorApi.getUserProfiles();
+    };
+
+    /**
+     * 获取当前用户的档案
+     */
     const profile = computed(() =>
-      doctorUserProfiles.find((item) =>
-        item.orders.some((order) => order.id === route.params.orderId)
+      doctorUserProfiles.value.find((item) =>
+        item.orders.some((currentOrder) => currentOrder.id === orderId.value)
       )
     );
+
+    /**
+     * 根据订单ID从当前用户档案中找到对应的订单详情数据，如果没有找到则返回undefined
+     */
     const order = computed(() =>
-      profile.value?.orders.find((item) => item.id === route.params.orderId)
+      profile.value?.orders.find((item) => item.id === orderId.value)
     );
+
+    /**
+     * 根据订单ID从当前用户档案中找到对应的宠物档案数据，如果没有找到则返回undefined
+     */
     const pet = computed(() =>
       profile.value?.pets.find((item) => item.id === order.value?.petId)
     );
+
     const fromRecords = computed(() => route.query.from === "records");
     const backLabel = computed(() =>
       fromRecords.value ? "返回订单记录" : "返回用户档案"
@@ -155,6 +174,10 @@ export default defineComponent({
 
       goBackToWorkbench();
     };
+
+    onMounted(() => {
+      void loadDoctorUserProfiles();
+    });
 
     return {
       profile,

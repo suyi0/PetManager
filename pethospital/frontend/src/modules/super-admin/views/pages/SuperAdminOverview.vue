@@ -4,7 +4,7 @@
       <StatCard
         label="注册用户"
         :value="users.length"
-        hint="来自 /api/allUser/getdata"
+        hint="来自 /api/admin/getUsers"
       />
       <StatCard
         label="当日打卡医生"

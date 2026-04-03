@@ -17,7 +17,7 @@ public:
     
     crow::response updata(const crow::request& req, const int& dataID); // 修改仓库信息，对应/warehouseManager/updata
 
-    crow::response deleteData(const crow::request& req, const int& dataID); //删除仓库资源， 对应/warehouseManager/delete
+    crow::response deleteData(const crow::request& req); //删除仓库资源， 对应/warehouseManager/delete
 };
 
 #endif

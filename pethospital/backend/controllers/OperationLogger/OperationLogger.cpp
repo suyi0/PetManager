@@ -1,7 +1,6 @@
 #include "OperationLogger.h"
 
-
-void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &operation, const std::string &details)
+void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &module, const std::string &action, const std::string &result, const std::string &details, const std::string &source)
 {
     try {
         if (!dbManager || !dbManager->getSession()) {
@@ -9,11 +8,14 @@ void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterfac
         }
 
         mysqlx::Session *session = dbManager->getSession();
-    
-        session->sql("INSERT INTO system_operations (operation, details) VALUES (?, ?)")
-                .bind(operation, details)
+
+        // 系统日志直接写入固定分类和来源，未细分角色时保留为空。
+        session->sql("INSERT INTO system_operations "
+                     "(category, operator, module, action, result, summary, details, source) "
+                     "VALUES ('系统类', '系统', ?, ?, ?, 'system_operations', ?, ?)")
+                .bind(module, action, result, details, source)
                 .execute();
-        std::cout << operation << "日志记录成功" << std::endl;
+        std::cout <<  "系统操作日志记录成功" << std::endl;
     }
     catch (const std::exception& e)
     {
@@ -21,7 +23,7 @@ void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterfac
     }
 }
 
-void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, int &userId, const std::string &operation, const std::string &details)
+void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, int &userId, const std::string &module, const std::string &action, const std::string &result, const std::string &details, const std::string &source)
 {
     try {
         if (!dbManager || !dbManager->getSession()) {
@@ -29,11 +31,17 @@ void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface>
         }
 
         mysqlx::Session *session = dbManager->getSession();
-    
-        session->sql("INSERT INTO user_operations (user_id, operation, details) VALUES (?, ?, ?)")
-                .bind(userId, operation, details)
+
+        // 用户日志通过 users/types 联表补齐操作者和角色，保证返回给前端的数据结构完整。
+        session->sql("INSERT INTO user_operations "
+                     "(user_id, category, user_role, operator, module, action, result, summary, details, source) "
+                     "SELECT u.id, '用户类', t.type, u.name, ?, ?, ?, 'user_operations', ?, ? "
+                     "FROM users AS u "
+                     "LEFT JOIN types AS t ON u.type_id = t.id "
+                     "WHERE u.id = ?")
+                .bind(module, action, result, details, source)
                 .execute();
-        std::cout << operation << "日志记录成功" << std::endl;
+        std::cout << "用户操作日志记录成功" << std::endl;
     } catch (const std::exception& e)
     {
         std::cout << "日志记录失败: " << e.what() << std::endl;

@@ -34,6 +34,7 @@ void UserRoutes::setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerIn
                                                                                                                      {
             try
             {   
+                // 解析令牌信息，确认用户身份和权限
                 isValidUserToken(req, res, dbManager);
 
                 if(res.code != 200)
@@ -82,30 +83,6 @@ void UserRoutes::setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerIn
             {
                 UserHandler handler(dbManager);
                 crow::response handlerResponse = handler.upload(req, filename);
-
-                ProcessHandlerResponse(req, res, handlerResponse);
-            } catch (const std::exception &e)
-            {
-                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
-            }
-            res.end(); });
-
-    // 获取数据库数据的路由
-    // 只有管理员可以获取所有用户数据
-    CROW_ROUTE(app, "/api/allUser/getdata")
-        .methods(crow::HTTPMethod::Get)([dbManager](const crow::request &req, crow::response &res)
-                                        {
-            try
-            {
-                isValidUserToken(req, res, dbManager);
-
-                if(res.code != 200)
-                {
-                    res.end();
-                    return;
-                }
-                UserHandler handler(dbManager);
-                crow::response handlerResponse = handler.getData(req);
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception &e)

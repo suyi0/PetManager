@@ -1,64 +1,71 @@
 #include "authHandler.h"
 #include "RoleTypeUtils/RoleTypeUtils.h"
 
+namespace
+{
+    enum class TokenValidationScope
+    {
+        User,
+        SuperAdmin
+    };
+
+    // 统一的Token验证函数，根据不同的权限范围进行验证
+    int validateTokenWithScope(const crow::request &req,
+                               crow::response &res,
+                               std::shared_ptr<DatabaseManagerInterface> dbManager,
+                               TokenValidationScope scope)
+    {
+        // 1. 从请求头中提取Token
+        std::string authHeader = req.get_header_value("Authorization");
+        if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
+        {
+            res = ResponseHelper::unauthorized(req, "Missing or invalid token");
+            return -1;
+        }
+
+        std::string token = authHeader.substr(7);
+        if (token.empty())
+        {
+            res = ResponseHelper::unauthorized(req, "Empty token provided");
+            return -1;
+        }
+
+        // 2. 解析Token获取用户信息
+        auto claims = JwtUtils::getTokenClaims(token);
+        if (!claims || claims->userId <= 0 || claims->identifier.empty())
+        {
+            res = ResponseHelper::unauthorized(req, "Invalid or expired token");
+            return -1;
+        }
+
+        // 3. 验证数据库连接
+        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
+        {
+            res = ResponseHelper::system_error(req, "Database connection unavailable");
+            return -1;
+        }
+
+        // 4. 根据权限范围验证用户是否有权限进行相应的操作
+        std::string identifier = claims->identifier;
+        bool isAuthorized = scope == TokenValidationScope::SuperAdmin
+                                ? JwtUtils::isUserAuthorizedForAdminForm(claims->userId, identifier, claims->isEmailLogin, dbManager)
+                                : JwtUtils::isUserAuthorizedForUserForm(claims->userId, identifier, claims->isEmailLogin, dbManager);
+
+        // 5. 如果用户没有权限，返回未授权响应
+        if (!isAuthorized)
+        {
+            res = ResponseHelper::unauthorized(req, "用户无权限进行此操作");
+            return -1;
+        }
+
+        return claims->userId;
+    }
+}
+
 // 验证用户token
 int isValidUserToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
-    // 1. 验证JWT token
-    std::string authHeader = req.get_header_value("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
-    {
-        res = ResponseHelper::unauthorized(req, "Missing or invalid token");
-        return -1;
-    }
-
-    std::string token = authHeader.substr(7); // 移除 "Bearer " 前缀
-
-    // 2. 基本token验证
-    if (token.empty()) {
-        res = ResponseHelper::unauthorized(req, "Empty token provided");
-        return -1;
-    }
-
-    // 3. 解析token获取用户信息
-    bool isEmail = false;
-    int userId = JwtUtils::getUserIdFromToken(token);
-    std::string identifier = JwtUtils::getUserIdentifierFromToken(token);
-    if(identifier.empty())
-    {
-        res = ResponseHelper::unauthorized(req, "Missing message in Token");
-        return -1;
-    }
-
-    // 4. 验证标识符格式
-    if(isValidEmailFormat(identifier))
-    {
-        isEmail = true;
-    }
-    else if(isValidPhoneFormat(identifier))
-    {
-        isEmail = false;
-    }
-    else
-    {
-        res = ResponseHelper::unauthorized(req, "Invalid identifier format in token");
-        return -1;
-    }
-
-    // 5. 验证数据库连接
-    if (!dbManager || !dbManager->getSession() || !dbManager->getSchema()) {
-        res = ResponseHelper::system_error(req, "Database connection unavailable");
-        return -1;
-    }
-
-    // 6. 验证用户权限
-    if (!JwtUtils::isUserAuthorizedForUserForm(userId, identifier, isEmail, dbManager))
-    {
-        res = ResponseHelper::unauthorized(req, "用户无权限进行此操作");
-        return -1;
-    }
-
-    return userId;
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::User);
 }
 
 // 验证用户的订单token
@@ -123,63 +130,10 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
     return userId;
 }
 
+// 验证超级管理员token
 int isValidSuperAdminToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
-    // 1. 验证JWT token
-    std::string authHeader = req.get_header_value("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
-    {
-        res = ResponseHelper::unauthorized(req, "Missing or invalid token");
-        return -1;
-    }
-
-    std::string token = authHeader.substr(7); // 移除 "Bearer " 前缀
-
-    // 2. 基本token验证
-    if (token.empty()) {
-        res = ResponseHelper::unauthorized(req, "Empty token provided");
-        return -1;
-    }
-
-    // 3. 解析token获取用户信息
-    bool isEmail = false;
-    int userId = JwtUtils::getUserIdFromToken(token);
-    std::string identifier = JwtUtils::getUserIdentifierFromToken(token);
-    if(identifier.empty())
-    {
-        res = ResponseHelper::unauthorized(req, "Missing message in Token");
-        return -1;
-    }
-
-    // 4. 验证标识符格式
-    if(isValidEmailFormat(identifier))
-    {
-        isEmail = true;
-    }
-    else if(isValidPhoneFormat(identifier))
-    {
-        isEmail = false;
-    }
-    else
-    {
-        res = ResponseHelper::unauthorized(req, "Invalid identifier format in token");
-        return -1;
-    }
-
-    // 5. 验证数据库连接
-    if (!dbManager || !dbManager->getSession() || !dbManager->getSchema()) {
-        res = ResponseHelper::system_error(req, "Database connection unavailable");
-        return -1;
-    }
-
-    // 6. 验证超级管理员权限
-    if (!JwtUtils::isUserAuthorizedForAdminForm(userId, identifier, isEmail, dbManager))
-    {
-        res = ResponseHelper::unauthorized(req, "用户无权限进行此操作");
-        return -1;
-    }
-
-    return userId;
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::SuperAdmin);
 }
 
 crow::response authHandler::authCheckName(const crow::request &req)
@@ -547,17 +501,14 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         }
 
         std::string token = authHeader.substr(7);
-        int userId = JwtUtils::getUserIdFromToken(token);
-        if (userId <= 0)
+        auto claims = JwtUtils::getTokenClaims(token);
+        if (!claims || claims->userId <= 0 || claims->identifier.empty())
         {
             return ResponseHelper::unauthorized(req, "Token expired or invalid");
         }
 
-        std::string identifier = JwtUtils::getUserIdentifierFromToken(token);
-        if (identifier.empty())
-        {
-            return ResponseHelper::unauthorized(req, "Invalid identifier in token");
-        }
+        int userId = claims->userId;
+        const std::string &identifier = claims->identifier;
 
         mysqlx::SqlResult result = dbManager->getSession()
                                        ->sql("SELECT u.type_id, t.type, u.name, u.email, u.phone "

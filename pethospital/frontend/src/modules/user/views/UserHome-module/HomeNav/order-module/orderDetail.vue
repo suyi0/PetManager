@@ -88,13 +88,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
-import { orderApi } from "@/modules/user/api/orderApi";
-import { OrderSummary } from "@/modules/user/store/order/types";
+import { orderApi } from "@/modules/user/api/userApi";
+import { OrderSummary } from "@/modules/user/api/types";
 
 const route = useRoute();
-const store = useStore(storeKey);
 
 const tabValue = ref<string>("order");
 const orderImg = ref("reduce");
@@ -179,8 +176,7 @@ onMounted(async () => {
   }
 
   try {
-    const list = await orderApi.getOrderList();
-    const rows = Array.isArray(list?.data) ? (list.data as OrderSummary[]) : [];
+    const rows = await orderApi.getOrderSummaries();
     const currentId = Number(route.query.id || previewRecord.value?.id || 0);
 
     if (currentId > 0) {
@@ -191,21 +187,8 @@ onMounted(async () => {
     detailRecord.value = null;
   }
 
-  if (
-    !detailRecord.value &&
-    previewRecord.value &&
-    !store.state.order.orderList.length
-  ) {
-    try {
-      await store.dispatch("order/getOrderList");
-      const currentId = Number(route.query.id || previewRecord.value.id || 0);
-      detailRecord.value =
-        store.state.order.orderList.find(
-          (item) => Number(item.id) === currentId
-        ) || null;
-    } catch {
-      detailRecord.value = null;
-    }
+  if (!detailRecord.value) {
+    detailRecord.value = null;
   }
 });
 </script>

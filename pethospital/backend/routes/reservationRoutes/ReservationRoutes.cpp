@@ -36,10 +36,6 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 std::string email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
                 std::string phone = request_body["phone"].is_string() ? request_body["phone"].get<std::string>() : request_body["phone"].dump();
 
-                // 从请求头中获取用户 ID
-                std::string token = req.get_header_value("Authorization").substr(7);
-                int user_id = JwtUtils::getUserIdFromToken(token);
-
                 // 从数据库中获取用户信息
                 int doctor_id = 0;
                 std::string date = "";
@@ -61,7 +57,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 }
             
                 // 直接调用处理器方法
-                crow::response handlerResponse = handler.createReservation(req, user_id, name, email, phone, doctor_id, date, time_slot, status);
+                crow::response handlerResponse = handler.createReservation(req, userId, name, email, phone, doctor_id, date, time_slot, status);
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             

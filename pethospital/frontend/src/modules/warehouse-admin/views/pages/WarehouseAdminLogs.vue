@@ -28,34 +28,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from "vue";
+import { defineComponent } from "vue";
+import { warehouseLogsMock } from "../../api/warehouseAdminMock";
 
 export default defineComponent({
   name: "WarehouseAdminLogs",
   setup() {
-    const logs = ref([
-      {
-        time: "09:20",
-        title: "新增物品 · 犬用营养膏",
-        description: "管理员 A-03 完成入库，数量 18，总价自动生成 ¥828.00。",
-        tag: "Create",
-      },
-      {
-        time: "11:45",
-        title: "更新库存 · 麻醉针剂",
-        description: "库存调整为 6，系统同步标记为低库存状态。",
-        tag: "Update",
-      },
-      {
-        time: "15:30",
-        title: "删除物品 · 旧批次注射器",
-        description: "执行删除确认后，记录已从库存面板移除并写入日志。",
-        tag: "Delete",
-      },
-    ]);
-
     return {
-      logs,
+      logs: warehouseLogsMock,
     };
   },
 });

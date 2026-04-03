@@ -219,49 +219,8 @@
 import { computed, defineComponent, onMounted, reactive, ref } from "vue";
 import WarehouseStatCard from "../../components/WarehouseStatCard.vue";
 import { warehouseAdminApi } from "../../api/warehouseAdminApi";
+import { warehouseItemsMock } from "../../api/warehouseAdminMock";
 import { WarehouseCreatePayload, WarehouseItem } from "../../api/types";
-
-const mockItems: WarehouseItem[] = [
-  {
-    id: 2058,
-    item_name: "犬用营养膏",
-    item_type: "营养品",
-    item_productiondate: "2025-03-10",
-    item_expirationdate: "2026-03-21",
-    days_until_expire: 5,
-    item_price: 46,
-    item_number: 18,
-    item_totalprice: 828,
-    created_at: "2026-03-16 08:20:00",
-    updated_at: "2026-03-16 11:45:00",
-  },
-  {
-    id: 2064,
-    item_name: "注射器套装",
-    item_type: "耗材",
-    item_productiondate: "2025-04-01",
-    item_expirationdate: "2027-01-09",
-    days_until_expire: 300,
-    item_price: 12.5,
-    item_number: 96,
-    item_totalprice: 1200,
-    created_at: "2026-03-16 09:10:00",
-    updated_at: "2026-03-16 09:10:00",
-  },
-  {
-    id: 2072,
-    item_name: "麻醉针剂",
-    item_type: "药品",
-    item_productiondate: "2025-06-03",
-    item_expirationdate: "2026-09-08",
-    days_until_expire: 176,
-    item_price: 122,
-    item_number: 6,
-    item_totalprice: 732,
-    created_at: "2026-03-16 10:30:00",
-    updated_at: "2026-03-16 10:30:00",
-  },
-];
 
 export default defineComponent({
   name: "WarehouseAdminInventory",
@@ -300,9 +259,9 @@ export default defineComponent({
     const loadItems = async () => {
       try {
         const rows = await warehouseAdminApi.getAllItems();
-        items.value = rows.length ? rows : mockItems;
+        items.value = rows.length ? rows : warehouseItemsMock;
       } catch {
-        items.value = mockItems;
+        items.value = warehouseItemsMock;
       }
     };
 

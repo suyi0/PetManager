@@ -5,14 +5,6 @@ import router from "../src/router";
 import { appStore, storeKey } from "@/store/appStore";
 import { authStorage } from "@/core/auth/utils/authStorage";
 
-// 初始化预约数据
-appStore.dispatch("reservation/initReservateData");
-
-// 如果用户已登录，启动每日更新预约表单的定时器
-if (appStore.state.auth.isLoggedIn) {
-  appStore.dispatch("reservation/scheduleDailyUpdate");
-}
-
 createApp(App)
   .provide(storeKey, appStore)
   .use(appStore)

@@ -10,6 +10,8 @@ private:
 public:
     explicit adminHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)){}
 
+    crow::response getUsers(const crow::request& req);                           // 获取全部用户 对应 /api/admin/getUsers
+
     crow::response getWorkTimeRecord(const crow::request& req);                  // 获取全部人的工作时间记录 对应 /admin/getWorkTimeRecord
 
     crow::response createUser(const crow::request& req);                         // 创建用户帐号 对应 /admin/createUser
@@ -27,6 +29,7 @@ public:
     // 修改医生工作时间 对应 /admin/changeDoctorWorkTime
     crow::response changeDoctorWorkTime(const crow::request& req, int& userId, const std::string &date, const std::string &identifier);
 
+    crow::response getLogs(const crow::request &req);                     // 获取日志记录 对应 /admin/getLogs
 };
 
 #endif

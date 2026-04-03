@@ -9,6 +9,26 @@ void adminRoutes::setupAdminRoutes(
         return;
     }
 
+    CROW_ROUTE(app, "/api/admin/getUsers")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res) {
+                try {
+                    int userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        res.end();
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    crow::response response = handler.getUsers(req);
+                    ProcessHandlerResponse(req, res, response);
+                } catch (const std::exception &) {
+                    res = ResponseHelper::system_error(req);
+                }
+                res.end();
+            }
+        );
+
     CROW_ROUTE(app, "/api/admin/getWorkTimeRecord")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res) {
@@ -179,6 +199,26 @@ void adminRoutes::setupAdminRoutes(
 
                     crow::response response =
                         handler.changeDoctorWorkTime(req, userId, date, identifier);
+                    ProcessHandlerResponse(req, res, response);
+                } catch (const std::exception &) {
+                    res = ResponseHelper::system_error(req);
+                }
+                res.end();
+            }
+        );
+
+    CROW_ROUTE(app, "/api/admin/getLogs")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res) {
+                try {
+                    int userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        res.end();
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    crow::response response = handler.getLogs(req);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &) {
                     res = ResponseHelper::system_error(req);
