@@ -6,7 +6,7 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
 {
     try
     {
-        if(!checkDbConnection())
+        if (!checkDbConnection())
         {
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
@@ -38,7 +38,7 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
     }
 }
 
-crow::response doctorHandler::getDutyStatus(const crow::request &req, int &userId)
+crow::response doctorHandler::getDutyStatus(const crow::request &req, int userId)
 {
     try
     {
@@ -179,11 +179,9 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
                     "LIMIT 1";
             }
 
-            result = dbManager->getSession()->sql(sql)
-                         .bind(data)
-                         .execute();
+            result = dbManager->getSession()->sql(sql).bind(data).execute();
 
-            if(result.count() == 0)
+            if (result.count() == 0)
             {
                 return ResponseHelper::error(req, "用户不存在");
             }
@@ -217,7 +215,40 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
     }
 }
 
-crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId)
+crow::response doctorHandler::handleDutyAction(const crow::request &req, int userId, bool requireDoctorId)
+{
+    crow::response res;
+    auto request_body_opt = validateRequest(req, res);
+    if (!request_body_opt)
+    {
+        return res;
+    }
+    auto &request_body = request_body_opt.value();
+
+    const std::string status = request_body.value("status", ""); 
+    const int targetDoctorId = requireDoctorId
+                                   ? request_body.value("doctorId", -1)
+                                   : request_body.value("doctorId", userId);
+
+    if (targetDoctorId <= 0)
+    {
+        return ResponseHelper::validation(req, "Missing or invalid doctorId");
+    }
+
+    if (status == "online")
+    {
+        return onlineDoctor(req, targetDoctorId);
+    }
+
+    if (status == "offline")
+    {
+        return offlineDoctor(req, targetDoctorId);
+    }
+
+    return ResponseHelper::error(req, "status 参数无效，仅支持 online 或 offline");
+}
+
+crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
 {
     try
     {
@@ -237,11 +268,13 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId
                                                 .execute();
 
         auto work_time_row = workTime_result.fetchOne();
-        if (work_time_row)
+        if (!work_time_row)
         {
-            check_in_time_start = work_time_row[0].get<std::string>();
-            check_in_time_end = work_time_row[1].get<std::string>();
+            return ResponseHelper::error(req, "未配置签到时间，请先联系管理员设置");
         }
+
+        check_in_time_start = work_time_row[0].get<std::string>();
+        check_in_time_end = work_time_row[1].get<std::string>();
 
         if (time <= check_in_time_start)
         {
@@ -297,7 +330,7 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int &userId
     }
 }
 
-crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userId)
+crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId)
 {
     try
     {
@@ -317,11 +350,13 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int &userI
                                                 .execute();
 
         auto work_time_row = workTime_result.fetchOne();
-        if (work_time_row)
+        if (!work_time_row)
         {
-            check_out_time_start = work_time_row[0].get<std::string>();
-            check_out_time_end = work_time_row[1].get<std::string>();
+            return ResponseHelper::error(req, "未配置签退时间，请先联系管理员设置");
         }
+
+        check_out_time_start = work_time_row[0].get<std::string>();
+        check_out_time_end = work_time_row[1].get<std::string>();
 
         if (time <= check_out_time_start)
         {

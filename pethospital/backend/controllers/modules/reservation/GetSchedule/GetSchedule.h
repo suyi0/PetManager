@@ -26,11 +26,6 @@ public:
 
     std::string addTime(const std::string &time);
 
-    void setTime_slots(const std::string &slots)
-    {
-        this->time_slots.push_back( slots );
-    }
-
     nlohmann::json generateSchedule();
 
     ~Reservate()
@@ -40,6 +35,5 @@ public:
 
 private:
     std::multimap<std::string, std::string> date_time;      // 七天日期时间表->( 日期 , 星期 )
-    nlohmann::json time_slots = nlohmann::json::array();    // 预约时间段
     nlohmann::json schedule;                                // 最终时间表结果
 };

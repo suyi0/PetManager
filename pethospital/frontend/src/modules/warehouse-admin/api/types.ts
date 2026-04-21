@@ -13,6 +13,7 @@ export interface WarehouseItem {
 }
 
 export interface WarehouseCreatePayload {
+  id?: number;
   item_name: string;
   item_type: string;
   item_productiondate: string;
@@ -32,6 +33,15 @@ export interface WarehouseLogItem {
   title: string;
   description: string;
   tag: string;
+}
+
+/**
+ * 仓库端顶部摘要卡片数据。
+ */
+export interface WarehouseDashboardSummary {
+  itemCount: number;
+  totalValue: number;
+  warningCount: number;
 }
 
 export interface ApiListResponse<T> {

@@ -79,18 +79,23 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from "vue";
+import { computed, defineComponent, onMounted, ref, watch } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import AppPager from "../../../../components/AppPager.vue";
-import { reservationItemsMock } from "../../api/doctorMock";
+import { ReservationItem } from "../../api/types";
 
 export default defineComponent({
   name: "DoctorReservations",
   components: { AppPager },
   setup() {
-    const items = reservationItemsMock;
+    const store = useStore(storeKey);
     const page = ref(1);
     const searchKeyword = ref("");
     const pageSize = 9;
+    const items = computed<ReservationItem[]>(
+      () => store.state.doctor.reservations
+    );
 
     const normalizedSearchKeyword = computed(() =>
       searchKeyword.value.replace(/\D/g, "")
@@ -100,10 +105,10 @@ export default defineComponent({
       const keyword = normalizedSearchKeyword.value;
 
       if (!keyword) {
-        return items;
+        return items.value;
       }
 
-      return items.filter((item) => {
+      return items.value.filter((item) => {
         if (keyword.length === 4) {
           return item.phone.endsWith(keyword);
         }
@@ -136,7 +141,7 @@ export default defineComponent({
 
     const searchSummary = computed(() => {
       if (!normalizedSearchKeyword.value) {
-        return `共 ${items.length} 条预约记录`;
+        return `共 ${items.value.length} 条预约记录`;
       }
 
       return `匹配到 ${filteredItems.value.length} 条预约记录`;
@@ -156,6 +161,11 @@ export default defineComponent({
 
     watch(searchKeyword, () => {
       page.value = 1;
+    });
+
+    onMounted(() => {
+      // 预约页优先复用预约缓存。
+      void store.dispatch("doctor/ensureReservations");
     });
 
     return {

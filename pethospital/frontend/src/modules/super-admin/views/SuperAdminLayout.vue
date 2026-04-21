@@ -6,8 +6,9 @@
       <nav>
         <RouterLink :to="`${routePrefix}/overview`">总览</RouterLink>
         <RouterLink :to="`${routePrefix}/doctors`">权限授予</RouterLink>
-        <RouterLink :to="`${routePrefix}/worktime`">考勤记录</RouterLink>
+        <RouterLink :to="`${routePrefix}/worktime`">考勤管理</RouterLink>
         <RouterLink :to="`${routePrefix}/users`">用户管理</RouterLink>
+        <RouterLink :to="`${routePrefix}/online-doctors`">在线医生</RouterLink>
         <RouterLink :to="`${routePrefix}/logs`">日志审计</RouterLink>
       </nav>
       <section class="portal-switcher">
@@ -72,6 +73,8 @@ export default defineComponent({
 
     onMounted(() => {
       startSuperAdminSessionGuard(store, router);
+      // 超级管理员进入任意页面时，先预热总览需要的基础数据。
+      void store.dispatch("superAdmin/ensureOverviewData");
     });
 
     onBeforeUnmount(() => {
@@ -229,7 +232,10 @@ export default defineComponent({
 }
 
 .sidebar {
-  position: relative;
+  top: 0;
+  height: 100vh;
+  min-height: 100vh;
+  position: sticky;
   display: flex;
   flex-direction: column;
   align-self: stretch;
@@ -380,7 +386,14 @@ export default defineComponent({
 }
 
 .content {
+  min-width: 0;
+  height: 100vh;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 20px 26px 32px;
+  box-sizing: border-box;
 }
 
 .topbar {
@@ -415,6 +428,10 @@ export default defineComponent({
   }
 
   .sidebar {
+    top: auto;
+    height: auto;
+    min-height: auto;
+    position: relative;
     border-right: 0;
     border-bottom: 1px solid #d5e2ff;
   }
@@ -425,6 +442,12 @@ export default defineComponent({
 
   .portal-switcher {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content {
+    height: auto;
+    min-height: 0;
+    overflow-y: visible;
   }
 }
 

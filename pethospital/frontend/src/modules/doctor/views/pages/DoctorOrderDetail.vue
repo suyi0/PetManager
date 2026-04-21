@@ -109,15 +109,15 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, onMounted } from "vue";
+import { computed, defineComponent, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { DoctorUserProfile } from "../../api/types";
-import { doctorApi } from "../../api/doctorApi";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 
 export default defineComponent({
   name: "DoctorOrderDetail",
   setup() {
-    const doctorUserProfiles = ref<DoctorUserProfile[]>([]);
+    const store = useStore(storeKey);
     const route = useRoute();
     const router = useRouter();
     const basePath = computed(() =>
@@ -125,15 +125,18 @@ export default defineComponent({
     );
     const orderId = computed(() => String(route.params.orderId ?? ""));
 
+    /**
+     * 诊单详情依赖用户档案缓存定位具体订单。
+     */
     const loadDoctorUserProfiles = async () => {
-      doctorUserProfiles.value = await doctorApi.getUserProfiles();
+      await store.dispatch("doctor/ensureUserProfiles");
     };
 
     /**
      * 获取当前用户的档案
      */
     const profile = computed(() =>
-      doctorUserProfiles.value.find((item) =>
+      store.state.doctor.userProfiles.find((item) =>
         item.orders.some((currentOrder) => currentOrder.id === orderId.value)
       )
     );

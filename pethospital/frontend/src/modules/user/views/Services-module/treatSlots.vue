@@ -206,6 +206,10 @@ const formatDoctorStatus = (status?: string) => {
   return "待排班";
 };
 
+/**
+ * 获取可用日期数据
+ * @returns DateItem[]
+ */
 const availableDates = computed<DateItem[]>(() => {
   const years = props.scheduleData.year || [];
   const months = props.scheduleData.month || [];
@@ -237,6 +241,39 @@ const selectedDate = computed(
   () => availableDates.value.find((item) => item.key === dateTab.value) || null
 );
 
+const getSlotStartTime = (slot: string) => {
+  const matched = slot.match(/\d{1,2}:\d{2}/)?.[0] ?? "";
+  const [hour = "", minute = ""] = matched.split(":");
+  if (!hour || !minute) return "";
+  return `${hour.padStart(2, "0")}:${minute}`;
+};
+
+const selectedMorningDate = computed(() => {
+  const currentDate = availableDates.value.find(
+    (item) => item.key === dateTab.value
+  );
+  if (currentDate) {
+    const hasMorningSlot = currentDate.slots.some(
+      (slot) => getSlotStartTime(slot) && getSlotStartTime(slot) < "12:00"
+    );
+    return hasMorningSlot ? currentDate : null;
+  }
+  return null;
+});
+
+const selectedAfternoonDate = computed(() => {
+  const currentDate = availableDates.value.find(
+    (item) => item.key === dateTab.value
+  );
+  if (currentDate) {
+    const hasAfternoonSlot = currentDate.slots.some(
+      (slot) => getSlotStartTime(slot) >= "12:00"
+    );
+    return hasAfternoonSlot ? currentDate : null;
+  }
+  return null;
+});
+
 const selectedDoctorName = computed(() => {
   const target = doctorData.value.find(
     (doctor) => doctor.id === upDoctorId.value
@@ -246,15 +283,16 @@ const selectedDoctorName = computed(() => {
 
 const splitSlots = (slots: string[]) => {
   const normalized = slots.filter(Boolean);
-  const noonIndex = normalized.findIndex(
-    (slot) => slot.slice(6, 11) === "12:00"
-  );
-  const divider =
-    noonIndex === -1 ? Math.min(3, normalized.length) : noonIndex + 1;
 
   return {
-    morning: normalized.slice(0, divider),
-    afternoon: normalized.slice(divider),
+    morning: normalized.filter((slot) => {
+      const startTime = getSlotStartTime(slot);
+      return Boolean(startTime && startTime < "12:00");
+    }),
+    afternoon: normalized.filter((slot) => {
+      const startTime = getSlotStartTime(slot);
+      return Boolean(startTime && startTime >= "12:00");
+    }),
   };
 };
 
@@ -262,7 +300,7 @@ const splitSlots = (slots: string[]) => {
  * 获取当前选中的日期的预约信息(上午)
  */
 const morningSlots = computed<SlotItem[]>(() => {
-  const current = selectedDate.value;
+  const current = selectedMorningDate.value;
   if (!current) return [];
 
   return splitSlots(current.slots).morning.map((value, index) => ({
@@ -275,7 +313,7 @@ const morningSlots = computed<SlotItem[]>(() => {
  * 获取当前选中的日期的预约信息(下午)
  */
 const afternoonSlots = computed<SlotItem[]>(() => {
-  const current = selectedDate.value;
+  const current = selectedAfternoonDate.value;
   if (!current) return [];
 
   return splitSlots(current.slots).afternoon.map((value, index) => ({
@@ -284,6 +322,9 @@ const afternoonSlots = computed<SlotItem[]>(() => {
   }));
 });
 
+/**
+ * 提交按钮是否可用
+ */
 const canSubmit = computed(() =>
   Boolean(upDoctorId.value && selectedDate.value && getChosenSlotValue())
 );
@@ -318,6 +359,9 @@ function getChosenSlotValue() {
   return allSlots.find((slot) => slot.key === choiceActive.value)?.value || "";
 }
 
+/**
+ * 提交预约操作
+ */
 async function submit() {
   if (!selectedDate.value) return;
 
@@ -340,6 +384,11 @@ async function submit() {
     });
 
     if (response?.data?.success && response.status === 200) {
+      /**
+       * 预约成功后主动让记录类缓存失效，用户回到订单页时会拿到最新数据。
+       */
+      store.commit("userPortal/markReservationRecordsDirty");
+      store.commit("userPortal/markOrderSummariesDirty");
       submitAfter.value = true;
       emit("submit-success", {
         year: upYear.value,

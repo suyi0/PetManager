@@ -420,7 +420,7 @@ crow::response authHandler::authReadyVerification(const crow::request &req)
 }
 
 // 邮箱验证码验证函数
-crow::response authHandler::authVerification(const crow::request &req)
+crow::response authHandler::checkVerifyEmailCode(const crow::request &req)
 {
     try
     {

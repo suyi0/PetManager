@@ -8,6 +8,12 @@ class adminHandler : public BaseHandler
 private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 public:
+
+    int getUserCount();
+
+    int getOnlineDoctorCount();
+
+    int getLogsCount();
     explicit adminHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)){}
 
     crow::response getUsers(const crow::request& req);                           // 获取全部用户 对应 /api/admin/getUsers
@@ -29,7 +35,11 @@ public:
     // 修改医生工作时间 对应 /admin/changeDoctorWorkTime
     crow::response changeDoctorWorkTime(const crow::request& req, int& userId, const std::string &date, const std::string &identifier);
 
+    crow::response handleDoctorStatusAction(const crow::request& req, int& userId, bool requireDoctorId);    // 修改医生工作状态 对应 /admin/changeDoctorWorkStatus
+
     crow::response getLogs(const crow::request &req);                     // 获取日志记录 对应 /admin/getLogs
+
+    crow::response homePageGetData(const crow::request &req);                     // 获取总览数据 对应 /admin/homeGetData
 };
 
 #endif

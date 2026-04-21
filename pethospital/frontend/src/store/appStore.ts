@@ -13,6 +13,22 @@ import { State } from "@/store/types";
 import { uiMutations } from "@/store/ui/mutations";
 import { createUiState } from "@/store/ui/state";
 import { UiState } from "@/store/ui/types";
+import { doctorActions } from "@/modules/doctor/store/actions";
+import { doctorMutations } from "@/modules/doctor/store/mutations";
+import { createDoctorState } from "@/modules/doctor/store/state";
+import { DoctorState } from "@/modules/doctor/store/types";
+import { superAdminActions } from "@/modules/super-admin/store/actions";
+import { superAdminMutations } from "@/modules/super-admin/store/mutations";
+import { createSuperAdminState } from "@/modules/super-admin/store/state";
+import { SuperAdminState } from "@/modules/super-admin/store/types";
+import { userPortalActions } from "@/modules/user/store/actions";
+import { userPortalMutations } from "@/modules/user/store/mutations";
+import { createUserPortalState } from "@/modules/user/store/state";
+import { UserPortalState } from "@/modules/user/store/types";
+import { warehouseAdminActions } from "@/modules/warehouse-admin/store/action";
+import { warehouseAdminMutations } from "@/modules/warehouse-admin/store/mutation";
+import { createWarehouseAdminState } from "@/modules/warehouse-admin/store/state";
+import { WarehouseAdminState } from "@/modules/warehouse-admin/store/types";
 
 export type { AuthState } from "@/core/auth/store/session/types";
 export type { CurrentUserState } from "@/core/auth/store/currentUser/types";
@@ -35,6 +51,30 @@ export const appStore = createStore<State>({
       state: createCurrentUserState() as CurrentUserState,
       mutations: currentUserMutations,
       actions: currentUserActions,
+    },
+    doctor: {
+      namespaced: true,
+      state: createDoctorState() as DoctorState,
+      mutations: doctorMutations,
+      actions: doctorActions,
+    },
+    superAdmin: {
+      namespaced: true,
+      state: createSuperAdminState() as SuperAdminState,
+      mutations: superAdminMutations,
+      actions: superAdminActions,
+    },
+    userPortal: {
+      namespaced: true,
+      state: createUserPortalState() as UserPortalState,
+      mutations: userPortalMutations,
+      actions: userPortalActions,
+    },
+    warehouseAdmin: {
+      namespaced: true,
+      state: createWarehouseAdminState() as WarehouseAdminState,
+      mutations: warehouseAdminMutations,
+      actions: warehouseAdminActions,
     },
     ui: {
       namespaced: true,

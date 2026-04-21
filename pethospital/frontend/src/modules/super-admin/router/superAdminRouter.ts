@@ -31,6 +31,16 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import("../views/pages/SuperAdminUsers.vue"),
       },
       {
+        path: "online-doctors",
+        name: "superAdminOnlineDoctors",
+        component: () => import("../views/pages/SuperAdminOnlineDoctors.vue"),
+      },
+      {
+        path: "users/:userId",
+        name: "superAdminUserDetail",
+        component: () => import("../views/pages/SuperAdminUserDetail.vue"),
+      },
+      {
         path: "logs",
         name: "superAdminLogs",
         component: () => import("../views/pages/SuperAdminLogs.vue"),
@@ -64,6 +74,16 @@ const routes: Array<RouteRecordRaw> = [
         path: "users",
         name: "previewSuperAdminUsers",
         component: () => import("../views/pages/SuperAdminUsers.vue"),
+      },
+      {
+        path: "online-doctors",
+        name: "previewSuperAdminOnlineDoctors",
+        component: () => import("../views/pages/SuperAdminOnlineDoctors.vue"),
+      },
+      {
+        path: "users/:userId",
+        name: "previewSuperAdminUserDetail",
+        component: () => import("../views/pages/SuperAdminUserDetail.vue"),
       },
       {
         path: "logs",

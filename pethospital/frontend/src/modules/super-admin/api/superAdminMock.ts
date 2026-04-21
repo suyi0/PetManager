@@ -11,6 +11,7 @@ export const superAdminUserRowsMock: UserRow[] = [
     birthday: "1993-06-18",
     address_id: "A-201",
     head_image: "",
+    status: "",
   },
   {
     id: 102,
@@ -22,6 +23,7 @@ export const superAdminUserRowsMock: UserRow[] = [
     birthday: "1988-10-03",
     address_id: "D-305",
     head_image: "",
+    status: "online",
   },
   {
     id: 103,
@@ -33,6 +35,7 @@ export const superAdminUserRowsMock: UserRow[] = [
     birthday: "1990-01-22",
     address_id: "W-108",
     head_image: "",
+    status: "",
   },
   {
     id: 104,
@@ -44,6 +47,7 @@ export const superAdminUserRowsMock: UserRow[] = [
     birthday: "1986-08-14",
     address_id: "S-001",
     head_image: "",
+    status: "",
   },
 ];
 

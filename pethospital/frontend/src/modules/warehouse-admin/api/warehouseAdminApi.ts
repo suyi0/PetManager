@@ -1,21 +1,7 @@
-import axios from "axios";
+import http from "@/api/http";
 import { unwrapList } from "@/api/response";
-import { authStorage } from "@/core/auth/utils/authStorage";
 import { warehouseItemsMock } from "./warehouseAdminMock";
 import { WarehouseCreatePayload, WarehouseItem } from "./types";
-
-const http = axios.create({
-  baseURL: "",
-  timeout: 12000,
-});
-
-http.interceptors.request.use((config) => {
-  const token = authStorage.getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 export const warehouseAdminApi = {
   async getAllItems(): Promise<WarehouseItem[]> {
@@ -61,10 +47,15 @@ export const warehouseAdminApi = {
   },
 
   async updateItem(id: number, payload: WarehouseCreatePayload): Promise<void> {
-    await http.patch(`/api/warehouseManager/updata/${id}`, payload);
+    await http.patch(`/api/warehouseManager/updata/${id}`, {
+      id,
+      ...payload,
+    });
   },
 
   async deleteItem(id: number): Promise<void> {
-    await http.delete(`/api/warehouseManager/delete/${id}`);
+    await http.delete("/api/warehouseManager/delete", {
+      data: { dataID: id },
+    });
   },
 };

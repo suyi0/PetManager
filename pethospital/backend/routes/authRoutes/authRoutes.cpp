@@ -1,4 +1,5 @@
 #include "authRoutes.h"
+#include "../../controllers/OperationLogger/OperationLogger.h"
 
 void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
@@ -21,9 +22,10 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "认证", "检查用户名", e.what());
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
-            res.end();
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "检查用户名", std::nullopt, false);
         });
 
     CROW_ROUTE(app, "/api/auth/checkEmail")
@@ -37,9 +39,10 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "认证", "检查邮箱", e.what());
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
-            res.end();
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "检查邮箱", std::nullopt, false);
         });
 
     CROW_ROUTE(app, "/api/auth/checkPhone")
@@ -53,9 +56,10 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "认证", "检查手机号", e.what());
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
-            res.end();
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "检查手机号", std::nullopt, false);
         });
 
     // 添加控制验证码准备状态的路由
@@ -68,40 +72,50 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "认证", "准备验证码", e.what());
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
-            res.end();
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "准备验证码", std::nullopt, false);
         });
 
     // 添加控制验证码验证的路由
-    CROW_ROUTE(app, "/api/auth/verify")
+    CROW_ROUTE(app, "/api/verification/email/verify")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
                 try
                 {
                     authHandler handler(dbManager);
-                    crow::response handlerResponse = handler.authVerification(req);
+                    crow::response handlerResponse = handler.checkVerifyEmailCode(req);
                 
                     ProcessHandlerResponse(req, res, handlerResponse);
                 } catch (const std::exception& e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "认证", "邮箱登录", e.what());
                     res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
                 }
-                res.end(); 
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "邮箱登录"); 
         });
 
     CROW_ROUTE(app, "/api/auth/admin/refresh")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
+                int userId = -1;
                 try
                 {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "认证", "刷新管理员令牌");
+                        return;
+                    }
                     authHandler handler(dbManager);
                     crow::response handlerResponse = handler.refreshAdminToken(req);
 
                     ProcessHandlerResponse(req, res, handlerResponse);
                 } catch (const std::exception& e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "认证", "刷新管理员令牌", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
                 }
-                res.end();
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "刷新管理员令牌", userId > 0 ? std::optional<int>(userId) : std::nullopt);
         });
 
         CROW_ROUTE(app, "/api/verification/sms/send")
@@ -113,9 +127,10 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "认证", "发送短信验证码", e.what());
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
-            res.end();
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "发送短信验证码", std::nullopt, false);
         });
 
         CROW_ROUTE(app, "/api/verification/sms/verify")
@@ -127,8 +142,9 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "认证", "校验短信验证码", e.what());
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
-            res.end();
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "校验短信验证码", std::nullopt, false);
         });
 }

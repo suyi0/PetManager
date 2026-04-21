@@ -28,14 +28,23 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import { warehouseLogsMock } from "../../api/warehouseAdminMock";
+import { computed, defineComponent, onMounted } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 
 export default defineComponent({
   name: "WarehouseAdminLogs",
   setup() {
+    const store = useStore(storeKey);
+    const logs = computed(() => store.state.warehouseAdmin.operationLogs);
+
+    onMounted(() => {
+      // 操作流优先复用会话缓存，避免切页后重复初始化。
+      void store.dispatch("warehouseAdmin/ensureLogs");
+    });
+
     return {
-      logs: warehouseLogsMock,
+      logs,
     };
   },
 });

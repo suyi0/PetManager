@@ -1,4 +1,5 @@
 #include "OrderHandler.h"
+#include "../../OperationLogger/OperationLogger.h"
 
 crow::response OrderHandler::createOrder(const crow::request &req)
 {
@@ -104,11 +105,13 @@ crow::response OrderHandler::createOrder(const crow::request &req)
         catch (const std::exception &e)
         {
             session->sql("ROLLBACK").execute();
+            OperationLogger::LogExceptionOperation(dbManager, req, "订单", "创建订单", e.what());
             return ResponseHelper::error(req, e.what());
         }
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "订单", "创建订单", e.what());
         return ResponseHelper::error(req, e.what());
     }
 }
@@ -150,6 +153,7 @@ crow::response OrderHandler::getOrderList(const crow::request &req, int &userId)
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取订单列表", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
         return ResponseHelper::system_error(req, e.what());
     }
 }
@@ -160,6 +164,7 @@ crow::response OrderHandler::getAllRecord(const crow::request &req, int &userId,
     {
         if(!checkDbConnection())
         {
+            OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取订单详情", "database connection failed");
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
@@ -292,6 +297,7 @@ crow::response OrderHandler::getOrderInformation(const crow::request &req, int &
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取订单详情", e.what());
         return ResponseHelper::system_error(req, "Internal server error" + std::string(e.what()));
     }
 }
@@ -394,6 +400,7 @@ crow::response OrderHandler::changeOrder(const crow::request &req, int &orderId)
     catch (const std::exception &e)
     {
         std::cerr << "Error updating order: " << e.what() << std::endl;
+        OperationLogger::LogExceptionOperation(dbManager, req, "订单", "修改订单", e.what());
         return ResponseHelper::error(req, e.what());
     }
 }

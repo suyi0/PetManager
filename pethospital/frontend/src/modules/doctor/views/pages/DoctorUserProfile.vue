@@ -153,13 +153,15 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watchEffect } from "vue";
+import { computed, defineComponent, onMounted, ref, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { userProfilesMock } from "../../api/doctorMock";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 
 export default defineComponent({
   name: "DoctorUserProfile",
   setup() {
+    const store = useStore(storeKey);
     const route = useRoute();
     const router = useRouter();
     const basePath = computed(() =>
@@ -167,9 +169,16 @@ export default defineComponent({
     );
 
     const profile = computed(() =>
-      userProfilesMock.find((item) => item.id === route.params.userId)
+      store.state.doctor.userProfiles.find(
+        (item) => item.id === route.params.userId
+      )
     );
     const selectedPetId = ref("");
+
+    onMounted(() => {
+      // 用户档案页优先复用医生端用户资料缓存。
+      void store.dispatch("doctor/ensureUserProfiles");
+    });
 
     watchEffect(() => {
       if (profile.value?.pets.length && !selectedPetId.value) {

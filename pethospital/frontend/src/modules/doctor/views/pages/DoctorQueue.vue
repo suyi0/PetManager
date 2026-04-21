@@ -67,28 +67,35 @@
 <script lang="ts">
 import { computed, defineComponent, ref, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import AppPager from "../../../../components/AppPager.vue";
 import { QueueItem } from "../../api/types";
-import { doctorApi } from "../../api/doctorApi";
 
 export default defineComponent({
   name: "DoctorQueue",
   components: { AppPager },
   setup() {
+    const store = useStore(storeKey);
     const route = useRoute();
     const router = useRouter();
     /**
      * 待接诊队列数据列表
      */
-    const queueItems = ref<QueueItem[]>([]);
+    const queueItems = computed<QueueItem[]>(
+      () => store.state.doctor.queueItems
+    );
     const page = ref(1);
     const pageSize = 10;
     const basePath = computed(() =>
       route.path.startsWith("/preview/doctor") ? "/preview/doctor" : "/doctor"
     );
 
+    /**
+     * 优先复用队列缓存。
+     */
     const loadQueueItems = async () => {
-      queueItems.value = await doctorApi.getQueueItems();
+      await store.dispatch("doctor/ensureQueueItems");
     };
 
     const goToCreateOrder = (item: QueueItem) => {

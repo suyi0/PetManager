@@ -1,6 +1,6 @@
 import { ActionContext, ActionTree } from "vuex";
 import { profileApi } from "@/modules/user/api/userApi";
-import { State } from "@/store/types";
+import { State, shouldFetch } from "@/store/types";
 import { CurrentUserState } from "./types";
 
 // ActionContext 是 Vuex 提供的一个类型，用于在定义 action 时提供类型安全。
@@ -19,6 +19,27 @@ type UserEditableField =
 type UserFieldValue = string;
 
 export const currentUserActions: ActionTree<CurrentUserState, State> = {
+  ensureProfile(
+    { state, commit }: CurrentUserActionContext,
+    options?: { force?: boolean }
+  ) {
+    if (!shouldFetch(state.profileMeta, options?.force)) {
+      return Promise.resolve(state);
+    }
+
+    commit("setProfileLoading", true);
+    try {
+      commit("hydrateCurrentUserFromStorage");
+      return Promise.resolve(state);
+    } finally {
+      commit("setProfileLoading", false);
+    }
+  },
+
+  refreshProfile({ dispatch }: CurrentUserActionContext) {
+    return dispatch("ensureProfile", { force: true });
+  },
+
   // 更新用户数据到后端 API
   updateUserData({ state }: CurrentUserActionContext) {
     if (!state.userName) {
@@ -54,9 +75,11 @@ export const currentUserActions: ActionTree<CurrentUserState, State> = {
     { commit, dispatch, rootState }: CurrentUserActionContext,
     payload: { field: UserEditableField; value: UserFieldValue }
   ) {
+    commit("markProfileDirty");
     commit("updateUserField", {
       ...payload,
       userType: rootState.auth.userType,
+      userRole: rootState.auth.userRole,
     });
 
     dispatch("debouncedUpdateUserData");

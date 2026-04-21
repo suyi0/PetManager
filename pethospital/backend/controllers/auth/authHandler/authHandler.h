@@ -30,7 +30,7 @@ public:
 
     crow::response authReadyVerification(const crow::request& req);         //  对应 "/api/verification/ready"
 
-    crow::response authVerification(const crow::request& req);              //  对应 "/api/auth/verify"
+    crow::response checkVerifyEmailCode(const crow::request& req);              //  对应 "/api/verification/email/verify"
 
     crow::response refreshAdminToken(const crow::request& req);             //  对应 "/api/auth/admin/refresh"
 

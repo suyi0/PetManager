@@ -87,10 +87,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import { useRoute } from "vue-router";
-import { orderApi } from "@/modules/user/api/userApi";
 import { OrderSummary } from "@/modules/user/api/types";
 
+const store = useStore(storeKey);
 const route = useRoute();
 
 const tabValue = ref<string>("order");
@@ -176,7 +178,12 @@ onMounted(async () => {
   }
 
   try {
-    const rows = await orderApi.getOrderSummaries();
+    /**
+     * 详情页优先从缓存摘要里定位当前记录，只有首次进入时才会触发拉取。
+     */
+    const rows = (await store.dispatch(
+      "userPortal/ensureOrderSummaries"
+    )) as OrderSummary[];
     const currentId = Number(route.query.id || previewRecord.value?.id || 0);
 
     if (currentId > 0) {

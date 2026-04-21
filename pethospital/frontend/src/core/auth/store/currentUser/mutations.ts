@@ -1,6 +1,18 @@
 import { MutationTree } from "vuex";
 import { authStorage } from "@/core/auth/utils/authStorage";
 import { CurrentUserState, SetCurrentUserPayload } from "./types";
+import { createCurrentUserState } from "./state";
+
+const applyLoadedMeta = (meta: CurrentUserState["profileMeta"]) => {
+  meta.loaded = true;
+  meta.dirty = false;
+  meta.loading = false;
+  meta.lastFetchedAt = Date.now();
+};
+
+const applyDirtyMeta = (meta: CurrentUserState["profileMeta"]) => {
+  meta.dirty = true;
+};
 
 // 确保地址对象被正确格式化
 const normalizeAddress = (payload: SetCurrentUserPayload) => {
@@ -50,9 +62,17 @@ const resetCurrentUserState = (state: CurrentUserState) => {
   state.userAddressId = null;
   state.userAddress = null;
   state.userHeadImage = undefined;
+  state.profileMeta.loaded = false;
+  state.profileMeta.dirty = false;
+  state.profileMeta.loading = false;
+  state.profileMeta.lastFetchedAt = null;
 };
 
 export const currentUserMutations: MutationTree<CurrentUserState> = {
+  setProfileLoading(state, loading: boolean) {
+    state.profileMeta.loading = loading;
+  },
+
   // 设置当前用户
   setCurrentUser(state, payload: SetCurrentUserPayload) {
     state.userName = payload.userName;
@@ -64,6 +84,19 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
     state.userAddress = normalizeAddress(payload);
 
     persistCurrentUser(state, payload.userType, payload.userRole);
+    applyLoadedMeta(state.profileMeta);
+  },
+
+  hydrateCurrentUserFromStorage(state) {
+    const nextState = createCurrentUserState();
+    state.userName = nextState.userName;
+    state.userBirthday = nextState.userBirthday;
+    state.userEmail = nextState.userEmail;
+    state.userPhone = nextState.userPhone;
+    state.userAddressId = nextState.userAddressId;
+    state.userAddress = nextState.userAddress;
+    state.userHeadImage = nextState.userHeadImage;
+    state.profileMeta = nextState.profileMeta;
   },
 
   // 更新当前用户特定字段
@@ -106,6 +139,11 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
     }
 
     persistCurrentUser(state, payload.userType, payload.userRole);
+    applyLoadedMeta(state.profileMeta);
+  },
+
+  markProfileDirty(state) {
+    applyDirtyMeta(state.profileMeta);
   },
 
   // 清空当前用户

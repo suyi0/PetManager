@@ -1,5 +1,6 @@
 #pragma once
 #include <crow.h>
+#include <optional>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>

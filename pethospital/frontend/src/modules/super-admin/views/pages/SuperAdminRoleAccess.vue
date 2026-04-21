@@ -155,18 +155,20 @@
 
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
+import { useStore } from "vuex";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
+import { storeKey } from "@/store/appStore";
 import AppPager from "../../../../components/AppPager.vue";
 import { superAdminApi } from "../../api/superAdminApi";
-import { UserRow } from "../../api/types";
 
 export default defineComponent({
   name: "SuperAdminRoleAccess",
   components: { AppPager },
   setup() {
+    const store = useStore(storeKey);
     const userID = ref<number | null>(null);
     const message = ref("等待操作");
-    const users = ref<UserRow[]>([]);
+    const users = computed(() => store.state.superAdmin.users);
     const page = ref(1);
     const pageSize = 8;
     const keywordInput = ref("");
@@ -231,7 +233,8 @@ export default defineComponent({
     );
 
     const loadUsers = async () => {
-      users.value = await superAdminApi.getUsers();
+      // 权限管理页和用户列表页共享同一份用户缓存。
+      await store.dispatch("superAdmin/ensureUsers");
       if (page.value > totalPages.value) {
         page.value = totalPages.value;
       }
@@ -253,8 +256,12 @@ export default defineComponent({
     const grantDoctor = async () => {
       try {
         await superAdminApi.createDoctor(ensureUserID());
+        // 角色授权会直接影响用户列表和日志展示。
+        store.commit("superAdmin/markUsersDirty");
+        store.commit("superAdmin/markLogsDirty");
+        store.commit("superAdmin/markHomePageDataDirty");
         message.value = "授予成功";
-        await loadUsers();
+        await store.dispatch("superAdmin/refreshUsers");
       } catch (err: unknown) {
         message.value = `授予失败: ${String((err as Error).message || err)}`;
       }
@@ -263,8 +270,12 @@ export default defineComponent({
     const revokeDoctor = async () => {
       try {
         await superAdminApi.deleteDoctor(ensureUserID());
+        // 角色回收会直接影响用户列表和日志展示。
+        store.commit("superAdmin/markUsersDirty");
+        store.commit("superAdmin/markLogsDirty");
+        store.commit("superAdmin/markHomePageDataDirty");
         message.value = "移除成功";
-        await loadUsers();
+        await store.dispatch("superAdmin/refreshUsers");
       } catch (err: unknown) {
         message.value = `移除失败: ${String((err as Error).message || err)}`;
       }
@@ -273,8 +284,12 @@ export default defineComponent({
     const grantWarehouseAdmin = async () => {
       try {
         await superAdminApi.createWarehouseAdmin(ensureUserID());
+        // 角色授权会直接影响用户列表和日志展示。
+        store.commit("superAdmin/markUsersDirty");
+        store.commit("superAdmin/markLogsDirty");
+        store.commit("superAdmin/markHomePageDataDirty");
         message.value = "仓库管理员授权成功";
-        await loadUsers();
+        await store.dispatch("superAdmin/refreshUsers");
       } catch (err: unknown) {
         message.value = `仓库管理员授权失败: ${String(
           (err as Error).message || err
@@ -285,8 +300,12 @@ export default defineComponent({
     const revokeWarehouseAdmin = async () => {
       try {
         await superAdminApi.deleteWarehouseAdmin(ensureUserID());
+        // 角色回收会直接影响用户列表和日志展示。
+        store.commit("superAdmin/markUsersDirty");
+        store.commit("superAdmin/markLogsDirty");
+        store.commit("superAdmin/markHomePageDataDirty");
         message.value = "仓库管理员权限已移除";
-        await loadUsers();
+        await store.dispatch("superAdmin/refreshUsers");
       } catch (err: unknown) {
         message.value = `仓库管理员移除失败: ${String(
           (err as Error).message || err

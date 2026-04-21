@@ -51,10 +51,7 @@
           v-if="activeTab === 'personal'"
           @switchTab="switchTab"
         />
-        <PetProfilesView
-          v-else-if="activeTab === 'pet'"
-          @updateCount="handlePetCountUpdate"
-        />
+        <PetProfilesView v-else-if="activeTab === 'pet'" />
         <SetAddressView
           v-else-if="activeTab === 'address'"
           @close="close"
@@ -123,7 +120,7 @@ const store = useStore(storeKey);
 const route = useRoute();
 const router = useRouter();
 const activeTab = ref<PersonalTab>("personal");
-const petCount = ref(0);
+const petCount = computed(() => store.state.userPortal.petProfiles.length);
 
 const navItems: Array<{
   key: Extract<PersonalTab, "personal" | "pet" | "address">;
@@ -222,34 +219,6 @@ const panelDescription = computed(() => {
   }
 });
 
-const getPetStorageKey = () => {
-  const userKey =
-    store.state.currentUser.userPhone ||
-    store.state.currentUser.userEmail ||
-    store.state.currentUser.userName ||
-    "default-user";
-
-  return `petmanager-user-pets:${userKey}`;
-};
-
-const syncPetCountFromStorage = () => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(getPetStorageKey());
-    const pets = raw ? JSON.parse(raw) : [];
-    petCount.value = Array.isArray(pets) ? pets.length : 0;
-  } catch (error) {
-    petCount.value = 0;
-  }
-};
-
-const handlePetCountUpdate = (count: number) => {
-  petCount.value = count;
-};
-
 const switchTab = (tab: string) => {
   activeTab.value = tab as PersonalTab;
   router.replace({
@@ -324,7 +293,13 @@ onMounted(() => {
   if (store.state.ui.personal) {
     store.commit("ui/closePersonal");
   }
-  syncPetCountFromStorage();
+  /**
+   * 个人资料和宠物档案在进入个人中心时一起预热，页面切换时优先复用缓存。
+   */
+  void Promise.all([
+    store.dispatch("currentUser/ensureProfile"),
+    store.dispatch("userPortal/ensurePetProfiles"),
+  ]);
 
   const tab = route.query.tab;
   if (typeof tab === "string") {

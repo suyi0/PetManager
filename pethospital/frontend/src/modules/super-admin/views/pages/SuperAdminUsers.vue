@@ -1,47 +1,164 @@
 <template>
   <section class="page">
-    <div class="panel">
-      <div class="head">
-        <h3>用户列表</h3>
-        <div class="actions">
-          <button class="ghost" @click="loadUsers">刷新</button>
+    <div class="hero panel">
+      <div>
+        <p class="eyebrow">User Directory</p>
+        <h2>角色分组用户中心</h2>
+        <p class="hero__copy">
+          将普通用户、医生与管理员拆分成独立列表，便于快速审阅、进入详情与执行角色相关操作。
+        </p>
+      </div>
+      <div class="hero__actions">
+        <div class="hero__actions-first">
+          <button class="ghost" @click="refreshUsers">刷新列表</button>
           <button @click="openCreateDialog">创建用户</button>
         </div>
+        <div class="hero__actions-second">
+          <input
+            v-model.trim="keywordInput"
+            class="search-input"
+            type="text"
+            placeholder="搜索用户名 / 邮箱 / 手机号"
+            @keyup.enter="applySearch"
+          />
+          <button class="ghost" @click="applySearch">搜索</button>
+        </div>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>角色</th>
-            <th>姓名</th>
-            <th>手机</th>
-            <th>邮箱</th>
-            <th>生日</th>
-            <th>地址ID</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in users" :key="item.id">
-            <td>{{ item.id }}</td>
-            <td>{{ formatRole(item) }}</td>
-            <td>{{ item.name }}</td>
-            <td>{{ item.phone }}</td>
-            <td>{{ item.email }}</td>
-            <td>{{ item.birthday }}</td>
-            <td>{{ item.address_id }}</td>
-            <td>
-              <button
-                class="danger"
-                :disabled="!isNormalUser(item) || deletingId === item.id"
-                @click="handleDelete(item)"
-              >
-                {{ deletingId === item.id ? "删除中..." : "删除" }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    </div>
+
+    <div class="lists-grid">
+      <section class="panel role-panel">
+        <header class="role-panel__head">
+          <div>
+            <p class="role-panel__eyebrow">Role 01</p>
+            <h3>普通用户</h3>
+          </div>
+          <span class="role-panel__count"
+            >{{ filteredNormalUsers.length }} 人</span
+          >
+        </header>
+        <div class="role-table-list">
+          <button
+            v-for="item in pagedNormalUsers"
+            :key="item.id"
+            type="button"
+            class="role-row"
+            @click="goToDetail(item.id)"
+          >
+            <strong class="role-row__id">#{{ item.id }}</strong>
+            <span class="role-pill role-pill--user">普通用户</span>
+            <strong class="role-row__name">{{
+              item.name || "未命名用户"
+            }}</strong>
+            <span class="role-row__contact">
+              {{ item.email || item.phone || "暂无联系方式" }}
+            </span>
+          </button>
+          <div v-if="pagedNormalUsers.length === 0" class="empty-card">
+            当前没有普通用户记录
+          </div>
+        </div>
+        <AppPager
+          :page="normalPage"
+          :total-pages="normalTotalPages"
+          @update:page="normalPage = $event"
+        />
+      </section>
+
+      <section class="panel role-panel">
+        <header class="role-panel__head">
+          <div>
+            <p class="role-panel__eyebrow">Role 02</p>
+            <h3>医生</h3>
+          </div>
+          <span class="role-panel__count"
+            >{{ filteredDoctorUsers.length }} 人</span
+          >
+        </header>
+        <div class="role-table-list">
+          <button
+            v-for="item in pagedDoctorUsers"
+            :key="item.id"
+            type="button"
+            class="role-row role-row--doctor"
+            @click="goToDetail(item.id)"
+          >
+            <strong class="role-row__id">#{{ item.id }}</strong>
+            <span class="role-pill role-pill--doctor">医生</span>
+            <strong class="role-row__name">{{
+              item.name || "未命名医生"
+            }}</strong>
+            <span class="role-row__contact">
+              {{ item.email || item.phone || "暂无联系方式" }}
+            </span>
+            <span
+              class="status-pill"
+              :class="
+                item.status === 'online'
+                  ? 'status-pill--online'
+                  : 'status-pill--offline'
+              "
+            >
+              {{ item.status === "online" ? "在线" : "离线" }}
+            </span>
+          </button>
+          <div v-if="pagedDoctorUsers.length === 0" class="empty-card">
+            当前没有医生记录
+          </div>
+        </div>
+        <AppPager
+          :page="doctorPage"
+          :total-pages="doctorTotalPages"
+          @update:page="doctorPage = $event"
+        />
+      </section>
+
+      <section class="panel role-panel">
+        <header class="role-panel__head">
+          <div>
+            <p class="role-panel__eyebrow">Role 03</p>
+            <h3>管理员</h3>
+          </div>
+          <span class="role-panel__count"
+            >{{ filteredAdminUsers.length }} 人</span
+          >
+        </header>
+        <div class="role-table-list">
+          <button
+            v-for="item in pagedAdminUsers"
+            :key="item.id"
+            type="button"
+            class="role-row"
+            @click="goToDetail(item.id)"
+          >
+            <strong class="role-row__id">#{{ item.id }}</strong>
+            <span
+              class="role-pill"
+              :class="
+                formatRole(item) === '超级管理员'
+                  ? 'role-pill--super'
+                  : 'role-pill--admin'
+              "
+            >
+              {{ formatRole(item) }}
+            </span>
+            <strong class="role-row__name">{{
+              item.name || "未命名管理员"
+            }}</strong>
+            <span class="role-row__contact">
+              {{ item.email || item.phone || "暂无联系方式" }}
+            </span>
+          </button>
+          <div v-if="pagedAdminUsers.length === 0" class="empty-card">
+            当前没有管理员记录
+          </div>
+        </div>
+        <AppPager
+          :page="adminPage"
+          :total-pages="adminTotalPages"
+          @update:page="adminPage = $event"
+        />
+      </section>
     </div>
 
     <div
@@ -51,7 +168,10 @@
     >
       <div class="dialog">
         <div class="dialog__head">
-          <h3>创建普通用户</h3>
+          <div>
+            <p class="eyebrow">Create User</p>
+            <h3>创建普通用户</h3>
+          </div>
           <button class="ghost" @click="closeCreateDialog">关闭</button>
         </div>
 
@@ -114,19 +234,38 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted, reactive, ref } from "vue";
+import {
+  computed,
+  defineComponent,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
+import { useStore } from "vuex";
+import { useRoute, useRouter } from "vue-router";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
+import { storeKey } from "@/store/appStore";
+import AppPager from "../../../../components/AppPager.vue";
 import { superAdminApi } from "../../api/superAdminApi";
 import { UserRow } from "../../api/types";
 
 export default defineComponent({
   name: "SuperAdminUsers",
+  components: { AppPager },
   setup() {
-    const users = ref<UserRow[]>([]);
-    const deletingId = ref<number | null>(null);
+    const store = useStore(storeKey);
     const showCreateDialog = ref(false);
     const creating = ref(false);
     const formError = ref("");
+    const keywordInput = ref("");
+    const normalPage = ref(1);
+    const doctorPage = ref(1);
+    const adminPage = ref(1);
+    const pageSize = 10;
+    const router = useRouter();
+    const route = useRoute();
+    const users = computed<UserRow[]>(() => store.state.superAdmin.users);
     const form = reactive({
       name: "",
       phone: "",
@@ -136,18 +275,135 @@ export default defineComponent({
       address_id: 0,
     });
 
+    /**
+     * 获取用户角色类型
+     * @param user 用户数据类型
+     * @returns 角色类型名称
+     */
+    const formatRole = (user: UserRow) =>
+      resolveRoleName(user.type_name, user.type_id) || "未知角色";
+
+    const sortedById = (list: UserRow[]) =>
+      [...list].sort((a, b) => a.id - b.id);
+
+    const normalUsers = computed(() =>
+      sortedById(users.value.filter((item) => formatRole(item) === "普通用户"))
+    );
+
+    const doctorUsers = computed(() =>
+      [...users.value]
+        .filter((item) => formatRole(item) === "医生")
+        .sort((a, b) => {
+          const aOnline = a.status === "online" ? 1 : 0;
+          const bOnline = b.status === "online" ? 1 : 0;
+          if (aOnline !== bOnline) {
+            return bOnline - aOnline;
+          }
+          return a.id - b.id;
+        })
+    );
+
+    const adminUsers = computed(() =>
+      sortedById(
+        users.value.filter((item) => {
+          const role = formatRole(item);
+          return role === "超级管理员" || role === "仓库管理员";
+        })
+      )
+    );
+
+    const matchesKeyword = (item: UserRow) => {
+      const search = keywordInput.value.trim().toLowerCase();
+      if (!search) return true;
+
+      return [item.name, item.email, item.phone]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(search));
+    };
+
+    const filteredNormalUsers = computed(() =>
+      normalUsers.value.filter(matchesKeyword)
+    );
+
+    const filteredDoctorUsers = computed(() =>
+      doctorUsers.value.filter(matchesKeyword)
+    );
+
+    const filteredAdminUsers = computed(() =>
+      adminUsers.value.filter(matchesKeyword)
+    );
+
+    const normalTotalPages = computed(() =>
+      Math.max(1, Math.ceil(filteredNormalUsers.value.length / pageSize))
+    );
+
+    const doctorTotalPages = computed(() =>
+      Math.max(1, Math.ceil(filteredDoctorUsers.value.length / pageSize))
+    );
+
+    const adminTotalPages = computed(() =>
+      Math.max(1, Math.ceil(filteredAdminUsers.value.length / pageSize))
+    );
+
+    const pagedNormalUsers = computed(() => {
+      const start = (normalPage.value - 1) * pageSize;
+      return filteredNormalUsers.value.slice(start, start + pageSize);
+    });
+
+    const pagedDoctorUsers = computed(() => {
+      const start = (doctorPage.value - 1) * pageSize;
+      return filteredDoctorUsers.value.slice(start, start + pageSize);
+    });
+
+    const pagedAdminUsers = computed(() => {
+      const start = (adminPage.value - 1) * pageSize;
+      return filteredAdminUsers.value.slice(start, start + pageSize);
+    });
+
+    /**
+     * 加载用户列表
+     */
     const loadUsers = async () => {
-      users.value = await superAdminApi.getUsers();
+      // 优先读全局缓存，只有脏数据、超时或首次进入时才会访问接口。
+      await store.dispatch("superAdmin/ensureUsers");
+      normalPage.value = Math.min(normalPage.value, normalTotalPages.value);
+      doctorPage.value = Math.min(doctorPage.value, doctorTotalPages.value);
+      adminPage.value = Math.min(adminPage.value, adminTotalPages.value);
     };
 
-    const formatRole = (user: UserRow) => {
-      return resolveRoleName(user.type_name, user.type_id) || "未知角色";
+    /**
+     * 监听搜索词
+     */
+    watch(keywordInput, () => {
+      normalPage.value = 1;
+      doctorPage.value = 1;
+      adminPage.value = 1;
+    });
+
+    /**
+     * 搜索
+     */
+    const applySearch = () => {
+      normalPage.value = 1;
+      doctorPage.value = 1;
+      adminPage.value = 1;
     };
 
-    const isNormalUser = (user: UserRow) => {
-      return formatRole(user) === "普通用户";
+    /**
+     * 刷新
+     */
+    const refreshUsers = async () => {
+      keywordInput.value = "";
+      normalPage.value = 1;
+      doctorPage.value = 1;
+      adminPage.value = 1;
+      // 显式刷新时跳过缓存，直接请求最新数据。
+      await store.dispatch("superAdmin/refreshUsers");
     };
 
+    /**
+     * 重置表单
+     */
     const resetForm = () => {
       form.name = "";
       form.phone = "";
@@ -158,15 +414,34 @@ export default defineComponent({
       formError.value = "";
     };
 
+    /**
+     * 打开创建用户页面
+     */
     const openCreateDialog = () => {
       resetForm();
       showCreateDialog.value = true;
     };
 
+    /**
+     * 关闭创建用户页面
+     */
     const closeCreateDialog = () => {
       showCreateDialog.value = false;
     };
 
+    /**
+     * 跳转到用户详情页面
+     */
+    const goToDetail = (userId: number) => {
+      const detailName = route.path.startsWith("/preview")
+        ? "previewSuperAdminUserDetail"
+        : "superAdminUserDetail";
+      void router.push({ name: detailName, params: { userId } });
+    };
+
+    /**
+     * 创建用户
+     */
     const handleCreate = async () => {
       if (!form.name) {
         formError.value = "请先填写姓名";
@@ -190,53 +465,54 @@ export default defineComponent({
           birthday: form.birthday || undefined,
           address_id: form.address_id || 0,
         });
+        // 创建成功后，用户列表和日志都已经过期，后续页面会读到新数据。
+        store.commit("superAdmin/markUsersDirty");
+        store.commit("superAdmin/markLogsDirty");
+        store.commit("superAdmin/markHomePageDataDirty");
         closeCreateDialog();
-        await loadUsers();
+        await store.dispatch("superAdmin/refreshUsers");
       } catch (error: any) {
         formError.value =
-          error?.response?.data?.error || "创建失败，请稍后重试";
+          error?.response?.data?.error?.details || "创建失败，请稍后重试";
       } finally {
         creating.value = false;
       }
     };
 
-    const handleDelete = async (item: UserRow) => {
-      if (!isNormalUser(item)) {
-        return;
-      }
-
-      const confirmed = window.confirm(`确认删除用户「${item.name}」吗？`);
-      if (!confirmed) {
-        return;
-      }
-
-      deletingId.value = item.id;
-      try {
-        await superAdminApi.deleteUser(item.id);
-        await loadUsers();
-      } catch (error: any) {
-        window.alert(error?.response?.data?.error || "删除失败，请稍后重试");
-      } finally {
-        deletingId.value = null;
-      }
-    };
-
-    onMounted(loadUsers);
+    onMounted(() => {
+      void loadUsers();
+    });
 
     return {
       users,
-      deletingId,
+      normalUsers,
+      doctorUsers,
+      adminUsers,
+      filteredNormalUsers,
+      filteredDoctorUsers,
+      filteredAdminUsers,
+      pagedNormalUsers,
+      pagedDoctorUsers,
+      pagedAdminUsers,
+      normalPage,
+      doctorPage,
+      adminPage,
+      normalTotalPages,
+      doctorTotalPages,
+      adminTotalPages,
+      keywordInput,
       showCreateDialog,
       creating,
       form,
       formError,
-      loadUsers,
       formatRole,
-      isNormalUser,
+      loadUsers,
+      refreshUsers,
+      applySearch,
       openCreateDialog,
       closeCreateDialog,
       handleCreate,
-      handleDelete,
+      goToDetail,
     };
   },
 });
@@ -245,81 +521,280 @@ export default defineComponent({
 <style scoped>
 .page {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .panel {
   border: 1px solid #dce7ff;
-  border-radius: 16px;
-  background: #fff;
-  padding: 16px;
+  border-radius: 24px;
+  background: radial-gradient(
+      circle at top left,
+      rgba(47, 111, 243, 0.12),
+      transparent 34%
+    ),
+    linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+  padding: 20px;
+  box-shadow: 0 22px 44px rgba(34, 64, 128, 0.08);
 }
 
-.head {
+.hero {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #6c7a9f;
+}
+
+.hero h2 {
+  margin: 0;
+  font-size: 30px;
+  color: #13203a;
+}
+
+.hero__copy {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #617196;
+  line-height: 1.7;
+}
+
+.hero__actions {
+  display: grid;
+  grid-row: inherit;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-  margin-bottom: 12px;
+
+  .hero__actions-first {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .hero__actions-second {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.4fr);
+    gap: 12px;
+  }
 }
 
-.actions {
-  display: flex;
+.search-input {
+  width: min(340px, 100%);
+  border: 1px solid #cfdbff;
+  border-radius: 14px;
+  padding: 11px 14px;
+  background: #fbfcff;
+  color: #1e2f56;
+}
+
+.lists-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.role-panel {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   gap: 10px;
+  height: 500px;
+  min-height: 500px;
 }
 
-button {
-  border: 0;
-  border-radius: 10px;
-  padding: 8px 12px;
-  background: #2f6ff3;
-  color: #fff;
-  cursor: pointer;
+.role-panel__head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.role-panel__eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #7f8db0;
 }
 
-.ghost {
-  background: #ebf2ff;
-  color: #2f6ff3;
+.role-panel__head h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #13203a;
 }
 
-.danger {
-  background: #ffe7e7;
-  color: #c73b3b;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
+.role-panel__count {
+  color: #6b7ca3;
   font-size: 13px;
+  font-weight: 700;
 }
 
-th,
-td {
+.role-table-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.role-row,
+.empty-card {
+  width: 100%;
   text-align: left;
-  padding: 10px;
-  border-bottom: 1px solid #edf2ff;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 111, 243, 0.12);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 24px rgba(36, 62, 124, 0.06);
+  min-height: 0;
+}
+
+.role-row {
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 72px 92px minmax(72px, 1fr) minmax(120px, 1.4fr);
+  align-items: center;
+  gap: 10px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.role-row:hover {
+  transform: translateY(-2px);
+  border-color: rgba(47, 111, 243, 0.28);
+  box-shadow: 0 18px 36px rgba(36, 62, 124, 0.12);
+}
+
+.role-row--doctor {
+  grid-template-columns: 72px 76px minmax(72px, 0.9fr) minmax(120px, 1.2fr) 64px;
+  background: linear-gradient(
+    180deg,
+    rgba(236, 246, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.98) 100%
+  );
+}
+
+.role-row__id {
+  color: #5b6c92;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.role-row__name,
+.role-row__contact {
+  display: block;
+  min-width: 0;
+}
+
+.role-row__name {
+  font-size: 15px;
+  color: #142445;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.role-row__contact,
+.empty-card {
+  margin: 0;
+  color: #67779d;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.role-row__contact {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-pill,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  justify-self: start;
+  white-space: nowrap;
+}
+
+:deep(.pager) {
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 12px;
+}
+
+:deep(.pager-button),
+:deep(.pager-button--ghost) {
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+
+:deep(.pager-jump input) {
+  width: 54px;
+  min-height: 30px;
+}
+
+.role-pill--user {
+  background: #edf4ff;
+  color: #000000;
+}
+
+.role-pill--doctor {
+  background: #92dffb;
+  color: #2863da;
+}
+
+.role-pill--admin {
+  background: #eff8f3;
+  color: #25734c;
+}
+
+.role-pill--super {
+  background: #fff2e8;
+  color: #ad5a21;
+}
+
+.status-pill--online {
+  background: #e9f8ef;
+  color: #217149;
+}
+
+.status-pill--offline {
+  background: #fff1f1;
+  color: #b14f57;
 }
 
 .dialog-backdrop {
   position: fixed;
   inset: 0;
+  background: rgba(12, 22, 45, 0.28);
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: rgba(14, 28, 56, 0.24);
+  padding: 20px;
+  z-index: 30;
 }
 
 .dialog {
-  width: min(100%, 520px);
-  border-radius: 18px;
+  width: min(560px, 100%);
+  border-radius: 24px;
   background: #fff;
-  padding: 18px;
-  box-shadow: 0 28px 60px rgba(35, 62, 119, 0.18);
+  border: 1px solid #dce7ff;
+  box-shadow: 0 24px 60px rgba(25, 42, 92, 0.18);
+  padding: 22px;
 }
 
 .dialog__head,
@@ -330,36 +805,78 @@ td {
   gap: 12px;
 }
 
-.dialog__head {
-  margin-bottom: 14px;
-}
-
 .dialog__head h3 {
   margin: 0;
+  color: #16284d;
 }
 
 .form {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  margin-top: 18px;
 }
 
 .form label {
   display: grid;
-  gap: 6px;
-  font-size: 13px;
-  color: #45608f;
+  gap: 8px;
+  color: #425171;
 }
 
 .form input {
-  border: 1px solid #d7e4ff;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 14px;
+  border: 1px solid #cfdbff;
+  border-radius: 14px;
+  padding: 11px 12px;
+  background: #fbfcff;
 }
 
 .form-error {
   margin: 0;
-  color: #c73b3b;
-  font-size: 13px;
+  color: #bf4a54;
+}
+
+button {
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 16px;
+  background: #2f6ff3;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button.ghost {
+  background: #edf3ff;
+  color: #2a4c92;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 1080px) {
+  .hero {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .role-panel {
+    height: auto;
+    min-height: 0;
+  }
+
+  .role-table-list {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .role-row {
+    grid-template-columns: 64px 84px minmax(72px, 1fr) minmax(96px, 1.1fr);
+    gap: 8px;
+  }
+
+  .role-row--doctor {
+    grid-template-columns: 56px 68px minmax(60px, 0.8fr) minmax(88px, 1fr) 56px;
+  }
 }
 </style>

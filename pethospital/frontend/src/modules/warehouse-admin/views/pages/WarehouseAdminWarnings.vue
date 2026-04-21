@@ -16,17 +16,17 @@
       <div class="summary-grid">
         <article>
           <small>临期物品</small>
-          <strong>19</strong>
+          <strong>{{ expiringCount }}</strong>
           <span>7 天内需要处理</span>
         </article>
         <article>
           <small>低库存</small>
-          <strong>07</strong>
+          <strong>{{ lowStockCount }}</strong>
           <span>建议立即补货</span>
         </article>
         <article>
           <small>价格异常</small>
-          <strong>03</strong>
+          <strong>00</strong>
           <span>单价波动过大</span>
         </article>
       </div>
@@ -49,14 +49,66 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import { warehouseWarningsMock } from "../../api/warehouseAdminMock";
+import { computed, defineComponent, onMounted } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 
 export default defineComponent({
   name: "WarehouseAdminWarnings",
   setup() {
+    const store = useStore(storeKey);
+
+    /**
+     * 预警页直接复用仓库库存缓存，不再单独重复拉接口。
+     */
+    const warnings = computed(() =>
+      store.state.warehouseAdmin.items
+        .flatMap((item) => {
+          const rows = [];
+
+          if (item.days_until_expire !== null && item.days_until_expire <= 7) {
+            rows.push({
+              title: item.item_name,
+              description: `临期 ${item.days_until_expire} 天`,
+              level: "warning" as const,
+            });
+          }
+
+          if (item.item_number < 10) {
+            rows.push({
+              title: item.item_name,
+              description: `库存仅 ${item.item_number}`,
+              level: "danger" as const,
+            });
+          }
+
+          return rows;
+        })
+        .slice(0, 12)
+    );
+
+    const expiringCount = computed(
+      () =>
+        store.state.warehouseAdmin.items.filter(
+          (item) =>
+            item.days_until_expire !== null && item.days_until_expire <= 7
+        ).length
+    );
+
+    const lowStockCount = computed(
+      () =>
+        store.state.warehouseAdmin.items.filter((item) => item.item_number < 10)
+          .length
+    );
+
+    onMounted(() => {
+      void store.dispatch("warehouseAdmin/ensureItems");
+    });
+
     return {
-      warnings: warehouseWarningsMock,
+      warnings,
+      expiringCount,
+      lowStockCount,
     };
   },
 });

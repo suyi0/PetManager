@@ -158,6 +158,10 @@ export const authActions: ActionTree<AuthState, State> = {
     }
 
     commit("currentUser/clearCurrentUser", undefined, { root: true });
+    commit("doctor/resetState", undefined, { root: true });
+    commit("superAdmin/resetState", undefined, { root: true });
+    commit("userPortal/resetState", undefined, { root: true });
+    commit("warehouseAdmin/resetState", undefined, { root: true });
     commit("logout");
   },
 

@@ -10,18 +10,9 @@ import {
   OrderRecordItem,
   OrderSummary,
   ReservationScheduleState,
+  ReservationScheduleResponseItem,
 } from "@/modules/user/api/types";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
-
-/**
- * 用户订单记录接口返回的预约时间表项结构。
- */
-type ReservationScheduleResponseItem = {
-  year: string | number;
-  date: string;
-  weekday: string;
-  time_slots?: Record<string, unknown>;
-};
 
 /**
  * 生成一个与 axios 成功响应结构兼容的 Promise，

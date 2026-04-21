@@ -25,11 +25,15 @@ let boundStore: Store<State> | null = null; // 绑定的 store
 let boundRouter: Router | null = null; // 绑定的 router
 
 // boundRouter.currentRoute.value.path 获取当前路由路径
-// startsWith 方法检查是否为超级管理员路由
+/**
+ * startsWith 方法检查是否为超级管理员路由
+ */
 const isAdminRoute = () =>
   Boolean(boundRouter?.currentRoute.value.path.startsWith("/super-admin"));
 
-// 检查管理员会话是否活动
+/**
+ * 检查管理员会话是否活动
+ */
 const isAdminSessionActive = () =>
   Boolean(
     boundStore &&
@@ -38,12 +42,16 @@ const isAdminSessionActive = () =>
       isAdminRoute()
   );
 
-// 记录活动的时间
+/**
+ * 获取上次活动时间并记录活动的时间
+ */
 const recordActivity = () => {
   lastActivityAt = Date.now();
 };
 
-// 强制管理员登出
+/**
+ * 强制管理员登出
+ */
 const forceAdminLogout = async (reason: string) => {
   if (!boundStore || !boundRouter) {
     // 如果store或router未绑定，说明管理员登录状态未激活
@@ -62,7 +70,9 @@ const forceAdminLogout = async (reason: string) => {
   });
 };
 
-// 刷新管理员令牌
+/**
+ * 刷新管理员令牌
+ */
 const refreshAdminTokenIfNeeded = async () => {
   if (!boundStore || refreshPromise || !isAdminSessionActive()) {
     return;
@@ -96,7 +106,9 @@ const refreshAdminTokenIfNeeded = async () => {
   await refreshPromise;
 };
 
-// 检查管理员会话
+/**
+ * 检查管理员会话
+ */
 const checkAdminSession = async () => {
   if (!isAdminSessionActive()) {
     return;
@@ -124,14 +136,18 @@ const attachActivityListeners = () => {
   });
 };
 
-// 移除活动监听器
+/**
+ * 移除活动监听器
+ */
 const detachActivityListeners = () => {
   ACTIVITY_EVENTS.forEach((eventName) => {
     window.removeEventListener(eventName, recordActivity);
   });
 };
 
-// 启动管理员会话保护
+/**
+ * 启动管理员会话保护
+ */
 export const startSuperAdminSessionGuard = (
   store: Store<State>,
   router: Router
@@ -153,7 +169,9 @@ export const startSuperAdminSessionGuard = (
   }, CHECK_INTERVAL_MS);
 };
 
-// 停止管理员会话保护
+/**
+ * 停止管理员会话保护
+ */
 export const stopSuperAdminSessionGuard = () => {
   if (intervalId !== null) {
     // window.clearInterval(定时器ID) - 清除定时器

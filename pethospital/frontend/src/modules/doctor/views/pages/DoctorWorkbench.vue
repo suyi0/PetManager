@@ -172,11 +172,7 @@ import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 import { doctorApi } from "../../api/doctorApi";
 import { QueueItem } from "../../api/types";
-import {
-  userProfilesMock,
-  doctorWorkbenchStats,
-  queueItemsMock,
-} from "../../api/doctorMock";
+import { doctorWorkbenchStats } from "../../api/doctorMock";
 import {
   DoctorOrderDraftSummary,
   listDoctorOrderDrafts,
@@ -207,7 +203,9 @@ export default defineComponent({
           : item
       )
     );
-    const priorityQueue = computed(() => queueItemsMock.slice(0, 2));
+    const priorityQueue = computed(() =>
+      store.state.doctor.queueItems.slice(0, 2)
+    );
     const doctorName = computed(
       () => store.getters["auth/formattedUserName"] || "当前值班医生"
     );
@@ -219,13 +217,15 @@ export default defineComponent({
     const dutyActionLoading = ref(false);
     const lastDutyActionAt = ref("");
     const searchKeyword = ref("");
-    const searchSource: SearchUserItem[] = userProfilesMock.map((item) => ({
-      id: item.id,
-      ownerName: item.ownerName,
-      phone: item.phone,
-      petNames: item.pets.map((pet) => pet.name),
-    }));
-    const searchResults = ref<SearchUserItem[]>(searchSource.slice(0, 6));
+    const searchSource = computed<SearchUserItem[]>(() =>
+      store.state.doctor.userProfiles.map((item) => ({
+        id: item.id,
+        ownerName: item.ownerName,
+        phone: item.phone,
+        petNames: item.pets.map((pet) => pet.name),
+      }))
+    );
+    const searchResults = ref<SearchUserItem[]>([]);
     const now = ref(new Date());
     let timer: number | undefined;
     const syncDrafts = () => {
@@ -240,15 +240,17 @@ export default defineComponent({
       window.addEventListener("focus", syncDrafts);
       window.addEventListener("storage", syncDrafts);
 
-      void doctorApi
-        .getDutyStatus()
-        .then((status) => {
+      void store
+        .dispatch("doctor/ensureWorkbenchData")
+        .then(() => {
+          const status = store.state.doctor.dutyStatus;
           isDoctorOnline.value = status.is_online;
           lastDutyActionAt.value = status.is_online
             ? status.check_in_time?.slice(0, 5) || ""
             : status.check_out_time?.slice(0, 5) ||
               status.check_in_time?.slice(0, 5) ||
               "";
+          searchResults.value = searchSource.value.slice(0, 6);
         })
         .catch((error) => {
           console.error("获取医生值班状态失败:", error);
@@ -352,8 +354,12 @@ export default defineComponent({
       dutyActionLoading.value = true;
       try {
         const message = await doctorApi.online();
-        isDoctorOnline.value = true;
-        lastDutyActionAt.value = formatDutyTime(new Date());
+        store.commit("doctor/markDutyStatusDirty");
+        await store.dispatch("doctor/refreshDutyStatus");
+        isDoctorOnline.value = store.state.doctor.dutyStatus.is_online;
+        lastDutyActionAt.value =
+          store.state.doctor.dutyStatus.check_in_time?.slice(0, 5) ||
+          formatDutyTime(new Date());
         window.alert(message);
       } catch (error) {
         window.alert(resolveErrorMessage(error));
@@ -370,8 +376,12 @@ export default defineComponent({
       dutyActionLoading.value = true;
       try {
         const message = await doctorApi.offline();
-        isDoctorOnline.value = false;
-        lastDutyActionAt.value = formatDutyTime(new Date());
+        store.commit("doctor/markDutyStatusDirty");
+        await store.dispatch("doctor/refreshDutyStatus");
+        isDoctorOnline.value = store.state.doctor.dutyStatus.is_online;
+        lastDutyActionAt.value =
+          store.state.doctor.dutyStatus.check_out_time?.slice(0, 5) ||
+          formatDutyTime(new Date());
         window.alert(message);
       } catch (error) {
         window.alert(resolveErrorMessage(error));
@@ -384,11 +394,11 @@ export default defineComponent({
       const keyword = searchKeyword.value.trim().toLowerCase();
 
       if (!keyword) {
-        searchResults.value = searchSource.slice(0, 6);
+        searchResults.value = searchSource.value.slice(0, 6);
         return;
       }
 
-      searchResults.value = searchSource.filter((item) =>
+      searchResults.value = searchSource.value.filter((item) =>
         [item.ownerName, item.phone, item.petNames.join(" ")]
           .join(" ")
           .toLowerCase()

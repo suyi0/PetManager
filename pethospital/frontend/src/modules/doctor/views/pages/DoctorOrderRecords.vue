@@ -80,27 +80,34 @@
 <script lang="ts">
 import { computed, defineComponent, ref, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import AppPager from "../../../../components/AppPager.vue";
 import { OrderRecordItem } from "../../api/types";
-import { doctorApi } from "../../api/doctorApi";
 
 export default defineComponent({
   name: "DoctorOrderRecords",
   components: { AppPager },
   setup() {
+    const store = useStore(storeKey);
     const route = useRoute();
     const router = useRouter();
     const activeStatus = ref<"全部" | OrderRecordItem["status"]>("全部");
     const page = ref(1);
     const pageSize = 10;
-    const orderRecords = ref<OrderRecordItem[]>([]);
+    const orderRecords = computed<OrderRecordItem[]>(
+      () => store.state.doctor.orderRecords
+    );
 
     const basePath = computed(() =>
       route.path.startsWith("/preview/doctor") ? "/preview/doctor" : "/doctor"
     );
 
+    /**
+     * 优先复用订单记录缓存。
+     */
     const loadOrderRecords = async () => {
-      orderRecords.value = await doctorApi.getOrderRecords();
+      await store.dispatch("doctor/ensureOrderRecords");
     };
 
     /**

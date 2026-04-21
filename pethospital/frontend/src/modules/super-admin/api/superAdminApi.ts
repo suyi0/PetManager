@@ -1,6 +1,5 @@
-import axios from "axios";
+import http from "@/api/http";
 import { unwrapList } from "@/api/response";
-import { authStorage } from "@/core/auth/utils/authStorage";
 import {
   superAdminSystemLogsMock,
   superAdminUserLogsMock,
@@ -9,26 +8,18 @@ import {
 } from "./superAdminMock";
 import {
   CreateUserPayload,
+  HomePageSummary,
   UserRow,
   WorkTimeRecord,
   UserLogs,
   SystemLogs,
 } from "./types";
 
-const http = axios.create({
-  baseURL: "",
-  timeout: 12000,
-});
-
-http.interceptors.request.use((config) => {
-  const token = authStorage.getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 export const superAdminApi = {
+  /**
+   * 刷新管理员会话
+   * @returns 新的访问令牌字符串，或者在请求失败或原令牌无效时抛出错误。
+   */
   refreshAdminSession() {
     return http.post("/api/auth/admin/refresh");
   },
@@ -67,6 +58,13 @@ export const superAdminApi = {
     await http.post("/api/admin/changeDoctorWorkTime", params);
   },
 
+  async changeDoctorWorkStatus(params: {
+    doctorId: number;
+    status: "online" | "offline";
+  }): Promise<void> {
+    await http.post("/api/admin/changeDoctorWorkStatus", params);
+  },
+
   async getUsers(): Promise<UserRow[]> {
     try {
       const { data } = await http.get("/api/admin/getUsers");
@@ -99,6 +97,27 @@ export const superAdminApi = {
       return {
         userLogs: superAdminUserLogsMock,
         systemLogs: superAdminSystemLogsMock,
+      };
+    }
+  },
+
+  async getHomePageData(): Promise<HomePageSummary> {
+    try {
+      const { data } = await http.get("/api/admin/homePageGetData");
+      const userCount = Number(data?.userCount ?? 0);
+      const onlineDoctorCount = Number(data?.onlineDoctorCount ?? 0);
+      const logsCount = Number(data?.logsCount ?? data?.logCount ?? 0);
+
+      return {
+        userCount,
+        onlineDoctorCount,
+        logsCount,
+      };
+    } catch {
+      return {
+        userCount: 0,
+        onlineDoctorCount: 0,
+        logsCount: 0,
       };
     }
   },

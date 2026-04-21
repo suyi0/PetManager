@@ -1,95 +1,67 @@
 <template>
   <section class="page">
     <div class="grid stats">
+      <StatCard label="注册用户" :value="userCount" @click="toUsersPage" />
       <StatCard
-        label="注册用户"
-        :value="users.length"
-        hint="来自 /api/admin/getUsers"
-      />
-      <StatCard
-        label="当日打卡医生"
+        label="在线医生"
         :value="onlineCount"
-        hint="source = online_doctors"
+        @click="toOnlineDoctorsPage"
       />
-      <StatCard
-        label="历史考勤条数"
-        :value="historyCount"
-        hint="source = work_records"
-      />
-    </div>
-
-    <div class="panel">
-      <div class="head">
-        <h3>最近考勤（前 8 条）</h3>
-        <button @click="loadAll">刷新</button>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>姓名</th>
-            <th>日期</th>
-            <th>签到</th>
-            <th>签退</th>
-            <th>状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="item in previewRecords"
-            :key="`${item.source}-${item.id}-${item.user_id}-${item.date}`"
-          >
-            <td>{{ item.name }}</td>
-            <td>{{ item.date }}</td>
-            <td>{{ item.check_in_time }}</td>
-            <td>{{ item.check_out_time }}</td>
-            <td>{{ item.status }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <StatCard label="今日日志" :value="logCount" @click="toLogsPage" />
     </div>
   </section>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref } from "vue";
+import { computed, defineComponent, onMounted } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import StatCard from "../../components/StatCard.vue";
-import { superAdminApi } from "../../api/superAdminApi";
-import { UserRow, WorkTimeRecord } from "../../api/types";
+import { useRoute, useRouter } from "vue-router";
 
 export default defineComponent({
   name: "SuperAdminOverview",
   components: { StatCard },
   setup() {
-    const users = ref<UserRow[]>([]);
-    const records = ref<WorkTimeRecord[]>([]);
+    const store = useStore(storeKey);
+    const router = useRouter();
+    const route = useRoute();
+    const summary = computed(() => store.state.superAdmin.homePageData);
+    const userCount = computed(() => summary.value.userCount);
+    const onlineCount = computed(() => summary.value.onlineDoctorCount);
+    const logCount = computed(() => summary.value.logsCount);
 
-    const onlineCount = computed(
-      () => records.value.filter((it) => it.source === "online_doctors").length
+    const routePrefix = computed(() =>
+      route.path.startsWith("/preview/super-admin")
+        ? "/preview/super-admin"
+        : "/super-admin"
     );
 
-    const historyCount = computed(
-      () => records.value.filter((it) => it.source === "work_records").length
-    );
+    const toUsersPage = () => router.push(`${routePrefix.value}/users`);
+    const toOnlineDoctorsPage = () =>
+      router.push(`${routePrefix.value}/online-doctors`);
+    const toLogsPage = () => router.push(`${routePrefix.value}/logs`);
 
-    const previewRecords = computed(() => records.value.slice(0, 8));
-
+    /**
+     * 手动刷新首页摘要卡片。
+     */
     const loadAll = async () => {
-      const [userRows, workRows] = await Promise.all([
-        superAdminApi.getUsers(),
-        superAdminApi.getWorkTimeRecord(),
-      ]);
-      users.value = userRows;
-      records.value = workRows;
+      await store.dispatch("superAdmin/refreshOverviewData");
     };
 
-    onMounted(loadAll);
+    onMounted(() => {
+      // 页面首次进入时优先复用首页摘要缓存，只有过期或脏数据时才会重拉。
+      void store.dispatch("superAdmin/ensureOverviewData");
+    });
 
     return {
-      users,
+      userCount,
       onlineCount,
-      historyCount,
-      previewRecords,
+      logCount,
       loadAll,
+      toUsersPage,
+      toOnlineDoctorsPage,
+      toLogsPage,
     };
   },
 });

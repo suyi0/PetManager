@@ -126,13 +126,18 @@ export const doctorApi = {
     }
   },
 
+  async updateDutyStatus(status: DoctorDutyStatus["status"]): Promise<string> {
+    const { data } = await http.post("/api/doctor/dutyStatus/action", {
+      status,
+    });
+    return unwrapMessage(data, status === "online" ? "签到成功!" : "签退成功!");
+  },
+
   async online(): Promise<string> {
-    const { data } = await http.post("/api/doctor/online");
-    return unwrapMessage(data, "签到成功!");
+    return this.updateDutyStatus("online");
   },
 
   async offline(): Promise<string> {
-    const { data } = await http.post("/api/doctor/offline");
-    return unwrapMessage(data, "签退成功!");
+    return this.updateDutyStatus("offline");
   },
 };

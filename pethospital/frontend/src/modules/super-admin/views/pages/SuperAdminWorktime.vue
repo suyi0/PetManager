@@ -53,21 +53,26 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted, ref } from "vue";
+import { computed, defineComponent, onMounted, ref } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import { superAdminApi } from "../../api/superAdminApi";
-import { WorkTimeRecord } from "../../api/types";
 
 export default defineComponent({
   name: "SuperAdminWorktime",
   setup() {
-    const records = ref<WorkTimeRecord[]>([]);
+    const store = useStore(storeKey);
+    const records = computed(() => store.state.superAdmin.workTimeRecords);
     const message = ref("等待操作");
     const userId = ref<number | null>(null);
     const identifier = ref<"check_in_time" | "check_out_time">("check_in_time");
     const date = ref(new Date().toISOString().slice(0, 10));
 
+    /**
+     * 优先复用考勤缓存。
+     */
     const loadRecords = async () => {
-      records.value = await superAdminApi.getWorkTimeRecord();
+      await store.dispatch("superAdmin/ensureWorkTimeRecords");
     };
 
     const changeTime = async () => {
@@ -82,8 +87,12 @@ export default defineComponent({
           date: date.value,
           identifier: identifier.value,
         });
+        // 手动修改考勤后，考勤列表和审计日志都需要失效。
+        store.commit("superAdmin/markWorkTimeRecordsDirty");
+        store.commit("superAdmin/markLogsDirty");
+        store.commit("superAdmin/markHomePageDataDirty");
         message.value = "更新时间成功";
-        await loadRecords();
+        await store.dispatch("superAdmin/refreshWorkTimeRecords");
       } catch (err: unknown) {
         message.value = `更新时间失败: ${String(
           (err as Error).message || err

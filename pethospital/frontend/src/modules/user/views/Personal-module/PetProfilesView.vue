@@ -260,28 +260,20 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
-
-interface PetProfile {
-  id: string;
-  name: string;
-  species: string;
-  breed: string;
-  age: string;
-  gender: string;
-  neutered: string;
-  vaccineStatus: string;
-  preference: string;
-  notes: string;
-}
+import { PetProfile } from "@/modules/user/store/types";
 
 const emit = defineEmits(["updateCount"]);
 
 const store = useStore(storeKey);
 
-const pets = ref<PetProfile[]>([]);
 const createPet = ref<boolean>(false);
 const selectedPetId = ref<string>("");
 const editingPetId = ref<string>("");
+
+/**
+ * 宠物档案统一从 userPortal 读取，这样页面切换回来时不需要再次解析 localStorage。
+ */
+const pets = computed<PetProfile[]>(() => store.state.userPortal.petProfiles);
 
 const form = reactive<Omit<PetProfile, "id">>({
   name: "",
@@ -305,43 +297,20 @@ const dogCount = computed(
   () => pets.value.filter((pet) => pet.species === "狗狗").length
 );
 
-const getStorageKey = () => {
-  const userKey =
-    store.state.currentUser.userPhone ||
-    store.state.currentUser.userEmail ||
-    store.state.currentUser.userName ||
-    "default-user";
-
-  return `petmanager-user-pets:${userKey}`;
-};
-
-const persistPets = () => {
-  window.localStorage.setItem(getStorageKey(), JSON.stringify(pets.value));
-  emit("updateCount", pets.value.length);
-};
-
-const loadPets = () => {
-  try {
-    const raw = window.localStorage.getItem(getStorageKey());
-    if (!raw) {
-      pets.value = [];
-      selectedPetId.value = "";
-      createPet.value = true;
-      emit("updateCount", 0);
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-    pets.value = Array.isArray(parsed) ? parsed : [];
-    selectedPetId.value = pets.value[0]?.id || "";
-    createPet.value = pets.value.length === 0;
-    emit("updateCount", pets.value.length);
-  } catch (error) {
-    pets.value = [];
+const syncPetPanelState = (rows: PetProfile[]) => {
+  if (rows.length === 0) {
     selectedPetId.value = "";
     createPet.value = true;
     emit("updateCount", 0);
+    return;
   }
+
+  if (!rows.some((pet) => pet.id === selectedPetId.value)) {
+    selectedPetId.value = rows[0]?.id || "";
+  }
+
+  createPet.value = false;
+  emit("updateCount", rows.length);
 };
 
 const resetForm = () => {
@@ -367,7 +336,7 @@ const cancelForm = () => {
   createPet.value = pets.value.length === 0;
 };
 
-const openPet = (pet: any) => {
+const openPet = (pet: PetProfile) => {
   createPet.value = false;
   selectedPetId.value = pet.id;
 };
@@ -410,38 +379,53 @@ const savePet = () => {
   };
 
   if (editingPetId.value) {
-    pets.value = pets.value.map((pet) =>
-      pet.id === editingPetId.value ? payload : pet
+    store.dispatch(
+      "userPortal/savePetProfiles",
+      pets.value.map((pet) => (pet.id === editingPetId.value ? payload : pet))
     );
   } else {
-    pets.value = [payload, ...pets.value];
+    store.dispatch("userPortal/savePetProfiles", [payload, ...pets.value]);
   }
 
   selectedPetId.value = payload.id;
-  persistPets();
   createPet.value = false;
   resetForm();
 };
 
 const removePet = (petId: string) => {
-  pets.value = pets.value.filter((pet) => pet.id !== petId);
+  const nextPets = pets.value.filter((pet) => pet.id !== petId);
+  store.dispatch("userPortal/savePetProfiles", nextPets);
   if (selectedPetId.value === petId) {
-    selectedPetId.value = pets.value[0]?.id || "";
+    selectedPetId.value = nextPets[0]?.id || "";
   }
-  persistPets();
-  createPet.value = pets.value.length === 0;
+  createPet.value = nextPets.length === 0;
   resetForm();
 };
 
 watch(
-  () => store.state.currentUser.userPhone,
+  () => [
+    store.state.currentUser.userPhone,
+    store.state.currentUser.userEmail,
+    store.state.currentUser.userName,
+  ],
   () => {
-    loadPets();
+    void store.dispatch("userPortal/refreshPetProfiles");
   }
 );
 
+watch(
+  pets,
+  (rows) => {
+    syncPetPanelState(rows);
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
-  loadPets();
+  /**
+   * 宠物档案首次进入时从用户本地持久化载入到 store。
+   */
+  void store.dispatch("userPortal/ensurePetProfiles");
 });
 </script>
 

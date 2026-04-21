@@ -41,3 +41,13 @@ export interface ReservationScheduleState {
   weekday: string[];
   slots: string[][];
 }
+
+/**
+ * 用户订单记录接口返回的预约时间表项结构。
+ */
+export interface ReservationScheduleResponseItem {
+  year: string | number;
+  date: string;
+  weekday: string;
+  time_slots?: Record<string, unknown>;
+}

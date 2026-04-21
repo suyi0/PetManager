@@ -1,0 +1,86 @@
+digraph PetHospitalBSArchitecture {
+  graph [
+    rankdir=TB,
+    splines=ortho,
+    overlap=false,
+    fontname="PingFang SC",
+    fontsize=20,
+    pad=0.45,
+    nodesep=0.5,
+    ranksep=0.7,
+    bgcolor="white"
+  ];
+
+  node [
+    shape=box,
+    style="rounded",
+    fontname="PingFang SC",
+    fontsize=14,
+    color="#444444",
+    penwidth=1.2
+  ];
+
+  edge [
+    arrowhead=none,
+    color="#666666",
+    penwidth=1.1
+  ];
+
+  Browser [label="浏览器", width=1.6, height=0.55];
+  Client [label="客户端", width=1.6, height=0.55];
+
+  subgraph cluster_system {
+    label="";
+    color="#666666";
+    penwidth=1.2;
+    style="rounded";
+
+    CrowCore [label="Crow 后端服务", width=6.6, height=0.8];
+
+    subgraph cluster_modules {
+      label="";
+      color="#777777";
+      penwidth=1.0;
+      style="rounded";
+
+      UserModule [label="用户管理", width=2.0, height=0.7];
+      ReservationModule [label="预约管理", width=2.0, height=0.7];
+      OrderModule [label="订单管理", width=2.0, height=0.7];
+      DoctorModule [label="医生管理", width=2.0, height=0.7];
+      WarehouseModule [label="仓库管理", width=2.0, height=0.7];
+      AdminModule [label="后台管理", width=2.0, height=0.7];
+      AuthModule [label="认证管理", width=2.0, height=0.7];
+
+      LogModule [label="日志记录", width=0.95, height=2.15];
+      TaskModule [label="定时任务", width=0.95, height=2.15];
+
+      { rank=same; UserModule ReservationModule OrderModule LogModule TaskModule }
+      { rank=same; DoctorModule WarehouseModule AdminModule AuthModule }
+    }
+
+    Database [label="MySQL 数据库", width=6.6, height=0.85];
+  }
+
+  Server [label="服务器端", width=1.7, height=0.6];
+
+  Browser -> CrowCore;
+  Client -> CrowCore;
+  CrowCore -> UserModule;
+  CrowCore -> ReservationModule;
+  CrowCore -> OrderModule;
+  CrowCore -> DoctorModule;
+  CrowCore -> WarehouseModule;
+  CrowCore -> AdminModule;
+  CrowCore -> AuthModule;
+
+  UserModule -> Database;
+  ReservationModule -> Database;
+  OrderModule -> Database;
+  DoctorModule -> Database;
+  WarehouseModule -> Database;
+  AdminModule -> Database;
+  AuthModule -> Database;
+  LogModule -> Database;
+  TaskModule -> Database;
+  Server -> CrowCore;
+}

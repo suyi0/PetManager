@@ -223,6 +223,10 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
+  /**
+   * 用户端首页进入后先预热预约页常用的医生与时间表数据。
+   */
+  void store.dispatch("userPortal/ensureServiceData");
 });
 
 onBeforeUnmount(() => {

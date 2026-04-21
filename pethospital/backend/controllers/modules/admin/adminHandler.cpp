@@ -1,6 +1,81 @@
 #include "adminHandler.h"
 #include "../../../database/UserPhoneSync.h"
+#include "../../OperationLogger/OperationLogger.h"
 #include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
+
+int adminHandler::getUserCount()
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return -1; // 或者抛出异常，具体取决于你的错误处理策略
+        }
+
+        int userCount = dbManager->getSession()
+                            ->sql("SELECT COUNT(*) FROM users")
+                            .execute()
+                            .fetchOne()[0]
+                            .get<int>();
+        return userCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get userCount: " + std::string(e.what()));
+    }
+}
+
+int adminHandler::getOnlineDoctorCount()
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return -1;
+        }
+
+        int OnlineDoctorCount = dbManager->getSession()
+                                    ->sql("SELECT COUNT(*) FROM onlineDoctors WHERE status = 'online'")
+                                    .execute()
+                                    .fetchOne()[0]
+                                    .get<int>();
+        return OnlineDoctorCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get onlineDoctorCount: " + std::string(e.what()));
+    }
+}
+
+int adminHandler::getLogsCount()
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return -1;
+        }
+
+        int SystemLogsCount = dbManager->getSession()
+                                  ->sql("SELECT COUNT(*) FROM system_operations")
+                                  .execute()
+                                  .fetchOne()[0]
+                                  .get<int>();
+
+        int UserLogsCount = dbManager->getSession()
+                                ->sql("SELECT COUNT(*) FROM user_operations")
+                                .execute()
+                                .fetchOne()[0]
+                                .get<int>();
+
+        int LogsCount = SystemLogsCount + UserLogsCount;
+        return LogsCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get logsCount: " + std::string(e.what()));
+    }
+}
 
 crow::response adminHandler::getUsers(const crow::request &req)
 {
@@ -13,9 +88,10 @@ crow::response adminHandler::getUsers(const crow::request &req)
 
         mysqlx::SqlResult result = dbManager->getSession()
                                        ->sql("SELECT u.id, u.type_id, t.type, u.name, u.phone, u.email, CAST(u.birthday AS CHAR), "
-                                             "u.address_id, u.head_image "
+                                             "u.address_id, u.head_image, od.status "
                                              "FROM users AS u "
-                                             "LEFT JOIN types AS t ON u.type_id = t.id")
+                                             "LEFT JOIN types AS t ON u.type_id = t.id "
+                                             "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id")
                                        .execute();
 
         nlohmann::json response_data = nlohmann::json::array();
@@ -31,6 +107,7 @@ crow::response adminHandler::getUsers(const crow::request &req)
             user_json["birthday"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
             user_json["address_id"] = row[7].isNull() ? nullptr : nlohmann::json(row[7].get<int>());
             user_json["head_image"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
+            user_json["status"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
 
             response_data.push_back(user_json);
         }
@@ -166,7 +243,7 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
     }
 }
 
-crow::response adminHandler::createUser(const crow::request& req)
+crow::response adminHandler::createUser(const crow::request &req)
 {
     try
     {
@@ -202,9 +279,9 @@ crow::response adminHandler::createUser(const crow::request& req)
         if (!phone.empty())
         {
             mysqlx::SqlResult phone_result = dbManager->getSession()
-                ->sql("SELECT id FROM users WHERE phone = ?")
-                .bind(phone)
-                .execute();
+                                                 ->sql("SELECT id FROM users WHERE phone = ?")
+                                                 .bind(phone)
+                                                 .execute();
 
             if (phone_result.count() > 0)
             {
@@ -215,9 +292,9 @@ crow::response adminHandler::createUser(const crow::request& req)
         if (!email.empty())
         {
             mysqlx::SqlResult email_result = dbManager->getSession()
-                ->sql("SELECT id FROM users WHERE email = ?")
-                .bind(email)
-                .execute();
+                                                 ->sql("SELECT id FROM users WHERE email = ?")
+                                                 .bind(email)
+                                                 .execute();
 
             if (email_result.count() > 0)
             {
@@ -235,12 +312,12 @@ crow::response adminHandler::createUser(const crow::request& req)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-            ->sql("INSERT INTO users (type_id, name, phone, password, email, birthday, address_id, head_image) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            .bind(defaultUserRoleId, name, phone, hashed_password, email, birthday, address_id, head_image)
-            .execute();
-        
-        if(result.getAffectedItemsCount() == 0)
+                                       ->sql("INSERT INTO users (type_id, name, phone, password, email, birthday, address_id, head_image) "
+                                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                                       .bind(defaultUserRoleId, name, phone, hashed_password, email, birthday, address_id, head_image)
+                                       .execute();
+
+        if (result.getAffectedItemsCount() == 0)
         {
             return ResponseHelper::system_error(req, "创建失败");
         }
@@ -266,13 +343,11 @@ crow::response adminHandler::createUser(const crow::request& req)
         };
 
         return ResponseHelper::created(req, payload);
-
     }
-    catch(const std::exception& e)
+    catch (const std::exception &e)
     {
         return ResponseHelper::system_error(req, e.what());
     }
-    
 }
 
 crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
@@ -286,7 +361,7 @@ crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
         auto &request_body = request_body_opt.value();
 
         int userID = request_body.value("user_id", 0);
-        if(userID == 0)
+        if (userID == 0)
         {
             return ResponseHelper::validation(req, "用户ID不能为空");
         }
@@ -297,9 +372,9 @@ crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
         }
 
         mysqlx::SqlResult target_result = dbManager->getSession()
-            ->sql("SELECT type_id FROM users WHERE id = ?")
-            .bind(userID)
-            .execute();
+                                              ->sql("SELECT type_id FROM users WHERE id = ?")
+                                              .bind(userID)
+                                              .execute();
 
         if (target_result.count() == 0)
         {
@@ -316,22 +391,21 @@ crow::response adminHandler::deleteUser(const crow::request &req, int &userId)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-            ->sql("DELETE FROM users WHERE id = ? AND type_id = ?")
-            .bind(userID, target_type)
-            .execute();
+                                       ->sql("DELETE FROM users WHERE id = ? AND type_id = ?")
+                                       .bind(userID, target_type)
+                                       .execute();
 
-        if(result.getAffectedItemsCount() == 0)
+        if (result.getAffectedItemsCount() == 0)
         {
             return ResponseHelper::notFound(req, "用户不存在");
         }
 
         return ResponseHelper::success(req, "删除成功");
     }
-    catch(const std::exception& e)
+    catch (const std::exception &e)
     {
         return ResponseHelper::system_error(req, e.what());
     }
-    
 }
 
 crow::response adminHandler::createDoctor(const crow::request &req)
@@ -346,7 +420,7 @@ crow::response adminHandler::createDoctor(const crow::request &req)
 
         int userId = request_body.value("user_id", 0);
 
-        if(userId == 0)
+        if (userId == 0)
         {
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
@@ -358,9 +432,9 @@ crow::response adminHandler::createDoctor(const crow::request &req)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
-                                    .bind(doctorRoleId, userId)
-                                    .execute();
+                                       ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                       .bind(doctorRoleId, userId)
+                                       .execute();
 
         if (result.getAffectedItemsCount() == 0)
         {
@@ -371,9 +445,9 @@ crow::response adminHandler::createDoctor(const crow::request &req)
         std::string todayDate = formatDateOnly(currentDateTime);
 
         mysqlx::SqlResult onlineDoctorResult = dbManager->getSession()
-            ->sql("SELECT doctor_id FROM onlineDoctors WHERE doctor_id = ? LIMIT 1")
-            .bind(userId)
-            .execute();
+                                                   ->sql("SELECT doctor_id FROM onlineDoctors WHERE doctor_id = ? LIMIT 1")
+                                                   .bind(userId)
+                                                   .execute();
 
         if (onlineDoctorResult.count() == 0)
         {
@@ -405,7 +479,7 @@ crow::response adminHandler::deleteDoctor(const crow::request &req)
 
         int userId = request_body.value("user_id", 0);
 
-        if(userId == 0)
+        if (userId == 0)
         {
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
@@ -418,9 +492,9 @@ crow::response adminHandler::deleteDoctor(const crow::request &req)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
-                                    .bind(defaultUserRoleId, userId)
-                                    .execute();
+                                       ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                       .bind(defaultUserRoleId, userId)
+                                       .execute();
 
         if (result.getAffectedItemsCount() == 0)
         {
@@ -447,7 +521,7 @@ crow::response adminHandler::createWarehouserManager(const crow::request &req)
 
         int userId = request_body.value("user_id", 0);
 
-        if(userId == 0)
+        if (userId == 0)
         {
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
@@ -460,9 +534,9 @@ crow::response adminHandler::createWarehouserManager(const crow::request &req)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
-                                    .bind(warehouseRoleId, userId)
-                                    .execute();
+                                       ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                       .bind(warehouseRoleId, userId)
+                                       .execute();
 
         if (result.getAffectedItemsCount() == 0)
         {
@@ -489,7 +563,7 @@ crow::response adminHandler::deleteWarehouserManager(const crow::request &req)
 
         int userId = request_body.value("user_id", 0);
 
-        if(userId == 0)
+        if (userId == 0)
         {
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
@@ -502,10 +576,10 @@ crow::response adminHandler::deleteWarehouserManager(const crow::request &req)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                    ->sql("UPDATE users SET type_id = ? WHERE id = ?")
-                                    .bind(defaultUserRoleId, userId)
-                                    .execute();
-        
+                                       ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                       .bind(defaultUserRoleId, userId)
+                                       .execute();
+
         if (result.getAffectedItemsCount() == 0)
         {
             return ResponseHelper::notFound(req);
@@ -513,18 +587,17 @@ crow::response adminHandler::deleteWarehouserManager(const crow::request &req)
 
         return ResponseHelper::success(req, "删除权限成功");
     }
-    catch(const std::exception& e)
+    catch (const std::exception &e)
     {
         return ResponseHelper::system_error(req, e.what());
     }
-    
 }
 
 crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int &userId, const std::string &date, const std::string &identifier)
 {
     try
     {
-        if(!checkDbConnection())
+        if (!checkDbConnection())
         {
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
@@ -555,9 +628,9 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         {
             // 更新今日在线医生表
             mysqlx::SqlResult result = dbManager->getSession()
-                                        ->sql("UPDATE onlineDoctors SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
-                                        .bind(time_value, userId, date)
-                                        .execute();
+                                           ->sql("UPDATE onlineDoctors SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
+                                           .bind(time_value, userId, date)
+                                           .execute();
 
             affected_rows = result.getAffectedItemsCount();
         }
@@ -565,9 +638,9 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         {
             // 更新历史工作时间记录表
             mysqlx::SqlResult result = dbManager->getSession()
-                                        ->sql("UPDATE workTimeRecords SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
-                                        .bind(time_value, userId, date)
-                                        .execute();
+                                           ->sql("UPDATE workTimeRecords SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
+                                           .bind(time_value, userId, date)
+                                           .execute();
 
             affected_rows = result.getAffectedItemsCount();
         }
@@ -587,6 +660,140 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
     }
 }
 
+crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, int &userId, bool requireDoctorId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+        {
+            return res;
+        }
+        auto &request_body = request_body_opt.value();
+
+        const std::string status = request_body.value("status", "");
+        const int targetDoctorId = requireDoctorId
+                                       ? request_body.value("doctorId", -1)
+                                       : request_body.value("doctorId", userId);
+
+        if (targetDoctorId <= 0)
+        {
+            return ResponseHelper::validation(req, "Missing or invalid doctorId");
+        }
+
+        const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
+        if (doctorRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "医生角色不存在");
+        }
+
+        auto doctorResult = dbManager->getSession()
+                                ->sql("SELECT id FROM users WHERE id = ? AND type_id = ? LIMIT 1")
+                                .bind(targetDoctorId)
+                                .bind(doctorRoleId)
+                                .execute();
+        auto doctorRow = doctorResult.fetchOne();
+        if (!doctorRow)
+        {
+            return ResponseHelper::notFound(req, "目标医生不存在");
+        }
+
+        boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
+        std::string todayDate = formatDateOnly(currentDateTime);
+        std::string currentTime = formatTimeOnly(currentDateTime);
+
+        auto existingResult = dbManager->getSession()
+                                  ->sql("SELECT date, status FROM onlineDoctors WHERE doctor_id = ? LIMIT 1")
+                                  .bind(targetDoctorId)
+                                  .execute();
+        auto existingRow = existingResult.fetchOne();
+
+        if (status == "online")
+        {
+            if (existingRow)
+            {
+                const std::string currentDate = existingRow[0].isNull() ? "" : existingRow[0].get<std::string>();
+                const std::string currentStatus = existingRow[1].isNull() ? "" : existingRow[1].get<std::string>();
+                if (currentStatus == "online")
+                {
+                    return ResponseHelper::success(req, currentDate == todayDate ? "医生当前已处于上班状态" : "医生已处于上班状态，已同步为今日记录");
+                }
+
+                dbManager->getSession()
+                    ->sql("UPDATE onlineDoctors "
+                          "SET date = ?, check_in_time = ?, check_out_time = NULL, status = 'online' "
+                          "WHERE doctor_id = ?")
+                    .bind(todayDate)
+                    .bind(currentTime)
+                    .bind(targetDoctorId)
+                    .execute();
+            }
+            else
+            {
+                dbManager->getSession()
+                    ->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, check_out_time, status) "
+                          "VALUES (?, ?, ?, NULL, 'online')")
+                    .bind(targetDoctorId)
+                    .bind(todayDate)
+                    .bind(currentTime)
+                    .execute();
+            }
+
+            return ResponseHelper::success(req, "更新成功");
+        }
+
+        if (status == "offline")
+        {
+            if (!existingRow)
+            {
+                dbManager->getSession()
+                    ->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, check_out_time, status) "
+                          "VALUES (?, ?, NULL, NULL, 'offline')")
+                    .bind(targetDoctorId)
+                    .bind(todayDate)
+                    .execute();
+
+                return ResponseHelper::success(req, "更新成功");
+            }
+
+            const std::string currentStatus = existingRow[1].isNull() ? "" : existingRow[1].get<std::string>();
+            if (currentStatus == "offline")
+            {
+                return ResponseHelper::success(req, "医生当前已处于下班状态");
+            }
+
+            auto result = dbManager->getSession()
+                              ->sql("UPDATE onlineDoctors "
+                                    "SET date = ?, check_out_time = ?, status = 'offline' "
+                                    "WHERE doctor_id = ?")
+                              .bind(todayDate)
+                              .bind(currentTime)
+                              .bind(targetDoctorId)
+                              .execute();
+
+            if (result.getAffectedItemsCount() == 0)
+            {
+                return ResponseHelper::notFound(req, "未找到可更新的值班记录");
+            }
+
+            return ResponseHelper::success(req, "更新成功");
+        }
+
+        return ResponseHelper::validation(req, "Invalid status value");
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "管理", "修改医生工作状态", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
 crow::response adminHandler::getLogs(const crow::request &req)
 {
     try
@@ -597,18 +804,18 @@ crow::response adminHandler::getLogs(const crow::request &req)
         }
 
         mysqlx::SqlResult userLogs_result = dbManager->getSession()
-                                            ->sql("SELECT CAST(id AS CHAR), category, user_role, operator, module, action, result, "
-                                                  "CAST(created_at AS CHAR), summary, details, source "
-                                                  "FROM user_operations "
-                                                  "ORDER BY created_at DESC")
-                                            .execute();
+                                                ->sql("SELECT CAST(id AS CHAR), category, user_role, operator, module, action, result, "
+                                                      "CAST(created_at AS CHAR), summary, details, source "
+                                                      "FROM user_operations "
+                                                      "ORDER BY created_at DESC")
+                                                .execute();
 
         mysqlx::SqlResult systemLogs_result = dbManager->getSession()
-                                              ->sql("SELECT CAST(id AS CHAR), category, system_role, operator, module, action, result, "
-                                                    "CAST(created_at AS CHAR), summary, details, source "
-                                                    "FROM system_operations "
-                                                    "ORDER BY created_at DESC")
-                                              .execute();
+                                                  ->sql("SELECT CAST(id AS CHAR), category, system_role, operator, module, action, result, "
+                                                        "CAST(created_at AS CHAR), summary, details, source "
+                                                        "FROM system_operations "
+                                                        "ORDER BY created_at DESC")
+                                                  .execute();
 
         nlohmann::json response;
         response["userLogs"] = nlohmann::json::array();
@@ -620,8 +827,8 @@ crow::response adminHandler::getLogs(const crow::request &req)
             log["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
             log["category"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
             log["userRole"] = row[2].isNull()
-                ? nlohmann::json(nullptr)
-                : nlohmann::json(clean_string(row[2].get<std::string>()));
+                                  ? nlohmann::json(nullptr)
+                                  : nlohmann::json(clean_string(row[2].get<std::string>()));
             log["operator"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
             log["module"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
             log["action"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
@@ -640,8 +847,8 @@ crow::response adminHandler::getLogs(const crow::request &req)
             log["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
             log["category"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
             log["systemRole"] = row[2].isNull()
-                ? nlohmann::json(nullptr)
-                : nlohmann::json(clean_string(row[2].get<std::string>()));
+                                    ? nlohmann::json(nullptr)
+                                    : nlohmann::json(clean_string(row[2].get<std::string>()));
             log["operator"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
             log["module"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
             log["action"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
@@ -656,7 +863,29 @@ crow::response adminHandler::getLogs(const crow::request &req)
 
         return ResponseHelper::success(req, response);
     }
-    catch (const std::exception& e)
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response adminHandler::homePageGetData(const crow::request &req)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        nlohmann::json summary = {
+            {"userCount", getUserCount()},
+            {"onlineDoctorCount", getOnlineDoctorCount()},
+            {"logCount", getLogsCount()}};
+
+        return ResponseHelper::success(req, summary);
+    }
+    catch (const std::exception &e)
     {
         return ResponseHelper::system_error(req, e.what());
     }

@@ -102,21 +102,24 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import treatSlots from "@/modules/user/views/Services-module/treatSlots.vue";
-import { reservationApi } from "@/modules/user/api/userApi";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 import { ReservationScheduleState } from "@/modules/user/api/types";
 
+const store = useStore(storeKey);
 const activeTab = ref("reservation");
 const submitAfter = ref(false);
-const doctorData = ref<DoctorDataItem[]>([]);
-const scheduleData = ref<Omit<ReservationScheduleState, "doctorData">>({
-  year: [],
-  month: [],
-  day: [],
-  weekday: [],
-  slots: [],
-});
+/**
+ * 服务预约页优先读取全局缓存，切页回来时不重复请求医生与时间表。
+ */
+const doctorData = computed<DoctorDataItem[]>(
+  () => store.state.userPortal.reservationDoctors
+);
+const scheduleData = computed<Omit<ReservationScheduleState, "doctorData">>(
+  () => store.state.userPortal.reservationSchedule
+);
 
 const serviceCards = [
   {
@@ -219,13 +222,10 @@ const close = () => {
 };
 
 onMounted(() => {
-  void reservationApi.getDoctorOptions().then((doctorList) => {
-    doctorData.value = doctorList;
-  });
-
-  void reservationApi.getScheduleOptions().then((schedule) => {
-    scheduleData.value = schedule;
-  });
+  /**
+   * 首次进入预约页时预热基础数据，后续页面返回优先复用缓存。
+   */
+  void store.dispatch("userPortal/ensureServiceData");
 });
 </script>
 

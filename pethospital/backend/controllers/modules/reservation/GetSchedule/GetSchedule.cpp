@@ -49,6 +49,7 @@ nlohmann::json Reservate::slots(const std::string& start_time, const std::string
 {
     std::string current_start = start_time;
     std::string current_end = end_time;
+    nlohmann::json time_slots = nlohmann::json::array();
     
     // 上午时段：09:00-12:00，每小时一个
     for (int i = 0; i < 3; ++i) {

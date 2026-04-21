@@ -59,7 +59,7 @@ export const authApi = {
       requestData.phone = payload.phone;
     }
 
-    return http.post("/api/auth/verify", { requestData });
+    return http.post("/api/verification/email/verify", { requestData });
   },
 
   /**

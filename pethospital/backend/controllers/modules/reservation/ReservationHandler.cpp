@@ -1,6 +1,29 @@
 #include "ReservationHandler.h"
 #include "RoleTypeUtils/RoleTypeUtils.h"
+#include "../../OperationLogger/OperationLogger.h"
 #include <iostream>
+
+namespace
+{
+std::string getTodayDate()
+{
+    const boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
+    return formatDateOnly(currentDateTime);
+}
+
+nlohmann::json buildDoctorJson(const mysqlx::Row &row)
+{
+    nlohmann::json doctor;
+    doctor["doctor_id"] = row[0].isNull() ? 0 : row[0].get<int>();
+    doctor["id"] = doctor["doctor_id"];
+    doctor["name"] = row[1].isNull() ? "" : row[1].get<std::string>();
+    doctor["phone"] = row[2].isNull() ? "" : row[2].get<std::string>();
+    doctor["email"] = row[3].isNull() ? "" : row[3].get<std::string>();
+    doctor["specialty"] = row[4].isNull() ? "" : row[4].get<std::string>();
+    doctor["status"] = row[5].isNull() ? "offline" : row[5].get<std::string>();
+    return doctor;
+}
+}
 
 // 创建预约表记录接口
 crow::response ReservationHandler::createReservation(const crow::request &req, int user_id, std::string name, std::string email, std::string phone, int doctor_id, std::string date, std::string time_slot, std::string status)
@@ -10,6 +33,7 @@ crow::response ReservationHandler::createReservation(const crow::request &req, i
         // 检查数据库连接是否存在
         if (!checkDbConnection())
         {
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", "database connection failed", user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
@@ -27,6 +51,7 @@ crow::response ReservationHandler::createReservation(const crow::request &req, i
             catch (const mysqlx::Error &e)
             {
                 std::cerr << "Database error: " << e.what() << std::endl;
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
                 return ResponseHelper::database_error(req, "Failed to create reservation", e.what());
             }
 
@@ -43,6 +68,7 @@ crow::response ReservationHandler::createReservation(const crow::request &req, i
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
         return ResponseHelper::operation_failed(req, "Failed to save reservation", e.what());
     }
 }
@@ -55,6 +81,7 @@ crow::response ReservationHandler::getReservations(const crow::request &req, int
         // 检查数据库连接是否存在
         if (!checkDbConnection())
         {
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取预约记录", "database connection failed", user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
@@ -87,11 +114,13 @@ crow::response ReservationHandler::getReservations(const crow::request &req, int
         catch (const mysqlx::Error &e)
         {
             std::cerr << "Database error: " << e.what() << std::endl;
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取预约记录", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
             return ResponseHelper::database_error(req, "Failed to fetch reservations", e.what());
         }
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取预约记录", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
         return ResponseHelper::operation_failed(req, "Failed to fetch reservations", e.what());
     }
 }
@@ -147,6 +176,7 @@ crow::response ReservationHandler::updateReservation(const crow::request &req, i
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "更新预约", e.what());
         return ResponseHelper::operation_failed(req, "Failed to update reservation", e.what());
     }
 }
@@ -163,77 +193,49 @@ nlohmann::json ReservationHandler::getReservationData()
 // 获取医生列表接口
 crow::response ReservationHandler::getDoctorList(const crow::request &req)
 {
+    if (!checkDbConnection())
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", "database connection failed");
+        return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+    }
+
     try
     {
-        // 检查数据库连接是否存在
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
-        }
-
-        try
-        {
-            boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
-            std::string todayDate = formatDateOnly(currentDateTime);
-
         const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
         if (doctorRoleId <= 0)
         {
             return ResponseHelper::system_error(req, "医生角色不存在");
         }
 
-        dbManager->getSession()
-            ->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, check_out_time, status) "
-                  "SELECT u.id, ?, NULL, NULL, 'offline' "
-                  "FROM users AS u "
-                  "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id "
-                  "WHERE u.type_id = ? AND od.doctor_id IS NULL")
-            .bind(todayDate)
-            .bind(doctorRoleId)
-            .execute();
+        const std::string todayDate = getTodayDate();
 
-            mysqlx::RowResult result = dbManager->getSession()
-                                           ->sql("SELECT u.id, u.name, u.phone, u.email, u.user_specialty, "
-                                                 "COALESCE(od.status, 'offline') "
-                                                 "FROM users AS u "
-                                                 "LEFT JOIN onlineDoctors AS od "
-                                                 "ON od.doctor_id = u.id AND od.date = ? "
-                                                 "WHERE u.type_id = ?")
-                                          .bind(todayDate)
-                                          .bind(doctorRoleId)
-                                          .execute();
+        mysqlx::RowResult result = dbManager->getSession()
+                                       ->sql("SELECT u.id, u.name, u.phone, u.email, u.user_specialty, "
+                                             "COALESCE(od.status, 'offline') "
+                                             "FROM users AS u "
+                                             "LEFT JOIN onlineDoctors AS od "
+                                             "ON od.doctor_id = u.id AND od.date = ? "
+                                             "WHERE u.type_id = ?")
+                                      .bind(todayDate, doctorRoleId)
+                                      .execute();
 
-            nlohmann::json doctor_list = nlohmann::json::array();
-            for (auto row : result)
-            {
-                nlohmann::json doctor;
-                doctor["doctor_id"] = row[0].isNull() ? 0 : row[0].get<int>();
-                doctor["id"] = doctor["doctor_id"];
-                doctor["name"] =
-                    row[1].isNull() ? "" : row[1].get<std::string>();
-                doctor["specialty"] =
-                    row[4].isNull() ? "" : row[4].get<std::string>();
-                doctor["phone"] =
-                    row[2].isNull() ? "" : row[2].get<std::string>();
-                doctor["email"] =
-                    row[3].isNull() ? "" : row[3].get<std::string>();
-                doctor["status"] =
-                    row[5].isNull() ? "offline" : row[5].get<std::string>();
-
-                doctor_list.push_back(doctor);
-            }
-
-            // 返回成功响应
-            return ResponseHelper::success(req, doctor_list);
-        }
-        catch (const mysqlx::Error &e)
+        nlohmann::json doctorList = nlohmann::json::array();
+        for (const auto &row : result)
         {
-            std::cerr << "Database error: " << e.what() << std::endl;
-            return ResponseHelper::database_error(req, "Failed to fetch doctor list", e.what());
+            doctorList.push_back(buildDoctorJson(row));
         }
+
+        return ResponseHelper::success(req, doctorList);
+    }
+    catch (const mysqlx::Error &e)
+    {
+        std::cerr << "Database error: " << e.what() << std::endl;
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", e.what());
+        return ResponseHelper::database_error(req, "Failed to fetch doctor list", e.what());
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", e.what());
         return ResponseHelper::operation_failed(req, "Failed to fetch doctor list", e.what());
     }
 }
@@ -313,6 +315,7 @@ crow::response ReservationHandler::cancelReservation(const crow::request &req, i
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "取消预约", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
         return ResponseHelper::operation_failed(req, "Failed to cancel reservation", e.what());
     }
 }
@@ -325,6 +328,7 @@ crow::response ReservationHandler::deleteReservation(const crow::request &req, i
         // 检查数据库连接是否存在
         if (!checkDbConnection())
         {
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "删除预约记录", "database connection failed", user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
@@ -373,6 +377,7 @@ crow::response ReservationHandler::deleteReservation(const crow::request &req, i
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "删除预约记录", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
         return ResponseHelper::operation_failed(req, "Failed to delete reservation", e.what());
     }
 }

@@ -28,7 +28,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
@@ -46,6 +46,11 @@ export default defineComponent({
     );
     const adminBridge = computed(() => authStorage.loadAdminPortalBridge());
     const showAdminReturn = computed(() => Boolean(adminBridge.value));
+
+    onMounted(() => {
+      // 医生端进入任意页面时，先预热工作台高频依赖的基础缓存。
+      void store.dispatch("doctor/ensureWorkbenchData");
+    });
 
     const returnToSuperAdmin = async () => {
       const bridge = adminBridge.value;
@@ -108,10 +113,13 @@ export default defineComponent({
 }
 
 .sidebar {
-  position: relative;
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
   align-self: stretch;
+  height: 100vh;
+  min-height: 100vh;
   padding: 32px 20px 24px;
   border-right: 1px solid rgba(143, 173, 165, 0.26);
   background: linear-gradient(

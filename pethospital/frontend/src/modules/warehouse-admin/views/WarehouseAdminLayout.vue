@@ -62,6 +62,8 @@ export default defineComponent({
 
     onMounted(() => {
       startWarehouseAdminSessionGuard(store, router);
+      // 仓库管理员进入任意页面时，先预热仪表盘依赖的基础缓存。
+      void store.dispatch("warehouseAdmin/ensureDashboardData");
     });
 
     onBeforeUnmount(() => {
@@ -174,10 +176,14 @@ export default defineComponent({
 }
 
 .sidebar {
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: 28px;
   min-width: 0;
+  height: 100vh;
+  min-height: 100vh;
   padding: clamp(18px, 2vw, 20px) clamp(14px, 1.6vw, 16px) 18px;
   border-right: 1px solid rgba(141, 192, 255, 0.28);
   background: radial-gradient(
@@ -284,10 +290,15 @@ nav {
 .content {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 100vh;
   min-width: 0;
+  height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: clamp(16px, 2vw, 18px) clamp(16px, 2vw, 22px) clamp(22px, 3vw, 28px)
     clamp(12px, 1.6vw, 16px);
+  box-sizing: border-box;
 }
 
 .page-viewport {
@@ -361,7 +372,11 @@ button {
   }
 
   .sidebar {
+    position: relative;
+    top: auto;
     gap: 20px;
+    height: auto;
+    min-height: auto;
     border-right: 0;
     border-bottom: 1px solid rgba(116, 183, 255, 0.12);
   }
@@ -378,6 +393,12 @@ button {
 
   .topbar-actions {
     flex-wrap: wrap;
+  }
+
+  .content {
+    height: auto;
+    min-height: 0;
+    overflow-y: visible;
   }
 }
 

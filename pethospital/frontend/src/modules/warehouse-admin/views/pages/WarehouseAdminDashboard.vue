@@ -219,13 +219,19 @@
 import { computed, defineComponent, onMounted, reactive, ref } from "vue";
 import WarehouseStatCard from "../../components/WarehouseStatCard.vue";
 import { warehouseAdminApi } from "../../api/warehouseAdminApi";
-import { warehouseItemsMock } from "../../api/warehouseAdminMock";
 import { WarehouseCreatePayload, WarehouseItem } from "../../api/types";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 
 export default defineComponent({
   name: "WarehouseAdminInventory",
   components: { WarehouseStatCard },
   setup() {
+    const store = useStore(storeKey);
+
+    /**
+     * 创建一份默认表单，用于新增和编辑共用。
+     */
     const createEmptyForm = (): WarehouseCreatePayload => ({
       item_name: "",
       item_type: "",
@@ -235,7 +241,7 @@ export default defineComponent({
       item_number: 1,
     });
 
-    const items = ref<WarehouseItem[]>([]);
+    const items = computed(() => store.state.warehouseAdmin.items);
     const keyword = ref("");
     const activeType = ref("全部");
     const sortKey = ref<"name" | "stock" | "price" | "total" | "expiry">(
@@ -256,13 +262,11 @@ export default defineComponent({
       { key: "expiry", label: "到期日期" },
     ] as const;
 
+    /**
+     * 优先复用库存缓存，只有首次进入、过期或脏数据时才重拉。
+     */
     const loadItems = async () => {
-      try {
-        const rows = await warehouseAdminApi.getAllItems();
-        items.value = rows.length ? rows : warehouseItemsMock;
-      } catch {
-        items.value = warehouseItemsMock;
-      }
+      await store.dispatch("warehouseAdmin/ensureItems");
     };
 
     const filteredItems = computed(() => {
@@ -409,8 +413,12 @@ export default defineComponent({
       selectedIds.value = [...merged];
     };
 
+    /**
+     * 新增或修改库存后，刷新缓存并追加一条会话内操作流。
+     */
     const saveEdit = async () => {
       try {
+        const isEditing = Boolean(editingItem.value);
         if (editingItem.value) {
           await warehouseAdminApi.updateItem(editingItem.value.id, {
             ...editForm,
@@ -418,24 +426,42 @@ export default defineComponent({
         } else {
           await warehouseAdminApi.createItem({ ...editForm });
         }
-        await loadItems();
+        store.commit("warehouseAdmin/markItemsDirty");
+        store.commit("warehouseAdmin/appendOperationLog", {
+          time: new Date().toTimeString().slice(0, 5),
+          title: isEditing
+            ? `更新库存 · ${editForm.item_name}`
+            : `新增物品 · ${editForm.item_name}`,
+          description: `数量 ${editForm.item_number}，单价 ¥${Number(
+            editForm.item_price
+          ).toFixed(2)}。`,
+          tag: isEditing ? "Update" : "Create",
+        });
+        await store.dispatch("warehouseAdmin/refreshItems");
       } catch {
         // 设计预览场景允许静默失败。
       }
     };
 
+    /**
+     * 删除库存后同步刷新缓存，并把本次操作写入会话内操作流。
+     */
     const confirmDelete = async () => {
       if (!deletingItem.value) return;
 
       try {
         await warehouseAdminApi.deleteItem(deletingItem.value.id);
+        store.commit("warehouseAdmin/markItemsDirty");
+        store.commit("warehouseAdmin/appendOperationLog", {
+          time: new Date().toTimeString().slice(0, 5),
+          title: `删除物品 · ${deletingItem.value.item_name}`,
+          description: `ID ${deletingItem.value.id} 已从库存列表中移除。`,
+          tag: "Delete",
+        });
+        await store.dispatch("warehouseAdmin/refreshItems");
       } catch {
         // 设计预览场景允许静默失败。
       }
-
-      items.value = items.value.filter(
-        (item) => item.id !== deletingItem.value?.id
-      );
       selectedIds.value = selectedIds.value.filter(
         (id) => id !== deletingItem.value?.id
       );
@@ -445,7 +471,11 @@ export default defineComponent({
 
     const currency = (value: number) => `¥ ${value.toLocaleString("zh-CN")}`;
 
-    onMounted(loadItems);
+    onMounted(() => {
+      // 页面首次进入时优先复用仓库缓存，只有过期或脏数据时才会重拉。
+      void loadItems();
+      void store.dispatch("warehouseAdmin/ensureLogs");
+    });
 
     return {
       items,

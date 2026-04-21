@@ -46,12 +46,15 @@
 
 <script lang="ts">
 import { computed, defineComponent, reactive } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import { warehouseAdminApi } from "../../api/warehouseAdminApi";
 import { WarehouseCreatePayload } from "../../api/types";
 
 export default defineComponent({
   name: "WarehouseAdminCreate",
   setup() {
+    const store = useStore(storeKey);
     const today = new Date().toISOString().slice(0, 10);
     const nextYear = new Date();
     nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -72,6 +75,17 @@ export default defineComponent({
     const submitForm = async () => {
       try {
         await warehouseAdminApi.createItem({ ...form });
+        // 创建成功后，库存列表缓存需要失效，操作流也追加一条本地记录。
+        store.commit("warehouseAdmin/markItemsDirty");
+        store.commit("warehouseAdmin/appendOperationLog", {
+          time: new Date().toTimeString().slice(0, 5),
+          title: `新增物品 · ${form.item_name || "未命名物品"}`,
+          description: `数量 ${form.item_number}，单价 ¥${Number(
+            form.item_price
+          ).toFixed(2)}。`,
+          tag: "Create",
+        });
+        await store.dispatch("warehouseAdmin/refreshItems");
       } catch {
         // 设计预览场景允许静默失败。
       }

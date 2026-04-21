@@ -1,3 +1,5 @@
+import { CacheMeta } from "@/store/types";
+
 export interface CurrentUserState {
   userName: string | null;
   userBirthday: string | null;
@@ -6,6 +8,7 @@ export interface CurrentUserState {
   userAddressId: string | null;
   userAddress: string | null;
   userHeadImage: string | undefined;
+  profileMeta: CacheMeta;
 }
 
 export interface SetCurrentUserPayload {

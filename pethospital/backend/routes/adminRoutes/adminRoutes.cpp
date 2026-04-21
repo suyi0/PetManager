@@ -1,61 +1,80 @@
 #include "adminRoutes.h"
+#include "../../controllers/modules/doctor/doctorHandler.h"
+#include "../../controllers/OperationLogger/OperationLogger.h"
 
 void adminRoutes::setupAdminRoutes(
     CrowApp &app,
-    std::shared_ptr<DatabaseManagerInterface> dbManager
-) {
+    std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
     static bool routes_setup = false;
-    if (routes_setup) {
+    if (routes_setup)
+    {
         return;
     }
 
     CROW_ROUTE(app, "/api/admin/getUsers")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取用户列表");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.getUsers(req);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "获取用户列表", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取用户列表", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
 
     CROW_ROUTE(app, "/api/admin/getWorkTimeRecord")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取工时记录");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.getWorkTimeRecord(req);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "获取工时记录", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取工时记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
 
     CROW_ROUTE(app, "/api/admin/createUser")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "创建用户");
                         return;
                     }
 
@@ -63,129 +82,163 @@ void adminRoutes::setupAdminRoutes(
                     crow::response response = handler.createUser(req);
                     ProcessHandlerResponse(req, res, response);
                 }
-                catch (const std::exception &) {
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "创建用户", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "创建用户", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 
     CROW_ROUTE(app, "/api/admin/deleteUser")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "删除用户");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.deleteUser(req, userId);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "删除用户", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "删除用户", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 
     CROW_ROUTE(app, "/api/admin/createDoctor")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "创建医生");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.createDoctor(req);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "创建医生", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "创建医生", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 
     CROW_ROUTE(app, "/api/admin/deleteDoctor")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::OPTIONS)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "删除医生");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.deleteDoctor(req);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "删除医生", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "删除医生", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 
     CROW_ROUTE(app, "/api/admin/createWarehouserManager")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
-                        res.end();
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "创建仓库管理员");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.createWarehouserManager(req);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "创建仓库管理员", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "创建仓库管理员", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 
     CROW_ROUTE(app, "/api/admin/deleteWarehouserManager")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
-                        res.end();
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "删除仓库管理员");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.deleteWarehouserManager(req);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "删除仓库管理员", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "删除仓库管理员", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 
     CROW_ROUTE(app, "/api/admin/changeDoctorWorkTime")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "调整医生排班");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     auto jsonOpt = handler.parseJson(req, res);
-                    if (!jsonOpt) {
-                        res.end();
+                    if (!jsonOpt)
+                    {
+                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "调整医生排班", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                         return;
                     }
 
@@ -200,32 +253,93 @@ void adminRoutes::setupAdminRoutes(
                     crow::response response =
                         handler.changeDoctorWorkTime(req, userId, date, identifier);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "调整医生排班", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "调整医生排班", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    // 修改医生工作状态接口
+    CROW_ROUTE(app, "/api/admin/changeDoctorWorkStatus")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "修改医生工作状态");
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    crow::response response = handler.handleDoctorStatusAction(req, userId, true);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "修改医生工作状态", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "修改医生工作状态", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 
     CROW_ROUTE(app, "/api/admin/getLogs")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                try {
-                    int userId = isValidSuperAdminToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        res.end();
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "查询操作日志");
                         return;
                     }
 
                     adminHandler handler(dbManager);
                     crow::response response = handler.getLogs(req);
                     ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &) {
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "查询操作日志", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                res.end();
-            }
-        );
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "查询操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
+    CROW_ROUTE(app, "/api/admin/homePageGetData")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取首页数据");
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    crow::response response = handler.homePageGetData(req);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "获取首页数据", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取首页数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
 
     routes_setup = true;
 }

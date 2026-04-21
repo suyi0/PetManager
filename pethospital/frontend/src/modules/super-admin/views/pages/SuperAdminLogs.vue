@@ -223,8 +223,9 @@
 
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
+import { useStore } from "vuex";
+import { storeKey } from "@/store/appStore";
 import AppPager from "../../../../components/AppPager.vue";
-import { superAdminApi } from "../../api/superAdminApi";
 import {
   UserLogs,
   SystemLogs,
@@ -241,14 +242,7 @@ export default defineComponent({
   name: "SuperAdminLogs",
   components: { AppPager },
   setup() {
-    /**
-     * 用户类日志列表
-     */
-    const userLogsData = ref<UserLogs[]>([]);
-    /**
-     * 系统类日志列表
-     */
-    const systemLogsData = ref<SystemLogs[]>([]);
+    const store = useStore(storeKey);
     /**
      * 获取日志的大类：用户类 / 系统类
      */
@@ -275,9 +269,8 @@ export default defineComponent({
      * 调用API获取日志列表
      */
     const loadLogs = async () => {
-      const data = await superAdminApi.getLogs();
-      userLogsData.value = data.userLogs;
-      systemLogsData.value = data.systemLogs;
+      // 日志页也先读缓存，只有首次进入、过期或被标脏时才重新请求。
+      await store.dispatch("superAdmin/ensureLogs");
       selectedLogId.value = filteredLogs.value[0]?.id ?? "";
     };
 
@@ -302,8 +295,12 @@ export default defineComponent({
       { key: "超级管理员" as UserRole, label: "超级管理员" },
     ];
 
-    const userLogs = computed(() => userLogsData.value);
-    const systemLogs = computed(() => systemLogsData.value);
+    const userLogs = computed<UserLogs[]>(
+      () => store.state.superAdmin.logs.userLogs
+    );
+    const systemLogs = computed<SystemLogs[]>(
+      () => store.state.superAdmin.logs.systemLogs
+    );
 
     /**
      * 获取日志大类对应的角色和搜索关键词筛选后的结果列表,
@@ -373,8 +370,8 @@ export default defineComponent({
 
     const todayCount = computed(
       () =>
-        userLogsData.value
-          .concat(systemLogsData.value)
+        userLogs.value
+          .concat(systemLogs.value)
           .filter((item) =>
             item.time.startsWith(new Date().toISOString().split("T")[0])
           ).length

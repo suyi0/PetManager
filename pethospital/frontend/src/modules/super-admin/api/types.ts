@@ -22,6 +22,7 @@ export interface UserRow {
   birthday: string;
   address_id: string;
   head_image: string;
+  status?: "online" | "offline" | "";
 }
 
 export interface CreateUserPayload {
@@ -37,6 +38,15 @@ export interface ApiListResponse<T> {
   success?: boolean;
   data?: T[];
   message?: string;
+}
+
+/**
+ * 超级管理员首页摘要数据。
+ */
+export interface HomePageSummary {
+  userCount: number;
+  onlineDoctorCount: number;
+  logsCount: number;
 }
 /**
  * 日志大类枚举，包含用户类和系统类两种类型

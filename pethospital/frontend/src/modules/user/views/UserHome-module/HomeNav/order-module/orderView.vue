@@ -175,7 +175,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
 import { useRoute, useRouter } from "vue-router";
-import { orderApi, reservationApi } from "@/modules/user/api/userApi";
 
 type SearchableOrderItem = {
   id: number;
@@ -195,8 +194,6 @@ const activeTab = ref<"order" | "reservation">("order");
 const editTab = ref(false);
 const searchQuery = ref("");
 const openSearch = ref(false);
-const orders = ref<SearchableOrderItem[]>([]);
-const reservationOrder = ref<SearchableOrderItem[]>([]);
 const homeOrderTopRef = ref<HTMLDivElement | null>(null);
 const choiceActive = ref<Record<number, boolean>>({});
 const historyOrders = ref<SearchableOrderItem[]>([]);
@@ -207,6 +204,16 @@ const MAX_HISTORY_COUNT = 15;
 
 const basePath = computed(() =>
   route.path.startsWith("/preview/user") ? "/preview/user" : "/user"
+);
+
+/**
+ * 订单页与预约记录页都直接复用用户端缓存，避免来回切页时重复拉取。
+ */
+const orders = computed<SearchableOrderItem[]>(
+  () => store.state.userPortal.orderRecords
+);
+const reservationOrder = computed<SearchableOrderItem[]>(
+  () => store.state.userPortal.reservationRecords
 );
 
 const currentSource = computed(() =>
@@ -354,12 +361,14 @@ const deleteSelected = () => {
     .map(([id]) => Number(id));
 
   if (activeTab.value === "order") {
-    orders.value = orders.value.filter(
-      (item) => !selectedIds.includes(item.id)
+    store.commit(
+      "userPortal/setOrderRecords",
+      orders.value.filter((item) => !selectedIds.includes(item.id))
     );
   } else {
-    reservationOrder.value = reservationOrder.value.filter(
-      (item) => !selectedIds.includes(item.id)
+    store.commit(
+      "userPortal/setReservationRecords",
+      reservationOrder.value.filter((item) => !selectedIds.includes(item.id))
     );
   }
 
@@ -407,26 +416,10 @@ const formatTimeValue = (value?: number) => {
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   loadSearchHistory();
-
-  void orderApi
-    .getOrderRecords({
-      name: store.state.currentUser.userName,
-      phone: store.state.currentUser.userPhone,
-      email: store.state.currentUser.userEmail,
-    })
-    .then((records) => {
-      orders.value = records;
-    });
-
-  void reservationApi
-    .getReservationRecords({
-      name: store.state.currentUser.userName,
-      phone: store.state.currentUser.userPhone,
-      email: store.state.currentUser.userEmail,
-    })
-    .then((records) => {
-      reservationOrder.value = records;
-    });
+  /**
+   * 订单页预热两类记录与详情摘要，后续详情页也可以直接复用。
+   */
+  void store.dispatch("userPortal/ensureOrderPageData");
 });
 
 onBeforeUnmount(() => {

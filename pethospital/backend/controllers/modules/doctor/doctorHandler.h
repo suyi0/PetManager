@@ -13,15 +13,17 @@ public:
 
     crow::response getDoctor(const crow::request& req);                         // 获取上班医生信息  对应 /api/doctor/getDoctor
 
-    crow::response getDutyStatus(const crow::request& req, int& userId);        // 获取当前医生签到状态 对应 /api/doctor/dutyStatus
+    crow::response getDutyStatus(const crow::request& req, int userId);        // 获取当前医生签到状态 对应 /api/doctor/dutyStatus
     
     crow::response createUser(const crow::request& req);              // 创建用户
 
     crow::response getUserList(const crow::request &req, const std::string data, const std::string &identifier);   // 获取用户信息 对应 /api/doctor/getUserList
 
-    crow::response onlineDoctor(const crow::request& req, int& userId);      // 医生上班 对应 /api/doctor/onlineDoctor
+    crow::response handleDutyAction(const crow::request& req, int userId, bool requireDoctorId = false);   // 根据状态执行签到或签退
 
-    crow::response offlineDoctor(const crow::request& req, int& userId);       // 医生下班 对应 /api/doctor/offlineDoctor
+    crow::response onlineDoctor(const crow::request& req, int userId);      // 医生上班 对应 /api/doctor/onlineDoctor
+
+    crow::response offlineDoctor(const crow::request& req, int userId);       // 医生下班 对应 /api/doctor/offlineDoctor
 
 };
 

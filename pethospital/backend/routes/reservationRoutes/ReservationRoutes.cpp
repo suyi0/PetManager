@@ -1,4 +1,5 @@
 #include "ReservationRoutes.h"
+#include "../../controllers/OperationLogger/OperationLogger.h"
 
 void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
@@ -11,13 +12,14 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
     CROW_ROUTE(app, "/api/reservate/record")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     { 
+            int userId = -1;
             try
             {
-                int userId = isValidUserToken(req, res, dbManager);
+                userId = isValidUserToken(req, res, dbManager);
 
                 if(res.code != 200 || userId == -1)
                 {
-                    res.end();
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "预约", "创建预约");
                     return;
                 }
 
@@ -27,7 +29,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 auto jsonOpt = handler.parseJson(req, res);
                 if (!jsonOpt)
                 {
-                    res.end();
+                    OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "创建预约", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     return;
                 }
                 nlohmann::json& request_body = jsonOpt.value();
@@ -62,22 +64,23 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
             
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::operation_failed(req, "Failed to save reservation", e.what());
             }
-            res.end(); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "创建预约", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 获取预约记录列表路由.
     CROW_ROUTE(app, "/api/reservate/getrecord")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
+            int userId = -1;
             try
             {
-
-                int userId = isValidUserToken(req, res, dbManager);
+                userId = isValidUserToken(req, res, dbManager);
 
                 if(res.code != 200 || userId == -1)
                 {
-                    res.end();
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "预约", "获取预约记录");
                     return;
                 }
                 
@@ -87,11 +90,12 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取预约记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::operation_failed(req, "Failed to fetch reservations", e.what());
             }
-            res.end(); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "获取预约记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
-    //  预约提前数据路由.
+    //  获取预约日期路由.
     CROW_ROUTE(app, "/api/reservate/getData")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
@@ -102,9 +106,10 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
 
                 res = ResponseHelper::success(req, schedule);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取预约日期", e.what());
                 res = ResponseHelper::operation_failed(req, "Failed to generate schedule", e.what());
             }
-            res.end(); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "获取预约日期", std::nullopt, false); });
 
     // 获取医生列表路由.
     CROW_ROUTE(app, "/api/reservate/getDoctor")
@@ -117,20 +122,22 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", e.what());
                 res = ResponseHelper::operation_failed(req, "Failed to get doctor list", e.what());
             }
-            res.end(); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "获取医生列表", std::nullopt, false); });
 
     // 更新预约记录路由
     CROW_ROUTE(app, "/api/reservate/update/<int>")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int reservation_id)
                                                                     {
+            int userId = -1;
             try {
-                    int userId = isValidUserToken(req, res, dbManager);
+                    userId = isValidUserToken(req, res, dbManager);
 
                     if(res.code != 200 || userId == -1)
                     {
-                        res.end();
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "预约", "更新预约");
                         return;
                     }
 
@@ -140,21 +147,23 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                     ProcessHandlerResponse(req, res, handlerResponse);
 
                 } catch (const std::exception& e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "预约", "更新预约", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::operation_failed(req, "Failed to update reservation", e.what());
                 }
-                res.end(); });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "更新预约", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 取消预约记录路由.
     CROW_ROUTE(app, "/api/reservate/cancel/<int>")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int reservation_id)
                                                                     {
+            int userId = -1;
             try
             {
-                int userId = isValidUserToken(req, res, dbManager);
+                userId = isValidUserToken(req, res, dbManager);
 
                 if(res.code != 200 || userId == -1)
                 {
-                    res.end();
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "预约", "取消预约");
                     return;
                 }
 
@@ -164,21 +173,23 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "取消预约", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::operation_failed(req, "Failed to cancel reservation", e.what());
             } 
-            res.end(); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "取消预约", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 删除预约记录路由.
     CROW_ROUTE(app, "/api/reservate/deleterecord/<int>")
         .methods(crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int reservation_id)
                                                                       {
+            int userId = -1;
             try
             {
-                int userId = isValidUserToken(req, res, dbManager);
+                userId = isValidUserToken(req, res, dbManager);
 
                 if(res.code != 200 || userId == -1)
                 {
-                    res.end();
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "预约", "删除预约记录");
                     return;
                 }
 
@@ -188,9 +199,10 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 ProcessHandlerResponse(req, res, handlerResponse);
 
             } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "删除预约记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::operation_failed(req, "Failed to delete reservation", e.what());
             }
-            res.end(); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "预约", "删除预约记录", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     routes_setup = true;
 }

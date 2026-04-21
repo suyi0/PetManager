@@ -1,4 +1,5 @@
 #include "warehouseManagerRoutes.h"
+#include "../../controllers/OperationLogger/OperationLogger.h"
 
 void warehouseManagerRoutes::setupwarehouseManagerRoutes(
     CrowApp& app,
@@ -12,10 +13,11 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
     CROW_ROUTE(app, "/api/warehouseManager/upload")
         .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)(
             [dbManager](const crow::request &req, crow::response &res) {
+                int userId = -1;
                 try {
-                    isValidUserToken(req, res, dbManager);
-                    if (res.code == 200) {
-                        res.end();
+                    userId = isValidUserToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "上传物资");
                         return;
                     }
 
@@ -23,21 +25,24 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     crow::response response = handler.upload(req);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "上传物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(
                         req,
                         "Internal error: " + std::string(e.what())
                     );
                 }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "上传物资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             }
         );
 
     CROW_ROUTE(app, "/api/warehouseManager/select")
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)(
             [dbManager](const crow::request &req, crow::response &res) {
+                int userId = -1;
                 try {
-                    isValidUserToken(req, res, dbManager);
-                    if (res.code == 200) {
-                        res.end();
+                    userId = isValidUserToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "查询全部物资");
                         return;
                     }
 
@@ -45,11 +50,13 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     crow::response response = handler.selectAllData(req);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "查询全部物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(
                         req,
                         "Internal error: " + std::string(e.what())
                     );
                 }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "查询全部物资", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             }
         );
 
@@ -61,10 +68,11 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                 const std::string& identifier,
                 const std::string& value
             ) {
+                int userId = -1;
                 try {
-                    isValidUserToken(req, res, dbManager);
-                    if (res.code == 200) {
-                        res.end();
+                    userId = isValidUserToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "条件查询物资");
                         return;
                     }
 
@@ -72,11 +80,13 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     crow::response response = handler.selectData(req, identifier, value);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "条件查询物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(
                         req,
                         "Internal error: " + std::string(e.what())
                     );
                 }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "条件查询物资", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             }
         );
 
@@ -87,10 +97,11 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                 crow::response &res,
                 const int& dataID
             ) {
+                int userId = -1;
                 try {
-                    isValidUserToken(req, res, dbManager);
-                    if (res.code == 200) {
-                        res.end();
+                    userId = isValidUserToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "更新物资");
                         return;
                     }
 
@@ -98,11 +109,13 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     crow::response response = handler.updata(req, dataID);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "更新物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(
                         req,
                         "Internal error: " + std::string(e.what())
                     );
                 }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "更新物资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             }
         );
 
@@ -112,10 +125,11 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                 const crow::request &req,
                 crow::response &res
             ) {
+                int userId = -1;
                 try {
-                    isValidUserToken(req, res, dbManager);
-                    if (res.code == 200) {
-                        res.end();
+                    userId = isValidUserToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "删除物资");
                         return;
                     }
 
@@ -123,11 +137,13 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     crow::response response = handler.deleteData(req);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "删除物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(
                         req,
                         "Internal error: " + std::string(e.what())
                     );
                 }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "删除物资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             }
         );
 
