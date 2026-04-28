@@ -32,7 +32,24 @@ void UserRoutes::setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerIn
                                                                                                                      {
             int userId = -1;
             try
-            {   
+            {
+                const auto requestBody = nlohmann::json::parse(req.body, nullptr, false);
+                const bool isRegisterRequest =
+                    req.method == crow::HTTPMethod::Post &&
+                    !requestBody.is_discarded() &&
+                    requestBody.contains("password") &&
+                    (requestBody.contains("email") || requestBody.contains("phone"));
+
+                if (isRegisterRequest)
+                {
+                    UserHandler handler(dbManager);
+                    crow::response handlerResponse = handler.userUpdate(req);
+
+                    ProcessHandlerResponse(req, res, handlerResponse);
+                    OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "注册账号", std::nullopt, false);
+                    return;
+                }
+
                 // 解析令牌信息，确认用户身份和权限
                 userId = isValidUserToken(req, res, dbManager);
 

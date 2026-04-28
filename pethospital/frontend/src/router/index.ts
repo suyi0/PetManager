@@ -3,6 +3,9 @@ import userRouters from "@/modules/user/router/UserRouter"; // 引入用户模�
 import adminRouters from "@/modules/super-admin/router/superAdminRouter"; // 引入管理员模块的路由
 import warehouseAdminRouters from "@/modules/warehouse-admin/router/warehouseAdminRouter";
 import doctorRouters from "@/modules/doctor/router/DoctorRouter";
+import financeRouters from "@/modules/finance/router/financeRouter";
+import personnelRouters from "@/modules/personnel/router/personnelRouter";
+import bossRouters from "@/modules/boss/router/bossRouter";
 import { appStore } from "@/store/appStore";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 
@@ -22,6 +25,9 @@ const routes: Array<RouteRecordRaw> = [
 
   ...userRouters,
   ...doctorRouters,
+  ...bossRouters.options.routes,
+  ...financeRouters.options.routes,
+  ...personnelRouters.options.routes,
   ...adminRouters.options.routes,
   ...warehouseAdminRouters.options.routes,
 ];

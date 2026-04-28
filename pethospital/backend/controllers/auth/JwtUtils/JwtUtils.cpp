@@ -1,8 +1,15 @@
 #include "JwtUtils.h"
+#include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
 #include <cstring>
 
 namespace
 {
+    struct UserAuthTarget
+    {
+        int userId;
+        std::string roleName;
+    };
+
     // 解析并验证JWT Token的有效性，返回解析后的payload数据
     std::optional<nlohmann::json> parseValidatedTokenPayload(const std::string &token)
     {
@@ -35,6 +42,42 @@ namespace
         }
 
         return payload_json;
+    }
+
+    std::optional<UserAuthTarget> getUserAuthTarget(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        std::string &identifier,
+        bool isEmail)
+    {
+        mysqlx::RowResult result;
+        if (isEmail)
+        {
+            result = dbManager->getSession()
+                         ->sql("SELECT u.id, t.type FROM users AS u "
+                               "JOIN types AS t ON u.type_id = t.id "
+                               "WHERE u.email = ?")
+                         .bind(identifier)
+                         .execute();
+        }
+        else
+        {
+            result = dbManager->getSession()
+                         ->sql("SELECT u.id, t.type FROM users AS u "
+                               "JOIN types AS t ON u.type_id = t.id "
+                               "WHERE u.phone = ?")
+                         .bind(identifier)
+                         .execute();
+        }
+
+        if (result.count() == 0)
+        {
+            return std::nullopt;
+        }
+
+        auto row = result.fetchOne();
+        return UserAuthTarget{
+            row[0].get<int>(),
+            row[1].get<std::string>()};
     }
 }
 
@@ -188,9 +231,9 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
             payload_json["phone"] = identifier;
         }
         payload_json["iat"] = now; // 签发时间
-        if (type_name == "超级管理员")
+        if (RoleTypeUtils::isManagementRole(type_name))
         {
-            payload_json["exp"] = now + 300; // 超级管理员的JWT五分钟后过期
+            payload_json["exp"] = now + 300; // 管理门户角色的JWT五分钟后过期
         }
         else
         {
@@ -364,44 +407,13 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
 {
     try
     {
-        // 需要执行SQL查询：
-        // SELECT user_id From users WHERE id = orderId
-
-        mysqlx::RowResult result;
-        if (isEmail)
-        {
-            result = dbManager->getSession()
-                         ->sql("SELECT u.id, t.type FROM users AS u "
-                               "JOIN types AS t ON u.type_id = t.id "
-                               "WHERE u.email = ?")
-                         .bind(identifier)
-                         .execute();
-        }
-        else
-        {
-            result = dbManager->getSession()
-                         ->sql("SELECT u.id, t.type FROM users AS u "
-                               "JOIN types AS t ON u.type_id = t.id "
-                               "WHERE u.phone = ?")
-                         .bind(identifier)
-                         .execute();
-        }
-
-        // 检查是否找到用户
-        if (result.count() == 0)
+        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        if (!target)
         {
             return false;
         }
 
-        auto row = result.fetchOne();
-        int userOwnerId = row[0].get<int>();
-        std::string userRoleName = row[1].get<std::string>();
-        if (userRoleName == "超级管理员") // 超级管理员允许大部份的操作
-        {
-            return true;
-        }
-
-        return userOwnerId == userId; // 普通用户和医生只能操作自己
+        return target->userId == userId && RoleTypeUtils::isNormalUserRole(target->roleName);
     }
     catch (const std::exception &e)
     {
@@ -410,44 +422,18 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
     }
 }
 
-// 验证管理员表单的访问权限
+// 验证管理员部门访问权限
 bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try
     {
-
-        mysqlx::RowResult result;
-
-        if (isEmail)
-        {
-            result = dbManager->getSession()
-                         ->sql("SELECT u.id, t.type FROM users AS u "
-                               "JOIN types AS t ON u.type_id = t.id "
-                               "WHERE u.email = ?")
-                         .bind(identifier)
-                         .execute();
-        }
-        else
-        {
-            result = dbManager->getSession()
-                         ->sql("SELECT u.id, t.type FROM users AS u "
-                               "JOIN types AS t ON u.type_id = t.id "
-                               "WHERE u.phone = ?")
-                         .bind(identifier)
-                         .execute();
-        }
-
-        // 检查是否找到用户
-        if (result.count() == 0)
+        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        if (!target)
         {
             return false;
         }
 
-        auto row = result.fetchOne();
-        int foundUserId = row[0].get<int>();
-        std::string userRoleName = row[1].get<std::string>();
-
-        if (foundUserId == userId && userRoleName == "超级管理员") // 只有超级管理员才能通过这个权限认证
+        if (target->userId == userId && RoleTypeUtils::isManagementRole(target->roleName)) // 管理门户角色才能通过这个权限认证
         {
             return true;
         }
@@ -459,6 +445,66 @@ bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier,
     catch (const std::exception &e)
     {
         std::cerr << "Error in isUserAuthorizedForAdminForm: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// 验证人事部门访问权限
+bool JwtUtils::isUserAuthorizedForPersonnelForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    try
+    {
+        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        if (!target)
+        {
+            return false;
+        }
+
+        return target->userId == userId && RoleTypeUtils::isPersonnelRole(target->roleName);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in isUserAuthorizedForPersonnelForm: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// 验证医疗端访问权限
+bool JwtUtils::isUserAuthorizedForMedicalStaffForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    try
+    {
+        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        if (!target)
+        {
+            return false;
+        }
+
+        return target->userId == userId && RoleTypeUtils::isMedicalStaffRole(target->roleName);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in isUserAuthorizedForMedicalStaffForm: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+// 验证仓储端访问权限
+bool JwtUtils::isUserAuthorizedForWarehouseStaffForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    try
+    {
+        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        if (!target)
+        {
+            return false;
+        }
+
+        return target->userId == userId && RoleTypeUtils::isWarehouseStaffRole(target->roleName);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in isUserAuthorizedForWarehouseStaffForm: " << e.what() << std::endl;
         return false;
     }
 }

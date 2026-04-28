@@ -1,3 +1,5 @@
+import { isSuperAdminPortalRole } from "./roleUtils";
+
 // 存储全部信息
 const STORAGE_KEYS = {
   token: "auth_token",
@@ -253,8 +255,9 @@ export const authStorage = {
     userType?: number | null;
     userRole?: string | null;
   }) {
-    const authStorageTarget =
-      payload.userRole === "超级管理员" ? sessionStorage : localStorage;
+    const authStorageTarget = isSuperAdminPortalRole(payload.userRole)
+      ? sessionStorage
+      : localStorage;
     const otherStorage =
       authStorageTarget === sessionStorage ? localStorage : sessionStorage;
 
@@ -279,10 +282,9 @@ export const authStorage = {
     userType?: number | null;
     userRole?: string | null;
   }) {
-    const authStorageTarget =
-      payload.userRole === "超级管理员"
-        ? sessionStorage
-        : getActiveAuthStorage() ?? localStorage;
+    const authStorageTarget = isSuperAdminPortalRole(payload.userRole)
+      ? sessionStorage
+      : getActiveAuthStorage() ?? localStorage;
 
     authStorageTarget.setItem(STORAGE_KEYS.userName, payload.userName);
     authStorageTarget.setItem(STORAGE_KEYS.userBirthday, payload.userBirthday);
@@ -340,10 +342,9 @@ export const authStorage = {
     userType?: number | null,
     userRole?: string | null
   ) {
-    const activeStorage =
-      userRole === "超级管理员"
-        ? sessionStorage
-        : getActiveAuthStorage() ?? localStorage;
+    const activeStorage = isSuperAdminPortalRole(userRole)
+      ? sessionStorage
+      : getActiveAuthStorage() ?? localStorage;
 
     activeStorage.setItem(STORAGE_KEYS.token, token);
   },

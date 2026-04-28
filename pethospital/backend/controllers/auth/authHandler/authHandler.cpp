@@ -6,16 +6,19 @@ namespace
     enum class TokenValidationScope
     {
         User,
-        SuperAdmin
+        Management,
+        Personnel,
+        MedicalStaff,
+        WarehouseStaff
     };
 
-    // 统一的Token验证函数，根据不同的权限范围进行验证
-    int validateTokenWithScope(const crow::request &req,
-                               crow::response &res,
-                               std::shared_ptr<DatabaseManagerInterface> dbManager,
-                               TokenValidationScope scope)
+    template <typename Authorizer>
+    int validateToken(const crow::request &req,
+                      crow::response &res,
+                      std::shared_ptr<DatabaseManagerInterface> dbManager,
+                      Authorizer authorizer)
     {
-        // 1. 从请求头中提取Token
+        // 从请求头取 Bearer token
         std::string authHeader = req.get_header_value("Authorization");
         if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
         {
@@ -23,6 +26,7 @@ namespace
             return -1;
         }
 
+        // 判断 token 是否为空
         std::string token = authHeader.substr(7);
         if (token.empty())
         {
@@ -30,7 +34,7 @@ namespace
             return -1;
         }
 
-        // 2. 解析Token获取用户信息
+        // 解析 JWT claims
         auto claims = JwtUtils::getTokenClaims(token);
         if (!claims || claims->userId <= 0 || claims->identifier.empty())
         {
@@ -38,20 +42,16 @@ namespace
             return -1;
         }
 
-        // 3. 验证数据库连接
+        // 检查数据库连接
         if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
         {
             res = ResponseHelper::system_error(req, "Database connection unavailable");
             return -1;
         }
 
-        // 4. 根据权限范围验证用户是否有权限进行相应的操作
+        // 最后调用外部传进来的 authorizer(...) 做“权限判断”
         std::string identifier = claims->identifier;
-        bool isAuthorized = scope == TokenValidationScope::SuperAdmin
-                                ? JwtUtils::isUserAuthorizedForAdminForm(claims->userId, identifier, claims->isEmailLogin, dbManager)
-                                : JwtUtils::isUserAuthorizedForUserForm(claims->userId, identifier, claims->isEmailLogin, dbManager);
-
-        // 5. 如果用户没有权限，返回未授权响应
+        const bool isAuthorized = authorizer(*claims, identifier);
         if (!isAuthorized)
         {
             res = ResponseHelper::unauthorized(req, "用户无权限进行此操作");
@@ -59,6 +59,33 @@ namespace
         }
 
         return claims->userId;
+    }
+
+    // 统一的Token验证函数，根据不同的权限范围进行验证
+    int validateTokenWithScope(const crow::request &req,
+                               crow::response &res,
+                               std::shared_ptr<DatabaseManagerInterface> dbManager,
+                               TokenValidationScope scope)
+    {
+        return validateToken(req, res, dbManager, [&](const JwtUtils::TokenClaims &claims, std::string &identifier) {
+            if (scope == TokenValidationScope::Management)
+            {
+                return JwtUtils::isUserAuthorizedForAdminForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
+            }
+            if (scope == TokenValidationScope::Personnel)
+            {
+                return JwtUtils::isUserAuthorizedForPersonnelForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
+            }
+            if (scope == TokenValidationScope::MedicalStaff)
+            {
+                return JwtUtils::isUserAuthorizedForMedicalStaffForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
+            }
+            if (scope == TokenValidationScope::WarehouseStaff)
+            {
+                return JwtUtils::isUserAuthorizedForWarehouseStaffForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
+            }
+            return JwtUtils::isUserAuthorizedForUserForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
+        });
     }
 }
 
@@ -130,10 +157,28 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
     return userId;
 }
 
-// 验证超级管理员token
-int isValidSuperAdminToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+// 验证管理端 token。
+int isValidManagementToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
-    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::SuperAdmin);
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::Management);
+}
+
+// 验证人事部门token
+int isValidPersonnelToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::Personnel);
+}
+
+// 验证医疗端 token。
+int isValidMedicalStaffToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::MedicalStaff);
+}
+
+// 验证仓储端 token。
+int isValidWarehouseStaffToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::WarehouseStaff);
 }
 
 crow::response authHandler::authCheckName(const crow::request &req)
@@ -450,25 +495,32 @@ crow::response authHandler::checkVerifyEmailCode(const crow::request &req)
         if (isValid)
         {
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT id, username FROM users WHERE email = ?")
+                                           ->sql("SELECT id, name, type_id FROM users WHERE email = ?")
                                            .bind(email)
                                            .execute();
 
+            int userTypeId = RoleTypeUtils::getRoleId(dbManager, "普通用户");
             for (const auto &row : result)
             {
                 userID = row[0].get<int>();
                 userName = clean_string(row[1].get<std::string>());
+                userTypeId = row[2].isNull() ? userTypeId : row[2].get<int>();
             }
 
-            // 如果验证成功，返回 token
             nlohmann::json response;
-            // 生成一个基于用户邮箱的JWT token
-            const int defaultUserRoleId =
-                RoleTypeUtils::getRoleId(dbManager, "普通用户");
+
+            // 注册场景下邮箱尚未入库，只需返回校验通过。
+            if (userID <= 0)
+            {
+                response["verified"] = true;
+                return ResponseHelper::success(req, response);
+            }
+
+            // 已存在用户时，兼容原有邮箱验证登录场景，返回 token。
             std::string token = JwtUtils::createToken(
                 userID,
                 userName,
-                defaultUserRoleId,
+                userTypeId,
                 "普通用户",
                 email,
                 true);
@@ -526,9 +578,9 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
 
         int typeId = row[0].get<int>();
         std::string typeName = row[1].get<std::string>();
-        if (typeName != "超级管理员")
+        if (!RoleTypeUtils::isManagementRole(typeName))
         {
-            return ResponseHelper::unauthorized(req, "Only super admin can refresh this token");
+            return ResponseHelper::unauthorized(req, "Only management roles can refresh this token");
         }
 
         std::string userName = clean_string(row[2].get<std::string>());

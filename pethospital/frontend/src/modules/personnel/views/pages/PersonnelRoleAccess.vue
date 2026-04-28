@@ -3,7 +3,7 @@
     <div class="panel form-panel">
       <div class="form-panel__head">
         <div>
-          <h3>角色权限管理</h3>
+          <h3>人员权限管理</h3>
           <p>左侧管理医生权限，右侧管理仓库管理员权限。</p>
         </div>
         <div class="row">
@@ -156,19 +156,22 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
-import { resolveRoleName } from "@/core/auth/utils/roleUtils";
+import {
+  isSuperAdminPortalRole,
+  resolveRoleName,
+} from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/store/appStore";
 import AppPager from "../../../../components/AppPager.vue";
-import { superAdminApi } from "../../api/superAdminApi";
+import { personnelApi } from "../../api/personnelApi";
 
 export default defineComponent({
-  name: "SuperAdminRoleAccess",
+  name: "PersonnelRoleAccess",
   components: { AppPager },
   setup() {
     const store = useStore(storeKey);
     const userID = ref<number | null>(null);
     const message = ref("等待操作");
-    const users = computed(() => store.state.superAdmin.users);
+    const users = computed(() => store.state.personnel.users);
     const page = ref(1);
     const pageSize = 8;
     const keywordInput = ref("");
@@ -187,8 +190,8 @@ export default defineComponent({
 
     const roleClassName = (typeName?: string, typeId?: number | null) => {
       const role = formatRole(typeName, typeId);
-      if (role === "超级管理员") return "user-card__role--super";
-      if (role === "医生") return "user-card__role--doctor";
+      if (isSuperAdminPortalRole(role)) return "user-card__role--super";
+      if (role === "医生" || role === "护士") return "user-card__role--doctor";
       if (role === "仓库管理员") return "user-card__role--warehouse";
       return "user-card__role--user";
     };
@@ -203,7 +206,7 @@ export default defineComponent({
 
       return source.filter((item) =>
         [item.name, item.email, item.phone]
-          .filter(Boolean)
+          .filter((field): field is string => typeof field === "string")
           .some((field) => field.toLowerCase().includes(search))
       );
     });
@@ -233,8 +236,7 @@ export default defineComponent({
     );
 
     const loadUsers = async () => {
-      // 权限管理页和用户列表页共享同一份用户缓存。
-      await store.dispatch("superAdmin/ensureUsers");
+      await store.dispatch("personnel/ensureUsers");
       if (page.value > totalPages.value) {
         page.value = totalPages.value;
       }
@@ -255,86 +257,71 @@ export default defineComponent({
 
     const grantDoctor = async () => {
       try {
-        await superAdminApi.createDoctor(ensureUserID());
-        // 角色授权会直接影响用户列表和日志展示。
-        store.commit("superAdmin/markUsersDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
-        message.value = "授予成功";
-        await store.dispatch("superAdmin/refreshUsers");
-      } catch (err: unknown) {
-        message.value = `授予失败: ${String((err as Error).message || err)}`;
+        await personnelApi.createDoctor(ensureUserID());
+        await store.dispatch("personnel/refreshUsers");
+        message.value = "医生权限授予成功";
+      } catch (error) {
+        message.value =
+          error instanceof Error ? error.message : "医生权限授予失败";
       }
     };
 
     const revokeDoctor = async () => {
       try {
-        await superAdminApi.deleteDoctor(ensureUserID());
-        // 角色回收会直接影响用户列表和日志展示。
-        store.commit("superAdmin/markUsersDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
-        message.value = "移除成功";
-        await store.dispatch("superAdmin/refreshUsers");
-      } catch (err: unknown) {
-        message.value = `移除失败: ${String((err as Error).message || err)}`;
+        await personnelApi.deleteDoctor(ensureUserID());
+        await store.dispatch("personnel/refreshUsers");
+        message.value = "医生权限移除成功";
+      } catch (error) {
+        message.value =
+          error instanceof Error ? error.message : "医生权限移除失败";
       }
     };
 
     const grantWarehouseAdmin = async () => {
       try {
-        await superAdminApi.createWarehouseAdmin(ensureUserID());
-        // 角色授权会直接影响用户列表和日志展示。
-        store.commit("superAdmin/markUsersDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
+        await personnelApi.createWarehouseAdmin(ensureUserID());
+        await store.dispatch("personnel/refreshUsers");
         message.value = "仓库管理员授权成功";
-        await store.dispatch("superAdmin/refreshUsers");
-      } catch (err: unknown) {
-        message.value = `仓库管理员授权失败: ${String(
-          (err as Error).message || err
-        )}`;
+      } catch (error) {
+        message.value =
+          error instanceof Error ? error.message : "仓库管理员授权失败";
       }
     };
 
     const revokeWarehouseAdmin = async () => {
       try {
-        await superAdminApi.deleteWarehouseAdmin(ensureUserID());
-        // 角色回收会直接影响用户列表和日志展示。
-        store.commit("superAdmin/markUsersDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
-        message.value = "仓库管理员权限已移除";
-        await store.dispatch("superAdmin/refreshUsers");
-      } catch (err: unknown) {
-        message.value = `仓库管理员移除失败: ${String(
-          (err as Error).message || err
-        )}`;
+        await personnelApi.deleteWarehouseAdmin(ensureUserID());
+        await store.dispatch("personnel/refreshUsers");
+        message.value = "仓库管理员权限移除成功";
+      } catch (error) {
+        message.value =
+          error instanceof Error ? error.message : "仓库管理员权限移除失败";
       }
     };
 
-    onMounted(loadUsers);
+    onMounted(() => {
+      void loadUsers();
+    });
 
     return {
-      userID,
-      page,
-      keywordInput,
-      keyword,
-      totalPages,
-      leftColumn,
-      rightColumn,
-      leftPlaceholders,
-      rightPlaceholders,
-      message,
-      formatRole,
-      roleClassName,
       applySearch,
-      loadUsers,
-      selectUser,
+      formatRole,
       grantDoctor,
-      revokeDoctor,
       grantWarehouseAdmin,
+      keywordInput,
+      leftColumn,
+      leftPlaceholders,
+      loadUsers,
+      message,
+      page,
+      revokeDoctor,
       revokeWarehouseAdmin,
+      rightColumn,
+      rightPlaceholders,
+      roleClassName,
+      selectUser,
+      totalPages,
+      userID,
     };
   },
 });
@@ -343,125 +330,160 @@ export default defineComponent({
 <style scoped>
 .page {
   display: grid;
-  gap: 16px;
+  gap: 20px;
 }
 
 .panel {
-  border: 1px solid #dce7ff;
-  border-radius: 16px;
-  background: #fff;
-  padding: 16px;
-  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f8fbff);
+  border: 1px solid rgba(168, 202, 255, 0.45);
+  border-radius: 28px;
+  padding: 22px 24px;
+  box-shadow: 0 18px 40px rgba(100, 132, 181, 0.12);
 }
 
-.form-panel h3 {
-  margin: 0;
-}
-
-.form-panel p {
-  color: #5c6781;
-}
-
-.form-panel__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.user-panel {
+.form-panel {
   display: grid;
-  gap: 14px;
-  min-height: 520px;
+  gap: 20px;
 }
 
+.form-panel__head,
 .user-panel__head {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
+  align-items: flex-start;
 }
 
-.user-panel__head h3,
-.user-panel__head p {
+.form-panel__head h3,
+.user-panel__head h3 {
   margin: 0;
+  font-size: 24px;
+  color: #1f3560;
 }
 
+.form-panel__head p,
 .user-panel__head p {
-  margin-top: 6px;
-  color: #6a7693;
-  font-size: 13px;
+  margin: 8px 0 0;
+  color: #6680a8;
 }
 
 .row {
-  display: grid;
-  gap: 6px;
-  max-width: 380px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: rgba(233, 242, 255, 0.85);
+}
+
+.row label {
+  font-size: 14px;
+  color: #53709b;
+}
+
+.row input,
+.search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  color: #1f3560;
+  font-size: 15px;
 }
 
 .grant-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 14px;
+  gap: 18px;
 }
 
 .grant-card {
-  display: grid;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid #dfe7fa;
-  border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  position: relative;
+  padding: 22px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(236, 245, 255, 0.95), #ffffff);
+  border: 1px solid rgba(146, 193, 255, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .grant-card--pending {
-  background: linear-gradient(180deg, #fffdf8, #fff9ee);
-}
-
-.grant-card h4,
-.grant-card p {
-  margin: 0;
-}
-
-.grant-card h4 {
-  color: #1d2e57;
-}
-
-.grant-card p,
-.grant-card__tip {
-  color: #687792;
-  font-size: 13px;
-  line-height: 1.6;
+  background: linear-gradient(180deg, rgba(242, 249, 255, 0.95), #ffffff);
 }
 
 .grant-card__badge {
   display: inline-flex;
-  width: fit-content;
-  padding: 5px 10px;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: #e8f0ff;
-  color: #2f6ff3;
-  font-size: 12px;
+  background: rgba(88, 152, 255, 0.14);
+  color: #3e70c0;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .grant-card__badge--warehouse {
-  background: #fff1d8;
-  color: #b57400;
+  background: rgba(90, 178, 152, 0.14);
+  color: #2b8c70;
 }
 
-input {
-  border: 1px solid #cfdcff;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 14px;
+.grant-card h4 {
+  margin: 16px 0 8px;
+  font-size: 20px;
+  color: #1d3158;
+}
+
+.grant-card p {
+  margin: 0;
+  color: #6b83ab;
+  line-height: 1.6;
 }
 
 .actions {
   display: flex;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.primary,
+.danger,
+.ghost {
+  border: none;
+  border-radius: 16px;
+  padding: 11px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.primary {
+  color: #fff;
+  background: linear-gradient(135deg, #5f8dff, #6fb9ff);
+  box-shadow: 0 12px 24px rgba(90, 136, 255, 0.22);
+}
+
+.danger {
+  color: #b34a59;
+  background: rgba(255, 230, 235, 0.9);
+}
+
+.ghost {
+  color: #41658f;
+  background: rgba(232, 241, 255, 0.86);
+}
+
+.primary:hover,
+.danger:hover,
+.ghost:hover,
+.user-card:hover {
+  transform: translateY(-1px);
+}
+
+.grant-card__tip,
+.message {
+  color: #6782aa;
+  font-size: 14px;
 }
 
 .toolbar {
@@ -469,223 +491,143 @@ input {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  width: 100%;
-  justify-content: flex-end;
 }
 
 .search-input {
-  min-width: 280px;
-  flex: 1 1 320px;
-  max-width: 360px;
-  border: 1px solid #cfdcff;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 13px;
-  background: #fff;
+  min-width: 260px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(233, 242, 255, 0.85);
 }
 
-button {
-  border: 0;
-  padding: 10px 14px;
-  border-radius: 10px;
-  color: #fff;
-  cursor: pointer;
-}
-
-button.primary {
-  background: #2f6ff3;
-}
-
-button.danger {
-  background: #e24f4f;
-}
-
-button.ghost {
-  background: #eaf1ff;
-  color: #2f6ff3;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.message {
-  margin-top: 14px;
-  font-size: 13px;
-  color: #1d2e57;
+.user-panel {
+  display: grid;
+  gap: 18px;
 }
 
 .user-board {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  min-height: 0;
-  overflow: hidden;
+  gap: 18px;
 }
 
 .user-column {
-  --user-grid: 54px 110px minmax(120px, 1fr) minmax(170px, 1.35fr);
   display: grid;
-  grid-template-rows: auto repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  min-height: 0;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px solid #e4ecff;
-  background: linear-gradient(180deg, #fbfcff, #f5f8ff);
+  gap: 12px;
+}
+
+.column-head,
+.user-card {
+  display: grid;
+  grid-template-columns: 90px 110px 1fr 1.25fr;
+  gap: 12px;
+  align-items: center;
 }
 
 .column-head {
-  display: grid;
-  grid-template-columns: var(--user-grid);
-  gap: 10px;
+  padding: 0 12px;
+  color: #6d85ac;
+  font-size: 13px;
+}
+
+.user-card {
+  border: 1px solid rgba(166, 201, 255, 0.3);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(244, 248, 255, 0.96), #ffffff);
+  padding: 16px 14px;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 12px 26px rgba(108, 138, 184, 0.1);
+}
+
+.user-card.active {
+  border-color: rgba(93, 146, 255, 0.72);
+  box-shadow: 0 16px 28px rgba(93, 146, 255, 0.16);
+}
+
+.user-card--placeholder {
+  min-height: 74px;
+  background: rgba(244, 248, 255, 0.45);
+  box-shadow: none;
+  cursor: default;
+}
+
+.user-card__id {
+  font-weight: 700;
+  color: #4e678f;
+}
+
+.user-card__role {
+  display: inline-flex;
   align-items: center;
-  padding: 6px 10px 12px;
-  border-bottom: 1px solid #e3ebff;
-  color: #6d7da1;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
 }
 
-.column-head__id,
-.column-head__name,
-.column-head__contact,
-.user-card__name,
-.user-card__contact,
-.column-head__role {
-  justify-self: center;
-  text-align: center;
-  width: 100%;
+.user-card__role--super {
+  color: #3259b5;
+  background: rgba(100, 139, 255, 0.14);
 }
 
-.user-card {
-  display: grid;
-  grid-template-columns: var(--user-grid);
-  align-items: center;
-  gap: 10px;
-  min-height: 72px;
-  padding: 10px 12px;
-  border: 1px solid #d8e4ff;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #243454;
-  text-align: left;
-  box-shadow: 0 10px 24px rgba(53, 86, 150, 0.06);
-  transition: transform 0.18s ease, box-shadow 0.18s ease,
-    border-color 0.18s ease;
+.user-card__role--doctor {
+  color: #2e8e7d;
+  background: rgba(102, 206, 178, 0.14);
 }
 
-.user-card strong,
-.user-card span {
-  min-width: 0;
+.user-card__role--warehouse {
+  color: #9a6a16;
+  background: rgba(255, 201, 96, 0.16);
+}
+
+.user-card__role--user {
+  color: #5d769d;
+  background: rgba(206, 221, 243, 0.52);
+}
+
+.user-card__name {
+  color: #20365e;
+}
+
+.user-card__contact {
+  color: #6d84a9;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.user-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(53, 86, 150, 0.1);
-}
-
-.user-card.active {
-  border-color: #78a4ff;
-  background: linear-gradient(180deg, #eef4ff, #e3ecff);
-  box-shadow: 0 16px 30px rgba(74, 122, 217, 0.16);
-}
-
-.user-card__id {
-  display: inline-flex;
-  align-items: center;
-  color: #2f6ff3;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-  justify-self: center;
-  text-align: center;
-}
-
-.user-card__role {
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  justify-self: center;
-  min-width: 88px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.user-card__role--super {
-  background: #fff0da;
-  color: #b56a00;
-}
-
-.user-card__role--doctor {
-  background: #dff5eb;
-  color: #1f8a61;
-}
-
-.user-card__role--warehouse {
-  background: #fff1d8;
-  color: #b57400;
-}
-
-.user-card__role--user {
-  background: #edf2ff;
-  color: #4f67b5;
-}
-
-.user-card__name {
-  font-size: 14px;
-  color: #1f3052;
-  font-weight: 700;
-}
-
-.user-card__contact {
-  color: #607193;
-  font-size: 13px;
-}
-
-.user-card--placeholder {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-@media (max-width: 980px) {
-  .form-panel__head {
-    flex-direction: column;
-  }
-
-  .grant-grid {
+@media (max-width: 1280px) {
+  .grant-grid,
+  .user-board {
     grid-template-columns: 1fr;
   }
+}
 
-  .user-panel {
-    min-height: auto;
-  }
-
+@media (max-width: 860px) {
+  .form-panel__head,
   .user-panel__head {
     flex-direction: column;
   }
 
   .toolbar {
     width: 100%;
-    justify-content: flex-start;
   }
 
   .search-input {
     min-width: 0;
     width: 100%;
-    max-width: none;
-    flex-basis: 100%;
   }
 
-  .user-board {
-    grid-template-columns: 1fr;
+  .column-head,
+  .user-card {
+    grid-template-columns: 76px 100px 1fr;
+  }
+
+  .column-head__contact,
+  .user-card__contact {
+    grid-column: 1 / -1;
   }
 }
 </style>

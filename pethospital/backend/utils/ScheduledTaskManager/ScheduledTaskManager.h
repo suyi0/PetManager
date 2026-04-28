@@ -7,6 +7,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 #include "../../controllers/OperationLogger/OperationLogger.h"
 #include "../../controllers/update/update.h"
 
@@ -18,9 +19,8 @@ private:
 
     std::atomic<bool> running;                                  // 工作线程运行标志
     std::thread workerThread;                                   // 工作线程
-    std::shared_ptr<DatabaseManagerInterface> dbManager;                        // 数据库管理器
-    std::shared_ptr<OperationLogger> logger;                                    // 操作日志记录器
-    std::shared_ptr<update> updater;                                            // 更新管理器       
+    std::shared_ptr<DatabaseManagerInterface> dbManager;        // 数据库管理器
+    std::optional<update> updater;                              // 更新管理器
 
     // 存储定时任务
     struct Task
@@ -38,7 +38,7 @@ private:
     std::mutex stopMutex;                                       // 停止信号锁
 
     // 私有构造函数
-    ScheduledTaskManager() : running(false), dbManager(nullptr), logger(nullptr), updater(nullptr) {};
+    ScheduledTaskManager() : running(false), dbManager(nullptr), updater(std::nullopt) {};
 
     // 工作线程主循环
     void workerLoop();
@@ -57,6 +57,9 @@ private:
 
     // 执行30分钟检测是否需要存储员工考勤信息
     void Automatic_update();
+
+    // 每日零点执行日结，并在月初执行月结归档
+    void Automatic_update_salaryRecord();
 
 public:
     ~ScheduledTaskManager();

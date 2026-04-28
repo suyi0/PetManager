@@ -21,15 +21,15 @@ public:
     // 添加一个方法来检查数据库管理器是否可用
     bool isDbManagerValid() const { return dbManager != nullptr; }
 
-    crow::response userLogin(const crow::request& req); //  对应 "/api/user/login"
+    crow::response userLogin(const crow::request& req); //  对应 登录 "/api/user/login"
     
-    crow::response userUpdate(const crow::request& req); // 对应 "/api/user/form"
+    crow::response userUpdate(const crow::request& req); // 对应 更新信息 "/api/user/form"
     
-    crow::response userUploadAvatar(const crow::request& req); // 对应 "/api/user/upload/avatar"
+    crow::response userUploadAvatar(const crow::request& req); // 对应 上传头像 "/api/user/upload/avatar"
 
-    crow::response upload(const crow::request& req, const std::string& filename); // 对应 "/uploads/<string>"
+    crow::response upload(const crow::request& req, const std::string& filename); // 对应 上传 "/uploads/<string>"
 
-    nlohmann::json getUserData(const int &id);
+    nlohmann::json getUserData(const int &id);  // 对应 获取用户数据
 
 };
 

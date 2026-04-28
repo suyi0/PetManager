@@ -46,7 +46,7 @@ void update::updateWorkTimeRecord(int batch_size, int offset)
             try
             {
                 // 批量插入
-                std::string insert_sql = "INSERT INTO workTimeRecords (doctor_id, date, check_in_time, check_out_time, status, notes, created_at, updated_at) VALUES ";
+                std::string insert_sql = "INSERT INTO workTimeRecords (doctor_id, date, check_in_time, check_out_time, status, notes) VALUES ";
                 std::vector<std::string> values_list;
 
                 for (const auto &row : rows)
@@ -57,7 +57,7 @@ void update::updateWorkTimeRecord(int batch_size, int offset)
                                          "'" + row[2].get<std::string>() + "', " +
                                          "'" + row[3].get<std::string>() + "', " +
                                          "'" + row[4].get<std::string>() + "', " +
-                                         "'批量迁移', NOW(), NOW()" +
+                                         "'批量迁移'" +
                                          ")";
                     values_list.push_back(values);
                 }

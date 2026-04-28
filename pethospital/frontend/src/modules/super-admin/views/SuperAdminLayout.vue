@@ -1,11 +1,10 @@
 <template>
   <div class="shell">
     <aside class="sidebar">
-      <div class="sidebar-head">超级管理员</div>
+      <div class="sidebar-head">{{ currentRoleLabel }}</div>
       <div class="sidebar-logo"></div>
       <nav>
         <RouterLink :to="`${routePrefix}/overview`">总览</RouterLink>
-        <RouterLink :to="`${routePrefix}/doctors`">权限授予</RouterLink>
         <RouterLink :to="`${routePrefix}/worktime`">考勤管理</RouterLink>
         <RouterLink :to="`${routePrefix}/users`">用户管理</RouterLink>
         <RouterLink :to="`${routePrefix}/online-doctors`">在线医生</RouterLink>
@@ -28,7 +27,7 @@
 
     <main class="content">
       <header class="topbar">
-        <h2>宠物医院超级管理员端</h2>
+        <h2>宠物医院管理端</h2>
         <span>接口驱动 · Crow + MySQL</span>
         <button @click="logout" class="lgout"><span>登出</span></button>
       </header>
@@ -43,6 +42,7 @@ import { storeKey } from "@/store/appStore";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { authStorage } from "@/core/auth/utils/authStorage";
+import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import {
   startSuperAdminSessionGuard,
   stopSuperAdminSessionGuard,
@@ -101,6 +101,13 @@ export default defineComponent({
       route.path.startsWith("/preview/super-admin")
     );
 
+    const currentRoleLabel = computed(() => {
+      const activeRole = store.state.auth.userRole;
+      return activeRole && isSuperAdminPortalRole(activeRole)
+        ? activeRole
+        : "超级管理员";
+    });
+
     const crossPortals = computed(() => [
       {
         key: "user",
@@ -158,8 +165,14 @@ export default defineComponent({
     ]);
 
     const enterPortal = async (portal: (typeof crossPortals.value)[number]) => {
+      const currentRole =
+        store.state.auth.userRole &&
+        isSuperAdminPortalRole(store.state.auth.userRole)
+          ? store.state.auth.userRole
+          : "超级管理员";
+      const currentType = store.state.auth.userType || 5;
       const currentProfile = {
-        userName: store.state.currentUser.userName || "超级管理员 沈知序",
+        userName: store.state.currentUser.userName || `${currentRole} 沈知序`,
         userPhone: store.state.currentUser.userPhone || "13600136000",
         userEmail:
           store.state.currentUser.userEmail || "super.admin@example.com",
@@ -176,15 +189,15 @@ export default defineComponent({
           ? store.state.auth.token
           : createFrontendToken(portal.userType, portal.userRole);
       const returnToken =
-        store.state.auth.token || createFrontendToken(1, "超级管理员");
+        store.state.auth.token || createFrontendToken(currentType, currentRole);
 
       authStorage.saveAdminPortalBridge({
         returnTo: isPreviewRoute.value
           ? "/preview/super-admin/overview"
           : "/super-admin/overview",
         token: returnToken,
-        userType: 1,
-        userRole: "超级管理员",
+        userType: currentType,
+        userRole: currentRole,
         ...currentProfile,
       });
 
@@ -210,6 +223,7 @@ export default defineComponent({
       logout,
       routePrefix,
       crossPortals,
+      currentRoleLabel,
       enterPortal,
     };
   },

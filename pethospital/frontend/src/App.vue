@@ -7,6 +7,7 @@
       <div v-if="!showRegister && !isPreviewRoute" class="preview-entrybar">
         <button @click="previewUserRouter">用户端预览</button>
         <button @click="previewDoctorRouter">医生端预览</button>
+        <button @click="previewBossRouter">Boss预览</button>
         <button @click="previewAdminRouter">超管预览</button>
         <button @click="previewWarehouseRouter">仓库预览</button>
       </div>
@@ -66,6 +67,9 @@ function previewUserRouter() {
 }
 function previewDoctorRouter() {
   router.push("/preview/doctor/home");
+}
+function previewBossRouter() {
+  router.push("/preview/boss/overview");
 }
 function previewWarehouseRouter() {
   router.push("/preview/warehouse-admin/dashboard");

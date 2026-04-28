@@ -1,10 +1,11 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
+import { SUPER_ADMIN_PORTAL_ROLES } from "@/core/auth/utils/roleUtils";
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: "/super-admin",
     component: () => import("../views/SuperAdminLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: ["超级管理员"] },
+    meta: { requiresAuth: true, allowedRoles: [...SUPER_ADMIN_PORTAL_ROLES] },
     children: [
       {
         path: "",
@@ -14,11 +15,6 @@ const routes: Array<RouteRecordRaw> = [
         path: "overview",
         name: "superAdminOverview",
         component: () => import("../views/pages/SuperAdminOverview.vue"),
-      },
-      {
-        path: "doctors",
-        name: "superAdminRoleAccess",
-        component: () => import("../views/pages/SuperAdminRoleAccess.vue"),
       },
       {
         path: "worktime",
@@ -59,11 +55,6 @@ const routes: Array<RouteRecordRaw> = [
         path: "overview",
         name: "previewSuperAdminOverview",
         component: () => import("../views/pages/SuperAdminOverview.vue"),
-      },
-      {
-        path: "doctors",
-        name: "previewSuperAdminRoleAccess",
-        component: () => import("../views/pages/SuperAdminRoleAccess.vue"),
       },
       {
         path: "worktime",

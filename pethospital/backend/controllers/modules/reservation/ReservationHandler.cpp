@@ -2,6 +2,7 @@
 #include "RoleTypeUtils/RoleTypeUtils.h"
 #include "../../OperationLogger/OperationLogger.h"
 #include <iostream>
+#include <vector>
 
 namespace
 {
@@ -137,32 +138,64 @@ crow::response ReservationHandler::updateReservation(const crow::request &req, i
             return res;
         auto &request_body = request_body_opt.value();
 
-        bool has_changes = false;
+        std::vector<std::string> assignments;
+        std::vector<std::string> values;
+
         if (request_body.find("date") != request_body.end())
         {
-            dbManager->getSession()->sql("UPDATE reaservations SET date = ? WHERE id = ?")
-                .bind(request_body["date"].get<std::string>(), id)
-                .execute();
-            has_changes = true;
+            assignments.push_back("date = ?");
+            values.push_back(request_body["date"].get<std::string>());
         }
         if (request_body.find("time_slot") != request_body.end())
         {
-            dbManager->getSession()->sql("UPDATE reaservations SET time_slot = ? WHERE id = ?")
-                .bind(request_body["time_slot"].get<std::string>(), id)
-                .execute();
-            has_changes = true;
+            assignments.push_back("time_slot = ?");
+            values.push_back(request_body["time_slot"].get<std::string>());
         }
         if (request_body.find("status") != request_body.end())
         {
-            dbManager->getSession()->sql("UPDATE reaservations SET status = ? WHERE id = ?")
-                .bind(request_body["status"].get<std::string>(), id)
-                .execute();
-            has_changes = true;
+            assignments.push_back("status = ?");
+            values.push_back(request_body["status"].get<std::string>());
         }
 
-        // 检查是否有记录被更新
-        if (has_changes)
+        if (!assignments.empty())
         {
+            auto session = dbManager->getSession();
+            session->sql("START TRANSACTION").execute();
+
+            try
+            {
+                std::string sql = "UPDATE reaservations SET ";
+                for (size_t i = 0; i < assignments.size(); ++i)
+                {
+                    if (i > 0)
+                    {
+                        sql += ", ";
+                    }
+                    sql += assignments[i];
+                }
+                sql += " WHERE id = ?";
+
+                auto statement = session->sql(sql);
+                for (const auto &value : values)
+                {
+                    statement.bind(value);
+                }
+
+                mysqlx::SqlResult updateResult = statement.bind(id).execute();
+                if (updateResult.getAffectedItemsCount() == 0)
+                {
+                    session->sql("ROLLBACK").execute();
+                    return ResponseHelper::notFound(req, "未找到指定的预约记录");
+                }
+
+                session->sql("COMMIT").execute();
+            }
+            catch (...)
+            {
+                session->sql("ROLLBACK").execute();
+                throw;
+            }
+
             // 返回成功响应
             nlohmann::json response;
             response["message"] = "预约记录更新成功";
@@ -171,7 +204,7 @@ crow::response ReservationHandler::updateReservation(const crow::request &req, i
         }
         else
         {
-            return ResponseHelper::notFound(req, "未找到指定的预约记录");
+            return ResponseHelper::validation(req, "未提供可更新的预约字段");
         }
     }
     catch (const std::exception &e)

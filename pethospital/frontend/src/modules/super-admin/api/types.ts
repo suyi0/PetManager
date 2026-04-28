@@ -25,6 +25,42 @@ export interface UserRow {
   status?: "online" | "offline" | "";
 }
 
+export interface SalaryEmployeeRow {
+  id: number;
+  type_id: number | null;
+  type_name?: string;
+  name: string;
+  phone: string;
+  email: string;
+  base_salary: number;
+  pa_award: number;
+  pb_award: number;
+  total_salary: number;
+  updated_at: string;
+}
+
+export interface SalaryRecordRow {
+  id: string;
+  salesCount: number;
+  costCount: number;
+  profitCount: number;
+  created_at: string;
+}
+
+export interface SalaryManagementSummary {
+  employeeCount: number;
+  monthlyPayroll: number;
+  todayCost: number;
+  todayProfit: number;
+}
+
+export interface SalaryManagementPayload {
+  summary: SalaryManagementSummary;
+  employees: SalaryEmployeeRow[];
+  monthlyRecords: SalaryRecordRow[];
+  dailyRecords: SalaryRecordRow[];
+}
+
 export interface CreateUserPayload {
   name: string;
   phone?: string;
@@ -47,6 +83,9 @@ export interface HomePageSummary {
   userCount: number;
   onlineDoctorCount: number;
   logsCount: number;
+  salesCount: number;
+  costCount: number;
+  profitCount: number;
 }
 /**
  * 日志大类枚举，包含用户类和系统类两种类型
@@ -57,7 +96,12 @@ export type MajorTab = "user" | "system";
  */
 export type UserRole =
   | "all"
+  | "总裁"
+  | "副总裁"
+  | "财务总监"
+  | "部门经理"
   | "普通用户"
+  | "护士"
   | "医生"
   | "仓库管理员"
   | "超级管理员";

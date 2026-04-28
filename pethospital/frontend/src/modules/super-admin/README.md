@@ -8,7 +8,6 @@ This module is implemented without touching user-side pages and routes.
 - Layout + pages:
   - `views/SuperAdminLayout.vue`
   - `views/pages/SuperAdminOverview.vue`
-  - `views/pages/SuperAdminRoleAccess.vue`（角色权限管理页）
   - `views/pages/SuperAdminWorktime.vue`
   - `views/pages/SuperAdminUsers.vue`
 - Backend-driven API wrapper:
@@ -18,10 +17,12 @@ This module is implemented without touching user-side pages and routes.
 ## Backend routes mapped
 
 - `GET /admin/getWorkTimeRecord`
-- `POST /admin/createDoctor`
-- `POST /admin/deleteDoctor`
 - `POST /admin/changeDoctorWorkTime`
 - `GET /api/admin/getUsers`
+
+## Moved Out
+
+- 角色权限授予已迁到 `personnel` 端，不再属于超级管理员模块
 
 ## Notes
 

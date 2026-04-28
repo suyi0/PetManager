@@ -15,7 +15,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                 int userId = -1;
                 try
                 {
-                    userId = isValidUserToken(req, res, dbManager);
+                    userId = isValidMedicalStaffToken(req, res, dbManager);
 
                     if(res.code != 200 || userId == -1)
                     {
@@ -38,7 +38,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                 int userId = -1;
                 try
                 {
-                    userId = isValidUserToken(req, res, dbManager);
+                    userId = isValidMedicalStaffToken(req, res, dbManager);
 
                     if(res.code != 200 || userId == -1)
                     {
@@ -62,7 +62,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                 int userId = -1;
                 try
                 {
-                    userId = isValidUserToken(req, res, dbManager);
+                    userId = isValidMedicalStaffToken(req, res, dbManager);
 
                     if(res.code != 200 || userId == -1)
                     {
@@ -96,7 +96,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                 int userId = -1;
                 try
                 {
-                    userId = isValidUserToken(req, res, dbManager);
+                    userId = isValidMedicalStaffToken(req, res, dbManager);
 
                     if(res.code != 200 || userId == -1)
                     {
@@ -118,7 +118,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager] (const crow::request& req, crow::response& res) {
                 int userId = -1;
                 try{
-                    userId = isValidUserToken(req, res, dbManager);
+                    userId = isValidMedicalStaffToken(req, res, dbManager);
 
                     if(res.code != 200 || userId == -1)
                     {

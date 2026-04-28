@@ -121,6 +121,20 @@ import { superAdminApi } from "../../api/superAdminApi";
 export default defineComponent({
   name: "SuperAdminUserDetail",
   setup() {
+    const getErrorDetails = (error: unknown) => {
+      const responseError = error as {
+        response?: {
+          data?: {
+            error?: {
+              details?: string;
+            };
+          };
+        };
+      };
+
+      return responseError.response?.data?.error?.details;
+    };
+
     const store = useStore(storeKey);
     const route = useRoute();
     const router = useRouter();
@@ -178,9 +192,9 @@ export default defineComponent({
           store.dispatch("superAdmin/refreshUsers"),
           store.dispatch("superAdmin/refreshWorkTimeRecords"),
         ]);
-      } catch (error: any) {
+      } catch (error: unknown) {
         statusMessage.value =
-          error?.response?.data?.error?.details || "状态修改失败，请稍后重试";
+          getErrorDetails(error) || "状态修改失败，请稍后重试";
       } finally {
         statusUpdating.value = false;
         pendingStatus.value = null;

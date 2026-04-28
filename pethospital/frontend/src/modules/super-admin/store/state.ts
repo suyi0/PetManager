@@ -1,4 +1,4 @@
-import { HomePageSummary } from "../api/types";
+import { HomePageSummary, SalaryManagementPayload } from "../api/types";
 import { LogsPayload, SuperAdminState } from "./types";
 import { createCacheMeta } from "@/store/state";
 
@@ -17,6 +17,21 @@ const createHomePageSummary = (): HomePageSummary => ({
   userCount: 0,
   onlineDoctorCount: 0,
   logsCount: 0,
+  salesCount: 0,
+  costCount: 0,
+  profitCount: 0,
+});
+
+const createSalaryManagementPayload = (): SalaryManagementPayload => ({
+  summary: {
+    employeeCount: 0,
+    monthlyPayroll: 0,
+    todayCost: 0,
+    todayProfit: 0,
+  },
+  employees: [],
+  monthlyRecords: [],
+  dailyRecords: [],
 });
 
 /**
@@ -27,8 +42,10 @@ export const createSuperAdminState = (): SuperAdminState => ({
   workTimeRecords: [],
   logs: createLogsPayload(),
   homePageData: createHomePageSummary(),
+  salaryManagement: createSalaryManagementPayload(),
   usersMeta: createCacheMeta(),
   workTimeRecordsMeta: createCacheMeta(),
   logsMeta: createCacheMeta(),
   homePageDataMeta: createCacheMeta(),
+  salaryManagementMeta: createCacheMeta(),
 });

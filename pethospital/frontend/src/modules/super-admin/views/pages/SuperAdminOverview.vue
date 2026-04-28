@@ -1,13 +1,45 @@
 <template>
   <section class="page">
     <div class="grid stats">
-      <StatCard label="注册用户" :value="userCount" @click="toUsersPage" />
       <StatCard
+        class="statCard"
+        label="注册用户"
+        :value="userCount"
+        hint="当前系统账号总量"
+        @click="toUsersPage"
+      />
+      <StatCard
+        class="statCard"
         label="在线医生"
         :value="onlineCount"
+        hint="实时值班接诊医生"
         @click="toOnlineDoctorsPage"
       />
-      <StatCard label="今日日志" :value="logCount" @click="toLogsPage" />
+      <StatCard
+        class="statCard"
+        label="今日日志"
+        :value="logCount"
+        hint="今日审计与系统记录"
+        @click="toLogsPage"
+      />
+      <StatCard
+        class="statCard"
+        label="每日营业额"
+        :value="salesAmount"
+        hint="今日订单收入"
+      />
+      <StatCard
+        class="statCard"
+        label="每日成本"
+        :value="costAmount"
+        hint="工资摊销与药品成本"
+      />
+      <StatCard
+        class="statCard"
+        label="每日利润"
+        :value="profitAmount"
+        hint="营业额减成本"
+      />
     </div>
   </section>
 </template>
@@ -30,6 +62,17 @@ export default defineComponent({
     const userCount = computed(() => summary.value.userCount);
     const onlineCount = computed(() => summary.value.onlineDoctorCount);
     const logCount = computed(() => summary.value.logsCount);
+    const formatCurrency = (value: number) =>
+      `￥${Number(value || 0).toLocaleString("zh-CN", {
+        maximumFractionDigits: 2,
+      })}`;
+    const salesAmount = computed(() =>
+      formatCurrency(summary.value.salesCount)
+    );
+    const costAmount = computed(() => formatCurrency(summary.value.costCount));
+    const profitAmount = computed(() =>
+      formatCurrency(summary.value.profitCount)
+    );
 
     const routePrefix = computed(() =>
       route.path.startsWith("/preview/super-admin")
@@ -58,6 +101,9 @@ export default defineComponent({
       userCount,
       onlineCount,
       logCount,
+      salesAmount,
+      costAmount,
+      profitAmount,
       loadAll,
       toUsersPage,
       toOnlineDoctorsPage,
@@ -117,6 +163,10 @@ td {
   text-align: left;
   padding: 10px;
   border-bottom: 1px solid #edf2ff;
+}
+
+.statCard {
+  cursor: pointer;
 }
 
 @media (max-width: 960px) {

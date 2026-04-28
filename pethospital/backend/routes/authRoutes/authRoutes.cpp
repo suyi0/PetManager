@@ -101,7 +101,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 int userId = -1;
                 try
                 {
-                    userId = isValidSuperAdminToken(req, res, dbManager);
+                    userId = isValidManagementToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "认证", "刷新管理员令牌");

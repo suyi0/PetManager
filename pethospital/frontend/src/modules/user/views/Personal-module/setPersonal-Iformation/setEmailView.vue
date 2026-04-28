@@ -198,7 +198,7 @@ function getVerificationCode() {
     count.value = 60;
     startCountdown();
     store
-      .dispatch("user/sendVerificationCode", {
+      .dispatch("auth/sendVerificationCode", {
         email: newUserEmail.value,
       })
       .then((response) => {

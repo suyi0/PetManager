@@ -8,6 +8,7 @@
 
 #include "Utils.h"
 
+// 验证邮箱格式
 inline bool isValidEmailFormat(const std::string &email)
 {
     static const std::regex email_pattern(
@@ -15,12 +16,14 @@ inline bool isValidEmailFormat(const std::string &email)
     return std::regex_match(email, email_pattern);
 }
 
+// 验证手机号格式
 inline bool isValidPhoneFormat(const std::string &phone)
 {
     static const std::regex phone_pattern(R"(^(?:\+86)?1[3-9]\d{9}$)");
     return std::regex_match(phone, phone_pattern);
 }
 
+// 标准化手机号（去除空格，添加国家码）
 inline std::string normalizePhoneIdentifier(std::string phoneValue)
 {
     phoneValue = clean_string(phoneValue);

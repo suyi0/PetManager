@@ -1,10 +1,11 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
+import { WAREHOUSE_PORTAL_ROLES } from "@/core/auth/utils/roleUtils";
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: "/warehouse-admin",
     component: () => import("../views/WarehouseAdminLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: ["仓库管理员"] },
+    meta: { requiresAuth: true, allowedRoles: [...WAREHOUSE_PORTAL_ROLES] },
     children: [
       {
         path: "",

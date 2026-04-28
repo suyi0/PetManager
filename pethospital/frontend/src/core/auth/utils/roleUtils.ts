@@ -1,33 +1,107 @@
-export type UserRole = "超级管理员" | "医生" | "仓库管理员" | "普通用户";
+export const ALL_ROLE_NAMES = [
+  "总裁",
+  "副总裁",
+  "财务总监",
+  "财务经理",
+  "人事经理",
+  "部门经理",
+  "超级管理员",
+  "仓库管理员",
+  "医生",
+  "护士",
+  "普通用户",
+] as const;
+
+export type UserRole = (typeof ALL_ROLE_NAMES)[number];
+
+export const SUPER_ADMIN_PORTAL_ROLES: UserRole[] = [
+  "总裁",
+  "副总裁",
+  "部门经理",
+  "超级管理员",
+];
+
+export const BOSS_PORTAL_ROLES: UserRole[] = ["总裁", "副总裁"];
+
+export const FINANCE_PORTAL_ROLES: string[] = ["财务总监", "财务经理"];
+
+export const PERSONNEL_PORTAL_ROLES: string[] = ["人事经理"];
+
+export const WAREHOUSE_PORTAL_ROLES: UserRole[] = ["仓库管理员"];
+
+export const DOCTOR_PORTAL_ROLES: UserRole[] = ["医生"];
+
+export const USER_PORTAL_ROLES: UserRole[] = ["普通用户", "护士"];
+
+const ROLE_NAME_SET = new Set<string>(ALL_ROLE_NAMES);
+
+export const isKnownRoleName = (role?: string | null): role is UserRole =>
+  Boolean(role && ROLE_NAME_SET.has(role));
+
+export const isSuperAdminPortalRole = (role?: string | null): boolean =>
+  Boolean(role && SUPER_ADMIN_PORTAL_ROLES.includes(role as UserRole));
+
+export const isBossPortalRole = (role?: string | null): boolean =>
+  Boolean(role && BOSS_PORTAL_ROLES.includes(role as UserRole));
+
+export const isWarehousePortalRole = (role?: string | null): boolean =>
+  Boolean(role && WAREHOUSE_PORTAL_ROLES.includes(role as UserRole));
+
+export const isFinancePortalRole = (role?: string | null): boolean =>
+  Boolean(role && FINANCE_PORTAL_ROLES.includes(role));
+
+export const isDoctorPortalRole = (role?: string | null): boolean =>
+  Boolean(role && DOCTOR_PORTAL_ROLES.includes(role as UserRole));
+
+export const isPersonnelPortalRole = (role?: string | null): boolean =>
+  Boolean(role && PERSONNEL_PORTAL_ROLES.includes(role));
+
+export const isUserPortalRole = (role?: string | null): boolean =>
+  Boolean(role && USER_PORTAL_ROLES.includes(role as UserRole));
 
 export const resolveRoleName = (
   typeName?: string | null,
   typeId?: number | null
 ): UserRole | null => {
-  if (typeName === "超级管理员") return "超级管理员";
-  if (typeName === "医生") return "医生";
-  if (typeName === "仓库管理员") return "仓库管理员";
-  if (typeName === "普通用户") return "普通用户";
+  if (isKnownRoleName(typeName)) {
+    return typeName;
+  }
 
-  if (typeId === 1) return "超级管理员";
-  if (typeId === 2) return "医生";
-  if (typeId === 3) return "仓库管理员";
-  if (typeId === 4) return "普通用户";
+  void typeId;
 
   return null;
 };
 
 export const getHomeRouteByRole = (role?: string | null) => {
-  switch (resolveRoleName(role)) {
-    case "超级管理员":
-      return "/super-admin/overview";
-    case "医生":
-      return "/doctor/home";
-    case "仓库管理员":
-      return "/warehouse-admin/dashboard";
-    case "普通用户":
-      return "/user/home";
-    default:
-      return "/";
+  const resolvedRole = resolveRoleName(role);
+
+  if (isBossPortalRole(resolvedRole)) {
+    return "/boss/overview";
   }
+
+  if (isSuperAdminPortalRole(resolvedRole)) {
+    return "/super-admin/overview";
+  }
+
+  if (isDoctorPortalRole(resolvedRole)) {
+    return "/doctor/home";
+  }
+
+  if (isFinancePortalRole(resolvedRole)) {
+    return "/finance/salary";
+  }
+
+  if (isPersonnelPortalRole(resolvedRole)) {
+    return "/personnel/access";
+  }
+
+  if (isWarehousePortalRole(resolvedRole)) {
+    return "/warehouse-admin/dashboard";
+  }
+
+  if (isUserPortalRole(resolvedRole)) {
+    return "/user/home";
+  }
+
+  return "/";
 };

@@ -6,7 +6,7 @@
         <h3>系统日志审计台</h3>
         <span>
           先按“用户类日志 /
-          系统日志”拆分浏览，再按角色快速筛选普通用户、医生、仓库管理员和超级管理员的操作轨迹。
+          系统日志”拆分浏览，再按角色快速筛选不同岗位的操作轨迹。
         </span>
       </div>
 
@@ -225,6 +225,10 @@
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/store/appStore";
+import {
+  ALL_ROLE_NAMES,
+  isSuperAdminPortalRole,
+} from "@/core/auth/utils/roleUtils";
 import AppPager from "../../../../components/AppPager.vue";
 import {
   UserLogs,
@@ -248,7 +252,7 @@ export default defineComponent({
      */
     const activeMajorTab = ref<MajorTab>("user");
     /**
-     * 获取用户类日志时的角色筛选：全部用户 / 普通用户 / 医生 / 仓库管理员 / 超级管理员
+     * 获取用户类日志时的角色筛选：全部用户 + 当前系统内已知角色
        仅在用户类日志下生效，系统类日志不区分角色
        选择“全部用户”时不过滤角色，选择其他选项时仅展示对应角色的日志
      */
@@ -278,7 +282,7 @@ export default defineComponent({
       {
         key: "user" as MajorTab,
         label: "用户类日志",
-        hint: "按普通用户、医生、仓库管理员、超级管理员细分",
+        hint: "按全部角色快速切换，聚焦不同岗位的操作轨迹",
       },
       {
         key: "system" as MajorTab,
@@ -289,10 +293,10 @@ export default defineComponent({
 
     const userRoleTabs = [
       { key: "all" as UserRole, label: "全部用户" },
-      { key: "普通用户" as UserRole, label: "普通用户" },
-      { key: "医生" as UserRole, label: "医生" },
-      { key: "仓库管理员" as UserRole, label: "仓库管理员" },
-      { key: "超级管理员" as UserRole, label: "超级管理员" },
+      ...ALL_ROLE_NAMES.map((role) => ({
+        key: role as UserRole,
+        label: role,
+      })),
     ];
 
     const userLogs = computed<UserLogs[]>(
@@ -417,10 +421,13 @@ export default defineComponent({
       if (userRole === "医生") {
         return "logs-badge--doctor";
       }
+      if (userRole === "护士") {
+        return "logs-badge--doctor";
+      }
       if (userRole === "仓库管理员") {
         return "logs-badge--warehouse";
       }
-      if (userRole === "超级管理员") {
+      if (userRole && isSuperAdminPortalRole(userRole)) {
         return "logs-badge--super";
       }
       return "logs-badge--user";

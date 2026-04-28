@@ -721,14 +721,28 @@ crow::response UserHandler::userUpdate(const crow::request &req)
 
             std::string hashed_password = hash_password(password);
 
-            mysqlx::SqlResult result = dbManager->getSession()->sql("INSERT INTO users(type_id, name, phone, email, password, birthday, address_id, headImage ) "
-                                                                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                                                                     .bind(type_id, name, phone, email, hashed_password, birthday, address_id, headImage)
-                                                                     .execute();
+            auto session = dbManager->getSession();
+            session->sql("START TRANSACTION").execute();
 
-            if(!UserPhoneSync::upsertUserPhone(*dbManager, static_cast<int>(result.getAutoIncrementValue()), phone))
+            try
             {
-                return ResponseHelper::error(req, "用户手机号同步失败");
+                mysqlx::SqlResult result = session->sql("INSERT INTO users(type_id, name, phone, email, password, birthday, address_id, head_image ) "
+                                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                                               .bind(type_id, name, phone, email, hashed_password, birthday, address_id, headImage)
+                                               .execute();
+
+                if (!UserPhoneSync::upsertUserPhone(*session, static_cast<int>(result.getAutoIncrementValue()), phone))
+                {
+                    session->sql("ROLLBACK").execute();
+                    return ResponseHelper::error(req, "用户注册失败，手机号同步未完成");
+                }
+
+                session->sql("COMMIT").execute();
+            }
+            catch (...)
+            {
+                session->sql("ROLLBACK").execute();
+                throw;
             }
 
             return ResponseHelper::success(req, "用户注册成功");
@@ -1288,6 +1302,9 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             // 执行更新操作
             if (has_changes)
             {
+                auto session = dbManager->getSession();
+                session->sql("START TRANSACTION").execute();
+
                 try
                 {
                     // 根据id进行更新
@@ -1295,25 +1312,25 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                     {
                         if (!name.empty() && DBname != name)
                         {
-                            dbManager->getSession()->sql("UPDATE users SET name = ? WHERE id = ?")
+                            session->sql("UPDATE users SET name = ? WHERE id = ?")
                                 .bind(name, DBid)
                                 .execute();
                         }
                         if (!hashed_password.empty() && DBpassword != hashed_password)
                         {
-                            dbManager->getSession()->sql("UPDATE users SET password = ? WHERE id = ?")
+                            session->sql("UPDATE users SET password = ? WHERE id = ?")
                                 .bind(hashed_password, DBid)
                                 .execute();
                         }
                         if (!phone.empty() && DBphone != phone)
                         {
-                            dbManager->getSession()->sql("UPDATE users SET phone = ? WHERE id = ?")
+                            session->sql("UPDATE users SET phone = ? WHERE id = ?")
                                 .bind(phone, DBid)
                                 .execute();
                         }
                         if (!email.empty() && DBemail != email)
                         {
-                            dbManager->getSession()->sql("UPDATE users SET email = ? WHERE id = ?")
+                            session->sql("UPDATE users SET email = ? WHERE id = ?")
                                 .bind(email, DBid)
                                 .execute();
                         }
@@ -1324,7 +1341,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                                 boost::gregorian::date birthday_date = boost::gregorian::from_simple_string(birthday);
                                 if (DBbirthday != birthday_date)
                                 {
-                                    dbManager->getSession()->sql("UPDATE users SET birthday = ? WHERE id = ?")
+                                    session->sql("UPDATE users SET birthday = ? WHERE id = ?")
                                         .bind(birthday, DBid)
                                         .execute();
                                 }
@@ -1334,7 +1351,7 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                                 boost::gregorian::date default_date(1970, 1, 1);
                                 if (DBbirthday != default_date)
                                 {
-                                    dbManager->getSession()->sql("UPDATE users SET birthday = ? WHERE id = ?")
+                                    session->sql("UPDATE users SET birthday = ? WHERE id = ?")
                                         .bind(birthday, DBid)
                                         .execute();
                                 }
@@ -1342,21 +1359,24 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                         }
                         if (!headImage.empty() && DBheadImage != headImage)
                         {
-                            dbManager->getSession()->sql("UPDATE users SET head_image = ? WHERE id = ?")
+                            session->sql("UPDATE users SET head_image = ? WHERE id = ?")
                                 .bind(headImage, DBid)
                                 .execute();
                         }
 
                         if (!phone.empty() && DBphone != phone &&
-                            !UserPhoneSync::upsertUserPhone(*dbManager, DBid, phone))
+                            !UserPhoneSync::upsertUserPhone(*session, DBid, phone))
                         {
-                            return ResponseHelper::system_error(req, "用户信息已更新，但手机号同步失败");
+                            session->sql("ROLLBACK").execute();
+                            return ResponseHelper::system_error(req, "用户信息更新失败，手机号同步未完成");
                         }
                     }
+                    session->sql("COMMIT").execute();
                     std::cout << "User data updated successfully" << std::endl;
                 }
                 catch (const mysqlx::Error &e)
                 {
+                    session->sql("ROLLBACK").execute();
                     std::cerr << "Database update error: " << e.what() << std::endl;
 
                     return ResponseHelper::database_error(req, "Failed to update user data", e.what());

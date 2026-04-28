@@ -12,8 +12,17 @@
 int isValidUserToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
 int isValidUserorderToken(const crow::request &req, crow::response &res, int &orderId, std::shared_ptr<DatabaseManagerInterface> dbManager);
 
-// 添加超级管理员Token验证函数
-int isValidSuperAdminToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+// 验证管理端 token，允许管理类角色访问管理相关接口
+int isValidManagementToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+
+// 验证人事门户角色 token，仅允许“人事经理”访问人事相关接口
+int isValidPersonnelToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+
+// 验证医疗端 token，允许医生、护士访问医疗端接口
+int isValidMedicalStaffToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+
+// 验证仓储端 token，允许仓储类角色访问仓库接口
+int isValidWarehouseStaffToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
 
 class authHandler : public BaseHandler
 {

@@ -2,6 +2,7 @@ import type { Router } from "vue-router";
 import type { Store } from "vuex";
 import { superAdminApi } from "@/modules/super-admin/api/superAdminApi";
 import { authStorage } from "@/core/auth/utils/authStorage";
+import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import type { State } from "@/store/appStore";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 空闲超时时间
@@ -38,7 +39,7 @@ const isAdminSessionActive = () =>
   Boolean(
     boundStore &&
       boundStore.state.auth.isLoggedIn &&
-      boundStore.state.auth.userRole === "超级管理员" &&
+      isSuperAdminPortalRole(boundStore.state.auth.userRole) &&
       isAdminRoute()
   );
 

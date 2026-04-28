@@ -109,19 +109,34 @@ crow::response doctorHandler::createUser(const crow::request &req)
             return ResponseHelper::system_error(req, "普通用户角色不存在");
         }
 
-        mysqlx::SqlResult result = dbManager->getSession()->sql("INSERT INTO users (type_id, username, password, phone) "
-                                                                "VALUES (?, ?, ?, ?)")
-                                       .bind(defaultUserRoleId, username, password, phone)
-                                       .execute();
+        auto session = dbManager->getSession();
+        session->sql("START TRANSACTION").execute();
 
-        if (result.getAffectedItemsCount() == 0)
+        try
         {
-            return ResponseHelper::error(req, "创建用户失败");
+            mysqlx::SqlResult result = session->sql("INSERT INTO users (type_id, username, password, phone) "
+                                                    "VALUES (?, ?, ?, ?)")
+                                           .bind(defaultUserRoleId, username, password, phone)
+                                           .execute();
+
+            if (result.getAffectedItemsCount() == 0)
+            {
+                session->sql("ROLLBACK").execute();
+                return ResponseHelper::error(req, "创建用户失败");
+            }
+
+            if (!UserPhoneSync::upsertUserPhone(*session, static_cast<int>(result.getAutoIncrementValue()), phone))
+            {
+                session->sql("ROLLBACK").execute();
+                return ResponseHelper::system_error(req, "创建用户失败，手机号同步未完成");
+            }
+
+            session->sql("COMMIT").execute();
         }
-
-        if (!UserPhoneSync::upsertUserPhone(*dbManager, static_cast<int>(result.getAutoIncrementValue()), phone))
+        catch (...)
         {
-            return ResponseHelper::system_error(req, "创建用户成功，但手机号同步失败");
+            session->sql("ROLLBACK").execute();
+            throw;
         }
 
         return ResponseHelper::success(req, "创建用户成功");

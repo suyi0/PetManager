@@ -1,4 +1,5 @@
 #include "ScheduledTaskManager.h"
+#include "../RoleTypeUtils/RoleTypeUtils.h"
 #include <iostream>
 #include <sstream>
 #ifdef __linux__
@@ -17,10 +18,18 @@ std::mutex ScheduledTaskManager::instanceMutex;
 
 namespace
 {
-bool canUseDatabase(const std::shared_ptr<DatabaseManagerInterface> &dbManager)
-{
-    return dbManager && dbManager->getSession() && dbManager->getSchema();
-}
+    bool canUseDatabase(const std::shared_ptr<DatabaseManagerInterface> &dbManager)
+    {
+        return dbManager && dbManager->getSession() && dbManager->getSchema();
+    }
+
+    // 将日期和时间转换为字符串格式 "YYYY-MM-DD HH:MM:SS"
+    std::string toDateTimeString(
+        const boost::gregorian::date &date,
+        const boost::posix_time::time_duration &time)
+    {
+        return formatDateTime(boost::posix_time::ptime(date, time));
+    }
 }
 
 ScheduledTaskManager::~ScheduledTaskManager()
@@ -41,22 +50,20 @@ ScheduledTaskManager *ScheduledTaskManager::getInstance()
 void ScheduledTaskManager::initialize(std::shared_ptr<DatabaseManagerInterface> dbMgr)
 {
     this->dbManager = dbMgr;
-    this->logger = std::make_shared<OperationLogger>(dbMgr);
-    this->updater = std::make_shared<update>(dbMgr);
-
+    this->updater.emplace(dbMgr);
 
     // 获取当天 00:00 的时间点
-    auto now = std::chrono::system_clock::now();                        // 获取当前时间点的time_point对象
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);        // 将当前时间点转换为 time_t 格式
+    auto now = std::chrono::system_clock::now();                 // 获取当前时间点的time_point对象
+    auto time_t_now = std::chrono::system_clock::to_time_t(now); // 将当前时间点转换为 time_t 格式
     // time_t 是一个标量类型（通常是 long 或 long long），表示自 Unix 纪元（1970-01-01 00:00:00 UTC）以来的秒数
 
     // 转换为 tm 结构体后，可以直观地修改各个字段：
-    std::tm local_tm = safeLocalTime(time_t_now);                       // 转换为本地时间结构体 tm
-    local_tm.tm_hour = 0;                                               // 设置时为0
-    local_tm.tm_min = 0;                                                // 设置分为0        
-    local_tm.tm_sec = 0;                                                // 设置秒为0     
+    std::tm local_tm = safeLocalTime(time_t_now); // 转换为本地时间结构体 tm
+    local_tm.tm_hour = 0;                         // 设置时为0
+    local_tm.tm_min = 0;                          // 设置分为0
+    local_tm.tm_sec = 0;                          // 设置秒为0
     // std::mktime(local_tm) 将本地时间结构体 tm* 转换为 time_t 类型（自 Unix 纪元以来的秒数）。
-    auto midnight = std::chrono::system_clock::from_time_t(std::mktime(&local_tm));  // 将午夜时间转换回 chrono::system_clock 类型
+    auto midnight = std::chrono::system_clock::from_time_t(std::mktime(&local_tm)); // 将午夜时间转换回 chrono::system_clock 类型
 
     // 添加默认的30分钟系统信息记录任务
     addTask("SystemInfoRecord", [this]()
@@ -67,10 +74,14 @@ void ScheduledTaskManager::initialize(std::shared_ptr<DatabaseManagerInterface> 
             { this->recordMemoryUsage(); }, std::chrono::minutes(30), midnight);
     addTask("UserActivity", [this]()
             { this->recordUserActivity(); }, std::chrono::minutes(30), midnight);
-    
+
     // 添加30分钟，自动更新记录任务
     addTask("Automatic_update", [this]()
             { this->Automatic_update(); }, std::chrono::minutes(30), midnight);
+
+    // 添加每日24时执行更新员工工资记录任务
+    addTask("Automatic_update_salaryRecord", [this]()
+            { this->Automatic_update_salaryRecord(); }, std::chrono::hours(24), midnight);
 }
 
 void ScheduledTaskManager::start()
@@ -198,7 +209,7 @@ void ScheduledTaskManager::workerLoop()
             for (auto &task : tasks)
             {
                 // 检查是否到了新的 30 分钟节点，且该节点尚未执行
-                if (scheduledMinute > task.lastExecutedMinute && 
+                if (scheduledMinute > task.lastExecutedMinute &&
                     scheduledMinute % 30 == 0)
                 {
                     try
@@ -207,8 +218,8 @@ void ScheduledTaskManager::workerLoop()
                         task.lastExecution = now;
                         task.lastExecutedMinute = scheduledMinute;
 
-                        std::cout << "[定时任务] 执行完成：" << task.taskName 
-                                  << " (时间节点：" << (scheduledMinute / 60) << ":" 
+                        std::cout << "[定时任务] 执行完成：" << task.taskName
+                                  << " (时间节点：" << (scheduledMinute / 60) << ":"
                                   << (scheduledMinute % 60 == 0 ? "00" : "30") << ")" << std::endl;
                     }
                     catch (const std::exception &e)
@@ -227,7 +238,7 @@ void ScheduledTaskManager::workerLoop()
         // 如果 lambda 返回 true，wait_for 立即返回 true
         // 如果一直到超时条件都没成立，就返回 false
         stopCv.wait_for(lock, std::chrono::minutes(1), [this]()
-                        { return !running.load(); });       //running.load() 函数返回 running 状态
+                        { return !running.load(); }); // running.load() 函数返回 running 状态
     }
 }
 
@@ -247,9 +258,9 @@ void ScheduledTaskManager::recordSystemInfo()
 #endif
 
     // 记录到数据库
-    if (logger && canUseDatabase(dbManager))
+    if (canUseDatabase(dbManager))
     {
-        logger->logSystemOperation(dbManager, "SystemInfo", ss.str());
+        OperationLogger::logSystemOperation(dbManager, "SystemInfo", ss.str());
     }
 
     std::cout << "系统信息已记录: " << ss.str() << std::endl;
@@ -270,9 +281,9 @@ void ScheduledTaskManager::recordDatabaseStatus()
         ss << "数据库状态 - 表数量: " << result[0].get<int>();
 
         // 记录到数据库
-        if (logger)
+        if (canUseDatabase(dbManager))
         {
-            logger->logSystemOperation(dbManager, "DatabaseStatus", ss.str());
+            OperationLogger::logSystemOperation(dbManager, "DatabaseStatus", ss.str());
         }
 
         std::cout << "数据库状态已记录: " << ss.str() << std::endl;
@@ -329,9 +340,9 @@ void ScheduledTaskManager::recordMemoryUsage()
 #endif
 
     // 记录到数据库
-    if (logger && canUseDatabase(dbManager))
+    if (canUseDatabase(dbManager))
     {
-        logger->logSystemOperation(dbManager, "MemoryUsage", ss.str());
+        OperationLogger::logSystemOperation(dbManager, "MemoryUsage", ss.str());
     }
 
     std::cout << "内存使用情况已记录: " << ss.str() << std::endl;
@@ -351,9 +362,9 @@ void ScheduledTaskManager::recordUserActivity()
         ss << "用户活动统计 - 最近30分钟操作数: " << result[0].get<int>();
 
         // 记录到数据库
-        if (logger)
+        if (canUseDatabase(dbManager))
         {
-            logger->logSystemOperation(dbManager, "UserActivity", ss.str());
+            OperationLogger::logSystemOperation(dbManager, "UserActivity", ss.str());
         }
 
         std::cout << "用户活动统计已记录: " << ss.str() << std::endl;
@@ -365,12 +376,12 @@ void ScheduledTaskManager::recordUserActivity()
 }
 
 void ScheduledTaskManager::Automatic_update()
-{ 
+{
     if (!dbManager)
         return;
     try
     {
-        if(updater)
+        if (updater.has_value())
         {
             updater->Automatic_update();
         }
@@ -379,5 +390,196 @@ void ScheduledTaskManager::Automatic_update()
     catch (const std::exception &e)
     {
         std::cerr << "系统自动更新失败: " << e.what() << std::endl;
+    }
+}
+
+void ScheduledTaskManager::Automatic_update_salaryRecord()
+{
+    if (!canUseDatabase(dbManager))
+        return;
+
+    try
+    {
+        auto *session = dbManager->getSession();
+        if (!session)
+        {
+            return;
+        }
+
+        const boost::posix_time::ptime now =
+            boost::posix_time::second_clock::local_time();
+        const boost::gregorian::date today = now.date();
+        const boost::gregorian::date yesterday =
+            today - boost::gregorian::days(1);
+
+        const std::string dayStart =
+            toDateTimeString(yesterday, boost::posix_time::hours(0));
+        const std::string nextDayStart =
+            toDateTimeString(today, boost::posix_time::hours(0));
+        const std::string recordDate =
+            boost::gregorian::to_iso_extended_string(yesterday);
+
+        const int normalUserRoleId = RoleTypeUtils::getRoleId(dbManager, "普通用户");
+        if (normalUserRoleId <= 0)
+        {
+            throw std::runtime_error("普通用户角色不存在，无法计算工资记录");
+        }
+
+        session->sql("START TRANSACTION").execute();
+        try
+        {
+            auto dailyExists = session->sql("SELECT COUNT(*) "
+                                            "FROM monthlySalaryRecord "
+                                            "WHERE business_date = ?")
+                                   .bind(recordDate)
+                                   .execute()
+                                   .fetchOne();
+
+            if (dailyExists && !dailyExists[0].isNull() &&
+                dailyExists[0].get<int>() == 0)
+            {
+                auto dailySummary = session->sql("SELECT "
+                                                 "(SELECT COALESCE(ROUND(SUM(order_totalprice)), 0) "
+                                                 " FROM orders "
+                                                 " WHERE created_at >= ? AND created_at < ?) AS salesCount, "
+                                                 "(SELECT "
+                                                 "    COALESCE(ROUND(SUM(s.total_salary / 31)), 0) + "
+                                                 "    COALESCE((SELECT ROUND(SUM(om.total_price)) "
+                                                 "              FROM orderMedicines AS om "
+                                                 "              JOIN orders AS o ON om.order_id = o.id "
+                                                 "              WHERE o.created_at >= ? AND o.created_at < ?), 0) "
+                                                 " FROM salary AS s "
+                                                 " JOIN users AS u ON u.id = s.user_id "
+                                                 " WHERE u.type_id <> ?) AS costCount")
+                                       .bind(dayStart, nextDayStart, dayStart, nextDayStart, normalUserRoleId)
+                                       .execute()
+                                       .fetchOne();
+
+                const double salesCount =
+                    dailySummary[0].isNull() ? 0.0 : dailySummary[0].get<double>();
+                const double costCount =
+                    dailySummary[1].isNull() ? 0.0 : dailySummary[1].get<double>();
+                const double profitCount = salesCount - costCount;
+
+                mysqlx::SqlResult insertDailyResult = session->sql("INSERT INTO monthlySalaryRecord "
+                                                                   "(salesCount, costCount, profitCount, business_date) "
+                                                                   "SELECT ?, ?, ?, ? "
+                                                                   "FROM DUAL "
+                                                                   "WHERE NOT EXISTS ("
+                                                                   "    SELECT 1 FROM monthlySalaryRecord "
+                                                                   "    WHERE business_date = ?"
+                                                                   ")")
+                                                       .bind(salesCount, costCount, profitCount, recordDate, recordDate)
+                                                       .execute();
+
+                if (insertDailyResult.getAffectedItemsCount() == 1)
+                {
+                    std::cout << "日工资汇总写入 monthlySalaryRecord 完成: "
+                              << recordDate << std::endl;
+                }
+            }
+
+            session->sql("COMMIT").execute();
+        }
+        catch (...)
+        {
+            session->sql("ROLLBACK").execute();
+            throw;
+        }
+
+        // 每月1号00:00:00开始执行
+        if (today.day() == 1)
+        {
+            const int targetYear = static_cast<int>(yesterday.year());
+            const int targetMonth = static_cast<int>(yesterday.month().as_number());
+            const boost::gregorian::date targetMonthStartDate(targetYear, targetMonth, 1);
+            const boost::gregorian::date nextMonthStartDate =
+                targetMonthStartDate + boost::gregorian::months(1);
+            const std::string monthBusinessDate =
+                boost::gregorian::to_iso_extended_string(targetMonthStartDate);
+
+            auto monthRecordCount = session->sql("SELECT COUNT(*) "
+                                                 "FROM monthlySalaryRecord "
+                                                 "WHERE business_date >= ? AND business_date < ?")
+                                        .bind(monthBusinessDate)
+                                        .bind(boost::gregorian::to_iso_extended_string(nextMonthStartDate))
+                                        .execute()
+                                        .fetchOne();
+
+            if (monthRecordCount && !monthRecordCount[0].isNull() &&
+                monthRecordCount[0].get<int>() > 0)
+            {
+                session->sql("START TRANSACTION").execute();
+                try
+                {
+                    mysqlx::SqlResult insertDayArchiveResult = session->sql("INSERT INTO salaryRecord "
+                                                                            "(salesCount, costCount, profitCount, record_type, business_date, created_at, updated_at) "
+                                                                            "SELECT msr.salesCount, msr.costCount, msr.profitCount, 'day', msr.business_date, msr.created_at, msr.updated_at "
+                                                                            "FROM monthlySalaryRecord AS msr "
+                                                                            "WHERE msr.business_date >= ? AND msr.business_date < ? "
+                                                                            "AND NOT EXISTS ("
+                                                                            "    SELECT 1 FROM salaryRecord AS sr "
+                                                                            "    WHERE sr.record_type = 'day' "
+                                                                            "      AND sr.business_date = msr.business_date"
+                                                                            ")")
+                                                                .bind(monthBusinessDate)
+                                                                .bind(boost::gregorian::to_iso_extended_string(nextMonthStartDate))
+                                                                .execute();
+
+                    auto monthlySummary = session->sql("SELECT "
+                                                       "COALESCE(ROUND(SUM(salesCount)), 0), "
+                                                       "COALESCE(ROUND(SUM(costCount)), 0), "
+                                                       "COALESCE(ROUND(SUM(profitCount)), 0) "
+                                                       "FROM monthlySalaryRecord "
+                                                       "WHERE business_date >= ? AND business_date < ?")
+                                              .bind(monthBusinessDate)
+                                              .bind(boost::gregorian::to_iso_extended_string(nextMonthStartDate))
+                                              .execute()
+                                              .fetchOne();
+
+                    const double salesCount =
+                        monthlySummary[0].isNull() ? 0.0 : monthlySummary[0].get<double>();
+                    const double costCount =
+                        monthlySummary[1].isNull() ? 0.0 : monthlySummary[1].get<double>();
+                    const double profitCount =
+                        monthlySummary[2].isNull() ? 0.0 : monthlySummary[2].get<double>();
+
+                    session->sql("INSERT INTO salaryRecord "
+                                 "(salesCount, costCount, profitCount, record_type, business_date) "
+                                 "SELECT ?, ?, ?, 'month', ? "
+                                 "FROM DUAL "
+                                 "WHERE NOT EXISTS ("
+                                 "    SELECT 1 FROM salaryRecord "
+                                 "    WHERE record_type = 'month' AND business_date = ?"
+                                 ")")
+                        .bind(salesCount, costCount, profitCount, monthBusinessDate, monthBusinessDate)
+                        .execute();
+
+                    session->sql("DELETE FROM monthlySalaryRecord "
+                                 "WHERE business_date >= ? AND business_date < ?")
+                        .bind(monthBusinessDate)
+                        .bind(boost::gregorian::to_iso_extended_string(nextMonthStartDate))
+                        .execute();
+
+                    session->sql("COMMIT").execute();
+
+                    std::cout << "月工资明细与汇总归档完成并清理 monthlySalaryRecord: "
+                              << targetYear << "-"
+                              << std::setw(2) << std::setfill('0') << targetMonth
+                              << "，归档日记录数: "
+                              << insertDayArchiveResult.getAffectedItemsCount()
+                              << std::endl;
+                }
+                catch (...)
+                {
+                    session->sql("ROLLBACK").execute();
+                    throw;
+                }
+            }
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "员工工资记录更新失败: " << e.what() << std::endl;
     }
 }

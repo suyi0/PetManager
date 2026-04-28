@@ -47,19 +47,22 @@ export const authApi = {
   verify(payload: {
     email?: string;
     phone?: string;
-    verificationCode: string;
+    verificationCode?: string;
+    code?: string;
   }) {
-    const requestData: { code: string; email?: string; phone?: string } = {
-      code: payload.verificationCode,
-    };
+    const code = payload.verificationCode ?? payload.code;
 
     if (payload.email) {
-      requestData.email = payload.email;
-    } else if (payload.phone) {
-      requestData.phone = payload.phone;
+      return http.post("/api/verification/email/verify", {
+        email: payload.email,
+        code,
+      });
     }
 
-    return http.post("/api/verification/email/verify", { requestData });
+    return http.post("/api/verification/sms/verify", {
+      phone: payload.phone,
+      code,
+    });
   },
 
   /**
@@ -109,8 +112,13 @@ export const authApi = {
    * 发送邮箱或手机号验证码。
    */
   sendVerificationCode(payload: { email?: string; phone?: string }) {
+    if (payload.email) {
+      return http.post("/api/verification/ready", {
+        email: payload.email,
+      });
+    }
+
     return http.post("/api/verification/sms/send", {
-      email: payload.email,
       phone: payload.phone,
     });
   },

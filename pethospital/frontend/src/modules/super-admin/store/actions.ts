@@ -99,6 +99,24 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     await dispatch("ensureHomePageData");
   },
 
+  async ensureSalaryManagement(
+    { state, commit }: SuperAdminActionContext,
+    options?: { force?: boolean }
+  ) {
+    if (!shouldFetch(state.salaryManagementMeta, options?.force)) {
+      return state.salaryManagement;
+    }
+
+    commit("setSalaryManagementLoading", true);
+    try {
+      const payload = await superAdminApi.getSalaryManagementData();
+      commit("setSalaryManagement", payload);
+      return payload;
+    } finally {
+      commit("setSalaryManagementLoading", false);
+    }
+  },
+
   /**
    * 在线医生页复用用户列表和考勤记录两份缓存。
    * 只有其中任一缓存首次进入、超时或被标脏时，才会真正重新请求。
@@ -143,6 +161,10 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
    */
   async refreshOverviewData({ dispatch }: SuperAdminActionContext) {
     await dispatch("refreshHomePageData");
+  },
+
+  async refreshSalaryManagement({ dispatch }: SuperAdminActionContext) {
+    return dispatch("ensureSalaryManagement", { force: true });
   },
 
   /**

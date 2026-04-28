@@ -27,4 +27,29 @@ namespace RoleTypeUtils
         const std::shared_ptr<DatabaseManagerInterface> &dbManager,
         int userId,
         const std::string &roleName);
+
+    // 判断角色是否属于管理门户角色
+    bool isManagementRole(const std::string &roleName);
+
+    // 判断角色是否属于普通用户角色
+    bool isNormalUserRole(const std::string &roleName);
+
+    // 判断用户是否属于管理门户角色
+    bool userHasManagementRole(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        int userId);
+
+    // 判断角色是否属于人事门户角色
+    bool isPersonnelRole(const std::string &roleName);
+
+    // 判断角色是否属于医疗端角色
+    bool isMedicalStaffRole(const std::string &roleName);
+
+    // 判断角色是否属于仓储端角色
+    bool isWarehouseStaffRole(const std::string &roleName);
+
+    // 判断用户是否属于人事门户角色
+    bool userHasPersonnelRole(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        int userId);
 }

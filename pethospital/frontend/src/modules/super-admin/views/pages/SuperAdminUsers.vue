@@ -4,9 +4,6 @@
       <div>
         <p class="eyebrow">User Directory</p>
         <h2>角色分组用户中心</h2>
-        <p class="hero__copy">
-          将普通用户、医生与管理员拆分成独立列表，便于快速审阅、进入详情与执行角色相关操作。
-        </p>
       </div>
       <div class="hero__actions">
         <div class="hero__actions-first">
@@ -23,6 +20,23 @@
           />
           <button class="ghost" @click="applySearch">搜索</button>
         </div>
+      </div>
+      <div class="hero_card">
+        <article
+          v-for="card in heroCards"
+          :key="card.key"
+          class="hero-card-item"
+          :class="card.tone"
+        >
+          <div class="hero-card-item__copy">
+            <p>{{ card.eyebrow }}</p>
+            <strong>{{ card.label }}</strong>
+            <span>{{ card.count }} 人</span>
+          </div>
+          <div class="hero-card-item__art">
+            <img :src="card.image" :alt="card.label" />
+          </div>
+        </article>
       </div>
     </div>
 
@@ -69,7 +83,7 @@
         <header class="role-panel__head">
           <div>
             <p class="role-panel__eyebrow">Role 02</p>
-            <h3>医生</h3>
+            <h3>医护人员</h3>
           </div>
           <span class="role-panel__count"
             >{{ filteredDoctorUsers.length }} 人</span
@@ -84,9 +98,11 @@
             @click="goToDetail(item.id)"
           >
             <strong class="role-row__id">#{{ item.id }}</strong>
-            <span class="role-pill role-pill--doctor">医生</span>
+            <span class="role-pill role-pill--doctor">
+              {{ formatRole(item) }}
+            </span>
             <strong class="role-row__name">{{
-              item.name || "未命名医生"
+              item.name || "未命名医护人员"
             }}</strong>
             <span class="role-row__contact">
               {{ item.email || item.phone || "暂无联系方式" }}
@@ -103,7 +119,7 @@
             </span>
           </button>
           <div v-if="pagedDoctorUsers.length === 0" class="empty-card">
-            当前没有医生记录
+            当前没有医护人员记录
           </div>
         </div>
         <AppPager
@@ -135,7 +151,7 @@
             <span
               class="role-pill"
               :class="
-                formatRole(item) === '超级管理员'
+                isSuperAdminPortalRole(formatRole(item))
                   ? 'role-pill--super'
                   : 'role-pill--admin'
               "
@@ -244,16 +260,37 @@ import {
 } from "vue";
 import { useStore } from "vuex";
 import { useRoute, useRouter } from "vue-router";
-import { resolveRoleName } from "@/core/auth/utils/roleUtils";
+import {
+  isSuperAdminPortalRole,
+  resolveRoleName,
+} from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/store/appStore";
 import AppPager from "../../../../components/AppPager.vue";
 import { superAdminApi } from "../../api/superAdminApi";
 import { UserRow } from "../../api/types";
+import allUsersIllustration from "@/assets/photo/super-admin-users-all.svg";
+import normalUsersIllustration from "@/assets/photo/super-admin-users-normal.svg";
+import doctorUsersIllustration from "@/assets/photo/super-admin-users-doctor.svg";
+import adminUsersIllustration from "@/assets/photo/super-admin-users-admin.svg";
 
 export default defineComponent({
   name: "SuperAdminUsers",
   components: { AppPager },
   setup() {
+    const getErrorDetails = (error: unknown) => {
+      const responseError = error as {
+        response?: {
+          data?: {
+            error?: {
+              details?: string;
+            };
+          };
+        };
+      };
+
+      return responseError.response?.data?.error?.details;
+    };
+
     const store = useStore(storeKey);
     const showCreateDialog = ref(false);
     const creating = ref(false);
@@ -292,7 +329,10 @@ export default defineComponent({
 
     const doctorUsers = computed(() =>
       [...users.value]
-        .filter((item) => formatRole(item) === "医生")
+        .filter((item) => {
+          const role = formatRole(item);
+          return role === "医生" || role === "护士";
+        })
         .sort((a, b) => {
           const aOnline = a.status === "online" ? 1 : 0;
           const bOnline = b.status === "online" ? 1 : 0;
@@ -307,10 +347,45 @@ export default defineComponent({
       sortedById(
         users.value.filter((item) => {
           const role = formatRole(item);
-          return role === "超级管理员" || role === "仓库管理员";
+          return isSuperAdminPortalRole(role) || role === "仓库管理员";
         })
       )
     );
+
+    const heroCards = computed(() => [
+      {
+        key: "all",
+        eyebrow: "All Users",
+        label: "全部用户",
+        count: users.value.length,
+        image: allUsersIllustration,
+        tone: "hero-card-item--all",
+      },
+      {
+        key: "normal",
+        eyebrow: "General",
+        label: "普通用户",
+        count: normalUsers.value.length,
+        image: normalUsersIllustration,
+        tone: "hero-card-item--normal",
+      },
+      {
+        key: "doctor",
+        eyebrow: "Medical Staff",
+        label: "医护人员",
+        count: doctorUsers.value.length,
+        image: doctorUsersIllustration,
+        tone: "hero-card-item--doctor",
+      },
+      {
+        key: "admin",
+        eyebrow: "Admins",
+        label: "管理员",
+        count: adminUsers.value.length,
+        image: adminUsersIllustration,
+        tone: "hero-card-item--admin",
+      },
+    ]);
 
     const matchesKeyword = (item: UserRow) => {
       const search = keywordInput.value.trim().toLowerCase();
@@ -471,9 +546,8 @@ export default defineComponent({
         store.commit("superAdmin/markHomePageDataDirty");
         closeCreateDialog();
         await store.dispatch("superAdmin/refreshUsers");
-      } catch (error: any) {
-        formError.value =
-          error?.response?.data?.error?.details || "创建失败，请稍后重试";
+      } catch (error: unknown) {
+        formError.value = getErrorDetails(error) || "创建失败，请稍后重试";
       } finally {
         creating.value = false;
       }
@@ -488,6 +562,7 @@ export default defineComponent({
       normalUsers,
       doctorUsers,
       adminUsers,
+      heroCards,
       filteredNormalUsers,
       filteredDoctorUsers,
       filteredAdminUsers,
@@ -506,6 +581,7 @@ export default defineComponent({
       form,
       formError,
       formatRole,
+      isSuperAdminPortalRole,
       loadUsers,
       refreshUsers,
       applySearch,
@@ -538,10 +614,10 @@ export default defineComponent({
 }
 
 .hero {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
   gap: 24px;
-  align-items: end;
+  align-items: start;
 }
 
 .eyebrow {
@@ -567,9 +643,7 @@ export default defineComponent({
 
 .hero__actions {
   display: grid;
-  grid-row: inherit;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 12px;
 
   .hero__actions-first {
@@ -582,6 +656,112 @@ export default defineComponent({
     grid-template-columns: minmax(0, 1fr) minmax(0, 0.4fr);
     gap: 12px;
   }
+}
+
+.hero_card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.hero-card-item {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 12px;
+  align-items: center;
+  min-height: 134px;
+  padding: 18px 18px 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(98, 141, 226, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f8fbff);
+  box-shadow: 0 18px 36px rgba(54, 85, 150, 0.08);
+}
+
+.hero-card-item::after {
+  content: "";
+  position: absolute;
+  inset: auto -18px -24px auto;
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.hero-card-item__copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+}
+
+.hero-card-item__copy p {
+  margin: 0;
+  color: #5d7fb7;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hero-card-item__copy strong {
+  color: #18325d;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.hero-card-item__copy span {
+  color: #355e9c;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.hero-card-item__art {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+}
+
+.hero-card-item__art img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 24px rgba(78, 119, 194, 0.18));
+}
+
+.hero-card-item--all {
+  background: linear-gradient(
+    135deg,
+    rgba(239, 249, 255, 0.98),
+    rgba(245, 248, 255, 0.96)
+  );
+}
+
+.hero-card-item--normal {
+  background: linear-gradient(
+    135deg,
+    rgba(241, 248, 255, 0.98),
+    rgba(248, 250, 255, 0.96)
+  );
+}
+
+.hero-card-item--doctor {
+  background: linear-gradient(
+    135deg,
+    rgba(238, 252, 247, 0.98),
+    rgba(243, 248, 255, 0.96)
+  );
+}
+
+.hero-card-item--admin {
+  background: linear-gradient(
+    135deg,
+    rgba(241, 246, 255, 0.98),
+    rgba(248, 248, 255, 0.96)
+  );
 }
 
 .search-input {
@@ -856,8 +1036,11 @@ button:disabled {
 
 @media (max-width: 1080px) {
   .hero {
-    flex-direction: column;
-    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .hero_card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .role-panel {
@@ -877,6 +1060,31 @@ button:disabled {
 
   .role-row--doctor {
     grid-template-columns: 56px 68px minmax(60px, 0.8fr) minmax(88px, 1fr) 56px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero_card {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-card-item {
+    grid-template-columns: minmax(0, 1fr) 84px;
+    min-height: 118px;
+    padding: 16px;
+  }
+
+  .hero-card-item__copy strong {
+    font-size: 20px;
+  }
+
+  .hero-card-item__copy span {
+    font-size: 24px;
+  }
+
+  .hero-card-item__art img {
+    width: 84px;
+    height: 84px;
   }
 }
 </style>

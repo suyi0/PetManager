@@ -1,5 +1,7 @@
 import { DoctorDataItem } from "@/modules/doctor/api/types";
+import { BossState } from "@/modules/boss/store/types";
 import { DoctorState } from "@/modules/doctor/store/types";
+import { PersonnelState } from "@/modules/personnel/store/types";
 import { SuperAdminState } from "@/modules/super-admin/store/types";
 import { UserPortalState } from "@/modules/user/store/types";
 import { WarehouseAdminState } from "@/modules/warehouse-admin/store/types";
@@ -41,8 +43,10 @@ export interface CacheMeta {
 
 export interface State {
   auth: AuthState;
+  boss: BossState;
   currentUser: CurrentUserState;
   doctor: DoctorState;
+  personnel: PersonnelState;
   superAdmin: SuperAdminState;
   userPortal: UserPortalState;
   warehouseAdmin: WarehouseAdminState;
