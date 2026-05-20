@@ -196,6 +196,9 @@ void WebSocketServer::setupRoutes()
     // 注册人事路由
     personnelRoutes::setupPersonnelRoutes(*app_ptr_, DatabaseManager::getInstance());
 
+    // 注册总裁端路由
+    bossRoutes::setupBossRoutes(*app_ptr_, DatabaseManager::getInstance());
+
     // 使用解引用后的对象注册WebSocket路由
     auto& app_ref = *app_ptr_;
     CROW_WEBSOCKET_ROUTE(app_ref, "/websocket")

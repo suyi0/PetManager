@@ -1,6 +1,6 @@
 import { ActionContext, ActionTree } from "vuex";
 import { profileApi } from "@/modules/user/api/userApi";
-import { State, shouldFetch } from "@/store/types";
+import { State, shouldFetch } from "@/app/store/types";
 import { CurrentUserState } from "./types";
 
 // ActionContext 是 Vuex 提供的一个类型，用于在定义 action 时提供类型安全。

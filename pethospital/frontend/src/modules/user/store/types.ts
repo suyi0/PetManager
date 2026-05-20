@@ -4,7 +4,7 @@ import {
   OrderSummary,
   ReservationScheduleState,
 } from "../api/types";
-import { CacheMeta } from "@/store/types";
+import { CacheMeta } from "@/app/store/types";
 
 export interface PetProfile {
   id: string;

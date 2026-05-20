@@ -55,7 +55,7 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref } from "vue";
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import { superAdminApi } from "../../api/superAdminApi";
 
 export default defineComponent({

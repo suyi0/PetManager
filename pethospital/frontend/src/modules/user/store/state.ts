@@ -1,4 +1,4 @@
-import { createCacheMeta } from "@/store/state";
+import { createCacheMeta } from "@/app/store/state";
 import { UserPortalState } from "./types";
 
 /**

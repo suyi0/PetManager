@@ -2,23 +2,29 @@
   <section v-if="user" class="page">
     <div class="panel hero">
       <button class="ghost back-button" @click="goBack">返回用户列表</button>
-      <div>
-        <p class="eyebrow">User Detail</p>
-        <h2>{{ user.name || "未命名用户" }}</h2>
-        <p class="hero__meta">
-          #{{ user.id }} · {{ roleName }}
-          <span
-            v-if="isDoctor"
-            class="status-chip"
-            :class="
-              user.status === 'online'
-                ? 'status-chip--online'
-                : 'status-chip--offline'
-            "
-          >
-            {{ user.status === "online" ? "在线" : "离线" }}
-          </span>
-        </p>
+      <div class="hero__body">
+        <div>
+          <p class="eyebrow">User Detail</p>
+          <h2>{{ user.name || "未命名用户" }}</h2>
+          <p class="hero__meta">
+            #{{ user.id }} · {{ roleName }}
+            <span
+              v-if="isDoctor"
+              class="status-chip"
+              :class="
+                user.status === 'online'
+                  ? 'status-chip--online'
+                  : 'status-chip--offline'
+              "
+            >
+              {{ user.status === "online" ? "在线" : "离线" }}
+            </span>
+          </p>
+        </div>
+        <aside class="balance-card">
+          <span>账户金额</span>
+          <strong>¥ {{ accountBalance }}</strong>
+        </aside>
       </div>
     </div>
 
@@ -98,6 +104,21 @@
 
         <p class="status-message">{{ statusMessage }}</p>
       </article>
+
+      <article class="panel detail-card danger-zone">
+        <h3>账号管理</h3>
+        <p class="detail-card__desc">
+          删除后该账号会从用户列表移除，关联数据将按后端约束处理。
+        </p>
+        <button
+          class="danger"
+          :disabled="deleteLoading"
+          @click="deleteCurrentUser"
+        >
+          {{ deleteLoading ? "删除中..." : "删除账号" }}
+        </button>
+        <p class="status-message">{{ deleteMessage }}</p>
+      </article>
     </div>
   </section>
 
@@ -115,7 +136,7 @@ import { computed, defineComponent, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { useRoute, useRouter } from "vue-router";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import { superAdminApi } from "../../api/superAdminApi";
 
 export default defineComponent({
@@ -141,6 +162,8 @@ export default defineComponent({
     const statusUpdating = ref(false);
     const pendingStatus = ref<"online" | "offline" | null>(null);
     const statusMessage = ref("等待操作");
+    const deleteLoading = ref(false);
+    const deleteMessage = ref("谨慎操作");
 
     const userId = computed(() => Number(route.params.userId));
     const user = computed(
@@ -155,6 +178,12 @@ export default defineComponent({
         : "未知角色"
     );
     const isDoctor = computed(() => roleName.value === "医生");
+    const accountBalance = computed(() => {
+      const rawBalance = (user.value as { balance?: number | string } | null)
+        ?.balance;
+      const value = Number(rawBalance ?? 0);
+      return Number.isFinite(value) ? value.toFixed(2) : "0.00";
+    });
 
     /**
      * 用户详情页依赖用户列表缓存定位当前用户。
@@ -164,10 +193,7 @@ export default defineComponent({
     };
 
     const goBack = () => {
-      const routeName = route.path.startsWith("/preview")
-        ? "previewSuperAdminUsers"
-        : "superAdminUsers";
-      void router.push({ name: routeName });
+      void router.push({ name: "superAdminUsers" });
     };
 
     const updateDoctorStatus = async (status: "online" | "offline") => {
@@ -201,17 +227,47 @@ export default defineComponent({
       }
     };
 
+    const deleteCurrentUser = async () => {
+      if (!user.value || deleteLoading.value) return;
+
+      const confirmed = window.confirm(
+        `确认删除账号「${user.value.name || user.value.id}」吗？`
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      deleteLoading.value = true;
+      try {
+        await superAdminApi.deleteUser(user.value.id);
+        store.commit("superAdmin/markUsersDirty");
+        store.commit("superAdmin/markLogsDirty");
+        store.commit("superAdmin/markHomePageDataDirty");
+        await store.dispatch("superAdmin/refreshUsers");
+        deleteMessage.value = "账号已删除";
+        goBack();
+      } catch (error: unknown) {
+        deleteMessage.value = getErrorDetails(error) || "删除失败，请稍后重试";
+      } finally {
+        deleteLoading.value = false;
+      }
+    };
+
     onMounted(loadUser);
 
     return {
       user,
       roleName,
       isDoctor,
+      accountBalance,
       statusUpdating,
       pendingStatus,
       statusMessage,
+      deleteLoading,
+      deleteMessage,
       goBack,
       updateDoctorStatus,
+      deleteCurrentUser,
     };
   },
 });
@@ -243,6 +299,38 @@ export default defineComponent({
 
 .back-button {
   justify-self: start;
+}
+
+.hero__body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.balance-card {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-width: 240px;
+  min-height: 120px;
+  padding: 24px 28px;
+  border-radius: 20px;
+  border: 1px solid rgba(47, 111, 243, 0.12);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+.balance-card span {
+  color: #7381a4;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.balance-card strong {
+  color: #13203a;
+  font-size: 34px;
+  line-height: 1.1;
 }
 
 .eyebrow {
@@ -331,6 +419,15 @@ export default defineComponent({
     linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
 }
 
+.danger-zone {
+  background: radial-gradient(
+      circle at top right,
+      rgba(234, 92, 103, 0.12),
+      transparent 32%
+    ),
+    linear-gradient(180deg, #ffffff 0%, #fff8fa 100%);
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -390,6 +487,11 @@ button:disabled {
   .info-grid,
   .status-board {
     grid-template-columns: 1fr;
+  }
+
+  .hero__body {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

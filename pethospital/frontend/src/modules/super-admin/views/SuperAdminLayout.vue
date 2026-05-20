@@ -10,19 +10,14 @@
         <RouterLink :to="`${routePrefix}/online-doctors`">在线医生</RouterLink>
         <RouterLink :to="`${routePrefix}/logs`">日志审计</RouterLink>
       </nav>
-      <section class="portal-switcher">
-        <p class="portal-switcher__title">快捷进入其他端</p>
-        <button
-          v-for="portal in crossPortals"
-          :key="portal.key"
-          type="button"
-          class="portal-switcher__button"
-          @click="enterPortal(portal)"
-        >
-          <strong>{{ portal.label }}</strong>
-          <span>{{ portal.hint }}</span>
-        </button>
-      </section>
+      <button
+        v-if="showBossReturn"
+        type="button"
+        class="boss-return"
+        @click="returnToBossPortal"
+      >
+        返回总裁端
+      </button>
     </aside>
 
     <main class="content">
@@ -38,43 +33,27 @@
 
 <script lang="ts">
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { authStorage } from "@/core/auth/utils/authStorage";
+import { useRouter } from "vue-router";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import {
   startSuperAdminSessionGuard,
   stopSuperAdminSessionGuard,
 } from "@/modules/super-admin/utils/superAdminSessionGuard";
+import { useBossPortalReturn } from "@/core/auth/utils/bossPortalReturn";
 
 export default defineComponent({
   name: "SuperAdminLayout",
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const route = useRoute();
-
-    const createFrontendToken = (userType: number, userRole: string) => {
-      const encode = (value: string) =>
-        btoa(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-
-      const header = encode(JSON.stringify({ alg: "none", typ: "JWT" }));
-      const payload = encode(
-        JSON.stringify({
-          exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
-          type_id: userType,
-          type_name: userRole,
-        })
-      );
-
-      return `${header}.${payload}.frontend`;
-    };
+    const { showBossReturn, returnToBossPortal } = useBossPortalReturn(router);
 
     onMounted(() => {
       startSuperAdminSessionGuard(store, router);
-      // 超级管理员进入任意页面时，先预热总览需要的基础数据。
-      void store.dispatch("superAdmin/ensureOverviewData");
+      // 超级管理员进入任意页面时，先从后端刷新核心业务数据并写入本地缓存。
+      void store.dispatch("superAdmin/refreshSuperAdminData");
     });
 
     onBeforeUnmount(() => {
@@ -91,15 +70,7 @@ export default defineComponent({
       }
     };
 
-    const routePrefix = computed(() =>
-      route.path.startsWith("/preview/super-admin")
-        ? "/preview/super-admin"
-        : "/super-admin"
-    );
-
-    const isPreviewRoute = computed(() =>
-      route.path.startsWith("/preview/super-admin")
-    );
+    const routePrefix = computed(() => "/super-admin");
 
     const currentRoleLabel = computed(() => {
       const activeRole = store.state.auth.userRole;
@@ -108,123 +79,12 @@ export default defineComponent({
         : "超级管理员";
     });
 
-    const crossPortals = computed(() => [
-      {
-        key: "user",
-        label: "进入用户端",
-        hint: "写入用户基础资料并跳转首页",
-        userType: 4,
-        userRole: "普通用户",
-        to: isPreviewRoute.value ? "/preview/user/home" : "/user/home",
-        profile: {
-          userName: "体验用户 林小满",
-          userPhone: "13800138000",
-          userEmail: "pet.user@example.com",
-          userBirthday: "1998-06-18",
-          userAddressId: "preview-user-address",
-          userAddress: "上海市浦东新区爪印大道 18 号",
-          userHeadImage: "",
-        },
-      },
-      {
-        key: "doctor",
-        label: "进入医生端",
-        hint: "写入医生基础资料并打开工作台",
-        userType: 2,
-        userRole: "医生",
-        to: isPreviewRoute.value ? "/preview/doctor/home" : "/doctor/home",
-        profile: {
-          userName: "值班医生 周予安",
-          userPhone: "13900139000",
-          userEmail: "doctor.zhou@example.com",
-          userBirthday: "1991-03-09",
-          userAddressId: "preview-doctor-address",
-          userAddress: "杭州市滨江区宠医中心 6 楼",
-          userHeadImage: "",
-        },
-      },
-      {
-        key: "warehouse",
-        label: "进入仓库端",
-        hint: "写入仓库管理员资料并打开仪表盘",
-        userType: 3,
-        userRole: "仓库管理员",
-        to: isPreviewRoute.value
-          ? "/preview/warehouse-admin/dashboard"
-          : "/warehouse-admin/dashboard",
-        profile: {
-          userName: "仓库管理员 陈序",
-          userPhone: "13700137000",
-          userEmail: "warehouse.chen@example.com",
-          userBirthday: "1993-11-22",
-          userAddressId: "preview-warehouse-address",
-          userAddress: "苏州市工业园区补给仓 A-03",
-          userHeadImage: "",
-        },
-      },
-    ]);
-
-    const enterPortal = async (portal: (typeof crossPortals.value)[number]) => {
-      const currentRole =
-        store.state.auth.userRole &&
-        isSuperAdminPortalRole(store.state.auth.userRole)
-          ? store.state.auth.userRole
-          : "超级管理员";
-      const currentType = store.state.auth.userType || 5;
-      const currentProfile = {
-        userName: store.state.currentUser.userName || `${currentRole} 沈知序`,
-        userPhone: store.state.currentUser.userPhone || "13600136000",
-        userEmail:
-          store.state.currentUser.userEmail || "super.admin@example.com",
-        userBirthday: store.state.currentUser.userBirthday || "1988-02-14",
-        userAddressId:
-          store.state.currentUser.userAddressId || "super-admin-address",
-        userAddress:
-          store.state.currentUser.userAddress ||
-          "上海市徐汇区宠物医院总部 18 层",
-        userHeadImage: store.state.currentUser.userHeadImage || "",
-      };
-      const nextToken =
-        !isPreviewRoute.value && store.state.auth.token
-          ? store.state.auth.token
-          : createFrontendToken(portal.userType, portal.userRole);
-      const returnToken =
-        store.state.auth.token || createFrontendToken(currentType, currentRole);
-
-      authStorage.saveAdminPortalBridge({
-        returnTo: isPreviewRoute.value
-          ? "/preview/super-admin/overview"
-          : "/super-admin/overview",
-        token: returnToken,
-        userType: currentType,
-        userRole: currentRole,
-        ...currentProfile,
-      });
-
-      store.commit("auth/setSession", {
-        token: nextToken,
-        userType: portal.userType,
-        userRole: portal.userRole,
-      });
-      store.commit(
-        "currentUser/setCurrentUser",
-        {
-          ...portal.profile,
-          userType: portal.userType,
-          userRole: portal.userRole,
-        },
-        { root: true }
-      );
-
-      await router.push(portal.to);
-    };
-
     return {
       logout,
       routePrefix,
-      crossPortals,
       currentRoleLabel,
-      enterPortal,
+      showBossReturn,
+      returnToBossPortal,
     };
   },
 });
@@ -349,54 +209,25 @@ export default defineComponent({
   margin-top: 2px;
 }
 
-.portal-switcher {
-  margin-top: auto;
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid #d9e5fb;
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(238, 247, 255, 0.96), #ffffff);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 14px 28px rgba(97, 122, 168, 0.08);
-}
-
-.portal-switcher__title {
-  margin: 0 0 2px;
-  color: #5b6f98;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.portal-switcher__button {
-  display: grid;
-  gap: 4px;
-  width: 100%;
+.boss-return {
+  width: calc(100% - 24px);
+  margin: auto 12px 0;
   padding: 14px 16px;
-  text-align: left;
-  border: 1px solid #dbe7ff;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #f9fcff 0%, #ecf5ff 100%);
-  color: #23406d;
+  border: 1px solid rgba(72, 120, 198, 0.28);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff8e8, #eaf2ff);
+  color: #1e4276;
   cursor: pointer;
-  transition: 0.2s ease;
-  box-shadow: 0 10px 22px rgba(108, 134, 184, 0.08);
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+  box-shadow: 0 14px 26px rgba(78, 112, 178, 0.12);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.portal-switcher__button strong {
-  font-size: 14px;
-}
-
-.portal-switcher__button span {
-  font-size: 12px;
-  color: #7184aa;
-}
-
-.portal-switcher__button:hover {
+.boss-return:hover {
   transform: translateY(-1px);
-  border-color: #c8dbff;
-  box-shadow: 0 14px 26px rgba(91, 128, 191, 0.14);
+  box-shadow: 0 18px 32px rgba(78, 112, 178, 0.16);
 }
 
 .content {
@@ -454,10 +285,6 @@ export default defineComponent({
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .portal-switcher {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .content {
     height: auto;
     min-height: 0;
@@ -466,8 +293,7 @@ export default defineComponent({
 }
 
 @media (max-width: 640px) {
-  .sidebar nav,
-  .portal-switcher {
+  .sidebar nav {
     grid-template-columns: 1fr;
   }
 }

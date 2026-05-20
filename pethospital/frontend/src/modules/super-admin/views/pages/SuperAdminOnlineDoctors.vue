@@ -237,9 +237,9 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
-import { useRoute, useRouter } from "vue-router";
-import { storeKey } from "@/store/appStore";
-import AppPager from "../../../../components/AppPager.vue";
+import { useRouter } from "vue-router";
+import { storeKey } from "@/app/store";
+import AppPager from "@/shared/components/AppPager.vue";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { UserRow, WorkTimeRecord } from "../../api/types";
 
@@ -252,7 +252,6 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const route = useRoute();
     const keyword = ref("");
     const page = ref(1);
     const pageSize = 10;
@@ -425,12 +424,8 @@ export default defineComponent({
         return;
       }
 
-      const detailName = route.path.startsWith("/preview")
-        ? "previewSuperAdminUserDetail"
-        : "superAdminUserDetail";
-
       void router.push({
-        name: detailName,
+        name: "superAdminUserDetail",
         params: { userId: selectedDoctor.value.id },
       });
     };

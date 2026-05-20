@@ -1,15 +1,26 @@
 import { ActionContext, ActionTree } from "vuex";
-import { State } from "@/store/types";
+import { State, shouldFetch } from "@/app/store/types";
 import { superAdminApi } from "../api/superAdminApi";
 import { SuperAdminState } from "./types";
-import { shouldFetch } from "@/store/types";
+import {
+  readSuperAdminHomePageDataCache,
+  readSuperAdminLogsCache,
+  readSuperAdminSalaryManagementCache,
+  readSuperAdminUsersCache,
+  readSuperAdminWorkTimeRecordsCache,
+  saveSuperAdminHomePageDataCache,
+  saveSuperAdminLogsCache,
+  saveSuperAdminSalaryManagementCache,
+  saveSuperAdminUsersCache,
+  saveSuperAdminWorkTimeRecordsCache,
+} from "../utils/superAdminDataCache";
 
 type SuperAdminActionContext = ActionContext<SuperAdminState, State>;
 
 export const superAdminActions: ActionTree<SuperAdminState, State> = {
   /**
    * 确保用户列表可用。
-   * 页面首次进入时会请求，之后优先读缓存；只有脏数据、超时或强制刷新时才再次访问接口。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureUsers(
     { state, commit }: SuperAdminActionContext,
@@ -21,7 +32,17 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setUsersLoading", true);
     try {
+      if (!options?.force) {
+        const cachedUsers = readSuperAdminUsersCache();
+
+        if (cachedUsers) {
+          commit("setUsers", cachedUsers);
+          return cachedUsers;
+        }
+      }
+
       const users = await superAdminApi.getUsers();
+      saveSuperAdminUsersCache(users);
       commit("setUsers", users);
       return users;
     } finally {
@@ -31,6 +52,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   /**
    * 确保考勤列表可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureWorkTimeRecords(
     { state, commit }: SuperAdminActionContext,
@@ -42,7 +64,17 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setWorkTimeRecordsLoading", true);
     try {
+      if (!options?.force) {
+        const cachedRecords = readSuperAdminWorkTimeRecordsCache();
+
+        if (cachedRecords) {
+          commit("setWorkTimeRecords", cachedRecords);
+          return cachedRecords;
+        }
+      }
+
       const records = await superAdminApi.getWorkTimeRecord();
+      saveSuperAdminWorkTimeRecordsCache(records);
       commit("setWorkTimeRecords", records);
       return records;
     } finally {
@@ -52,6 +84,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   /**
    * 确保日志列表可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureLogs(
     { state, commit }: SuperAdminActionContext,
@@ -63,7 +96,17 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setLogsLoading", true);
     try {
+      if (!options?.force) {
+        const cachedLogs = readSuperAdminLogsCache();
+
+        if (cachedLogs) {
+          commit("setLogs", cachedLogs);
+          return cachedLogs;
+        }
+      }
+
       const logs = await superAdminApi.getLogs();
+      saveSuperAdminLogsCache(logs);
       commit("setLogs", logs);
       return logs;
     } finally {
@@ -73,6 +116,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   /**
    * 确保首页摘要数据可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureHomePageData(
     { state, commit }: SuperAdminActionContext,
@@ -84,7 +128,17 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setHomePageDataLoading", true);
     try {
+      if (!options?.force) {
+        const cachedHomePageData = readSuperAdminHomePageDataCache();
+
+        if (cachedHomePageData) {
+          commit("setHomePageData", cachedHomePageData);
+          return cachedHomePageData;
+        }
+      }
+
       const homePageData = await superAdminApi.getHomePageData();
+      saveSuperAdminHomePageDataCache(homePageData);
       commit("setHomePageData", homePageData);
       return homePageData;
     } finally {
@@ -93,12 +147,16 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
   },
 
   /**
-   * 首页摘要数据单独缓存，不再依赖用户列表和考勤列表拼装。
+   * 确保总览页摘要数据可用。
    */
   async ensureOverviewData({ dispatch }: SuperAdminActionContext) {
     await dispatch("ensureHomePageData");
   },
 
+  /**
+   * 确保薪资管理数据可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   */
   async ensureSalaryManagement(
     { state, commit }: SuperAdminActionContext,
     options?: { force?: boolean }
@@ -109,7 +167,17 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setSalaryManagementLoading", true);
     try {
+      if (!options?.force) {
+        const cachedPayload = readSuperAdminSalaryManagementCache();
+
+        if (cachedPayload) {
+          commit("setSalaryManagement", cachedPayload);
+          return cachedPayload;
+        }
+      }
+
       const payload = await superAdminApi.getSalaryManagementData();
+      saveSuperAdminSalaryManagementCache(payload);
       commit("setSalaryManagement", payload);
       return payload;
     } finally {
@@ -125,6 +193,20 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     await Promise.all([
       dispatch("ensureUsers"),
       dispatch("ensureWorkTimeRecords"),
+    ]);
+  },
+
+  /**
+   * 超级管理端入口数据预热。
+   * 进入超级管理端时统一从后端刷新核心业务数据，并同步写入本地缓存。
+   */
+  async refreshSuperAdminData({ dispatch }: SuperAdminActionContext) {
+    await Promise.all([
+      dispatch("refreshUsers"),
+      dispatch("refreshWorkTimeRecords"),
+      dispatch("refreshLogs"),
+      dispatch("refreshHomePageData"),
+      dispatch("refreshSalaryManagement"),
     ]);
   },
 
@@ -163,6 +245,9 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     await dispatch("refreshHomePageData");
   },
 
+  /**
+   * 强制刷新薪资管理数据。
+   */
   async refreshSalaryManagement({ dispatch }: SuperAdminActionContext) {
     return dispatch("ensureSalaryManagement", { force: true });
   },

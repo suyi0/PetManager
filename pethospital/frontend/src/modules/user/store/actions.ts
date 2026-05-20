@@ -1,7 +1,22 @@
 import { ActionContext, ActionTree } from "vuex";
-import { State, shouldFetch } from "@/store/types";
-import { orderApi, reservationApi } from "../api/userApi";
+import { State, shouldFetch } from "@/app/store/types";
+import { orderApi, petApi, reservationApi } from "../api/userApi";
+import { OrderRecordItem } from "../api/types";
 import { PetProfile, UserPortalState } from "./types";
+import {
+  readUserOrderRecordsCache,
+  readUserOrderSummariesCache,
+  readUserPetProfilesCache,
+  readUserReservationDoctorsCache,
+  readUserReservationRecordsCache,
+  readUserReservationScheduleCache,
+  saveUserOrderRecordsCache,
+  saveUserOrderSummariesCache,
+  saveUserPetProfilesCache,
+  saveUserReservationDoctorsCache,
+  saveUserReservationRecordsCache,
+  saveUserReservationScheduleCache,
+} from "../utils/userPortalDataCache";
 
 type UserPortalActionContext = ActionContext<UserPortalState, State>;
 
@@ -11,48 +26,13 @@ const buildUserIdentity = (rootState: State) => ({
   email: rootState.currentUser.userEmail,
 });
 
-const getPetStorageKey = (rootState: State) => {
-  const userKey =
-    rootState.currentUser.userPhone ||
-    rootState.currentUser.userEmail ||
-    rootState.currentUser.userName ||
-    "default-user";
-
-  return `petmanager-user-pets:${userKey}`;
-};
-
-const readPetProfiles = (rootState: State): PetProfile[] => {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(getPetStorageKey(rootState));
-    const rows = raw ? JSON.parse(raw) : [];
-    return Array.isArray(rows) ? (rows as PetProfile[]) : [];
-  } catch {
-    return [];
-  }
-};
-
-const persistPetProfiles = (rootState: State, pets: PetProfile[]) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(
-    getPetStorageKey(rootState),
-    JSON.stringify(pets)
-  );
-};
-
 export const userPortalActions: ActionTree<UserPortalState, State> = {
   /**
    * 确保当前用户的宠物档案可用。
-   * 这里的数据本地持久化在 localStorage 中，但展示和编辑统一走 store。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensurePetProfiles(
-    { state, commit, rootState }: UserPortalActionContext,
+    { state, commit }: UserPortalActionContext,
     options?: { force?: boolean }
   ) {
     if (!shouldFetch(state.petProfilesMeta, options?.force)) {
@@ -61,7 +41,17 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
     commit("setPetProfilesLoading", true);
     try {
-      const pets = readPetProfiles(rootState);
+      if (!options?.force) {
+        const cachedPets = readUserPetProfilesCache();
+
+        if (cachedPets) {
+          commit("setPetProfiles", cachedPets);
+          return cachedPets;
+        }
+      }
+
+      const pets = await petApi.getPetProfiles();
+      saveUserPetProfilesCache(pets);
       commit("setPetProfiles", pets);
       return pets;
     } finally {
@@ -72,17 +62,74 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
   /**
    * 保存当前用户的宠物档案，并同步更新缓存与本地持久化。
    */
-  savePetProfiles(
-    { commit, rootState }: UserPortalActionContext,
-    pets: PetProfile[]
+  savePetProfiles({ commit }: UserPortalActionContext, pets: PetProfile[]) {
+    saveUserPetProfilesCache(pets);
+    commit("setPetProfiles", pets);
+    return pets;
+  },
+
+  /**
+   * 保存当前用户的普通订单记录，并同步更新缓存与本地持久化。
+   */
+  saveOrderRecords(
+    { commit }: UserPortalActionContext,
+    records: OrderRecordItem[]
   ) {
-    persistPetProfiles(rootState, pets);
+    saveUserOrderRecordsCache(records);
+    commit("setOrderRecords", records);
+    return records;
+  },
+
+  /**
+   * 保存当前用户的预约记录，并同步更新缓存与本地持久化。
+   */
+  saveReservationRecords(
+    { commit }: UserPortalActionContext,
+    records: OrderRecordItem[]
+  ) {
+    saveUserReservationRecordsCache(records);
+    commit("setReservationRecords", records);
+    return records;
+  },
+
+  async createPetProfile(
+    { commit, state }: UserPortalActionContext,
+    pet: Omit<PetProfile, "id">
+  ) {
+    const created = await petApi.createPetProfile(pet);
+    const pets = [created, ...state.petProfiles];
+    saveUserPetProfilesCache(pets);
+    commit("setPetProfiles", pets);
+    return created;
+  },
+
+  async updatePetProfile(
+    { commit, state }: UserPortalActionContext,
+    pet: PetProfile
+  ) {
+    const updated = await petApi.updatePetProfile(pet);
+    const pets = state.petProfiles.map((item) =>
+      item.id === updated.id ? updated : item
+    );
+    saveUserPetProfilesCache(pets);
+    commit("setPetProfiles", pets);
+    return updated;
+  },
+
+  async deletePetProfile(
+    { commit, state }: UserPortalActionContext,
+    petId: string
+  ) {
+    await petApi.deletePetProfile(petId);
+    const pets = state.petProfiles.filter((item) => item.id !== petId);
+    saveUserPetProfilesCache(pets);
     commit("setPetProfiles", pets);
     return pets;
   },
 
   /**
    * 确保预约页医生列表可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureReservationDoctors(
     { state, commit }: UserPortalActionContext,
@@ -94,7 +141,17 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
     commit("setReservationDoctorsLoading", true);
     try {
+      if (!options?.force) {
+        const cachedDoctors = readUserReservationDoctorsCache();
+
+        if (cachedDoctors) {
+          commit("setReservationDoctors", cachedDoctors);
+          return cachedDoctors;
+        }
+      }
+
       const doctors = await reservationApi.getDoctorOptions();
+      saveUserReservationDoctorsCache(doctors);
       commit("setReservationDoctors", doctors);
       return doctors;
     } finally {
@@ -104,6 +161,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
   /**
    * 确保预约页时间表可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureReservationSchedule(
     { state, commit }: UserPortalActionContext,
@@ -115,7 +173,17 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
     commit("setReservationScheduleLoading", true);
     try {
+      if (!options?.force) {
+        const cachedSchedule = readUserReservationScheduleCache();
+
+        if (cachedSchedule) {
+          commit("setReservationSchedule", cachedSchedule);
+          return cachedSchedule;
+        }
+      }
+
       const schedule = await reservationApi.getScheduleOptions();
+      saveUserReservationScheduleCache(schedule);
       commit("setReservationSchedule", schedule);
       return schedule;
     } finally {
@@ -125,17 +193,19 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
   /**
    * 预约页基础数据预热。
+   * 进入用户端时统一从后端刷新预约页常用数据，并同步写入本地缓存。
    */
   async ensureServiceData({ dispatch }: UserPortalActionContext) {
     await Promise.all([
-      dispatch("ensurePetProfiles"),
-      dispatch("ensureReservationDoctors"),
-      dispatch("ensureReservationSchedule"),
+      dispatch("refreshPetProfiles"),
+      dispatch("refreshReservationDoctors"),
+      dispatch("refreshReservationSchedule"),
     ]);
   },
 
   /**
    * 确保普通订单记录可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureOrderRecords(
     { state, commit, rootState }: UserPortalActionContext,
@@ -147,7 +217,17 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
     commit("setOrderRecordsLoading", true);
     try {
+      if (!options?.force) {
+        const cachedRecords = readUserOrderRecordsCache();
+
+        if (cachedRecords) {
+          commit("setOrderRecords", cachedRecords);
+          return cachedRecords;
+        }
+      }
+
       const rows = await orderApi.getOrderRecords(buildUserIdentity(rootState));
+      saveUserOrderRecordsCache(rows);
       commit("setOrderRecords", rows);
       return rows;
     } finally {
@@ -157,6 +237,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
   /**
    * 确保预约记录可用。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureReservationRecords(
     { state, commit, rootState }: UserPortalActionContext,
@@ -168,9 +249,19 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
     commit("setReservationRecordsLoading", true);
     try {
+      if (!options?.force) {
+        const cachedRecords = readUserReservationRecordsCache();
+
+        if (cachedRecords) {
+          commit("setReservationRecords", cachedRecords);
+          return cachedRecords;
+        }
+      }
+
       const rows = await reservationApi.getReservationRecords(
         buildUserIdentity(rootState)
       );
+      saveUserReservationRecordsCache(rows);
       commit("setReservationRecords", rows);
       return rows;
     } finally {
@@ -179,7 +270,24 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
   },
 
   /**
+   * 删除一条预约记录，并同步更新本地列表。
+   */
+  async deleteReservationRecord(
+    { state, commit }: UserPortalActionContext,
+    reservationId: number
+  ) {
+    await reservationApi.deleteReservationRecord(reservationId);
+    const records = state.reservationRecords.filter(
+      (item) => Number(item.id) !== Number(reservationId)
+    );
+    saveUserReservationRecordsCache(records);
+    commit("setReservationRecords", records);
+    return records;
+  },
+
+  /**
    * 确保订单摘要可用，详情页优先读这里。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureOrderSummaries(
     { state, commit }: UserPortalActionContext,
@@ -191,7 +299,17 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
     commit("setOrderSummariesLoading", true);
     try {
+      if (!options?.force) {
+        const cachedSummaries = readUserOrderSummariesCache();
+
+        if (cachedSummaries) {
+          commit("setOrderSummaries", cachedSummaries);
+          return cachedSummaries;
+        }
+      }
+
       const rows = await orderApi.getOrderSummaries();
+      saveUserOrderSummariesCache(rows);
       commit("setOrderSummaries", rows);
       return rows;
     } finally {
@@ -201,6 +319,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
   /**
    * 订单页基础数据预热。
+   * 进入订单页时优先复用缓存；需要最新数据时由显式 refresh 动作处理。
    */
   async ensureOrderPageData({ dispatch }: UserPortalActionContext) {
     await Promise.all([

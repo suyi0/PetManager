@@ -259,13 +259,13 @@ import {
   watch,
 } from "vue";
 import { useStore } from "vuex";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import {
   isSuperAdminPortalRole,
   resolveRoleName,
 } from "@/core/auth/utils/roleUtils";
-import { storeKey } from "@/store/appStore";
-import AppPager from "../../../../components/AppPager.vue";
+import { storeKey } from "@/app/store";
+import AppPager from "@/shared/components/AppPager.vue";
 import { superAdminApi } from "../../api/superAdminApi";
 import { UserRow } from "../../api/types";
 import allUsersIllustration from "@/assets/photo/super-admin-users-all.svg";
@@ -301,7 +301,6 @@ export default defineComponent({
     const adminPage = ref(1);
     const pageSize = 10;
     const router = useRouter();
-    const route = useRoute();
     const users = computed<UserRow[]>(() => store.state.superAdmin.users);
     const form = reactive({
       name: "",
@@ -508,10 +507,7 @@ export default defineComponent({
      * 跳转到用户详情页面
      */
     const goToDetail = (userId: number) => {
-      const detailName = route.path.startsWith("/preview")
-        ? "previewSuperAdminUserDetail"
-        : "superAdminUserDetail";
-      void router.push({ name: detailName, params: { userId } });
+      void router.push({ name: "superAdminUserDetail", params: { userId } });
     };
 
     /**

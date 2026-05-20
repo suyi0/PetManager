@@ -98,7 +98,7 @@ public:
     // 适用于字段缺失、格式不正确、输入非法等场景。
     static crow::response validation(const crow::request &req, const std::string &message = "Validation failed")
     {
-        return fail(req, 422, ResponseCode::ValidationError, message, ResponseErrorType::ValidationError, message);
+        return fail(req, 400, ResponseCode::ValidationError, message, ResponseErrorType::ValidationError, message);
     }
 
     // 系统内部错误响应：

@@ -160,8 +160,8 @@ import {
   isSuperAdminPortalRole,
   resolveRoleName,
 } from "@/core/auth/utils/roleUtils";
-import { storeKey } from "@/store/appStore";
-import AppPager from "../../../../components/AppPager.vue";
+import { storeKey } from "@/app/store";
+import AppPager from "@/shared/components/AppPager.vue";
 import { personnelApi } from "../../api/personnelApi";
 
 export default defineComponent({

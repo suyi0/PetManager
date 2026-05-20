@@ -1,5 +1,5 @@
-import { createCacheMeta } from "@/store/state";
-import { warehouseLogsMock } from "../api/warehouseAdminMock";
+import { createCacheMeta } from "@/app/store/state";
+import { warehouseLogsMock } from "@/modules/warehouse-admin/api/warehouseAdminMock";
 import { WarehouseAdminState } from "./types";
 
 /**

@@ -1,5 +1,5 @@
 import { GetterTree } from "vuex";
-import { State } from "@/store/types";
+import { State } from "@/app/store/types";
 import { AuthState } from "./types";
 
 export const authGetters: GetterTree<AuthState, State> = {

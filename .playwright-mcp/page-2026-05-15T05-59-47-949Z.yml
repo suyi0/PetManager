@@ -1,0 +1,63 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e7]: AIGC检测结果详情
+    - generic [ref=e8]: 基本信息
+    - generic [ref=e10]: 篇名：
+    - list [ref=e11]:
+      - listitem [ref=e12]:
+        - generic [ref=e13]: 作者：
+      - listitem [ref=e14]:
+        - generic [ref=e15]: 单位：
+      - listitem [ref=e16]:
+        - generic [ref=e17]: 检测时间：
+    - generic [ref=e19]: 全文检测结果
+    - generic [ref=e20]:
+      - generic [ref=e24]:
+        - generic [ref=e25]: "%"
+        - generic [ref=e26]: AI特征值
+      - generic [ref=e27]:
+        - generic [ref=e28]: AI特征值： %
+        - generic [ref=e29]: AI特征字符数：
+        - generic [ref=e30]: 总字符数：
+      - generic [ref=e31]:
+        - generic [ref=e34]: AI特征显著（计入AI特征字符数）
+        - generic [ref=e37]: AI特征疑似（未计入AI特征字符数）
+        - generic [ref=e40]: 未标识部分
+    - generic [ref=e41]:
+      - generic [ref=e42]: AIGC片段分布图
+      - generic [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e46]: 前部20%
+          - generic [ref=e50]:
+            - text: AI特征值：
+            - generic [ref=e51]: "%"
+          - generic [ref=e53]: AI特征字符数：
+        - generic [ref=e54]:
+          - generic [ref=e56]: 中部60%
+          - generic [ref=e60]:
+            - text: AI特征值：
+            - generic [ref=e61]: "%"
+          - generic [ref=e63]: AI特征字符数：
+        - generic [ref=e64]:
+          - generic [ref=e66]: 后部20%
+          - generic [ref=e70]:
+            - text: AI特征值：
+            - generic [ref=e71]: "%"
+          - generic [ref=e73]: AI特征字符数：
+      - generic [ref=e75]: "0"
+      - generic [ref=e76]:
+        - generic [ref=e79]: AI特征显著
+        - generic [ref=e82]: AI特征疑似
+        - generic [ref=e85]: 未标识部分
+    - generic [ref=e86]:
+      - generic [ref=e87]: 说明：
+      - generic [ref=e88]: 1、支持中、英文内容检测；
+      - generic [ref=e89]: 2、AI特征值=AI特征字符数 / 总字符数；
+      - generic [ref=e90]: 3、红色代表AI特征显著部分，计入AI特征字符数；
+      - generic [ref=e91]: 4、棕色代表AI特征疑似部分，未计入AI特征字符数；
+      - generic [ref=e92]: 5、检测结果仅供参考，最终判定是否存在学术不端行为时，需结合人工复核、机构审查以及具体学术政策的综合应用进行审慎判断。
+    - generic [ref=e94]: 关注微信公众号
+    - generic [ref=e96] [cursor=pointer]: 
+  - alert [ref=e97]:
+    - generic [ref=e98]: 
+    - paragraph [ref=e99]: 链接已经失效，请重新查看

@@ -211,23 +211,42 @@ void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterfac
 
 void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface> dbManager, int userId, const std::string &module, const std::string &action, const std::string &result, const std::string &summary, const std::string &details, const std::string &source)
 {
-    try {
-        if (!dbManager || !dbManager->getSession() || userId <= 0) {
+    try
+    {
+        if (!dbManager || !dbManager->getSession() || userId <= 0)
+        {
             return;
         }
 
         mysqlx::Session *session = dbManager->getSession();
 
-        session->sql("INSERT INTO user_operations "
-                     "(user_id, category, user_role, operator, module, action, result, summary, details, source) "
-                     "SELECT u.id, '用户类', t.type, u.name, ?, ?, ?, ?, ?, ? "
-                     "FROM users AS u "
-                     "LEFT JOIN types AS t ON u.type_id = t.id "
-                     "WHERE u.id = ?")
+        try
+        {
+            session->sql("INSERT INTO user_operations "
+                         "(user_id, category, user_role, operator, module, action, result, summary, details, source) "
+                         "SELECT u.id, '用户类', t.type, u.name, ?, ?, ?, ?, ?, ? "
+                         "FROM users AS u "
+                         "LEFT JOIN types AS t ON u.type_id = t.id "
+                         "WHERE u.id = ?")
                 .bind(module, action, result, fallbackSummary(summary, action), details, fallbackSource(source), userId)
                 .execute();
+        }
+        catch (const std::exception &roleError)
+        {
+            session->sql("INSERT INTO user_operations "
+                         "(user_id, category, user_role, operator, module, action, result, summary, details, source) "
+                         "SELECT u.id, '用户类', NULL, u.name, ?, ?, ?, ?, ?, ? "
+                         "FROM users AS u "
+                         "WHERE u.id = ?")
+                .bind(module, action, result, fallbackSummary(summary, action), details, fallbackSource(source), userId)
+                .execute();
+            std::cout << "用户操作日志记录成功，角色字段已降级为空: " << roleError.what() << std::endl;
+            return;
+        }
+
         std::cout << "用户操作日志记录成功" << std::endl;
-    } catch (const std::exception& e)
+    }
+    catch (const std::exception &e)
     {
         std::cout << "日志记录失败: " << e.what() << std::endl;
     }

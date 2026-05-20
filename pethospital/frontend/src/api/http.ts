@@ -50,8 +50,16 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    // 统一处理会话失效，避免各业务模块重复写登出清理逻辑。
-    if (error.response?.status === 401) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error?.details ||
+      "";
+    const shouldClearAuth =
+      typeof message === "string" &&
+      /token|expired|invalid|signature|Missing or invalid/i.test(message);
+
+    // 只有明确的 token 失效才清理会话；普通权限拒绝不能把总裁跨端会话清掉。
+    if (error.response?.status === 401 && shouldClearAuth) {
       authStorage.clearAuth();
     }
 

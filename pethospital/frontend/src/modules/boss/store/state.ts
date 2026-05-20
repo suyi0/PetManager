@@ -1,4 +1,4 @@
-import { createCacheMeta } from "@/store/state";
+import { createCacheMeta } from "@/app/store/state";
 import { BossState } from "./types";
 
 export const createBossState = (): BossState => ({

@@ -224,12 +224,12 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import {
   ALL_ROLE_NAMES,
   isSuperAdminPortalRole,
 } from "@/core/auth/utils/roleUtils";
-import AppPager from "../../../../components/AppPager.vue";
+import AppPager from "@/shared/components/AppPager.vue";
 import {
   UserLogs,
   SystemLogs,
@@ -649,8 +649,9 @@ export default defineComponent({
 
 .logs-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) 360px;
+  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 360px);
   gap: 18px;
+  min-width: 0;
 }
 
 .logs-panel,
@@ -766,12 +767,19 @@ export default defineComponent({
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
   min-width: 88px;
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-style: normal;
   font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .logs-badge--user {
@@ -819,11 +827,13 @@ export default defineComponent({
   display: grid;
   align-content: start;
   gap: 16px;
+  overflow: hidden;
 }
 
 .logs-detail__content {
   display: grid;
   gap: 16px;
+  min-width: 0;
 }
 
 .logs-detail__hero {
@@ -833,11 +843,15 @@ export default defineComponent({
   border-radius: 20px;
   background: linear-gradient(180deg, #f7fbff, #ffffff);
   border: 1px solid #e0e9fb;
+  min-width: 0;
 }
 
 .logs-detail__hero strong {
   color: #22375f;
   font-size: 24px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .logs-detail__hero p,
@@ -846,6 +860,9 @@ export default defineComponent({
   color: #627494;
   line-height: 1.8;
   font-size: 14px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .logs-detail__grid {
@@ -858,25 +875,33 @@ export default defineComponent({
 .logs-detail__trace article {
   display: grid;
   gap: 8px;
+  min-width: 0;
   padding: 16px;
   border-radius: 18px;
   background: rgba(248, 251, 255, 0.84);
   border: 1px solid #e2eafb;
+  overflow: hidden;
 }
 
 .logs-detail__grid span,
 .logs-detail__trace small {
   color: #7384a5;
   font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .logs-detail__grid strong {
   color: #1f345b;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .logs-detail__trace {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .logs-empty {

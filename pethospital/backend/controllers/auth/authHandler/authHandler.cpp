@@ -36,7 +36,7 @@ namespace
 
         // 解析 JWT claims
         auto claims = JwtUtils::getTokenClaims(token);
-        if (!claims || claims->userId <= 0 || claims->identifier.empty())
+        if (!claims || claims->userId <= 0)
         {
             res = ResponseHelper::unauthorized(req, "Invalid or expired token");
             return -1;
@@ -67,7 +67,13 @@ namespace
                                std::shared_ptr<DatabaseManagerInterface> dbManager,
                                TokenValidationScope scope)
     {
-        return validateToken(req, res, dbManager, [&](const JwtUtils::TokenClaims &claims, std::string &identifier) {
+        return validateToken(req, res, dbManager, [&](const JwtUtils::TokenClaims &claims, std::string &identifier)
+                             {
+            if (scope != TokenValidationScope::Management && RoleTypeUtils::isBossRole(claims.typeName))
+            {
+                return true;
+            }
+
             if (scope == TokenValidationScope::Management)
             {
                 return JwtUtils::isUserAuthorizedForAdminForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
@@ -84,8 +90,7 @@ namespace
             {
                 return JwtUtils::isUserAuthorizedForWarehouseStaffForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
             }
-            return JwtUtils::isUserAuthorizedForUserForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
-        });
+            return JwtUtils::isUserAuthorizedForUserForm(claims.userId, identifier, claims.isEmailLogin, dbManager); });
     }
 }
 
@@ -109,7 +114,8 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
     std::string token = authHeader.substr(7); // 移除 "Bearer " 前缀
 
     // 2. 基本token验证
-    if (token.empty()) {
+    if (token.empty())
+    {
         res = ResponseHelper::unauthorized(req, "Empty token provided");
         return -1;
     }
@@ -142,7 +148,8 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
     }
 
     // 4. 验证数据库连接
-    if (!dbManager || !dbManager->getSession() || !dbManager->getSchema()) {
+    if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
+    {
         res = ResponseHelper::system_error(req, "Database connection unavailable");
         return -1;
     }
@@ -779,7 +786,6 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
         crow::response res;
         auto jsonOpt = parseJson(req, res);
         nlohmann::json &request_body = jsonOpt.value();
-
 
         // 检查必要字段
         if (request_body.find("phone") == request_body.end() ||

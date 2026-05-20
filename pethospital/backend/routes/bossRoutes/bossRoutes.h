@@ -1,5 +1,5 @@
 #ifndef BOSSROUTES_H
-#define BOSSSROUTES_H
+#define BOSSROUTES_H
 
 #include "../../controllers/modules/boss/bossHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"

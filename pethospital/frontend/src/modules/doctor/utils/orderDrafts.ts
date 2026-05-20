@@ -1,6 +1,12 @@
 import { SelectedMedicineItem } from "../api/types";
 
+/**
+ * 医生端开诊单草稿的完整本地数据。
+ * 用于保存患者基础信息、已选药品以及最近更新时间。
+ */
 export type DoctorOrderDraft = {
+  ownerId?: number;
+  petId?: number;
   patientForm: {
     petName: string;
     sex: string;
@@ -13,9 +19,15 @@ export type DoctorOrderDraft = {
   updatedAt: number;
 };
 
+/**
+ * 草稿列表页使用的轻量摘要信息。
+ * 由 localStorage 中的完整草稿派生出来，避免列表页直接读取大对象细节。
+ */
 export type DoctorOrderDraftSummary = {
   storageKey: string;
   queueId: string;
+  ownerId?: number;
+  petId?: number;
   visitCode: string;
   petName: string;
   ownerName: string;
@@ -28,6 +40,10 @@ export type DoctorOrderDraftSummary = {
 
 const ORDER_DRAFT_PREFIX = "doctor:create-order:draft:";
 
+/**
+ * 根据接诊队列 id 生成草稿本地存储 key。
+ * 没有关联队列时使用 default，表示临时新建的诊单草稿。
+ */
 export const buildDoctorOrderDraftKey = (queueId?: string) => {
   const normalizedQueueId = String(queueId || "").trim();
   return normalizedQueueId
@@ -35,6 +51,10 @@ export const buildDoctorOrderDraftKey = (queueId?: string) => {
     : `${ORDER_DRAFT_PREFIX}default`;
 };
 
+/**
+ * 从浏览器本地存储读取指定 key 的诊单草稿。
+ * 如果没有数据或数据无法解析，会返回 null；解析失败时会清理损坏的本地草稿。
+ */
 export const readDoctorOrderDraft = (storageKey: string) => {
   const rawDraft = localStorage.getItem(storageKey);
 
@@ -50,6 +70,9 @@ export const readDoctorOrderDraft = (storageKey: string) => {
   }
 };
 
+/**
+ * 保存医生端开诊单草稿到浏览器本地存储。
+ */
 export const saveDoctorOrderDraft = (
   storageKey: string,
   draft: DoctorOrderDraft
@@ -57,10 +80,17 @@ export const saveDoctorOrderDraft = (
   localStorage.setItem(storageKey, JSON.stringify(draft));
 };
 
+/**
+ * 删除指定 key 对应的本地诊单草稿。
+ */
 export const removeDoctorOrderDraft = (storageKey: string) => {
   localStorage.removeItem(storageKey);
 };
 
+/**
+ * 扫描本地存储中的所有医生端诊单草稿，并转换为列表摘要。
+ * 返回结果按更新时间倒序排列，最近编辑的草稿会排在最前面。
+ */
 export const listDoctorOrderDrafts = () => {
   const draftSummaries: DoctorOrderDraftSummary[] = [];
 
@@ -91,6 +121,8 @@ export const listDoctorOrderDrafts = () => {
     draftSummaries.push({
       storageKey,
       queueId,
+      ownerId: draft.ownerId,
+      petId: draft.petId,
       visitCode,
       petName: draft.patientForm.petName || "未命名宠物",
       ownerName: draft.patientForm.ownerName || "未填写主人",

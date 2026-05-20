@@ -1,18 +1,15 @@
-# Super Admin Frontend (Independent Draft)
+# Super Admin Module
 
-This module is implemented without touching user-side pages and routes.
+超级管理员前端模块，挂载在应用级路由 `src/app/router/index.ts` 中。
 
-## Included
+## Structure
 
-- Dedicated router: `src/super-admin/router/superAdminRouter.ts`
-- Layout + pages:
-  - `views/SuperAdminLayout.vue`
-  - `views/pages/SuperAdminOverview.vue`
-  - `views/pages/SuperAdminWorktime.vue`
-  - `views/pages/SuperAdminUsers.vue`
-- Backend-driven API wrapper:
-  - `api/superAdminApi.ts`
-  - `api/types.ts`
+- `src/modules/super-admin/router/superAdminRouter.ts`: super admin route definitions
+- `src/modules/super-admin/views/SuperAdminLayout.vue`: shell layout
+- `src/modules/super-admin/views/pages/*`: page-level views
+- `src/modules/super-admin/components/*`: module-specific UI components
+- `src/modules/super-admin/api/*`: backend API wrapper and local types
+- `src/modules/super-admin/store/*`: module Vuex state, mutations, and actions
 
 ## Backend routes mapped
 
@@ -26,5 +23,6 @@ This module is implemented without touching user-side pages and routes.
 
 ## Notes
 
-- Existing frontend router (`src/router/index.ts`) is untouched.
-- To enable this module later, wire `superAdminRouter` into a dedicated entry point or merge routes in your main router.
+- 应用级 router 位于 `src/app/router/index.ts`。
+- 应用级 store 位于 `src/app/store`。
+- 新代码不要再引用已删除的旧路径 `src/router` 或 `src/store`。

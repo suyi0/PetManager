@@ -1,0 +1,28 @@
+@media (max-width: 768px) {
+  html,
+  body,
+  #app {
+    min-width: 0;
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button,
+  a,
+  input,
+  select {
+    min-height: var(--pm-touch-target-min);
+  }
+
+  table {
+    max-width: 100%;
+  }
+}

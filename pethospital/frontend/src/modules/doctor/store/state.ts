@@ -1,4 +1,4 @@
-import { createCacheMeta } from "@/store/state";
+import { createCacheMeta } from "@/app/store/state";
 import { DoctorDutyStatus } from "../api/types";
 import { DoctorState } from "./types";
 

@@ -1,5 +1,5 @@
 import { authStorage } from "@/core/auth/utils/authStorage";
-import { createCacheMeta } from "@/store/state";
+import { createCacheMeta } from "@/app/store/state";
 import { CurrentUserState } from "./types";
 
 export const createCurrentUserState = (): CurrentUserState => {

@@ -27,7 +27,7 @@ nlohmann::json buildDoctorJson(const mysqlx::Row &row)
 }
 
 // 创建预约表记录接口
-crow::response ReservationHandler::createReservation(const crow::request &req, int user_id, std::string name, std::string email, std::string phone, int doctor_id, std::string date, std::string time_slot, std::string status)
+crow::response ReservationHandler::createReservation(const crow::request &req, int user_id, int pet_id, int doctor_id, std::string date, std::string time_slot, std::string status)
 {
     try
     {
@@ -39,15 +39,71 @@ crow::response ReservationHandler::createReservation(const crow::request &req, i
         }
 
         // 检查必要字段是否存在
-
-        if (user_id != 0 && doctor_id != 0 && !date.empty() && !time_slot.empty())
+        if (user_id > 0 && pet_id > 0 && doctor_id > 0 && !date.empty() && !time_slot.empty())
         {
             try
             {
-                dbManager->getSession()
-                    ->sql("INSERT INTO reaservations (user_id, doctor_id, date, time_slot, status) VALUES (?, ?, ?, ?, ?)")
-                    .bind(user_id, doctor_id, date, time_slot, status)
+                mysqlx::SqlResult petResult = dbManager->getSession()
+                                                  ->sql("SELECT COUNT(*) FROM pets WHERE id = ? AND user_id = ?")
+                                                  .bind(pet_id, user_id)
+                                                  .execute();
+                auto petRow = petResult.fetchOne();
+                if (!petRow || petRow[0].get<int>() == 0)
+                {
+                    return ResponseHelper::validation(req, "宠物不存在或不属于当前用户");
+                }
+
+                mysqlx::SqlResult slotResult = dbManager->getSession()
+                                                   ->sql("SELECT id FROM reaservations "
+                                                         "WHERE doctor_id = ? AND date = ? AND time_slot = ? AND status <> '已取消' "
+                                                         "LIMIT 1")
+                                                   .bind(doctor_id, date, time_slot)
+                                                   .execute();
+                if (slotResult.fetchOne())
+                {
+                    return ResponseHelper::validation(req, "该医生当前时间段已被预约");
+                }
+
+                mysqlx::SqlResult insertResult = dbManager->getSession()
+                                                    ->sql("INSERT INTO reaservations (user_id, pet_id, doctor_id, date, time_slot, status) "
+                                                          "VALUES (?, ?, ?, ?, ?, ?)")
+                                                    .bind(user_id, pet_id, doctor_id, date, time_slot, status)
+                                                    .execute();
+
+                uint64_t reservationId = insertResult.getAutoIncrementValue();
+
+                mysqlx::SqlResult createdResult = dbManager->getSession()
+                                                    ->sql("SELECT r.id, r.user_id, r.pet_id, r.doctor_id, COALESCE(p.pet_name, ''), "
+                                                          "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), COALESCE(r.status, ''), "
+                                                          "CAST(r.created_at AS CHAR) "
+                                                          "FROM reaservations AS r "
+                                                          "LEFT JOIN pets AS p ON r.pet_id = p.id "
+                                                          "WHERE r.id = ? LIMIT 1")
+                                                    .bind(reservationId)
                     .execute();
+                auto createdRow = createdResult.fetchOne();
+
+                nlohmann::json response;
+                response["reservation_status"] = status;
+                response["message"] = "预约成功";
+
+                if (createdRow)
+                {
+                    const std::string createdDate = createdRow[5].isNull() ? "" : createdRow[5].get<std::string>();
+                    const std::string createdSlot = createdRow[6].isNull() ? "" : createdRow[6].get<std::string>();
+                    response["id"] = createdRow[0].get<int>();
+                    response["user_id"] = createdRow[1].get<int>();
+                    response["pet_id"] = createdRow[2].get<int>();
+                    response["doctor_id"] = createdRow[3].get<int>();
+                    response["pet_name"] = createdRow[4].isNull() ? "" : createdRow[4].get<std::string>();
+                    response["date"] = createdDate;
+                    response["time_slot"] = createdSlot;
+                    response["status"] = createdRow[7].isNull() ? status : createdRow[7].get<std::string>();
+                    response["created_at"] = createdRow[8].isNull() ? "" : createdRow[8].get<std::string>();
+                    response["price"] = 0;
+                }
+
+                return ResponseHelper::success(req, response);
             }
             catch (const mysqlx::Error &e)
             {
@@ -55,12 +111,6 @@ crow::response ReservationHandler::createReservation(const crow::request &req, i
                 OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
                 return ResponseHelper::database_error(req, "Failed to create reservation", e.what());
             }
-
-            // 返回成功响应
-            nlohmann::json response;
-            response["reservation_status"] = status;
-            response["message"] = "预约成功";
-            return ResponseHelper::success(req, response);
         }
         else
         {
@@ -89,8 +139,13 @@ crow::response ReservationHandler::getReservations(const crow::request &req, int
         try
         {
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT id, user_id, doctor_id, date, time_slot, status, created_at "
-                                                 "FROM reaservations WHERE user_id = ? ORDER BY date DESC")
+                                           ->sql("SELECT r.id, r.user_id, r.doctor_id, r.pet_id, COALESCE(p.pet_name, ''), "
+                                                 "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), COALESCE(r.status, ''), "
+                                                 "CAST(r.created_at AS CHAR) "
+                                                 "FROM reaservations AS r "
+                                                 "LEFT JOIN pets AS p ON r.pet_id = p.id "
+                                                 "WHERE r.user_id = ? "
+                                                 "ORDER BY r.date DESC, r.created_at DESC")
                                            .bind(user_id)
                                            .execute();
 
@@ -102,10 +157,18 @@ crow::response ReservationHandler::getReservations(const crow::request &req, int
                 record["id"] = row[0].get<int>();
                 record["user_id"] = row[1].get<int>();
                 record["doctor_id"] = row[2].get<int>();
-                record["date"] = row[3].get<std::string>();
-                record["time_slot"] = row[4].get<std::string>();
-                record["status"] = row[5].get<std::string>();
-                record["created_at"] = row[6].get<std::string>();
+                record["pet_id"] = row[3].get<int>();
+                record["pet_name"] = row[4].isNull() ? "" : row[4].get<std::string>();
+                const std::string date = row[5].isNull() ? "" : row[5].get<std::string>();
+                const std::string timeSlot = row[6].isNull() ? "" : row[6].get<std::string>();
+                const std::string status = row[7].isNull() ? "" : row[7].get<std::string>();
+                const std::string createdAt = row[8].isNull() ? date : row[8].get<std::string>();
+
+                record["date"] = date;
+                record["time_slot"] = timeSlot;
+                record["status"] = status;
+                record["created_at"] = createdAt;
+                record["price"] = 0;
                 response_data.push_back(record);
             }
 
@@ -127,7 +190,7 @@ crow::response ReservationHandler::getReservations(const crow::request &req, int
 }
 
 // 更新预约记录接口
-crow::response ReservationHandler::updateReservation(const crow::request &req, int id)
+crow::response ReservationHandler::updateReservation(const crow::request &req, int user_id, int id)
 {
     try
     {
@@ -140,6 +203,37 @@ crow::response ReservationHandler::updateReservation(const crow::request &req, i
 
         std::vector<std::string> assignments;
         std::vector<std::string> values;
+
+        mysqlx::SqlResult ownerResult = dbManager->getSession()
+                                         ->sql("SELECT user_id FROM reaservations WHERE id = ?")
+                                         .bind(id)
+                                         .execute();
+        auto ownerRow = ownerResult.fetchOne();
+        if (!ownerRow)
+        {
+            return ResponseHelper::notFound(req, "未找到指定的预约记录");
+        }
+        if (ownerRow[0].get<int>() != user_id)
+        {
+            return ResponseHelper::permission_denied(req, "预约记录不属于当前用户");
+        }
+
+        if (request_body.find("pet_id") != request_body.end() || request_body.find("petId") != request_body.end())
+        {
+            const auto &petValue = request_body.find("pet_id") != request_body.end() ? request_body["pet_id"] : request_body["petId"];
+            int petId = petValue.is_number_integer() ? petValue.get<int>() : std::stoi(petValue.get<std::string>());
+            mysqlx::SqlResult petResult = dbManager->getSession()
+                                              ->sql("SELECT COUNT(*) FROM pets WHERE id = ? AND user_id = ?")
+                                              .bind(petId, user_id)
+                                              .execute();
+            auto petRow = petResult.fetchOne();
+            if (!petRow || petRow[0].get<int>() == 0)
+            {
+                return ResponseHelper::validation(req, "宠物不存在或不属于当前用户");
+            }
+            assignments.push_back("pet_id = ?");
+            values.push_back(std::to_string(petId));
+        }
 
         if (request_body.find("date") != request_body.end())
         {

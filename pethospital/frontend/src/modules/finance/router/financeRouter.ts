@@ -18,21 +18,6 @@ const routes: Array<RouteRecordRaw> = [
       },
     ],
   },
-  {
-    path: "/preview/finance",
-    component: () => import("../views/FinanceLayout.vue"),
-    children: [
-      {
-        path: "",
-        redirect: "/preview/finance/salary",
-      },
-      {
-        path: "salary",
-        name: "previewFinanceSalary",
-        component: () => import("../views/pages/FinanceSalary.vue"),
-      },
-    ],
-  },
 ];
 
 export default createRouter({

@@ -34,21 +34,43 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 }
                 nlohmann::json& request_body = jsonOpt.value();
 
-                std::string name = request_body["name"].is_string() ? request_body["name"].get<std::string>() : request_body["name"].dump();
-                std::string email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
-                std::string phone = request_body["phone"].is_string() ? request_body["phone"].get<std::string>() : request_body["phone"].dump();
-
                 // 从数据库中获取用户信息
                 int doctor_id = 0;
+                int pet_id = 0;
                 std::string date = "";
                 std::string time_slot = "";
                 std::string status = "预约成功";
 
-                // 安全获取预约信息字段
-                if (request_body.find("doctor_id") != request_body.end() && !request_body["doctor_id"].is_null())
+                auto readIntField = [&request_body](const std::string &snakeKey, const std::string &camelKey) -> int
                 {
-                    doctor_id = request_body["doctor_id"].is_number() ? request_body["doctor_id"].get<int>() : std::stoi(request_body["doctor_id"].dump());
-                }
+                    const nlohmann::json *value = nullptr;
+                    if (request_body.find(snakeKey) != request_body.end() && !request_body[snakeKey].is_null())
+                    {
+                        value = &request_body[snakeKey];
+                    }
+                    else if (request_body.find(camelKey) != request_body.end() && !request_body[camelKey].is_null())
+                    {
+                        value = &request_body[camelKey];
+                    }
+
+                    if (!value)
+                    {
+                        return 0;
+                    }
+                    if (value->is_number_integer())
+                    {
+                        return value->get<int>();
+                    }
+                    if (value->is_string())
+                    {
+                        return std::stoi(value->get<std::string>());
+                    }
+                    return 0;
+                };
+
+                // 安全获取预约信息字段，兼容前端 doctorId 和后端 doctor_id 两种命名。
+                doctor_id = readIntField("doctor_id", "doctorId");
+                pet_id = readIntField("pet_id", "petId");
                 if (request_body.find("date") != request_body.end() && !request_body["date"].is_null())
                 {
                     date = request_body["date"].is_string() ? request_body["date"].get<std::string>() : request_body["date"].dump();
@@ -59,7 +81,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                 }
             
                 // 直接调用处理器方法
-                crow::response handlerResponse = handler.createReservation(req, userId, name, email, phone, doctor_id, date, time_slot, status);
+                crow::response handlerResponse = handler.createReservation(req, userId, pet_id, doctor_id, date, time_slot, status);
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             
@@ -142,7 +164,7 @@ void ReservationRoutes::setupReservationRoutes(CrowApp &app, std::shared_ptr<Dat
                     }
 
                     ReservationHandler handler(dbManager);
-                    crow::response handlerResponse = handler.updateReservation(req, reservation_id);
+                    crow::response handlerResponse = handler.updateReservation(req, userId, reservation_id);
 
                     ProcessHandlerResponse(req, res, handlerResponse);
 

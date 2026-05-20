@@ -1,5 +1,8 @@
 import { MutationTree } from "vuex";
-import { WarehouseItem, WarehouseLogItem } from "../api/types";
+import {
+  WarehouseItem,
+  WarehouseLogItem,
+} from "@/modules/warehouse-admin/api/types";
 import { createWarehouseAdminState } from "./state";
 import { WarehouseAdminState } from "./types";
 

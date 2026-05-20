@@ -162,7 +162,7 @@
 <script lang="ts">
 import { computed, CSSProperties, defineComponent, onMounted, ref } from "vue";
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import { BossStockItem } from "../../api/types";
 
 type BossOverviewStockItem = BossStockItem & {
@@ -387,7 +387,7 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      void store.dispatch("boss/ensureStockDistribution");
+      void store.dispatch("boss/refreshStockDistribution");
     });
 
     return {

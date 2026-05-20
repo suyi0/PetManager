@@ -3,7 +3,7 @@
 
 std::unordered_map<std::string, std::chrono::steady_clock::time_point> email_check_last_access;
 
-void UserRoutes::setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerInterface> dbManager)
+void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     // 添加标志防止重复设置路由
     static bool routes_setup = false;
@@ -59,7 +59,7 @@ void UserRoutes::setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerIn
                     return;
                 }
                 UserHandler handler(dbManager);
-                crow::response handlerResponse = handler.userUpdate(req);
+                crow::response handlerResponse = handler.userUpdate(req, userId);
 
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e)
@@ -110,6 +110,64 @@ void UserRoutes::setupUserRoutes(CrowApp& app, std::shared_ptr<DatabaseManagerIn
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取上传文件", std::nullopt, false); });
+
+    // 添加宠物档案管理路由
+    CROW_ROUTE(app, "/api/user/pets")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                                           {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+                if (res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "管理宠物档案");
+                    return;
+                }
+
+                UserHandler handler(dbManager);
+                crow::response handlerResponse =
+                    req.method == crow::HTTPMethod::Post
+                        ? handler.createPetProfile(req, userId)
+                        : handler.getPetProfiles(req, userId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "管理宠物档案", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "管理宠物档案", userId > 0 ? std::optional<int>(userId) : std::nullopt, req.method != crow::HTTPMethod::Get); });
+
+    // 更新/删除宠物档案管理路由
+    CROW_ROUTE(app, "/api/user/pets/<int>")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int petId)
+                                                                                             {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+                if (res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "管理宠物档案");
+                    return;
+                }
+
+                UserHandler handler(dbManager);
+                crow::response handlerResponse =
+                    req.method == crow::HTTPMethod::Delete
+                        ? handler.deletePetProfile(req, userId, petId)
+                        : handler.updatePetProfile(req, userId, petId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "管理宠物档案", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "管理宠物档案", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     routes_setup = true;
 }

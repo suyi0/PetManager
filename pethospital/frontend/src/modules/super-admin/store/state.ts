@@ -1,6 +1,6 @@
 import { HomePageSummary, SalaryManagementPayload } from "../api/types";
 import { LogsPayload, SuperAdminState } from "./types";
-import { createCacheMeta } from "@/store/state";
+import { createCacheMeta } from "@/app/store/state";
 
 /**
  * 日志模块的默认空数据。

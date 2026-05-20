@@ -1,10 +1,7 @@
 import http from "@/api/http";
 import {
-  userOrderListMock,
-  userOrderRecordsMock,
   reservationDoctorsMock,
   reservationScheduleMock,
-  userReservationRecordsMock,
 } from "@/modules/user/api/userMock";
 import {
   OrderRecordItem,
@@ -13,10 +10,10 @@ import {
   ReservationScheduleResponseItem,
 } from "@/modules/user/api/types";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
+import { PetProfile } from "@/modules/user/store/types";
 
 /**
- * 生成一个与 axios 成功响应结构兼容的 Promise，
- * 用于在接口空返回或异常时统一回退到 mock 数据。
+ * 生成一个与 axios 成功响应结构兼容的 Promise。
  */
 const createSuccessResponse = <T>(data: T) =>
   Promise.resolve({
@@ -72,7 +69,7 @@ const unwrapOrderList = (response: unknown) => {
 /**
  * 订单记录接口请求函数，接受用户标识参数并返回订单记录列表。
  * @param params 接受一个包含查询参数的对象，用于发送请求。
- * @returns 返回订单记录列表，如果缺少用户标识或接口请求失败则回退到预设的 mock 数据列表。
+ * @returns 返回订单记录列表；缺少用户标识、接口为空或失败时返回空列表。
  */
 const fetchOrderRecordsResponse = (params: {
   name?: string | null;
@@ -82,43 +79,24 @@ const fetchOrderRecordsResponse = (params: {
   if (!params.name && !params.phone && !params.email) {
     return createSuccessResponse({
       success: true,
-      data: userOrderRecordsMock,
+      data: [],
     });
   }
 
-  return http
-    .get("/api/order/getrecord", { params })
-    .then((response) => {
-      const rows = Array.isArray(response?.data?.data)
-        ? response.data.data
-        : [];
-      return rows.length
-        ? response
-        : createSuccessResponse({
-            success: true,
-            data: userOrderRecordsMock,
-          });
+  return http.get("/api/order/getrecord", { params }).catch(() =>
+    createSuccessResponse({
+      success: true,
+      data: [],
     })
-    .catch(() =>
-      createSuccessResponse({
-        success: true,
-        data: userOrderRecordsMock,
-      })
-    );
+  );
 };
 
 /**
  * 订单列表摘要接口请求函数。
- * @returns 返回订单摘要列表，如果接口请求失败则回退到预设的 mock 数据列表。
+ * @returns 返回订单摘要列表；接口为空或失败时返回空列表。
  */
 const fetchOrderSummariesResponse = () =>
-  http
-    .get("/api/order/getOrderList")
-    .then((response) => {
-      const rows = Array.isArray(response?.data) ? response.data : [];
-      return rows.length ? response : createSuccessResponse(userOrderListMock);
-    })
-    .catch(() => createSuccessResponse(userOrderListMock));
+  http.get("/api/order/getOrderList").catch(() => createSuccessResponse([]));
 
 /**
  * 将后端预约时间表结构转换成预约页面可直接使用的拆分字段。
@@ -198,7 +176,7 @@ const fetchDoctorsResponse = () =>
     );
 
 /**
- * 请求用户预约记录，并在缺少用户标识、接口为空或失败时回退到预约记录 mock 数据。
+ * 请求用户预约记录；缺少用户标识、接口为空或失败时返回空列表。
  */
 const fetchReservationRecordsResponse = (params: {
   name?: string | null;
@@ -208,29 +186,16 @@ const fetchReservationRecordsResponse = (params: {
   if (!params.name && !params.phone && !params.email) {
     return createSuccessResponse({
       success: true,
-      data: userReservationRecordsMock,
+      data: [],
     });
   }
 
-  return http
-    .get("/api/reservate/getrecord", { params })
-    .then((response) => {
-      const rows = Array.isArray(response?.data?.data)
-        ? response.data.data
-        : [];
-      return rows.length
-        ? response
-        : createSuccessResponse({
-            success: true,
-            data: userReservationRecordsMock,
-          });
+  return http.get("/api/reservate/getrecord", { params }).catch(() =>
+    createSuccessResponse({
+      success: true,
+      data: [],
     })
-    .catch(() =>
-      createSuccessResponse({
-        success: true,
-        data: userReservationRecordsMock,
-      })
-    );
+  );
 };
 
 /**
@@ -267,7 +232,7 @@ export const profileApi = {
  */
 export const orderApi = {
   /**
-   * 获取当前用户的订单记录列表，并在接口为空或失败时回退到 mock 数据。
+   * 获取当前用户的订单记录列表。
    */
   async getOrderRecords(params: {
     name?: string | null;
@@ -275,8 +240,7 @@ export const orderApi = {
     email?: string | null;
   }): Promise<OrderRecordItem[]> {
     const response = await fetchOrderRecordsResponse(params);
-    const rows = unwrapOrderRecords(response);
-    return rows.length ? rows : userOrderRecordsMock;
+    return unwrapOrderRecords(response);
   },
 
   /**
@@ -284,8 +248,7 @@ export const orderApi = {
    */
   async getOrderSummaries(): Promise<OrderSummary[]> {
     const response = await fetchOrderSummariesResponse();
-    const rows = unwrapOrderList(response);
-    return rows.length ? rows : userOrderListMock;
+    return unwrapOrderList(response);
   },
 };
 
@@ -321,6 +284,7 @@ export const reservationApi = {
     phone?: string | null;
     email?: string | null;
     doctorId: number;
+    petId: number;
     date: string;
     slot: string;
   }) {
@@ -328,7 +292,7 @@ export const reservationApi = {
   },
 
   /**
-   * 获取当前用户的预约记录列表，并在接口为空或失败时回退到 mock 数据。
+   * 获取当前用户的预约记录列表。
    */
   async getReservationRecords(params: {
     name?: string | null;
@@ -336,7 +300,34 @@ export const reservationApi = {
     email?: string | null;
   }): Promise<OrderRecordItem[]> {
     const response = await fetchReservationRecordsResponse(params);
-    const rows = unwrapListData<OrderRecordItem>(response);
-    return rows.length ? rows : userReservationRecordsMock;
+    return unwrapListData<OrderRecordItem>(response);
+  },
+
+  /**
+   * 删除当前用户的一条预约记录。
+   */
+  async deleteReservationRecord(reservationId: number): Promise<void> {
+    await http.delete(`/api/reservate/deleterecord/${reservationId}`);
+  },
+};
+
+export const petApi = {
+  async getPetProfiles(): Promise<PetProfile[]> {
+    const response = await http.get("/api/user/pets");
+    return unwrapListData<PetProfile>(response);
+  },
+
+  async createPetProfile(payload: Omit<PetProfile, "id">): Promise<PetProfile> {
+    const response = await http.post("/api/user/pets", payload);
+    return (response.data?.data || response.data) as PetProfile;
+  },
+
+  async updatePetProfile(payload: PetProfile): Promise<PetProfile> {
+    const response = await http.put(`/api/user/pets/${payload.id}`, payload);
+    return (response.data?.data || response.data) as PetProfile;
+  },
+
+  async deletePetProfile(petId: string): Promise<void> {
+    await http.delete(`/api/user/pets/${petId}`);
   },
 };

@@ -1,5 +1,8 @@
-import { CacheMeta } from "@/store/types";
-import { WarehouseItem, WarehouseLogItem } from "../api/types";
+import { CacheMeta } from "@/app/store/types";
+import {
+  WarehouseItem,
+  WarehouseLogItem,
+} from "@/modules/warehouse-admin/api/types";
 
 /**
  * 仓库仪表盘顶部卡片的摘要数据。

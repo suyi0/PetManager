@@ -3,7 +3,7 @@ import type { Store } from "vuex";
 import { superAdminApi } from "@/modules/super-admin/api/superAdminApi";
 import { authStorage } from "@/core/auth/utils/authStorage";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
-import type { State } from "@/store/appStore";
+import type { State } from "@/app/store";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 空闲超时时间
 const REFRESH_THRESHOLD_MS = 2 * 60 * 1000; // 刷新阀值时间

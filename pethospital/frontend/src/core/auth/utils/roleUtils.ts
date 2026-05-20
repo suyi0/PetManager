@@ -23,15 +23,29 @@ export const SUPER_ADMIN_PORTAL_ROLES: UserRole[] = [
 
 export const BOSS_PORTAL_ROLES: UserRole[] = ["总裁", "副总裁"];
 
-export const FINANCE_PORTAL_ROLES: string[] = ["财务总监", "财务经理"];
+export const FINANCE_PORTAL_ROLES: string[] = [
+  ...BOSS_PORTAL_ROLES,
+  "财务总监",
+  "财务经理",
+];
 
-export const PERSONNEL_PORTAL_ROLES: string[] = ["人事经理"];
+export const PERSONNEL_PORTAL_ROLES: string[] = [
+  ...BOSS_PORTAL_ROLES,
+  "人事经理",
+];
 
-export const WAREHOUSE_PORTAL_ROLES: UserRole[] = ["仓库管理员"];
+export const WAREHOUSE_PORTAL_ROLES: UserRole[] = [
+  ...BOSS_PORTAL_ROLES,
+  "仓库管理员",
+];
 
-export const DOCTOR_PORTAL_ROLES: UserRole[] = ["医生"];
+export const DOCTOR_PORTAL_ROLES: UserRole[] = [...BOSS_PORTAL_ROLES, "医生"];
 
-export const USER_PORTAL_ROLES: UserRole[] = ["普通用户", "护士"];
+export const USER_PORTAL_ROLES: UserRole[] = [
+  ...BOSS_PORTAL_ROLES,
+  "普通用户",
+  "护士",
+];
 
 const ROLE_NAME_SET = new Set<string>(ALL_ROLE_NAMES);
 

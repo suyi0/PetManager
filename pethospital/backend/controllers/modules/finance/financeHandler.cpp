@@ -1,4 +1,5 @@
 #include "financeHandler.h"
+#include "../admin/adminHandler.h"
 #include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
 
 // 获取当天的开始和结束时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
@@ -102,6 +103,7 @@ crow::response financeHandler::homePageGetData(const crow::request &req)
 
         double salesCount = calculateSalesCount();
         double costCount = calculateCostCount();
+        adminHandler adminer(dbManager);
 
         nlohmann::json summary = {
             {"userCount", adminer.calculateUserCount()},
@@ -118,4 +120,3 @@ crow::response financeHandler::homePageGetData(const crow::request &req)
         return ResponseHelper::system_error(req, e.what());
     }
 }
-

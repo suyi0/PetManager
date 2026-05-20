@@ -18,21 +18,6 @@ const routes: Array<RouteRecordRaw> = [
       },
     ],
   },
-  {
-    path: "/preview/boss",
-    component: () => import("../views/BossLayout.vue"),
-    children: [
-      {
-        path: "",
-        redirect: "/preview/boss/overview",
-      },
-      {
-        path: "overview",
-        name: "previewBossOverview",
-        component: () => import("../views/pages/BossOverview.vue"),
-      },
-    ],
-  },
 ];
 
 export default createRouter({

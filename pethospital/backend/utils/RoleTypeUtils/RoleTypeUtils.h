@@ -31,11 +31,19 @@ namespace RoleTypeUtils
     // 判断角色是否属于管理门户角色
     bool isManagementRole(const std::string &roleName);
 
+    // 判断角色是否属于总裁端角色
+    bool isBossRole(const std::string &roleName);
+
     // 判断角色是否属于普通用户角色
     bool isNormalUserRole(const std::string &roleName);
 
     // 判断用户是否属于管理门户角色
     bool userHasManagementRole(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        int userId);
+
+    // 判断用户是否属于总裁端角色
+    bool userHasBossRole(
         const std::shared_ptr<DatabaseManagerInterface> &dbManager,
         int userId);
 

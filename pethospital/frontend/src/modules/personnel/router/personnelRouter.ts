@@ -18,21 +18,6 @@ const routes: Array<RouteRecordRaw> = [
       },
     ],
   },
-  {
-    path: "/preview/personnel",
-    component: () => import("../views/PersonnelLayout.vue"),
-    children: [
-      {
-        path: "",
-        redirect: "/preview/personnel/access",
-      },
-      {
-        path: "access",
-        name: "previewPersonnelAccess",
-        component: () => import("../views/pages/PersonnelRoleAccess.vue"),
-      },
-    ],
-  },
 ];
 
 export default createRouter({

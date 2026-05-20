@@ -3,7 +3,7 @@ import type { Store } from "vuex";
 import { personnelApi } from "@/modules/personnel/api/personnelApi";
 import { authStorage } from "@/core/auth/utils/authStorage";
 import { isPersonnelPortalRole } from "@/core/auth/utils/roleUtils";
-import type { State } from "@/store/appStore";
+import type { State } from "@/app/store";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const REFRESH_THRESHOLD_MS = 2 * 60 * 1000;

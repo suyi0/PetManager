@@ -163,7 +163,7 @@ namespace DatabaseMigrations
             std::cout << "users table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE users ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "type_id INT, "
+                         "type_id INT NOT NULL, "
                          "name VARCHAR(255), "
                          "password VARCHAR(255), "
                          "phone VARCHAR(20), "
@@ -197,7 +197,7 @@ namespace DatabaseMigrations
             std::cout << "phones table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE phones ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "user_id INT, "
+                         "user_id INT NOT NULL, "
                          "phone VARCHAR(20), "
                          "phone_lastfour VARCHAR(4) GENERATED ALWAYS AS (SUBSTRING(phone, -4)), "
                          "CONSTRAINT fk_phones_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
@@ -218,7 +218,7 @@ namespace DatabaseMigrations
             std::cout << "salary table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE salary ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "user_id INT, "
+                         "user_id INT NOT NULL, "
                          "base_salary DECIMAL(18, 2), "
                          "PA_Award DECIMAL(18, 2), "
                          "PB_Award DECIMAL(18, 2), "
@@ -368,16 +368,21 @@ namespace DatabaseMigrations
             std::cout << "reaservations table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE reaservations ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "user_id INT , "
-                         "doctor_id INT, "
+                         "user_id INT NOT NULL, "
+                         "doctor_id INT NOT NULL, "
+                         "pet_id INT NOT NULL, "
                          "date DATE, "
                          "time_slot VARCHAR(20), "
                          "status VARCHAR(20), "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
-                         "CONSTRAINT fk_doctor_id FOREIGN KEY (doctor_id) REFERENCES onlineDoctors(doctor_id) ON DELETE CASCADE, "
-                         "INDEX idx_userId_creationTime (user_id, created_at) "
+                         "CONSTRAINT fk_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "CONSTRAINT fk_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
+                         "INDEX idx_userId_creationTime (user_id, created_at), "
+                         "INDEX idx_userId_date (user_id, date), "
+                         "INDEX idx_doctorId_date_slot (doctor_id, date, time_slot), "
+                         "INDEX idx_petId_date (pet_id, date) "
                          ")")
                 .execute();
             std::cout << "reaservations table created successfully." << std::endl;
@@ -386,6 +391,7 @@ namespace DatabaseMigrations
         if (pets_exists)
         {
             std::cout << "pets table is exists." << std::endl;
+            Columns::migratePets(dbManager);
             ForeignKeys::migratePets(dbManager);
         }
         else
@@ -393,11 +399,16 @@ namespace DatabaseMigrations
             std::cout << "pets table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE pets ( "
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "user_id INT, "
+                         "user_id INT NOT NULL, "
                          "pet_name VARCHAR(255), "
                          "pet_type VARCHAR(255), "
                          "pet_age VARCHAR(255), "
                          "pet_sex VARCHAR(255), "
+                         "pet_breed VARCHAR(255), "
+                         "pet_neutered VARCHAR(255), "
+                         "vaccine_status VARCHAR(255), "
+                         "preference TEXT, "
+                         "notes TEXT, "
                          "CONSTRAINT fk_pets_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE "
                          ")")
                 .execute();
@@ -415,14 +426,16 @@ namespace DatabaseMigrations
             std::cout << "orders table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE orders ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "pet_id INT, "
-                         "doctor_id INT, "
+                         "owner_id INT NOT NULL, "
+                         "pet_id INT NOT NULL, "
+                         "doctor_id INT NOT NULL, "
                          "order_type VARCHAR(255),"
                          "order_data VARCHAR(255), "
-                         "order_status VARCHAR(255), "
+                         "order_status ENUM('待付款', '已付款', '已取消', '已退款', '部分退款') NOT NULL DEFAULT '待付款', "
                          "order_totalprice DECIMAL(18, 2), "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         "CONSTRAINT fk_orders_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_orders_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_orders_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "INDEX idx_petId_time (pet_id, created_at) "
@@ -441,16 +454,18 @@ namespace DatabaseMigrations
             std::cout << "orderMedicines table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE orderMedicines ( "
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "order_id INT, "
-                         "medicine_id INT, "
-                         "quantity INT, "
+                         "order_id INT NOT NULL, "
+                         "medicine_id INT NOT NULL, "
+                         "medicine_name VARCHAR(255), "
+                         "quantity INT NOT NULL, "
                          "price DECIMAL(18, 2), "
                          "total_price DECIMAL(18, 2), "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "INDEX idx_orderId_time (order_id, created_at), "
-                         "CONSTRAINT fk_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE, "
-                         "CONSTRAINT fk_medicine_id FOREIGN KEY (medicine_id) REFERENCES warehouse(id) ON DELETE CASCADE "
+                         "INDEX idx_order_id (order_id), "
+                         "INDEX idx_medicine_id (medicine_id), "
+                         "INDEX idx_order_medicine (order_id, medicine_id), "
+                         "CONSTRAINT fk_order_medicines_order_id FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE "
                          ")")
                 .execute();
             std::cout << "orderMedicines table created successfully" << std::endl;
@@ -485,7 +500,7 @@ namespace DatabaseMigrations
         {
             std::cout << "system_operations table is exists." << std::endl;
             session->sql("ALTER TABLE system_operations "
-                         "MODIFY COLUMN system_role ENUM('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL")
+                         "MODIFY COLUMN system_role ENUM('总裁', '副总裁', '财务总监', '财务经理', '人事经理', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL")
                 .execute();
         }
         else
@@ -494,7 +509,7 @@ namespace DatabaseMigrations
             session->sql("CREATE TABLE system_operations( "
                          "id INT AUTO_INCREMENT PRIMARY KEY, "
                          "category ENUM('系统类') NOT NULL DEFAULT '系统类', "
-                         "system_role ENUM('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL, "
+                         "system_role ENUM('总裁', '副总裁', '财务总监', '财务经理', '人事经理', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL, "
                          "operator VARCHAR(255) NOT NULL DEFAULT '系统', "
                          "module VARCHAR(255) NOT NULL DEFAULT '', "
                          "action VARCHAR(100) NOT NULL, "
@@ -516,7 +531,7 @@ namespace DatabaseMigrations
             std::cout << "user_operations table is exists." << std::endl;
             ForeignKeys::migrateUserOperations(dbManager);
             session->sql("ALTER TABLE user_operations "
-                         "MODIFY COLUMN user_role ENUM('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL")
+                         "MODIFY COLUMN user_role ENUM('总裁', '副总裁', '财务总监', '财务经理', '人事经理', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL")
                 .execute();
         }
         else
@@ -526,7 +541,7 @@ namespace DatabaseMigrations
                          "id INT AUTO_INCREMENT PRIMARY KEY, "
                          "user_id INT NOT NULL, "
                          "category ENUM('用户类') NOT NULL DEFAULT '用户类', "
-                         "user_role ENUM('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL, "
+                         "user_role ENUM('总裁', '副总裁', '财务总监', '财务经理', '人事经理', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL, "
                          "operator VARCHAR(255) NOT NULL DEFAULT '', "
                          "module VARCHAR(255) NOT NULL DEFAULT '', "
                          "action VARCHAR(100) NOT NULL, "

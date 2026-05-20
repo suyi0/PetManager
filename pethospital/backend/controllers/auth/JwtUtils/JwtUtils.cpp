@@ -79,6 +79,33 @@ namespace
             row[0].get<int>(),
             row[1].get<std::string>()};
     }
+
+    std::optional<UserAuthTarget> getUserAuthTargetById(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        int userId)
+    {
+        if (userId <= 0)
+        {
+            return std::nullopt;
+        }
+
+        auto result = dbManager->getSession()
+                          ->sql("SELECT u.id, t.type FROM users AS u "
+                                "JOIN types AS t ON u.type_id = t.id "
+                                "WHERE u.id = ?")
+                          .bind(userId)
+                          .execute();
+
+        if (result.count() == 0)
+        {
+            return std::nullopt;
+        }
+
+        auto row = result.fetchOne();
+        return UserAuthTarget{
+            row[0].get<int>(),
+            row[1].get<std::string>()};
+    }
 }
 
 // URL安全的Base64编码函数
@@ -376,6 +403,11 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
 {
     try
     {
+        if (RoleTypeUtils::userHasBossRole(dbManager, userId))
+        {
+            return true;
+        }
+
         // 需要执行SQL查询：
         // SELECT user_id FROM orders WHERE id = orderId
         // 然后比较查询结果中的user_id是否等于传入的userId
@@ -407,13 +439,15 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
 {
     try
     {
-        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        const auto target = getUserAuthTargetById(dbManager, userId);
         if (!target)
         {
             return false;
         }
 
-        return target->userId == userId && RoleTypeUtils::isNormalUserRole(target->roleName);
+        return target->userId == userId &&
+               (RoleTypeUtils::isNormalUserRole(target->roleName) ||
+                RoleTypeUtils::isBossRole(target->roleName));
     }
     catch (const std::exception &e)
     {
@@ -427,7 +461,7 @@ bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier,
 {
     try
     {
-        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        const auto target = getUserAuthTargetById(dbManager, userId);
         if (!target)
         {
             return false;
@@ -454,13 +488,15 @@ bool JwtUtils::isUserAuthorizedForPersonnelForm(int userId, std::string &identif
 {
     try
     {
-        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        const auto target = getUserAuthTargetById(dbManager, userId);
         if (!target)
         {
             return false;
         }
 
-        return target->userId == userId && RoleTypeUtils::isPersonnelRole(target->roleName);
+        return target->userId == userId &&
+               (RoleTypeUtils::isPersonnelRole(target->roleName) ||
+                RoleTypeUtils::isBossRole(target->roleName));
     }
     catch (const std::exception &e)
     {
@@ -474,13 +510,15 @@ bool JwtUtils::isUserAuthorizedForMedicalStaffForm(int userId, std::string &iden
 {
     try
     {
-        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        const auto target = getUserAuthTargetById(dbManager, userId);
         if (!target)
         {
             return false;
         }
 
-        return target->userId == userId && RoleTypeUtils::isMedicalStaffRole(target->roleName);
+        return target->userId == userId &&
+               (RoleTypeUtils::isMedicalStaffRole(target->roleName) ||
+                RoleTypeUtils::isBossRole(target->roleName));
     }
     catch (const std::exception &e)
     {
@@ -494,13 +532,15 @@ bool JwtUtils::isUserAuthorizedForWarehouseStaffForm(int userId, std::string &id
 {
     try
     {
-        const auto target = getUserAuthTarget(dbManager, identifier, isEmail);
+        const auto target = getUserAuthTargetById(dbManager, userId);
         if (!target)
         {
             return false;
         }
 
-        return target->userId == userId && RoleTypeUtils::isWarehouseStaffRole(target->roleName);
+        return target->userId == userId &&
+               (RoleTypeUtils::isWarehouseStaffRole(target->roleName) ||
+                RoleTypeUtils::isBossRole(target->roleName));
     }
     catch (const std::exception &e)
     {

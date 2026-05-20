@@ -2,15 +2,13 @@
 #define FINANCEHANDLER_H 
 
 #include "../../../utils/Utils.h"
-#include "../admin/adminHandler.h"
 
 class financeHandler : public BaseHandler
 {
 private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
-    adminHandler adminer;
 public:
-    explicit financeHandler (std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)), adminer(dbManager){}
+    explicit financeHandler (std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)){}
 
     double calculateSalesCount();
 

@@ -1,15 +1,21 @@
 import { ActionContext, ActionTree } from "vuex";
-import { State, shouldFetch } from "@/store/types";
-import { warehouseLogsMock } from "../api/warehouseAdminMock";
+import { State, shouldFetch } from "@/app/store/types";
+import { warehouseLogsMock } from "@/modules/warehouse-admin/api/warehouseAdminMock";
 import { WarehouseAdminState } from "./types";
-import { warehouseAdminApi } from "../api/warehouseAdminApi";
+import { warehouseAdminApi } from "@/modules/warehouse-admin/api/warehouseAdminApi";
+import {
+  readWarehouseItemsCache,
+  readWarehouseOperationLogsCache,
+  saveWarehouseItemsCache,
+  saveWarehouseOperationLogsCache,
+} from "@/modules/warehouse-admin/utils/warehouseAdminDataCache";
 
 type WarehouseAdminActionContext = ActionContext<WarehouseAdminState, State>;
 
 export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
   /**
    * 确保库存列表可用。
-   * 页面首次进入时会请求，之后优先读缓存；只有脏数据、超时或强制刷新时才再次访问接口。
+   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureItems(
     { state, commit }: WarehouseAdminActionContext,
@@ -21,7 +27,17 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
 
     commit("setItemsLoading", true);
     try {
+      if (!options?.force) {
+        const cachedItems = readWarehouseItemsCache();
+
+        if (cachedItems) {
+          commit("setItems", cachedItems);
+          return cachedItems;
+        }
+      }
+
       const items = await warehouseAdminApi.getAllItems();
+      saveWarehouseItemsCache(items);
       commit("setItems", items);
       return items;
     } finally {
@@ -30,7 +46,8 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
   },
 
   /**
-   * 操作流暂时没有后端接口，这里先缓存会话内 mock 数据。
+   * 确保操作流可用。
+   * 操作流暂时没有后端接口，因此默认优先复用 Vuex 和 localStorage 缓存。
    */
   async ensureLogs(
     { state, commit }: WarehouseAdminActionContext,
@@ -42,6 +59,16 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
 
     commit("setLogsLoading", true);
     try {
+      if (!options?.force) {
+        const cachedLogs = readWarehouseOperationLogsCache();
+
+        if (cachedLogs) {
+          commit("setOperationLogs", cachedLogs);
+          return cachedLogs;
+        }
+      }
+
+      saveWarehouseOperationLogsCache(warehouseLogsMock);
       commit("setOperationLogs", warehouseLogsMock);
       return warehouseLogsMock;
     } finally {
@@ -51,9 +78,10 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
 
   /**
    * 仪表盘依赖的基础数据预热。
+   * 进入仓库端时统一从后端刷新核心库存数据，并同步写入本地缓存。
    */
   async ensureDashboardData({ dispatch }: WarehouseAdminActionContext) {
-    await Promise.all([dispatch("ensureItems"), dispatch("ensureLogs")]);
+    await Promise.all([dispatch("refreshItems"), dispatch("refreshLogs")]);
   },
 
   /**

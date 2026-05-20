@@ -1,4 +1,4 @@
-import { CacheMeta } from "@/store/types";
+import { CacheMeta } from "@/app/store/types";
 import {
   DoctorDutyStatus,
   DoctorUserProfile,

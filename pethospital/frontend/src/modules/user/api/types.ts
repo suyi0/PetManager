@@ -2,9 +2,17 @@ import { DoctorDataItem } from "@/modules/doctor/api/types";
 
 export interface OrderRecordItem {
   id: number;
-  name: string;
+  name?: string;
   time?: number;
   price?: number;
+  user_id?: number;
+  doctor_id?: number;
+  pet_id?: number;
+  pet_name?: string;
+  date?: string;
+  time_slot?: string;
+  status?: string;
+  created_at?: string;
 }
 
 export interface OrderSummary {

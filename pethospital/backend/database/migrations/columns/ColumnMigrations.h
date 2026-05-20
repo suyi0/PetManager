@@ -16,6 +16,10 @@ void migrateUsers(DatabaseManagerInterface &database_manager);
 // 当前负责补 phone_lastfour 生成列。
 void migratePhones(DatabaseManagerInterface &database_manager);
 
+// pets 表的列级迁移。
+// 当前负责补用户端宠物档案扩展字段。
+void migratePets(DatabaseManagerInterface &database_manager);
+
 // warehouse 表的列级迁移。
 // 当前负责把旧版 item_totalprice 迁成生成列。
 void migrateWarehouse(DatabaseManagerInterface &database_manager);

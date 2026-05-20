@@ -6,6 +6,7 @@
 #include <exception>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 namespace DatabaseMigrations::ForeignKeys
 {
@@ -122,6 +123,63 @@ void migrateForeignKeyIfEnabled(
                   << " added for legacy migration." << std::endl;
     }
 }
+
+void addCompositeIndexIfNotExists(
+    DatabaseManagerInterface &database_manager,
+    const std::string &table_name,
+    const std::string &index_name,
+    const std::vector<std::string> &column_names)
+{
+    try
+    {
+        if (!Common::isSafeIdentifier(table_name) || !Common::isSafeIdentifier(index_name) || column_names.empty())
+        {
+            throw std::runtime_error("Unsafe identifier in addCompositeIndexIfNotExists");
+        }
+
+        if (Common::indexExists(database_manager, table_name, index_name))
+        {
+            std::cout << "Index '" << index_name << "' already exists on table '" << table_name << "'" << std::endl;
+            return;
+        }
+
+        std::string columns;
+        for (const auto &column_name : column_names)
+        {
+            if (!Common::isSafeIdentifier(column_name))
+            {
+                throw std::runtime_error("Unsafe column identifier in addCompositeIndexIfNotExists");
+            }
+            if (!Common::columnExists(database_manager, table_name, column_name))
+            {
+                std::cout << "Skip index '" << index_name << "': column '" << column_name
+                          << "' does not exist in table '" << table_name << "'" << std::endl;
+                return;
+            }
+            if (!columns.empty())
+            {
+                columns += ", ";
+            }
+            columns += Common::quoteIdentifier(column_name);
+        }
+
+        const std::string sql =
+            "CREATE INDEX " + Common::quoteIdentifier(index_name) +
+            " ON " + Common::quoteIdentifier(table_name) + " (" + columns + ")";
+        database_manager.getSession()->sql(sql).execute();
+        std::cout << "Added index '" << index_name << "' to table '" << table_name << "'" << std::endl;
+    }
+    catch (const mysqlx::Error &e)
+    {
+        std::cerr << "Error adding index '" << index_name << "' to table '"
+                  << table_name << "': " << e.what() << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error preparing index '" << index_name << "' on table '"
+                  << table_name << "': " << e.what() << std::endl;
+    }
+}
 }
 
 bool shouldAutoMigrateForeignKeys()
@@ -212,6 +270,12 @@ void migrateOnlineDoctors(DatabaseManagerInterface &database_manager)
 
 void migrateReservations(DatabaseManagerInterface &database_manager)
 {
+    Common::addColumnIfNotExists(database_manager, "reaservations", "pet_id", "INT NOT NULL");
+    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_userId_creationTime", {"user_id", "created_at"});
+    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_userId_date", {"user_id", "date"});
+    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_doctorId_date_slot", {"doctor_id", "date", "time_slot"});
+    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_petId_date", {"pet_id", "date"});
+
     migrateForeignKeyIfEnabled(
         database_manager,
         {"reaservations", "fk_user_id", "user_id", "users", "id", "CASCADE"},
@@ -220,6 +284,11 @@ void migrateReservations(DatabaseManagerInterface &database_manager)
     migrateForeignKeyIfEnabled(
         database_manager,
         {"reaservations", "fk_doctor_id", "doctor_id", "users", "id", "CASCADE"},
+        shouldAutoMigrateReservationsForeignKeys(),
+        "DB_AUTO_MIGRATE_REASERVATIONS_FOREIGN_KEYS");
+    migrateForeignKeyIfEnabled(
+        database_manager,
+        {"reaservations", "fk_pet_id", "pet_id", "pets", "id", "CASCADE"},
         shouldAutoMigrateReservationsForeignKeys(),
         "DB_AUTO_MIGRATE_REASERVATIONS_FOREIGN_KEYS");
 }

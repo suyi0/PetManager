@@ -1,18 +1,52 @@
 import http from "@/api/http";
 import { unwrapMessage, unwrapList } from "@/api/response";
+import { queueItemsMock } from "./doctorMock";
 import {
-  userProfilesMock,
-  reservationItemsMock,
-  queueItemsMock,
-  orderRecordItemsMock,
-} from "./doctorMock";
-import {
+  CreateOrderRecordPayload,
   DoctorDutyStatus,
   DoctorUserProfile,
   QueueItem,
   OrderRecordItem,
   ReservationItem,
 } from "./types";
+
+/**
+ * 解包数据，提取其中的 data 字段
+ * @param payload 接受一个未知类型的响应数据，尝试从中提取 data 字段。
+ * @returns 返回提取出的 data 字段，如果不存在则返回 null。
+ */
+const unwrapData = <T>(payload: unknown): T | null => {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data?: T }).data ?? null;
+  }
+
+  return (payload as T) ?? null;
+};
+
+/**
+ * 将值转换为数字，如果无法转换则返回 undefined
+ * @param value 接受一个未知类型的值，尝试将其转换为数字。
+ * @returns 返回转换后的数字，如果输入值无法转换为有效数字，则返回 undefined。
+ */
+const toNumber = (value: unknown) => {
+  const numericValue = Number(value);
+
+  return Number.isFinite(numericValue) ? numericValue : undefined;
+};
+
+/**
+ * 兼容后端可能返回的 snake_case 字段，统一成前端队列项需要的 camelCase。
+ */
+const normalizeQueueItems = (items: QueueItem[]) =>
+  items.map((item) => {
+    const source = item as QueueItem & Record<string, unknown>;
+
+    return {
+      ...item,
+      ownerId: toNumber(source.ownerId ?? source.owner_id ?? source.userId),
+      petId: toNumber(source.petId ?? source.pet_id),
+    };
+  });
 
 export const doctorApi = {
   /**
@@ -51,10 +85,10 @@ export const doctorApi = {
       const { data } = await http.get("/api/doctor/userProfiles");
       const profiles = unwrapList<DoctorUserProfile>(data);
 
-      return profiles.length > 0 ? profiles : userProfilesMock;
+      return profiles;
     } catch (error) {
-      console.warn("getUserProfiles fallback to mock data", error);
-      return userProfilesMock;
+      console.warn("getUserProfiles fallback to empty data", error);
+      return [];
     }
   },
 
@@ -65,7 +99,7 @@ export const doctorApi = {
   async getQueueProfiles(): Promise<QueueItem[]> {
     try {
       const { data } = await http.get("/api/doctor/queue");
-      const queueItems = unwrapList<QueueItem>(data);
+      const queueItems = normalizeQueueItems(unwrapList<QueueItem>(data));
 
       return queueItems.length > 0 ? queueItems : queueItemsMock;
     } catch (error) {
@@ -83,12 +117,39 @@ export const doctorApi = {
       const { data } = await http.get("/api/doctor/reservations");
       const reservationItems = unwrapList<ReservationItem>(data);
 
-      return reservationItems.length > 0
-        ? reservationItems
-        : reservationItemsMock;
+      return reservationItems;
     } catch (error) {
-      console.warn("getReservationsProfiles fallback to mock data", error);
-      return reservationItemsMock;
+      console.warn("getReservationsProfiles fallback to empty data", error);
+      return [];
+    }
+  },
+
+  /**
+   * 创建订单记录
+   * @param payload 诊单信息对象，包含宠物信息、症状描述、到院时间等数据
+   */
+  async createOrderRecord(
+    payload: CreateOrderRecordPayload
+  ): Promise<OrderRecordItem> {
+    try {
+      const { data } = await http.post(
+        "/api/doctor/createOrderRecord",
+        payload
+      );
+      const createdRecord = unwrapData<OrderRecordItem>(data);
+
+      if (!createdRecord) {
+        throw new Error("创建订单接口未返回订单记录");
+      }
+
+      return {
+        ...createdRecord,
+        id: String(createdRecord.id),
+        status: createdRecord.status || "待付款",
+      };
+    } catch (error) {
+      console.warn("createOrderRecord fallback to empty data", error);
+      throw error;
     }
   },
 
@@ -98,15 +159,13 @@ export const doctorApi = {
    */
   async getOrderRecords(): Promise<OrderRecordItem[]> {
     try {
-      const { data } = await http.get("/api/doctor/orderRecord");
+      const { data } = await http.get("/api/doctor/getOrderRecord");
       const orderRecordItems = unwrapList<OrderRecordItem>(data);
 
-      return orderRecordItems.length > 0
-        ? orderRecordItems
-        : orderRecordItemsMock;
+      return orderRecordItems;
     } catch (error) {
-      console.warn("getOrderRecord fallback to mock data", error);
-      return orderRecordItemsMock;
+      console.warn("getOrderRecord fallback to empty data", error);
+      return [];
     }
   },
 
@@ -117,7 +176,7 @@ export const doctorApi = {
   async getQueueItems(): Promise<QueueItem[]> {
     try {
       const { data } = await http.get("/api/doctor/queue");
-      const queueItems = unwrapList<QueueItem>(data);
+      const queueItems = normalizeQueueItems(unwrapList<QueueItem>(data));
 
       return queueItems.length > 0 ? queueItems : queueItemsMock;
     } catch (error) {
@@ -126,6 +185,9 @@ export const doctorApi = {
     }
   },
 
+  /**
+   * 更新医生值班状态
+   */
   async updateDutyStatus(status: DoctorDutyStatus["status"]): Promise<string> {
     const { data } = await http.post("/api/doctor/dutyStatus/action", {
       status,

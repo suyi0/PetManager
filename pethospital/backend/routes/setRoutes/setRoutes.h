@@ -25,6 +25,7 @@
 #include "../authRoutes/authRoutes.h"
 #include "../adminRoutes/adminRoutes.h"
 #include "../personnelRoutes/personnelRoutes.h"
+#include "../bossRoutes/bossRoutes.h"
 
 class WebSocketServer
 {

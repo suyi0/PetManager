@@ -4,7 +4,10 @@ import { WAREHOUSE_PORTAL_ROLES } from "@/core/auth/utils/roleUtils";
 const routes: Array<RouteRecordRaw> = [
   {
     path: "/warehouse-admin",
-    component: () => import("../views/WarehouseAdminLayout.vue"),
+    component: () =>
+      import(
+        "@/modules/warehouse-admin/views/desktop/WarehouseAdminLayout.vue"
+      ),
     meta: { requiresAuth: true, allowedRoles: [...WAREHOUSE_PORTAL_ROLES] },
     children: [
       {
@@ -18,56 +21,34 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: "dashboard",
         name: "warehouseAdminDashboard",
-        component: () => import("../views/pages/WarehouseAdminDashboard.vue"),
+        component: () =>
+          import(
+            "@/modules/warehouse-admin/views/desktop/pages/WarehouseAdminDashboard.vue"
+          ),
       },
       {
         path: "create",
         name: "warehouseAdminCreate",
-        component: () => import("../views/pages/WarehouseAdminCreate.vue"),
+        component: () =>
+          import(
+            "@/modules/warehouse-admin/views/desktop/pages/WarehouseAdminCreate.vue"
+          ),
       },
       {
         path: "warnings",
         name: "warehouseAdminWarnings",
-        component: () => import("../views/pages/WarehouseAdminWarnings.vue"),
+        component: () =>
+          import(
+            "@/modules/warehouse-admin/views/desktop/pages/WarehouseAdminWarnings.vue"
+          ),
       },
       {
         path: "logs",
         name: "warehouseAdminLogs",
-        component: () => import("../views/pages/WarehouseAdminLogs.vue"),
-      },
-    ],
-  },
-  {
-    path: "/preview/warehouse-admin",
-    component: () => import("../views/WarehouseAdminLayout.vue"),
-    children: [
-      {
-        path: "",
-        redirect: "/preview/warehouse-admin/dashboard",
-      },
-      {
-        path: "overview",
-        redirect: "/preview/warehouse-admin/dashboard",
-      },
-      {
-        path: "dashboard",
-        name: "previewWarehouseAdminDashboard",
-        component: () => import("../views/pages/WarehouseAdminDashboard.vue"),
-      },
-      {
-        path: "create",
-        name: "previewWarehouseAdminCreate",
-        component: () => import("../views/pages/WarehouseAdminCreate.vue"),
-      },
-      {
-        path: "warnings",
-        name: "previewWarehouseAdminWarnings",
-        component: () => import("../views/pages/WarehouseAdminWarnings.vue"),
-      },
-      {
-        path: "logs",
-        name: "previewWarehouseAdminLogs",
-        component: () => import("../views/pages/WarehouseAdminLogs.vue"),
+        component: () =>
+          import(
+            "@/modules/warehouse-admin/views/desktop/pages/WarehouseAdminLogs.vue"
+          ),
       },
     ],
   },

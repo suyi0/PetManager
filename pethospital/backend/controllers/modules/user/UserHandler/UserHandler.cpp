@@ -263,18 +263,244 @@ nlohmann::json UserHandler::getUserData(const int &id)
     nlohmann::json user_data;
     for (auto row : result)
     {
+        const auto safeString = [&row](int index) -> std::string
+        {
+            if (row[index].isNull())
+            {
+                return "";
+            }
+
+            try
+            {
+                return clean_string(row[index].get<std::string>());
+            }
+            catch (...)
+            {
+                std::stringstream ss;
+                ss << row[index];
+                return clean_string(ss.str());
+            }
+        };
+
         user_data = {
             {"id", row[0].get<int>()},
-            {"name", row[1].get<std::string>()},
-            {"phone", row[3].get<std::string>()},
-            {"email", row[4].get<std::string>()},
-            {"birthday", row[5].get<std::string>()},
-            {"address_id", row[6].get<std::string>()},
-            {"head_image", row[7].get<std::string>()},
+            {"name", safeString(1)},
+            {"phone", safeString(3)},
+            {"email", safeString(4)},
+            {"birthday", safeString(5)},
+            {"address_id", row[6].isNull() ? 0 : row[6].get<int>()},
+            {"head_image", safeString(7)},
         };
         break;
     }
     return user_data;
+}
+
+namespace
+{
+nlohmann::json mapPetRow(const mysqlx::Row &row)
+{
+    const auto safeString = [&row](int index) -> std::string
+    {
+        if (row[index].isNull())
+        {
+            return "";
+        }
+
+        return clean_string(row[index].get<std::string>());
+    };
+
+    return {
+        {"id", std::to_string(row[0].get<int>())},
+        {"name", safeString(1)},
+        {"species", safeString(2)},
+        {"breed", safeString(5)},
+        {"age", safeString(3)},
+        {"gender", safeString(4)},
+        {"neutered", safeString(6)},
+        {"vaccineStatus", safeString(7)},
+        {"preference", safeString(8)},
+        {"notes", safeString(9)},
+    };
+}
+
+std::string optionalString(const nlohmann::json &body, const std::string &key)
+{
+    if (!body.contains(key) || body[key].is_null())
+    {
+        return "";
+    }
+
+    return body[key].is_string() ? body[key].get<std::string>() : body[key].dump();
+}
+}
+
+crow::response UserHandler::getPetProfiles(const crow::request &req, int userId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
+                                             "COALESCE(pet_age, ''), COALESCE(pet_sex, ''), COALESCE(pet_breed, ''), "
+                                             "COALESCE(pet_neutered, ''), COALESCE(vaccine_status, ''), "
+                                             "COALESCE(preference, ''), COALESCE(notes, '') "
+                                             "FROM pets WHERE user_id = ? ORDER BY id DESC")
+                                       .bind(userId)
+                                       .execute();
+
+        nlohmann::json response = nlohmann::json::array();
+        for (auto row : result)
+        {
+            response.push_back(mapPetRow(row));
+        }
+
+        return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response UserHandler::createPetProfile(const crow::request &req, int userId)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+        {
+            return res;
+        }
+        auto &body = request_body_opt.value();
+
+        const std::string name = optionalString(body, "name");
+        if (name.empty())
+        {
+            return ResponseHelper::validation(req, "宠物名称不能为空");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("INSERT INTO pets "
+                                             "(user_id, pet_name, pet_type, pet_age, pet_sex, pet_breed, pet_neutered, vaccine_status, preference, notes) "
+                                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                                       .bind(userId)
+                                       .bind(name)
+                                       .bind(optionalString(body, "species"))
+                                       .bind(optionalString(body, "age"))
+                                       .bind(optionalString(body, "gender"))
+                                       .bind(optionalString(body, "breed"))
+                                       .bind(optionalString(body, "neutered"))
+                                       .bind(optionalString(body, "vaccineStatus"))
+                                       .bind(optionalString(body, "preference"))
+                                       .bind(optionalString(body, "notes"))
+                                       .execute();
+
+        const int petId = static_cast<int>(result.getAutoIncrementValue());
+        mysqlx::SqlResult created = dbManager->getSession()
+                                       ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
+                                             "COALESCE(pet_age, ''), COALESCE(pet_sex, ''), COALESCE(pet_breed, ''), "
+                                             "COALESCE(pet_neutered, ''), COALESCE(vaccine_status, ''), "
+                                             "COALESCE(preference, ''), COALESCE(notes, '') "
+                                             "FROM pets WHERE id = ? AND user_id = ?")
+                                       .bind(petId)
+                                       .bind(userId)
+                                       .execute();
+
+        auto row = created.fetchOne();
+        return ResponseHelper::success(req, row ? mapPetRow(row) : nlohmann::json::object());
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response UserHandler::updatePetProfile(const crow::request &req, int userId, int petId)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+        {
+            return res;
+        }
+        auto &body = request_body_opt.value();
+
+        const std::string name = optionalString(body, "name");
+        if (name.empty())
+        {
+            return ResponseHelper::validation(req, "宠物名称不能为空");
+        }
+
+        dbManager->getSession()
+            ->sql("UPDATE pets SET pet_name = ?, pet_type = ?, pet_age = ?, pet_sex = ?, pet_breed = ?, "
+                  "pet_neutered = ?, vaccine_status = ?, preference = ?, notes = ? "
+                  "WHERE id = ? AND user_id = ?")
+            .bind(name)
+            .bind(optionalString(body, "species"))
+            .bind(optionalString(body, "age"))
+            .bind(optionalString(body, "gender"))
+            .bind(optionalString(body, "breed"))
+            .bind(optionalString(body, "neutered"))
+            .bind(optionalString(body, "vaccineStatus"))
+            .bind(optionalString(body, "preference"))
+            .bind(optionalString(body, "notes"))
+            .bind(petId)
+            .bind(userId)
+            .execute();
+
+        mysqlx::SqlResult updated = dbManager->getSession()
+                                      ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
+                                            "COALESCE(pet_age, ''), COALESCE(pet_sex, ''), COALESCE(pet_breed, ''), "
+                                            "COALESCE(pet_neutered, ''), COALESCE(vaccine_status, ''), "
+                                            "COALESCE(preference, ''), COALESCE(notes, '') "
+                                            "FROM pets WHERE id = ? AND user_id = ?")
+                                      .bind(petId)
+                                      .bind(userId)
+                                      .execute();
+
+        auto row = updated.fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::error(req, "宠物档案不存在");
+        }
+
+        return ResponseHelper::success(req, mapPetRow(row));
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response UserHandler::deletePetProfile(const crow::request &req, int userId, int petId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        dbManager->getSession()
+            ->sql("DELETE FROM pets WHERE id = ? AND user_id = ?")
+            .bind(petId)
+            .bind(userId)
+            .execute();
+
+        return ResponseHelper::success(req, "宠物档案已删除");
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
 }
 
 crow::response UserHandler::userLogin(const crow::request &req)
@@ -356,6 +582,10 @@ crow::response UserHandler::userLogin(const crow::request &req)
             }
         }
 
+        const auto stripChinaCountryCode = [](const std::string &value) {
+            return value.rfind("+86", 0) == 0 ? value.substr(3) : value;
+        };
+
         // 检查数据库连接是否存在
         if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
         {
@@ -384,14 +614,16 @@ crow::response UserHandler::userLogin(const crow::request &req)
             }
             else if (!phone.empty())
             {
+                const std::string legacyPhone = stripChinaCountryCode(phone);
                 // 通过phone查询用户
                 result = dbManager->getSession()
                              ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, u.phone, u.email, "
                                    "CAST(u.birthday AS CHAR), u.address_id, u.head_image "
                                    "FROM users AS u "
                                    "LEFT JOIN types AS t ON u.type_id = t.id "
-                                   "WHERE u.phone = ?")
+                                   "WHERE u.phone = ? OR u.phone = ?")
                              .bind(phone)
+                             .bind(legacyPhone)
                              .execute();
             }
             else
@@ -602,7 +834,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
     }
 }
 
-crow::response UserHandler::userUpdate(const crow::request &req)
+crow::response UserHandler::userUpdate(const crow::request &req, int authenticatedUserId)
 {
     try
     {
@@ -750,10 +982,14 @@ crow::response UserHandler::userUpdate(const crow::request &req)
         // 更新用户数据
         else if (
             (request_body.contains("name") ||
+             request_body.contains("password") ||
+             request_body.contains("phone") ||
+             request_body.contains("email") ||
              request_body.contains("birthday") ||
              request_body.contains("address_id") ||
+             request_body.contains("address") ||
              request_body.contains("headImage")) &&
-            (request_body.contains("email") || request_body.contains("phone")))
+            (authenticatedUserId > 0 || request_body.contains("email") || request_body.contains("phone")))
         {
             // 从请求中获取数据并确保它们是字符串类型
             if (request_body.find("name") != request_body.end() && !request_body["name"].is_null())
@@ -894,10 +1130,10 @@ crow::response UserHandler::userUpdate(const crow::request &req)
                 }
             }
 
-            // 检查是否提供了email,phone，这是必须的字段
-            if (email.empty() || phone.empty())
+            // 未登录的兼容更新请求必须提供至少一种身份标识；登录后优先使用 token 中的用户 ID。
+            if (authenticatedUserId <= 0 && email.empty() && phone.empty())
             {
-                return ResponseHelper::error(req, "Email and phone are required for user update");
+                return ResponseHelper::error(req, "Email or phone is required for user update");
             }
 
             // 从数据库中获取用户信息
@@ -905,8 +1141,16 @@ crow::response UserHandler::userUpdate(const crow::request &req)
             {
                 mysqlx::SqlResult result;
 
+                if (authenticatedUserId > 0)
+                {
+                    result = dbManager->getSession()
+                                 ->sql("SELECT id, name, password, phone, email, CAST(birthday AS CHAR), address_id, head_image "
+                                       "FROM users WHERE id = ?")
+                                 .bind(authenticatedUserId)
+                                 .execute();
+                }
                 // 直接通过email查询用户，而不是获取所有用户
-                if (!email.empty())
+                else if (!email.empty())
                 {
                     // 通过email查询用户
                     result = dbManager->getSession()

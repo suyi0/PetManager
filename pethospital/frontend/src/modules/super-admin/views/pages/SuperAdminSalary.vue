@@ -265,7 +265,7 @@ import {
   watch,
 } from "vue";
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import { superAdminApi } from "../../api/superAdminApi";
 import { SalaryEmployeeRow } from "../../api/types";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";

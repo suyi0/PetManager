@@ -12,6 +12,8 @@ export interface DoctorStat {
  */
 export interface QueueItem {
   id: number;
+  ownerId?: number;
+  petId?: number;
   petName: string;
   ownerName: string;
   symptom: string;
@@ -41,12 +43,45 @@ export interface ReservationItem {
  */
 export interface OrderRecordItem {
   id: string;
+  petId?: string;
   petName: string;
   ownerName: string;
+  doctorName?: string;
   createdAt: string;
-  medicineCount: number;
+  medicineCount?: number;
+  medicines?: OrderMedicineItem[];
+  orderMedicines?: unknown[];
   totalFee: number;
-  status: "待付款" | "已完成" | "已取消";
+  status: "待付款" | "已付款" | "已取消" | "已退款" | "部分退款";
+}
+
+/**
+ * 医生端创建订单记录时提交给后端的数据结构。
+ */
+export interface CreateOrderRecordPayload {
+  ownerId: number;
+  petId: number;
+  orderType: string;
+  orderData: string;
+  orderTotalPrice: number;
+  orderMedicines: Array<{
+    medicineId: number;
+    medicineName: string;
+    quantity: number;
+    price: number;
+    totalPrice: number;
+  }>;
+}
+
+/**
+ * 订单详情项数据类型定义，包含订单记录的基本信息以及诊断结果和备注等详细信息
+ */
+export interface OrderDetailItem extends OrderRecordItem {
+  doctorName: string;
+  symptom: string;
+  diagnosis: string;
+  remark: string;
+  medicines: OrderMedicineItem[];
 }
 
 /**
@@ -88,36 +123,12 @@ export interface DoctorDutyStatus {
 /**
  * 医生订单中药品项数据类型定义
  */
-export interface DoctorOrderMedicineItem {
+export interface OrderMedicineItem {
   id: number;
   name: string;
   dosage: string;
   quantity: number;
   price: number;
-}
-
-/**
- * 医生订单数据类型定义
- */
-export interface DoctorOrderSummaryItem {
-  id: string;
-  petId: string;
-  ownerName: string;
-  petName: string;
-  createdAt: string;
-  totalFee: number;
-  status: "待付款" | "已完成" | "已取消";
-}
-
-/**
- * 医生订单详情数据类型定义，包含订单的基本信息和药品列表
- */
-export interface DoctorOrderDetailItem extends DoctorOrderSummaryItem {
-  doctorName: string;
-  symptom: string;
-  diagnosis: string;
-  remark: string;
-  medicines: DoctorOrderMedicineItem[];
 }
 
 /**
@@ -147,7 +158,7 @@ export interface DoctorUserProfile {
   balance: number; // 账户余额
   note: string; // 备注信息
   pets: DoctorPetProfile[]; // 宠物档案列表
-  orders: DoctorOrderDetailItem[]; // 订单详情列表
+  orders: OrderDetailItem[]; // 订单详情列表
 }
 
 export interface DoctorDataItem {

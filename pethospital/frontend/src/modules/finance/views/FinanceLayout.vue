@@ -6,6 +6,14 @@
       <nav>
         <RouterLink :to="`${routePrefix}/salary`">工资管理</RouterLink>
       </nav>
+      <button
+        v-if="showBossReturn"
+        type="button"
+        class="boss-return"
+        @click="returnToBossPortal"
+      >
+        返回总裁端
+      </button>
     </aside>
 
     <main class="content">
@@ -21,21 +29,22 @@
 
 <script lang="ts">
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { isFinancePortalRole } from "@/core/auth/utils/roleUtils";
 import {
   startFinanceSessionGuard,
   stopFinanceSessionGuard,
 } from "@/modules/finance/utils/financeSessionGuard";
+import { useBossPortalReturn } from "@/core/auth/utils/bossPortalReturn";
 
 export default defineComponent({
   name: "FinanceLayout",
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const route = useRoute();
+    const { showBossReturn, returnToBossPortal } = useBossPortalReturn(router);
 
     onMounted(() => {
       startFinanceSessionGuard(store, router);
@@ -51,11 +60,7 @@ export default defineComponent({
       void store.dispatch("auth/logout");
     };
 
-    const routePrefix = computed(() =>
-      route.path.startsWith("/preview/finance")
-        ? "/preview/finance"
-        : "/finance"
-    );
+    const routePrefix = computed(() => "/finance");
 
     const currentRoleLabel = computed(() => {
       const activeRole = store.state.auth.userRole;
@@ -68,6 +73,8 @@ export default defineComponent({
       logout,
       routePrefix,
       currentRoleLabel,
+      showBossReturn,
+      returnToBossPortal,
     };
   },
 });
@@ -151,6 +158,27 @@ nav a.router-link-active {
   background: linear-gradient(135deg, #eaf7ff 0%, #eff6ff 100%);
   color: #1c4f91;
   border-color: rgba(73, 125, 214, 0.26);
+}
+
+.boss-return {
+  margin-top: auto;
+  min-height: 56px;
+  padding: 0 20px;
+  border: 1px solid rgba(73, 125, 214, 0.24);
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fff7e8 0%, #eaf8ff 100%);
+  color: #1c4f91;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+  box-shadow: 0 16px 30px rgba(69, 106, 178, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.boss-return:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 34px rgba(69, 106, 178, 0.12);
 }
 
 .content {

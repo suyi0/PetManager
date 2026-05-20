@@ -6,12 +6,17 @@ namespace RoleTypeUtils
 {
 namespace
 {
-const std::array<std::string, 5> kManagementRoles = {
+const std::array<std::string, 6> kManagementRoles = {
     "总裁",
     "副总裁",
     "财务总监",
+    "财务经理",
     "部门经理",
     "超级管理员"};
+
+const std::array<std::string, 2> kBossRoles = {
+    "总裁",
+    "副总裁"};
 
 const std::array<std::string, 1> kPersonnelRoles = {
     "人事经理"};
@@ -113,6 +118,11 @@ bool isManagementRole(const std::string &roleName)
     return std::find(kManagementRoles.begin(), kManagementRoles.end(), roleName) != kManagementRoles.end();
 }
 
+bool isBossRole(const std::string &roleName)
+{
+    return std::find(kBossRoles.begin(), kBossRoles.end(), roleName) != kBossRoles.end();
+}
+
 bool isNormalUserRole(const std::string &roleName)
 {
     return std::find(kNormalUserRoles.begin(), kNormalUserRoles.end(), roleName) != kNormalUserRoles.end();
@@ -123,6 +133,13 @@ bool userHasManagementRole(
     int userId)
 {
     return isManagementRole(getUserRoleName(dbManager, userId));
+}
+
+bool userHasBossRole(
+    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+    int userId)
+{
+    return isBossRole(getUserRoleName(dbManager, userId));
 }
 
 bool isPersonnelRole(const std::string &roleName)

@@ -1,8 +1,13 @@
 import { ActionContext, ActionTree } from "vuex";
 import { authApi } from "@/core/auth/api/authApi";
-import { profileApi } from "@/modules/user/api/userApi";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
-import { State } from "@/store/types";
+import { State } from "@/app/store/types";
+import { clearBossDataCache } from "@/modules/boss/utils/bossDataCache";
+import { clearDoctorDataCache } from "@/modules/doctor/utils/doctorDataCache";
+import { clearPersonnelDataCache } from "@/modules/personnel/utils/personnelDataCache";
+import { clearSuperAdminDataCache } from "@/modules/super-admin/utils/superAdminDataCache";
+import { clearUserPortalDataCache } from "@/modules/user/utils/userPortalDataCache";
+import { clearWarehouseAdminDataCache } from "@/modules/warehouse-admin/utils/warehouseAdminDataCache";
 import { AuthState } from "./types";
 
 // 定义一个异步函数类型
@@ -141,24 +146,17 @@ export const authActions: ActionTree<AuthState, State> = {
       });
   }, 300),
 
-  logout({ commit, state, rootState }: AuthActionContext) {
-    if (state.isLoggedIn) {
-      profileApi
-        .saveUserData({
-          name: rootState.currentUser.userName || "",
-          phone: rootState.currentUser.userPhone || "",
-          email: rootState.currentUser.userEmail || "",
-          birthday: rootState.currentUser.userBirthday || "",
-          address: rootState.currentUser.userAddress || "",
-          headImage: rootState.currentUser.userHeadImage || "",
-        })
-        .catch((error: unknown) => {
-          console.error("Failed to save user data before logout:", error);
-        });
-    }
-
+  logout({ commit }: AuthActionContext) {
+    clearBossDataCache();
+    clearDoctorDataCache();
+    clearPersonnelDataCache();
+    clearSuperAdminDataCache();
+    clearUserPortalDataCache();
+    clearWarehouseAdminDataCache();
     commit("currentUser/clearCurrentUser", undefined, { root: true });
+    commit("boss/resetState", undefined, { root: true });
     commit("doctor/resetState", undefined, { root: true });
+    commit("personnel/resetState", undefined, { root: true });
     commit("superAdmin/resetState", undefined, { root: true });
     commit("userPortal/resetState", undefined, { root: true });
     commit("warehouseAdmin/resetState", undefined, { root: true });

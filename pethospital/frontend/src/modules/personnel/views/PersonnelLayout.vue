@@ -2,10 +2,18 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="sidebar-head">{{ currentRoleLabel }}</div>
-      <div class="sidebar-logo"></div>
+      <div class="sidebar-logo"><h1>logo</h1></div>
       <nav>
         <RouterLink :to="`${routePrefix}/access`">权限授予</RouterLink>
       </nav>
+      <button
+        v-if="showBossReturn"
+        type="button"
+        class="boss-return"
+        @click="returnToBossPortal"
+      >
+        返回总裁端
+      </button>
     </aside>
 
     <main class="content">
@@ -21,25 +29,26 @@
 
 <script lang="ts">
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import { isPersonnelPortalRole } from "@/core/auth/utils/roleUtils";
 import {
   startPersonnelSessionGuard,
   stopPersonnelSessionGuard,
 } from "@/modules/personnel/utils/personnelSessionGuard";
+import { useBossPortalReturn } from "@/core/auth/utils/bossPortalReturn";
 
 export default defineComponent({
   name: "PersonnelLayout",
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const route = useRoute();
+    const { showBossReturn, returnToBossPortal } = useBossPortalReturn(router);
 
     onMounted(() => {
       startPersonnelSessionGuard(store, router);
-      void store.dispatch("personnel/ensureUsers");
+      void store.dispatch("personnel/refreshUsers");
     });
 
     onBeforeUnmount(() => {
@@ -51,11 +60,7 @@ export default defineComponent({
       void store.dispatch("auth/logout");
     };
 
-    const routePrefix = computed(() =>
-      route.path.startsWith("/preview/personnel")
-        ? "/preview/personnel"
-        : "/personnel"
-    );
+    const routePrefix = computed(() => "/personnel");
 
     const currentRoleLabel = computed(() => {
       const activeRole = store.state.auth.userRole;
@@ -68,6 +73,8 @@ export default defineComponent({
       logout,
       routePrefix,
       currentRoleLabel,
+      showBossReturn,
+      returnToBossPortal,
     };
   },
 });
@@ -125,6 +132,9 @@ export default defineComponent({
     rgba(77, 188, 197, 0.06)
   );
   border: 1px solid rgba(116, 154, 222, 0.18);
+  h1 {
+    text-align: center;
+  }
 }
 
 nav {
@@ -151,6 +161,27 @@ nav a.router-link-active {
   background: linear-gradient(135deg, #eefaff 0%, #f1fbff 100%);
   color: #1c4f91;
   border-color: rgba(73, 125, 214, 0.26);
+}
+
+.boss-return {
+  margin-top: auto;
+  min-height: 56px;
+  padding: 0 20px;
+  border: 1px solid rgba(73, 125, 214, 0.24);
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fff7e8 0%, #eaf8ff 100%);
+  color: #1c4f91;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+  box-shadow: 0 16px 30px rgba(69, 106, 178, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.boss-return:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 34px rgba(69, 106, 178, 0.12);
 }
 
 .content {

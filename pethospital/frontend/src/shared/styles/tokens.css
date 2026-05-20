@@ -1,0 +1,14 @@
+:root {
+  --pm-mobile-breakpoint: 768px;
+  --pm-mobile-page-padding: 16px;
+  --pm-mobile-header-height: 48px;
+  --pm-mobile-tabbar-height: 58px;
+  --pm-touch-target-min: 44px;
+
+  --pm-color-page: #f6faf9;
+  --pm-color-surface: #ffffff;
+  --pm-color-text: #18373a;
+  --pm-color-muted: #6d8588;
+  --pm-color-border: rgba(107, 140, 144, 0.22);
+  --pm-color-primary: #245c61;
+}

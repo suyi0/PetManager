@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   userAddress: "user_address",
   userHeadImage: "user_head_image",
   adminPortalBridge: "admin_portal_bridge",
+  bossPortalReturn: "boss_portal_return",
 } as const;
 
 // 存储认证相关信息数组
@@ -97,6 +98,10 @@ type AdminPortalBridge = {
   userHeadImage?: string;
 };
 
+type BossPortalReturn = {
+  returnTo: string;
+};
+
 // 解析 token 返回对象
 const parseTokenPayload = (token: string): Record<string, unknown> | null => {
   try {
@@ -108,8 +113,13 @@ const parseTokenPayload = (token: string): Record<string, unknown> | null => {
 
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
 
-    return JSON.parse(atob(padded)) as Record<string, unknown>;
+    return JSON.parse(new TextDecoder().decode(bytes)) as Record<
+      string,
+      unknown
+    >;
   } catch {
     return null;
   }
@@ -177,6 +187,7 @@ export const authStorage = {
     clearKeysFromStorage(localStorage, AUTH_STORAGE_KEYS);
     clearKeysFromStorage(sessionStorage, AUTH_STORAGE_KEYS);
     localStorage.removeItem(STORAGE_KEYS.adminPortalBridge);
+    sessionStorage.removeItem(STORAGE_KEYS.bossPortalReturn);
   },
 
   // 从持久化存储加载用户信息
@@ -379,5 +390,30 @@ export const authStorage = {
 
   clearAdminPortalBridge() {
     localStorage.removeItem(STORAGE_KEYS.adminPortalBridge);
+  },
+
+  loadBossPortalReturn(): BossPortalReturn | null {
+    const raw = sessionStorage.getItem(STORAGE_KEYS.bossPortalReturn);
+
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw) as BossPortalReturn;
+    } catch {
+      return null;
+    }
+  },
+
+  saveBossPortalReturn(payload: BossPortalReturn) {
+    sessionStorage.setItem(
+      STORAGE_KEYS.bossPortalReturn,
+      JSON.stringify(payload)
+    );
+  },
+
+  clearBossPortalReturn() {
+    sessionStorage.removeItem(STORAGE_KEYS.bossPortalReturn);
   },
 };

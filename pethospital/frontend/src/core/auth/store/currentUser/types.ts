@@ -1,4 +1,4 @@
-import { CacheMeta } from "@/store/types";
+import { CacheMeta } from "@/app/store/types";
 
 export interface CurrentUserState {
   userName: string | null;

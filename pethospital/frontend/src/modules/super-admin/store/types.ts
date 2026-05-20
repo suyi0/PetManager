@@ -6,7 +6,7 @@ import {
   UserRow,
   WorkTimeRecord,
 } from "../api/types";
-import { CacheMeta } from "@/store/types";
+import { CacheMeta } from "@/app/store/types";
 
 /**
  * 日志页需要同时缓存用户日志和系统日志，这里统一成一个对象。

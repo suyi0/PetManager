@@ -36,6 +36,15 @@ void migratePhones(DatabaseManagerInterface &database_manager)
     std::cout << "phones.phone_lastfour already exists." << std::endl;
 }
 
+void migratePets(DatabaseManagerInterface &database_manager)
+{
+    Common::addColumnIfNotExists(database_manager, "pets", "pet_breed", "VARCHAR(255)");
+    Common::addColumnIfNotExists(database_manager, "pets", "pet_neutered", "VARCHAR(255)");
+    Common::addColumnIfNotExists(database_manager, "pets", "vaccine_status", "VARCHAR(255)");
+    Common::addColumnIfNotExists(database_manager, "pets", "preference", "TEXT");
+    Common::addColumnIfNotExists(database_manager, "pets", "notes", "TEXT");
+}
+
 void migrateWarehouse(DatabaseManagerInterface &database_manager)
 {
     if (!shouldAutoMigrateLegacyColumns())

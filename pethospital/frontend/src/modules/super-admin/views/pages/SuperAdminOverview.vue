@@ -47,9 +47,9 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted } from "vue";
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import StatCard from "../../components/StatCard.vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 
 export default defineComponent({
   name: "SuperAdminOverview",
@@ -57,7 +57,6 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const route = useRoute();
     const summary = computed(() => store.state.superAdmin.homePageData);
     const userCount = computed(() => summary.value.userCount);
     const onlineCount = computed(() => summary.value.onlineDoctorCount);
@@ -74,11 +73,7 @@ export default defineComponent({
       formatCurrency(summary.value.profitCount)
     );
 
-    const routePrefix = computed(() =>
-      route.path.startsWith("/preview/super-admin")
-        ? "/preview/super-admin"
-        : "/super-admin"
-    );
+    const routePrefix = computed(() => "/super-admin");
 
     const toUsersPage = () => router.push(`${routePrefix.value}/users`);
     const toOnlineDoctorsPage = () =>

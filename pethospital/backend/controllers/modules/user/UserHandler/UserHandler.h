@@ -23,11 +23,19 @@ public:
 
     crow::response userLogin(const crow::request& req); //  对应 登录 "/api/user/login"
     
-    crow::response userUpdate(const crow::request& req); // 对应 更新信息 "/api/user/form"
+    crow::response userUpdate(const crow::request& req, int authenticatedUserId = -1); // 对应 更新信息 "/api/user/form"
     
     crow::response userUploadAvatar(const crow::request& req); // 对应 上传头像 "/api/user/upload/avatar"
 
     crow::response upload(const crow::request& req, const std::string& filename); // 对应 上传 "/uploads/<string>"
+
+    crow::response getPetProfiles(const crow::request& req, int userId);
+
+    crow::response createPetProfile(const crow::request& req, int userId);
+
+    crow::response updatePetProfile(const crow::request& req, int userId, int petId);
+
+    crow::response deletePetProfile(const crow::request& req, int userId, int petId);
 
     nlohmann::json getUserData(const int &id);  // 对应 获取用户数据
 

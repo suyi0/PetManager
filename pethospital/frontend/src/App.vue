@@ -1,17 +1,10 @@
 <template>
   <div
     class="app-container"
-    :class="{ 'app-container--workspace': isLoggedIn || isPreviewRoute }"
+    :class="{ 'app-container--workspace': isLoggedIn }"
   >
     <div v-if="!isLoggedIn" class="guest-shell">
-      <div v-if="!showRegister && !isPreviewRoute" class="preview-entrybar">
-        <button @click="previewUserRouter">用户端预览</button>
-        <button @click="previewDoctorRouter">医生端预览</button>
-        <button @click="previewBossRouter">Boss预览</button>
-        <button @click="previewAdminRouter">超管预览</button>
-        <button @click="previewWarehouseRouter">仓库预览</button>
-      </div>
-      <div v-if="!showRegister && !isPreviewRoute" class="login-div">
+      <div v-if="!showRegister" class="login-div">
         <section class="brand-panel">
           <div class="brand-panel__content">
             <div class="brand-panel__eyebrow">
@@ -34,7 +27,7 @@
         </section>
       </div>
       <!-- 注册路由 -->
-      <div v-else-if="showRegister || isPreviewRoute" class="register-div">
+      <div v-else class="register-div">
         <router-view></router-view>
       </div>
     </div>
@@ -49,34 +42,15 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { useStore } from "vuex";
-import { storeKey } from "@/store/appStore";
+import { storeKey } from "@/app/store";
 import Login from "./views/LoginPage.vue";
-import router from "./router";
+import router from "@/app/router";
 import { getHomeRouteByUserType } from "@/core/auth/utils/authRedirect";
-import { useRoute } from "vue-router";
 
 const store = useStore(storeKey);
-const route = useRoute();
 
 const isLoggedIn = computed(() => store.state.auth.isLoggedIn);
 const showRegister = computed(() => store.state.ui.showRegister);
-const isPreviewRoute = computed(() => route.path.startsWith("/preview/"));
-
-function previewUserRouter() {
-  router.push("/preview/user/home");
-}
-function previewDoctorRouter() {
-  router.push("/preview/doctor/home");
-}
-function previewBossRouter() {
-  router.push("/preview/boss/overview");
-}
-function previewWarehouseRouter() {
-  router.push("/preview/warehouse-admin/dashboard");
-}
-function previewAdminRouter() {
-  router.push("/preview/super-admin/overview");
-}
 
 onMounted(() => {
   if (isLoggedIn.value) {
@@ -118,34 +92,12 @@ onMounted(() => {
   justify-content: flex-start;
 }
 
-.preview-entrybar {
-  position: absolute;
-  top: 22px;
-  left: 50%;
-  z-index: 10;
-  display: flex;
-  gap: 10px;
-  transform: translateX(-50%);
-  padding: 10px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 18px 50px rgba(39, 86, 150, 0.12);
-  backdrop-filter: blur(12px);
-}
-
-.preview-entrybar button {
-  border: 1px solid rgba(30, 94, 255, 0.15);
-  border-radius: 12px;
-  padding: 10px 14px;
-  background: linear-gradient(135deg, #eef5ff, #ffffff);
-  color: #1e4d88;
-  font-weight: 700;
-  cursor: pointer;
-}
-
 .login-div {
   box-sizing: border-box;
   display: grid;
+  position: absolute;
+  top: 6vh;
+  left: 6vw;
   grid-template-columns: minmax(320px, 0.92fr) minmax(420px, 1fr);
   align-items: center;
   width: min(1360px, calc(100vw - 88px));
