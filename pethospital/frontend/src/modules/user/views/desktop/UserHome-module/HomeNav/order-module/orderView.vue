@@ -134,7 +134,7 @@
               <div class="order-item__meta">
                 <div class="order-item_meta-Introduction">
                   <small>简介</small>
-                  <span>{{}}</span>
+                  <span>{{ getItemDescription(item) }}</span>
                 </div>
                 <div>
                   <small>时间</small>
@@ -142,7 +142,7 @@
                 </div>
                 <div>
                   <small>价格</small>
-                  <span>{{ formatPrice(item.price) }}</span>
+                  <span>{{ formatPrice(getItemPrice(item)) }}</span>
                 </div>
                 <div class="order-item__tag">
                   {{ activeTab === "order" ? "查看订单详情" : "查看预约详情" }}
@@ -178,13 +178,24 @@ import { useRoute, useRouter } from "vue-router";
 
 type SearchableOrderItem = {
   id: number;
-  name?: string;
+  user_id?: number;
+  user_name?: string;
+  phone?: string;
+  doctor_id?: number;
+  doctor_name?: string;
+  pet_id?: number;
   pet_name?: string;
-  time?: number;
-  price?: number;
+  reservation_type?: string;
   date?: string;
   time_slot?: string;
+  schedule?: string;
+  status?: string;
+  price?: number;
   created_at?: string;
+  order_type?: string;
+  order_data?: string;
+  order_status?: string;
+  order_totalprice?: number;
 };
 
 type SortKey = "time" | "price";
@@ -212,7 +223,7 @@ const basePath = computed(() => "/user");
  * 订单页与预约记录页都直接复用用户端缓存，避免来回切页时重复拉取。
  */
 const orders = computed<SearchableOrderItem[]>(
-  () => store.state.userPortal.orderRecords
+  () => store.state.userPortal.orderSummaries
 );
 const reservationOrder = computed<SearchableOrderItem[]>(
   () => store.state.userPortal.reservationRecords
@@ -230,9 +241,13 @@ const visibleItems = computed(() => {
 
   return [...rows].sort((a, b) => {
     const left =
-      sortKey.value === "price" ? a.price || 0 : getItemSortTimeValue(a);
+      sortKey.value === "price"
+        ? getItemPrice(a) || 0
+        : getItemSortTimeValue(a);
     const right =
-      sortKey.value === "price" ? b.price || 0 : getItemSortTimeValue(b);
+      sortKey.value === "price"
+        ? getItemPrice(b) || 0
+        : getItemSortTimeValue(b);
     return sortDirection.value === "asc" ? left - right : right - left;
   });
 });
@@ -255,7 +270,7 @@ const confirmSearch = () => {
   const keyword = searchQuery.value.trim();
   if (keyword) {
     const existingIndex = historyOrders.value.findIndex(
-      (item) => item.name === keyword
+      (item) => getItemDisplayName(item) === keyword
     );
 
     if (existingIndex !== -1) {
@@ -264,7 +279,7 @@ const confirmSearch = () => {
     } else {
       historyOrders.value.unshift({
         id: Date.now(),
-        name: keyword,
+        pet_name: keyword,
       });
 
       if (historyOrders.value.length > MAX_HISTORY_COUNT) {
@@ -370,7 +385,7 @@ const deleteSelected = async () => {
 
   if (activeTab.value === "order") {
     await store.dispatch(
-      "userPortal/saveOrderRecords",
+      "userPortal/saveOrderSummaries",
       orders.value.filter((item) => !selectedIds.includes(item.id))
     );
   } else {
@@ -410,28 +425,44 @@ const goToDetail = (item: SearchableOrderItem) => {
 const formatPrice = (value?: number) =>
   typeof value === "number" ? `¥ ${value.toFixed(2)}` : "待结算";
 
+const getItemPrice = (item: SearchableOrderItem) =>
+  typeof item.order_totalprice === "number"
+    ? item.order_totalprice
+    : item.price;
+
 const getItemDisplayName = (item: SearchableOrderItem) =>
-  item.pet_name || item.name || "预约记录";
+  item.pet_name || item.user_name || "预约记录";
+
+const getItemDescription = (item: SearchableOrderItem) => {
+  if (activeTab.value === "reservation") {
+    return item.reservation_type || "预约记录";
+  }
+
+  return [item.order_type || "普通诊单", item.doctor_name]
+    .filter(Boolean)
+    .join(" · ");
+};
 
 const getItemSortTimeValue = (item: SearchableOrderItem) => {
   if (activeTab.value === "reservation") {
-    const reservationTime = [item.date, item.time_slot]
-      .filter(Boolean)
-      .join(" ");
+    const reservationTime =
+      item.schedule || [item.date, item.time_slot].filter(Boolean).join(" ");
     const timestamp = new Date(
       reservationTime || item.created_at || ""
     ).getTime();
     return Number.isNaN(timestamp) ? 0 : timestamp;
   }
 
-  return item.time || 0;
+  const timestamp = new Date(
+    item.order_data || item.created_at || ""
+  ).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 };
 
 const formatTimeValue = (item: SearchableOrderItem) => {
   if (activeTab.value === "reservation") {
-    const reservationTime = [item.date, item.time_slot]
-      .filter(Boolean)
-      .join(" ");
+    const reservationTime =
+      item.schedule || [item.date, item.time_slot].filter(Boolean).join(" ");
 
     if (reservationTime) {
       return reservationTime;
@@ -442,15 +473,11 @@ const formatTimeValue = (item: SearchableOrderItem) => {
     }
   }
 
-  if (typeof item.time !== "number") return "待同步";
-  const date = new Date(item.time);
-  if (Number.isNaN(date.getTime())) return String(item.time);
-  return date.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  if (item.order_data || item.created_at) {
+    return item.order_data || item.created_at || "待同步";
+  }
+
+  return "待同步";
 };
 
 onMounted(() => {

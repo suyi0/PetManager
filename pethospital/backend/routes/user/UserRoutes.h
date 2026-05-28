@@ -1,8 +1,10 @@
 #pragma once
 
 
-#include "../../controllers/modules/user/UserHandler/UserHandler.h"
+#include "../../controllers/modules/user/userHandler/userHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../controllers/common/orderCommon/orderCommonHandler.h"
+#include "../../controllers/common/reservationCommon/reservationCommonHandler.h"
 
 class UserRoutes
 {

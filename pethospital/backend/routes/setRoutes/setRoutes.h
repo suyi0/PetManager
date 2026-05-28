@@ -18,8 +18,6 @@
 #include "../../utils/Utils.h"
 #include "../../controllers/auth/Verification/Verification.h"
 #include "../user/UserRoutes.h"
-#include "../orderRoutes/OrderRoutes.h"
-#include "../reservationRoutes/ReservationRoutes.h"
 #include "../doctorRoutes/doctorRoutes.h"
 #include "../warehouseManagerRoutes/warehouseManagerRoutes.h"
 #include "../authRoutes/authRoutes.h"

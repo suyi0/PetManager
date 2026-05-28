@@ -260,7 +260,7 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         payload_json["iat"] = now; // 签发时间
         if (RoleTypeUtils::isManagementRole(type_name))
         {
-            payload_json["exp"] = now + 300; // 管理门户角色的JWT五分钟后过期
+            payload_json["exp"] = now + 1800; // 管理门户角色的JWT三十分钟后过期
         }
         else
         {
@@ -409,11 +409,11 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
         }
 
         // 需要执行SQL查询：
-        // SELECT user_id FROM orders WHERE id = orderId
-        // 然后比较查询结果中的user_id是否等于传入的userId
+        // SELECT owner_id FROM orders WHERE id = orderId
+        // 然后比较查询结果中的owner_id是否等于传入的userId
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT user_id FROM orders WHERE id = ?")
+                                       ->sql("SELECT owner_id FROM orders WHERE id = ?")
                                        .bind(orderId)
                                        .execute();
 

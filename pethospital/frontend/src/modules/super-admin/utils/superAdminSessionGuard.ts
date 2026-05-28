@@ -5,8 +5,8 @@ import { authStorage } from "@/core/auth/utils/authStorage";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import type { State } from "@/app/store";
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 空闲超时时间
-const REFRESH_THRESHOLD_MS = 2 * 60 * 1000; // 刷新阀值时间
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 空闲超时时间
+const REFRESH_THRESHOLD_MS = 5 * 60 * 1000; // 刷新阀值时间
 const CHECK_INTERVAL_MS = 15 * 1000; // 检查间隔时间
 
 // 监听的事件

@@ -202,7 +202,6 @@
         aria-labelledby="reservation-success-title"
       >
         <div class="success-card">
-          <span class="success-card__eyebrow">Reservation Confirmed</span>
           <h3 id="reservation-success-title">预约成功</h3>
           <div class="success-card__details">
             <div class="success-card__detail-row">
@@ -213,6 +212,14 @@
               <div>
                 <span>预约宠物</span>
                 <strong>{{ selectedPetName }}</strong>
+              </div>
+            </div>
+            <div>
+              <span>预约医生</span>
+              <strong>{{ selectedDoctorName }}</strong>
+              <div class="success-card__detail-sign">
+                <span>预约类型</span>
+                <strong>{{ selectedServiceType }}</strong>
               </div>
             </div>
             <div>
@@ -233,8 +240,7 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { reservationApi } from "@/modules/user/api/userApi";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
-import { ReservationScheduleState } from "@/modules/user/api/types";
-import { PetProfile } from "@/modules/user/store/types";
+import { ReservationScheduleState, PetProfile } from "@/modules/user/api/types";
 
 const store = useStore(storeKey);
 
@@ -242,6 +248,7 @@ const props = defineProps<{
   activeTab: string;
   doctorData: DoctorDataItem[];
   petProfiles: PetProfile[];
+  serviceType: string;
   scheduleData: Omit<ReservationScheduleState, "doctorData">;
   switchTab(_tab: string): void;
 }>();
@@ -269,6 +276,10 @@ type SlotItem = {
   key: string;
   value: string;
 };
+
+const serviceType = computed<string>(() =>
+  props.serviceType != null ? String(props.serviceType) : ""
+);
 
 const doctorData = computed<Doctor[]>(() =>
   Array.isArray(props.doctorData) ? props.doctorData.filter(Boolean) : []
@@ -309,12 +320,15 @@ const upYear = ref("");
 const upMonth = ref("");
 const upDay = ref("");
 const upSlot = ref("");
-const submitAfter = ref(true);
+const submitAfter = ref(false);
 const openSelectPetModal = ref(false);
 const selectedPetId = ref("");
 
 const petProfiles = computed(() => props.petProfiles || []);
 
+/**
+ * 获取选中的宠物名称
+ */
 const selectedPetName = computed(() => {
   const target = petProfiles.value.find(
     (pet) => pet.id === selectedPetId.value
@@ -322,10 +336,18 @@ const selectedPetName = computed(() => {
   return target?.name || "";
 });
 
+/**
+ * 获取选中的日期数据
+ */
 const selectedDate = computed(
   () => availableDates.value.find((item) => item.key === dateTab.value) || null
 );
 
+/**
+ * 获取时间段的开始时间
+ * @param slot 时间段字符串，格式示例："9:00-9:30"
+ * @returns 开始时间字符串，格式示例："09:00"
+ */
 const getSlotStartTime = (slot: string) => {
   const matched = slot.match(/\d{1,2}:\d{2}/)?.[0] ?? "";
   const [hour = "", minute = ""] = matched.split(":");
@@ -333,6 +355,9 @@ const getSlotStartTime = (slot: string) => {
   return `${hour.padStart(2, "0")}:${minute}`;
 };
 
+/**
+ * 获取当前选中天数的上午时间段
+ */
 const selectedMorningDate = computed(() => {
   const currentDate = availableDates.value.find(
     (item) => item.key === dateTab.value
@@ -346,6 +371,9 @@ const selectedMorningDate = computed(() => {
   return null;
 });
 
+/**
+ * 获取当前选中天数的下午时间段
+ */
 const selectedAfternoonDate = computed(() => {
   const currentDate = availableDates.value.find(
     (item) => item.key === dateTab.value
@@ -359,6 +387,9 @@ const selectedAfternoonDate = computed(() => {
   return null;
 });
 
+/**
+ * 获取当前选中的医生名称
+ */
 const selectedDoctorName = computed(() => {
   const target = doctorData.value.find(
     (doctor) => doctor.id === upDoctorId.value
@@ -366,14 +397,28 @@ const selectedDoctorName = computed(() => {
   return target?.name || "未选择";
 });
 
+/**
+ * 获取当前选中的服务类型
+ */
+const selectedServiceType = computed(() => {
+  const target = serviceType.value;
+  return target || "未选择";
+});
+
+/**
+ * 获取当前用户名称
+ */
 const reservationUserName = computed(
   () =>
-    store.state.currentUser.userName ||
+    store.getters["auth/formattedUserName"] ||
     store.state.currentUser.userEmail ||
     store.state.currentUser.userPhone ||
     "当前用户"
 );
 
+/**
+ * 获取当前用户预约的日期文本
+ */
 const reservationDateText = computed(() => {
   if (!upYear.value || !upMonth.value || !upDay.value) {
     return "";
@@ -498,6 +543,7 @@ async function submit() {
       email: store.state.currentUser.userEmail,
       doctorId: upDoctorId.value,
       petId,
+      reservationType: selectedServiceType.value,
       date: `${upYear.value}-${upMonth.value}-${upDay.value}`,
       slot: upSlot.value,
     });
@@ -516,8 +562,6 @@ async function submit() {
         day: upDay.value,
         slot: upSlot.value,
       });
-      upDoctorId.value = 0;
-      choiceActive.value = "";
     }
   } catch (error) {
     console.error("预约提交失败:", error);
@@ -526,6 +570,8 @@ async function submit() {
 
 function removeSubmitAfter() {
   submitAfter.value = false;
+  upDoctorId.value = 0;
+  choiceActive.value = "";
   props.switchTab("reservation");
 }
 
@@ -652,7 +698,10 @@ watch(
 .empty-state strong,
 .slot-group h4,
 .success-card h3 {
-  color: #163f42;
+  background: linear-gradient(135deg, #21928b, #8fbf88);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .doctor-card strong {
@@ -855,6 +904,7 @@ watch(
   border: 1px solid rgba(21, 91, 92, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.68);
+  text-align: center;
 }
 
 .success-card__details > .success-card__detail-row {
@@ -862,6 +912,30 @@ watch(
   text-align: center;
   border: none;
   background: rgba(255, 255, 255, 0);
+  padding: 0;
+}
+
+.success-card__details .success-card__detail-sign {
+  position: absolute;
+  top: 106px;
+  right: 530px;
+  border: none;
+  background: rgba(255, 255, 255, 0);
+  padding: 12px;
+
+  span {
+    background: linear-gradient(135deg, #6a96c5, #f87e7e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  strong {
+    background: linear-gradient(135deg, #6a96c5, #f87e7e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
 
 .success-card__details span {

@@ -1,25 +1,43 @@
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 
-export interface OrderRecordItem {
+export interface PetProfile {
+  id: string;
+  name: string;
+  species: string;
+  breed: string;
+  age: string;
+  gender: string;
+  neutered: string;
+  vaccineStatus: string;
+  preference: string;
+  notes: string;
+}
+
+export interface ReservationSummary {
   id: number;
-  name?: string;
-  time?: number;
-  price?: number;
-  user_id?: number;
-  doctor_id?: number;
-  pet_id?: number;
-  pet_name?: string;
-  date?: string;
-  time_slot?: string;
-  status?: string;
-  created_at?: string;
+  doctor_name: string;
+  pet_name: string;
+  reservation_type: string;
+  date: string;
+  time_slot: string;
+  schedule: string;
+  status: string;
+}
+
+export interface ReservationOrderRecordItem extends ReservationSummary {
+  user_id: number;
+  user_name: string;
+  phone: string;
+  doctor_id: number;
+  pet_id: number;
+  created_at: string;
+  price: number;
 }
 
 export interface OrderSummary {
   id: number;
-  pet_id: number;
   pet_name: string;
-  doctor_id: number;
+  doctor_name: string;
   order_type: string;
   order_data: string;
   order_status: string;
@@ -29,15 +47,26 @@ export interface OrderSummary {
 
 export interface OrderMedicine {
   id: number;
+  order_id: number;
   medicine_id: number;
+  medicine_name: string;
+  medicine_type: string;
   quantity: number;
   price: number;
   total_price: number;
-  medicine_name: string;
-  medicine_type: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrderDetail extends OrderSummary {
+  owner_id: number;
+  owner_name: string;
+  pet_id: number;
+  pet_type: string;
+  pet_age: string;
+  pet_sex: string;
+  doctor_id: number;
+  updated_at: string;
   orderMedicines: OrderMedicine[];
 }
 

@@ -51,7 +51,7 @@
           v-for="service in serviceCards"
           :key="service.key"
           class="service-card"
-          @click="switchTab(service.tab)"
+          @click="selectService(service)"
         >
           <div class="service-card__badge">{{ service.label }}</div>
           <strong>{{ service.title }}</strong>
@@ -88,6 +88,7 @@
           :active-tab="normalizedSlotTab"
           :doctor-data="doctorData"
           :pet-profiles="petProfiles"
+          :service-type="serviceType"
           :schedule-data="scheduleData"
           :switchTab="switchTab"
           @close="close"
@@ -107,12 +108,23 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import treatSlots from "@/modules/user/views/desktop/UserHome-module/HomeNav/Services-module/treatSlots.vue";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
-import { ReservationScheduleState } from "@/modules/user/api/types";
-import { PetProfile } from "@/modules/user/store/types";
+import { ReservationScheduleState, PetProfile } from "@/modules/user/api/types";
 
 const store = useStore(storeKey);
 const activeTab = ref("reservation");
 const submitAfter = ref(false);
+
+/**
+ * 预约服务卡片数据结构
+ */
+type ServiceCard = {
+  key: string;
+  tab: string;
+  label: string;
+  title: string;
+  description: string;
+};
+
 /**
  * 服务预约页优先读取全局缓存，切页回来时不重复请求医生与时间表。
  */
@@ -126,7 +138,7 @@ const scheduleData = computed<Omit<ReservationScheduleState, "doctorData">>(
   () => store.state.userPortal.reservationSchedule
 );
 
-const serviceCards = [
+const serviceCards: ServiceCard[] = [
   {
     key: "treat",
     tab: "reservation-treatSlots",
@@ -156,6 +168,10 @@ const serviceCards = [
     description: "适合舒缓护理和精细化清洁服务。",
   },
 ];
+
+const selectedService = ref<ServiceCard>(serviceCards[0]);
+
+const serviceType = computed(() => selectedService.value.title);
 
 const afterSaleCards = [
   {
@@ -188,15 +204,17 @@ const isReservationTab = (tab: string) => {
 };
 
 const activeServiceTitle = computed(() => {
-  if (activeTab.value === "reservation-sterilizateSlots") return "宠物绝育预约";
-  if (activeTab.value === "reservation-beautySlots") return "宠物美容预约";
-  if (activeTab.value === "reservation-SPASlots") return "宠物 SPA 预约";
-  return "宠物医治预约";
+  return `${selectedService.value.title}预约`;
 });
 
 const normalizedSlotTab = computed(() =>
   activeTab.value === "showSlots" ? "showSlots" : "reservation-treatSlots"
 );
+
+const selectService = (service: ServiceCard) => {
+  selectedService.value = service;
+  switchTab(service.tab);
+};
 
 const switchTab = (tab: string) => {
   if (

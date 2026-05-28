@@ -119,13 +119,16 @@
                 class="result-tag"
                 @click="goToUserProfile(item.id)"
               >
-                <strong>{{ item.ownerName }}</strong>
-                <span>{{ item.phone }}</span>
-                <small>{{ item.roleName || "未设置角色" }}</small>
-                <em>{{ item.petNames.join(" / ") }}</em>
+                <strong>{{ item.name || "未命名用户" }}</strong>
+                <span>{{ item.phone || "未登记手机号" }}</span>
+                <small>{{ item.email || "未登记邮箱" }}</small>
+                <em>{{ formatPetNames(item) }}</em>
               </button>
-              <p v-if="!searchResults.length" class="search-empty">
-                暂无匹配结果，试试输入宠物名、主人名或手机号码。
+              <p v-if="searchLoading" class="search-empty">
+                正在查询用户摘要...
+              </p>
+              <p v-else-if="!searchResults.length" class="search-empty">
+                暂无匹配结果，试试输入主人名或手机号码。
               </p>
             </div>
           </div>
@@ -170,20 +173,12 @@ import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { doctorApi } from "@/modules/doctor/api/doctorApi";
-import { QueueItem } from "@/modules/doctor/api/types";
+import { DoctorUserSummary, QueueItem } from "@/modules/doctor/api/types";
 import { doctorWorkbenchStats } from "@/modules/doctor/api/doctorMock";
 import {
   DoctorOrderDraftSummary,
   listDoctorOrderDrafts,
 } from "@/modules/doctor/utils/orderDrafts";
-
-type SearchUserItem = {
-  id: string;
-  ownerName: string;
-  phone: string;
-  roleName: string;
-  petNames: string[];
-};
 
 export default defineComponent({
   name: "DoctorWorkbench",
@@ -217,18 +212,11 @@ export default defineComponent({
     const dutyActionLoading = ref(false);
     const lastDutyActionAt = ref("");
     const searchKeyword = ref("");
-    const searchSource = computed<SearchUserItem[]>(() =>
-      store.state.doctor.userProfiles.map((item) => ({
-        id: item.id,
-        ownerName: item.ownerName,
-        phone: item.phone,
-        roleName: item.memberLevel,
-        petNames: item.pets.map((pet) => pet.name),
-      }))
-    );
-    const searchResults = ref<SearchUserItem[]>([]);
+    const searchLoading = ref(false);
+    const searchResults = ref<DoctorUserSummary[]>([]);
     const now = ref(new Date());
     let timer: number | undefined;
+    let searchRequestId = 0;
     const syncDrafts = () => {
       draftSummaries.value = listDoctorOrderDrafts();
     };
@@ -244,7 +232,6 @@ export default defineComponent({
       void Promise.all([
         store.dispatch("doctor/ensureDutyStatus"),
         store.dispatch("doctor/ensureQueueItems"),
-        store.dispatch("doctor/ensureUserProfiles"),
       ])
         .then(() => {
           const status = store.state.doctor.dutyStatus;
@@ -254,7 +241,6 @@ export default defineComponent({
             : status.check_out_time?.slice(0, 5) ||
               status.check_in_time?.slice(0, 5) ||
               "";
-          searchResults.value = searchSource.value.slice(0, 6);
         })
         .catch((error) => {
           console.error("获取医生值班状态失败:", error);
@@ -392,23 +378,51 @@ export default defineComponent({
       }
     };
 
-    const handleUserSearch = () => {
-      const keyword = searchKeyword.value.trim().toLowerCase();
+    const resolveSearchIdentifier = (keyword: string): "name" | "phone" => {
+      const digitKeyword = keyword.replace(/\D/g, "");
+
+      return digitKeyword.length >= 4 && digitKeyword === keyword
+        ? "phone"
+        : "name";
+    };
+
+    const formatPetNames = (item: DoctorUserSummary) => {
+      const petNames = item.pets
+        .map((pet) => pet.pet_name)
+        .filter(Boolean)
+        .slice(0, 2);
+
+      return petNames.length > 0 ? petNames.join(" / ") : "暂无宠物档案";
+    };
+
+    const handleUserSearch = async () => {
+      const keyword = searchKeyword.value.trim();
+      const requestId = ++searchRequestId;
 
       if (!keyword) {
-        searchResults.value = searchSource.value.slice(0, 6);
+        searchResults.value = [];
+        searchLoading.value = false;
         return;
       }
 
-      searchResults.value = searchSource.value.filter((item) =>
-        [item.ownerName, item.phone, item.roleName, item.petNames.join(" ")]
-          .join(" ")
-          .toLowerCase()
-          .includes(keyword)
-      );
+      searchLoading.value = true;
+      try {
+        const users = await doctorApi.getUserList({
+          data: keyword,
+          identifier: resolveSearchIdentifier(keyword),
+        });
+
+        if (requestId === searchRequestId) {
+          searchResults.value = users;
+        }
+      } finally {
+        if (requestId === searchRequestId) {
+          searchLoading.value = false;
+        }
+      }
     };
 
-    const goToUserProfile = (userId: string) => {
+    const goToUserProfile = (userId: number) => {
       router.push(`${basePath.value}/users/${userId}`);
     };
 
@@ -450,7 +464,9 @@ export default defineComponent({
       online,
       offline,
       searchKeyword,
+      searchLoading,
       searchResults,
+      formatPetNames,
       handleUserSearch,
       goToUserProfile,
       goToCreateOrder,

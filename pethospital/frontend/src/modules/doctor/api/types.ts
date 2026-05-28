@@ -25,34 +25,53 @@ export interface QueueItem {
 }
 
 /**
- * 预约项数据类型定义
+ * 预约摘要项数据类型定义。
+ * 列表只缓存这些轻量字段，完整联系人信息进入详情后按预约 id 获取。
  */
-export interface ReservationItem {
+export interface ReservationSummaryItem {
   id: number;
-  petName: string;
-  ownerName: string;
-  phone: string;
-  doctorName: string;
+  doctor_name: string;
+  pet_name: string;
+  reservation_type: string;
+  date: string;
+  time_slot: string;
   schedule: string;
-  project: string;
-  status: "待确认" | "已确认" | "已到院";
+  status: string;
 }
 
 /**
- * 订单记录项数据类型定义
+ * 预约详情项数据类型定义。
+ */
+export interface ReservationItem extends ReservationSummaryItem {
+  user_id: number;
+  user_name: string;
+  phone: string;
+  doctor_id: number;
+  pet_id: number;
+  created_at: string;
+  price?: number;
+}
+
+export type OrderStatus =
+  | "待付款"
+  | "已付款"
+  | "已取消"
+  | "已退款"
+  | "部分退款";
+
+/**
+ * 订单摘要项数据类型定义。
+ * 列表页只保存轻量字段，完整药品明细进入详情页后按订单 id 单独获取。
  */
 export interface OrderRecordItem {
-  id: string;
-  petId?: string;
-  petName: string;
-  ownerName: string;
-  doctorName?: string;
-  createdAt: string;
-  medicineCount?: number;
-  medicines?: OrderMedicineItem[];
-  orderMedicines?: unknown[];
-  totalFee: number;
-  status: "待付款" | "已付款" | "已取消" | "已退款" | "部分退款";
+  id: number;
+  pet_name: string;
+  doctor_name: string;
+  order_type: string;
+  order_data: string;
+  order_status: OrderStatus;
+  order_totalprice: number;
+  created_at: string;
 }
 
 /**
@@ -71,17 +90,6 @@ export interface CreateOrderRecordPayload {
     price: number;
     totalPrice: number;
   }>;
-}
-
-/**
- * 订单详情项数据类型定义，包含订单记录的基本信息以及诊断结果和备注等详细信息
- */
-export interface OrderDetailItem extends OrderRecordItem {
-  doctorName: string;
-  symptom: string;
-  diagnosis: string;
-  remark: string;
-  medicines: OrderMedicineItem[];
 }
 
 /**
@@ -125,10 +133,55 @@ export interface DoctorDutyStatus {
  */
 export interface OrderMedicineItem {
   id: number;
-  name: string;
-  dosage: string;
+  order_id: number;
+  medicine_id: number;
+  medicine_name: string;
+  medicine_type: string;
   quantity: number;
   price: number;
+  total_price: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * 订单详情项数据类型定义，进入详情页时按订单 id 从后端获取。
+ */
+export interface OrderDetailItem extends OrderRecordItem {
+  owner_id: number;
+  owner_name: string;
+  pet_id: number;
+  pet_type: string;
+  pet_age: string;
+  pet_sex: string;
+  doctor_id: number;
+  updated_at: string;
+  orderMedicines: OrderMedicineItem[];
+}
+
+/**
+ * 用户档案页面的旧订单简略项。
+ * 该页面仍来自医生用户档案接口，不参与医生订单摘要缓存。
+ */
+export interface LegacyOrderRecordItem {
+  id: string;
+  petId?: string;
+  petName: string;
+  ownerName: string;
+  doctorName?: string;
+  createdAt: string;
+  totalFee: number;
+  status: OrderStatus;
+  symptom?: string;
+  diagnosis?: string;
+  remark?: string;
+  medicines?: Array<{
+    id: number;
+    name: string;
+    dosage: string;
+    quantity: number;
+    price: number;
+  }>;
 }
 
 /**
@@ -158,7 +211,29 @@ export interface DoctorUserProfile {
   balance: number; // 账户余额
   note: string; // 备注信息
   pets: DoctorPetProfile[]; // 宠物档案列表
-  orders: OrderDetailItem[]; // 订单详情列表
+  orders: LegacyOrderRecordItem[]; // 订单简略列表
+}
+
+/**
+ * 医生端用户摘要中的宠物项。
+ */
+export interface DoctorUserSummaryPet {
+  id: number;
+  pet_name: string;
+}
+
+/**
+ * 医生端用户摘要数据。
+ * 用户列表卡片只展示基础信息，完整档案进入详情页后再按用户 id 获取。
+ */
+export interface DoctorUserSummary {
+  id: number;
+  type_id: number;
+  name: string;
+  phone: string;
+  email: string;
+  head_image: string;
+  pets: DoctorUserSummaryPet[];
 }
 
 export interface DoctorDataItem {

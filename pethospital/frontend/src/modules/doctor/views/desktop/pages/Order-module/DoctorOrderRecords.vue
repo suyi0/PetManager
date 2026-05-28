@@ -35,9 +35,9 @@
           <tr>
             <th>诊单编号</th>
             <th>宠物</th>
-            <th>主人</th>
+            <th>医生</th>
+            <th>类型</th>
             <th>创建时间</th>
-            <th>药品数</th>
             <th>总费用</th>
             <th>状态</th>
           </tr>
@@ -50,14 +50,17 @@
             @click="openOrderDetail(item.id)"
           >
             <td>{{ item.id }}</td>
-            <td>{{ item.petName }}</td>
-            <td>{{ item.ownerName }}</td>
-            <td>{{ item.createdAt }}</td>
-            <td>{{ item.medicineCount }}</td>
-            <td>¥{{ item.totalFee.toFixed(2) }}</td>
+            <td>{{ item.pet_name }}</td>
+            <td>{{ item.doctor_name || "未记录" }}</td>
+            <td>{{ item.order_type || "诊疗" }}</td>
+            <td>{{ item.created_at }}</td>
+            <td>¥{{ item.order_totalprice.toFixed(2) }}</td>
             <td>
-              <span class="status-pill" :class="statusClassName(item.status)">
-                {{ item.status }}
+              <span
+                class="status-pill"
+                :class="statusClassName(item.order_status)"
+              >
+                {{ item.order_status }}
               </span>
             </td>
           </tr>
@@ -91,7 +94,7 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const activeStatus = ref<"全部" | OrderRecordItem["status"]>("全部");
+    const activeStatus = ref<"全部" | OrderRecordItem["order_status"]>("全部");
     const page = ref(1);
     const pageSize = 10;
     const orderRecords = computed<OrderRecordItem[]>(
@@ -113,7 +116,7 @@ export default defineComponent({
      */
     const items = computed(() =>
       [...orderRecords.value].sort((a, b) =>
-        b.createdAt.localeCompare(a.createdAt)
+        b.created_at.localeCompare(a.created_at)
       )
     );
 
@@ -124,7 +127,9 @@ export default defineComponent({
       if (activeStatus.value === "全部") {
         return items.value;
       }
-      return items.value.filter((item) => item.status === activeStatus.value);
+      return items.value.filter(
+        (item) => item.order_status === activeStatus.value
+      );
     });
 
     const totalPages = computed(() =>
@@ -149,11 +154,13 @@ export default defineComponent({
      * 状态标签
      */
     const statusTabs = computed(() => {
-      const statuses: Array<"全部" | OrderRecordItem["status"]> = [
+      const statuses: Array<"全部" | OrderRecordItem["order_status"]> = [
         "全部",
         "待付款",
         "已付款",
         "已取消",
+        "已退款",
+        "部分退款",
       ];
 
       return statuses.map((status) => ({
@@ -162,17 +169,17 @@ export default defineComponent({
         count:
           status === "全部"
             ? items.value.length
-            : items.value.filter((item) => item.status === status).length,
+            : items.value.filter((item) => item.order_status === status).length,
       }));
     });
 
-    const statusClassName = (status: OrderRecordItem["status"]) => {
+    const statusClassName = (status: OrderRecordItem["order_status"]) => {
       if (status === "待付款") return "status-pill--pending";
       if (status === "已付款") return "status-pill--done";
       return "status-pill--cancelled";
     };
 
-    const openOrderDetail = (orderId: string) => {
+    const openOrderDetail = (orderId: number) => {
       router.push({
         path: `${basePath.value}/orders/${orderId}`,
         query: { from: "records" },
@@ -249,7 +256,7 @@ export default defineComponent({
 
 .status-filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }

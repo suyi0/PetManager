@@ -83,6 +83,22 @@
           <small>项目名称</small>
           <strong>{{ detail.title }}</strong>
         </div>
+        <div v-if="tabValue === 'reservation'">
+          <small>预约人</small>
+          <strong>{{ detail.ownerName }}</strong>
+        </div>
+        <div v-if="tabValue === 'reservation'">
+          <small>联系电话</small>
+          <strong>{{ detail.phone }}</strong>
+        </div>
+        <div v-if="tabValue === 'reservation'">
+          <small>接诊医生</small>
+          <strong>{{ detail.doctorName }}</strong>
+        </div>
+        <div v-if="tabValue === 'reservation'">
+          <small>预约类型</small>
+          <strong>{{ detail.reservationTypeText }}</strong>
+        </div>
         <div>
           <small>费用</small>
           <strong>{{ detail.price }}</strong>
@@ -101,7 +117,12 @@ import { computed, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { useRoute, useRouter } from "vue-router";
-import { OrderRecordItem, OrderSummary } from "@/modules/user/api/types";
+import {
+  OrderDetail,
+  ReservationOrderRecordItem,
+  ReservationSummary,
+  OrderSummary,
+} from "@/modules/user/api/types";
 
 const store = useStore(storeKey);
 const route = useRoute();
@@ -109,9 +130,13 @@ const router = useRouter();
 
 const tabValue = ref<string>("order");
 const orderImg = ref("reduce");
-const previewRecord = ref<(OrderRecordItem & { tab?: string }) | null>(null);
-const detailRecord = ref<OrderSummary | null>(null);
-const reservationRecord = ref<OrderRecordItem | null>(null);
+const previewRecord = ref<
+  | ((ReservationSummary | OrderSummary) &
+      Partial<ReservationOrderRecordItem> & { tab?: string })
+  | null
+>(null);
+const detailRecord = ref<OrderDetail | OrderSummary | null>(null);
+const reservationRecord = ref<ReservationOrderRecordItem | null>(null);
 const cancelLoading = ref(false);
 
 const currentReservationId = computed(() =>
@@ -130,33 +155,37 @@ const detail = computed(() => {
 
   const reservationDate = reservation?.date || preview?.date || "";
   const reservationSlot = reservation?.time_slot || preview?.time_slot || "";
-  const reservationTime = [reservationDate, reservationSlot]
-    .filter(Boolean)
-    .join(" ");
+  const reservationTime =
+    reservation?.schedule ||
+    preview?.schedule ||
+    [reservationDate, reservationSlot].filter(Boolean).join(" ");
   const reservationCreatedAt =
     reservation?.created_at || preview?.created_at || "";
+  const reservationTypeText =
+    reservation?.reservation_type || preview?.reservation_type || "预约";
 
   const title =
     summary?.pet_name ||
     reservation?.pet_name ||
     preview?.pet_name ||
-    preview?.name ||
     (tabValue.value === "reservation" ? "预约记录" : "订单记录");
 
-  const dateText = summary?.order_data || formatDate(preview?.time);
+  const dateText = summary?.order_data || "";
+  const reservationPrice =
+    typeof reservation?.price === "number" ? reservation.price : preview?.price;
   const priceText =
     typeof summary?.order_totalprice === "number"
       ? `¥ ${summary.order_totalprice.toFixed(2)}`
-      : typeof preview?.price === "number"
-      ? `¥ ${preview.price.toFixed(2)}`
+      : typeof reservationPrice === "number"
+      ? `¥ ${reservationPrice.toFixed(2)}`
       : "待结算";
 
   return {
     title,
     description:
       tabValue.value === "reservation"
-        ? "这是一条预约记录详情，可用于确认预约时间、状态和关联项目。"
-        : "这是一条订单详情，可用于回看消费项目、创建时间和当前状态。",
+        ? `这是一条${reservationTypeText}记录详情，可用于确认预约时间、状态和关联项目。`
+        : "这是一条完整订单详情，可用于回看消费项目、创建时间和当前状态。",
     reference:
       summary?.id !== undefined
         ? `NO.${summary.id}`
@@ -177,6 +206,14 @@ const detail = computed(() => {
       preview?.status ||
       (tabValue.value === "reservation" ? "预约处理中" : "处理中"),
     price: priceText,
+    ownerName: reservation?.user_name || preview?.user_name || "待同步",
+    phone: reservation?.phone || preview?.phone || "待同步",
+    doctorName:
+      summary?.doctor_name ||
+      reservation?.doctor_name ||
+      preview?.doctor_name ||
+      "待同步",
+    reservationTypeText,
   };
 });
 
@@ -186,19 +223,6 @@ const detailTag = computed(() =>
 
 function changeImg(type: string) {
   orderImg.value = type === "magnify" ? "magnify" : "reduce";
-}
-
-function formatDate(value?: number) {
-  if (typeof value !== "number") return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 const cancelReservation = async () => {
@@ -246,29 +270,36 @@ onMounted(async () => {
     const currentId = Number(route.query.id || previewRecord.value?.id || 0);
 
     if (tabValue.value === "reservation") {
-      const rows = (await store.dispatch(
-        "userPortal/ensureReservationRecords"
-      )) as OrderRecordItem[];
-      reservationRecord.value =
-        rows.find((item) => Number(item.id) === currentId) ||
-        previewRecord.value ||
-        null;
+      if (currentId > 0) {
+        reservationRecord.value = (await store.dispatch(
+          "userPortal/ensureReservationDetail",
+          currentId
+        )) as ReservationOrderRecordItem | null;
+      }
     } else {
       /**
-       * 订单详情页优先从缓存摘要里定位当前记录，只有首次进入时才会触发拉取。
+       * 订单详情页先判断本地完整详情缓存是否命中当前订单编号；
+       * 不命中时再按订单编号请求后端，并覆盖旧详情缓存。
        */
-      const rows = (await store.dispatch(
-        "userPortal/ensureOrderSummaries"
-      )) as OrderSummary[];
-
       if (currentId > 0) {
-        detailRecord.value =
-          rows.find((item) => Number(item.id) === currentId) || null;
+        detailRecord.value = (await store.dispatch(
+          "userPortal/ensureOrderDetail",
+          currentId
+        )) as OrderDetail | null;
+      }
+
+      if (!detailRecord.value) {
+        const rows = (await store.dispatch(
+          "userPortal/ensureOrderSummaries"
+        )) as OrderSummary[];
+        const summary = rows.find((item) => Number(item.id) === currentId);
+        detailRecord.value = summary || null;
       }
     }
   } catch {
     detailRecord.value = null;
-    reservationRecord.value = previewRecord.value;
+    reservationRecord.value =
+      previewRecord.value as ReservationOrderRecordItem | null;
   }
 
   if (!detailRecord.value) {

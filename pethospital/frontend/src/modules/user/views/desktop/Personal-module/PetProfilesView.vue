@@ -260,7 +260,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { PetProfile } from "@/modules/user/store/types";
+import { PetProfile } from "@/modules/user/api/types";
 
 const emit = defineEmits(["updateCount"]);
 
@@ -406,7 +406,9 @@ watch(
   () => [
     store.state.currentUser.userPhone,
     store.state.currentUser.userEmail,
-    store.state.currentUser.userName,
+    store.state.currentUser.userLastName,
+    store.state.currentUser.userMiddleName,
+    store.state.currentUser.userFirstName,
   ],
   () => {
     void store.dispatch("userPortal/refreshPetProfiles");

@@ -5,19 +5,22 @@
 #include <mysqlx/xdevapi.h>
 #include <unordered_map>
 #include <chrono>
+#include "../GetSchedule/GetSchedule.h"
 #include "../../../../database/DatabaseManager.h"
 #include "../../../../utils/Utils.h"
 #include "../../../auth/Encrypt/Encrypt.h"
 #include "../../../../models/user/User.h"
 #include "../GetAddress/GetAddress.h"
 #include "../../../auth/JwtUtils/JwtUtils.h"
+#include "RoleTypeUtils/RoleTypeUtils.h"
+#include "../../../OperationLogger/OperationLogger.h"
 
-class UserHandler : public BaseHandler {
+class userHandler : public BaseHandler {
 private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;
 
 public:
-    explicit UserHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
+    explicit userHandler(std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)) {}
     // 添加一个方法来检查数据库管理器是否可用
     bool isDbManagerValid() const { return dbManager != nullptr; }
 
@@ -38,6 +41,16 @@ public:
     crow::response deletePetProfile(const crow::request& req, int userId, int petId);
 
     nlohmann::json getUserData(const int &id);  // 对应 获取用户数据
+
+    crow::response createReservation(const crow::request& req, int user_id, int pet_id, int doctor_id, std::string reservation_type, std::string date, std::string time_slot, std::string status);                 //  对应 /api/user/reservate/record
+
+    nlohmann::json getReservationDate();                                        // 对应 /api/user/reservate/getDate
+
+    crow::response getDoctorList(const crow::request& req);                     // 对应 /api/user/reservate/getDoctor
+
+    crow::response cancelReservation(const crow::request& req, int userId, int reservationId);         // 对应 /api/user/reservate/cancel
+
+    crow::response deleteReservation(const crow::request& req, int userId, int reservationId);         // 对应 /api/user/reservate/deleterecord
 
 };
 

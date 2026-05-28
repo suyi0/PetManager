@@ -207,6 +207,9 @@ const returnToSuperAdmin = async () => {
       userType: bridge.userType,
       userRole: bridge.userRole,
       userName: bridge.userName,
+      userLastName: bridge.userLastName,
+      userMiddleName: bridge.userMiddleName,
+      userFirstName: bridge.userFirstName,
       userPhone: bridge.userPhone,
       userEmail: bridge.userEmail,
       userBirthday: bridge.userBirthday,
@@ -222,6 +225,10 @@ const returnToSuperAdmin = async () => {
 
 const isRouteActive = (key: string) => route.path.includes(`/${key}`);
 
+/**
+ * 监听全局点击事件以关闭个人菜单。
+ * @param event 表示点击事件对象
+ */
 const handleClickOutside = (event: MouseEvent) => {
   const menu = document.querySelector(".profile-panel");
   if (menu && !menu.contains(event.target as Node)) {
@@ -232,9 +239,10 @@ const handleClickOutside = (event: MouseEvent) => {
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   /**
-   * 用户端首页进入后先预热预约页常用的医生与时间表数据。
+   * 用户端首页进入后预热预约基础数据、预约记录与订单摘要列表。
    */
   void store.dispatch("userPortal/ensureServiceData");
+  void store.dispatch("userPortal/ensureOrderPageData");
 });
 
 onBeforeUnmount(() => {

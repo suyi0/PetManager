@@ -2,9 +2,47 @@
 #include "../../../../utils/AuthIdentifierUtils.h"
 #include "../../../../database/UserPhoneSync.h"
 #include "RoleTypeUtils/RoleTypeUtils.h"
+#include <vector>
 
 // 在文件顶部添加常量定义
 #define UPLOADS_DIR "/Users/yanghang/Code/PetManager/pethospital/frontend/src/assets/uploads"
+
+namespace
+{
+nlohmann::json splitUserName(const std::string &rawName)
+{
+    const std::string delimiter = "·";
+    std::vector<std::string> parts;
+    std::string remaining = clean_string(rawName);
+    std::size_t position = 0;
+
+    while ((position = remaining.find(delimiter)) != std::string::npos)
+    {
+        parts.push_back(clean_string(remaining.substr(0, position)));
+        remaining.erase(0, position + delimiter.length());
+    }
+    parts.push_back(clean_string(remaining));
+
+    const std::string lastName = parts.size() > 0 ? parts[0] : "";
+    const std::string middleName = parts.size() > 2 ? parts[1] : "";
+    const std::string firstName = parts.size() > 2 ? parts[2] : (parts.size() > 1 ? parts[1] : "");
+
+    return {
+        {"lastName", lastName},
+        {"middleName", middleName},
+        {"firstName", firstName},
+    };
+}
+
+// 将用户名拆分为姓、名和中间名，并添加到目标JSON对象中
+void appendUserNameParts(nlohmann::json &target, const std::string &rawName)
+{
+    const nlohmann::json nameParts = splitUserName(rawName);
+    target["lastName"] = nameParts["lastName"];
+    target["middleName"] = nameParts["middleName"];
+    target["firstName"] = nameParts["firstName"];
+}
+}
 
 // 添加获取文件MIME类型的函数
 std::string getMimeType(const std::string &filepath)
@@ -248,7 +286,7 @@ std::string getLastFileName(const std::string &url)
     return url;
 }
 
-nlohmann::json UserHandler::getUserData(const int &id)
+nlohmann::json userHandler::getUserData(const int &id)
 {
     if (!checkDbConnection())
     {
@@ -282,15 +320,17 @@ nlohmann::json UserHandler::getUserData(const int &id)
             }
         };
 
+        const std::string userName = safeString(1);
         user_data = {
             {"id", row[0].get<int>()},
-            {"name", safeString(1)},
+            {"name", userName},
             {"phone", safeString(3)},
             {"email", safeString(4)},
             {"birthday", safeString(5)},
             {"address_id", row[6].isNull() ? 0 : row[6].get<int>()},
             {"head_image", safeString(7)},
         };
+        appendUserNameParts(user_data, userName);
         break;
     }
     return user_data;
@@ -335,7 +375,7 @@ std::string optionalString(const nlohmann::json &body, const std::string &key)
 }
 }
 
-crow::response UserHandler::getPetProfiles(const crow::request &req, int userId)
+crow::response userHandler::getPetProfiles(const crow::request &req, int userId)
 {
     try
     {
@@ -367,7 +407,7 @@ crow::response UserHandler::getPetProfiles(const crow::request &req, int userId)
     }
 }
 
-crow::response UserHandler::createPetProfile(const crow::request &req, int userId)
+crow::response userHandler::createPetProfile(const crow::request &req, int userId)
 {
     try
     {
@@ -421,7 +461,7 @@ crow::response UserHandler::createPetProfile(const crow::request &req, int userI
     }
 }
 
-crow::response UserHandler::updatePetProfile(const crow::request &req, int userId, int petId)
+crow::response userHandler::updatePetProfile(const crow::request &req, int userId, int petId)
 {
     try
     {
@@ -480,7 +520,7 @@ crow::response UserHandler::updatePetProfile(const crow::request &req, int userI
     }
 }
 
-crow::response UserHandler::deletePetProfile(const crow::request &req, int userId, int petId)
+crow::response userHandler::deletePetProfile(const crow::request &req, int userId, int petId)
 {
     try
     {
@@ -503,7 +543,7 @@ crow::response UserHandler::deletePetProfile(const crow::request &req, int userI
     }
 }
 
-crow::response UserHandler::userLogin(const crow::request &req)
+crow::response userHandler::userLogin(const crow::request &req)
 {
     try
     {
@@ -809,6 +849,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
             user_json["type_id"] = user->getTypeID();
             user_json["type_name"] = role_name;
             user_json["name"] = user->getName();
+            appendUserNameParts(user_json, user->getName());
             user_json["email"] = user->getEmail();
             user_json["phone"] = user->getPhone();
             user_json["address_id"] = user->getAddressID();
@@ -834,7 +875,7 @@ crow::response UserHandler::userLogin(const crow::request &req)
     }
 }
 
-crow::response UserHandler::userUpdate(const crow::request &req, int authenticatedUserId)
+crow::response userHandler::userUpdate(const crow::request &req, int authenticatedUserId)
 {
     try
     {
@@ -1659,7 +1700,7 @@ crow::response UserHandler::userUpdate(const crow::request &req, int authenticat
     }
 }
 
-crow::response UserHandler::userUploadAvatar(const crow::request &req)
+crow::response userHandler::userUploadAvatar(const crow::request &req)
 {
     try
     {
@@ -1758,7 +1799,7 @@ crow::response UserHandler::userUploadAvatar(const crow::request &req)
     }
 }
 
-crow::response UserHandler::upload(const crow::request &req, const std::string &filename)
+crow::response userHandler::upload(const crow::request &req, const std::string &filename)
 {
     crow::response res;
 
@@ -1802,4 +1843,332 @@ crow::response UserHandler::upload(const crow::request &req, const std::string &
 
     res.end();
     return res;
+}
+
+namespace
+{
+std::string getTodayDate()
+{
+    const boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
+    return formatDateOnly(currentDateTime);
+}
+
+nlohmann::json buildDoctorJson(const mysqlx::Row &row)
+{
+    nlohmann::json doctor;
+    doctor["doctor_id"] = row[0].isNull() ? 0 : row[0].get<int>();
+    doctor["id"] = doctor["doctor_id"];
+    doctor["name"] = row[1].isNull() ? "" : row[1].get<std::string>();
+    doctor["phone"] = row[2].isNull() ? "" : row[2].get<std::string>();
+    doctor["email"] = row[3].isNull() ? "" : row[3].get<std::string>();
+    doctor["specialty"] = row[4].isNull() ? "" : row[4].get<std::string>();
+    doctor["status"] = row[5].isNull() ? "offline" : row[5].get<std::string>();
+    return doctor;
+}
+
+bool isValidReservationStatus(const std::string &status)
+{
+    return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
+}
+}
+
+// 创建预约表记录接口
+crow::response userHandler::createReservation(const crow::request &req, int user_id, int pet_id, int doctor_id, std::string reservation_type, std::string date, std::string time_slot, std::string status)
+{
+    try
+    {
+        // 检查数据库连接是否存在
+        if (!checkDbConnection())
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", "database connection failed", user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        // 检查必要字段是否存在
+        if (!isValidReservationStatus(status))
+        {
+            return ResponseHelper::validation(req, "预约状态不合法");
+        }
+
+        if (reservation_type.size() > 30)
+        {
+            return ResponseHelper::validation(req, "预约类型不能超过30个字符");
+        }
+
+        if (user_id > 0 && pet_id > 0 && doctor_id > 0 && !reservation_type.empty() && !date.empty() && !time_slot.empty())
+        {
+            try
+            {
+                mysqlx::SqlResult petResult = dbManager->getSession()
+                                                  ->sql("SELECT COUNT(*) FROM pets WHERE id = ? AND user_id = ?")
+                                                  .bind(pet_id, user_id)
+                                                  .execute();
+                auto petRow = petResult.fetchOne();
+                if (!petRow || petRow[0].get<int>() == 0)
+                {
+                    return ResponseHelper::validation(req, "宠物不存在或不属于当前用户");
+                }
+
+                mysqlx::SqlResult slotResult = dbManager->getSession()
+                                                   ->sql("SELECT id FROM reaservations "
+                                                         "WHERE doctor_id = ? AND date = ? AND time_slot = ? "
+                                                         "AND COALESCE(status, '预约成功') NOT IN ('已取消', '预约失败') "
+                                                         "LIMIT 1")
+                                                   .bind(doctor_id, date, time_slot)
+                                                   .execute();
+                if (slotResult.fetchOne())
+                {
+                    return ResponseHelper::validation(req, "该医生当前时间段已被预约");
+                }
+
+                mysqlx::SqlResult insertResult = dbManager->getSession()
+                                                    ->sql("INSERT INTO reaservations (user_id, pet_id, doctor_id, reservation_type, date, time_slot, status) "
+                                                          "VALUES (?, ?, ?, ?, ?, ?, ?)")
+                                                    .bind(user_id, pet_id, doctor_id, reservation_type, date, time_slot, status)
+                                                    .execute();
+
+                uint64_t reservationId = insertResult.getAutoIncrementValue();
+
+                mysqlx::SqlResult createdResult = dbManager->getSession()
+                                                    ->sql("SELECT r.id, r.user_id, r.pet_id, r.doctor_id, COALESCE(p.pet_name, ''), "
+                                                          "COALESCE(r.reservation_type, ''), CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), COALESCE(r.status, ''), "
+                                                          "CAST(r.created_at AS CHAR) "
+                                                          "FROM reaservations AS r "
+                                                          "LEFT JOIN pets AS p ON r.pet_id = p.id "
+                                                          "WHERE r.id = ? LIMIT 1")
+                                                    .bind(reservationId)
+                    .execute();
+                auto createdRow = createdResult.fetchOne();
+
+                nlohmann::json response;
+                response["reservation_status"] = status;
+                response["message"] = "预约成功";
+
+                if (createdRow)
+                {
+                    const std::string createdReservationType = createdRow[5].isNull() ? "" : createdRow[5].get<std::string>();
+                    const std::string createdDate = createdRow[6].isNull() ? "" : createdRow[6].get<std::string>();
+                    const std::string createdSlot = createdRow[7].isNull() ? "" : createdRow[7].get<std::string>();
+                    response["id"] = createdRow[0].get<int>();
+                    response["user_id"] = createdRow[1].get<int>();
+                    response["pet_id"] = createdRow[2].get<int>();
+                    response["doctor_id"] = createdRow[3].get<int>();
+                    response["pet_name"] = createdRow[4].isNull() ? "" : createdRow[4].get<std::string>();
+                    response["reservation_type"] = createdReservationType;
+                    response["reservationType"] = createdReservationType;
+                    response["date"] = createdDate;
+                    response["time_slot"] = createdSlot;
+                    response["status"] = createdRow[8].isNull() ? status : createdRow[8].get<std::string>();
+                    response["created_at"] = createdRow[9].isNull() ? "" : createdRow[9].get<std::string>();
+                    response["price"] = 0;
+                }
+
+                return ResponseHelper::success(req, response);
+            }
+            catch (const mysqlx::Error &e)
+            {
+                std::cerr << "Database error: " << e.what() << std::endl;
+                OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
+                return ResponseHelper::database_error(req, "Failed to create reservation", e.what());
+            }
+        }
+        else
+        {
+            return ResponseHelper::validation(req, "Missing required fields");
+        }
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
+        return ResponseHelper::operation_failed(req, "Failed to save reservation", e.what());
+    }
+}
+
+// 获取预约时间表数据接口
+nlohmann::json userHandler::getReservationDate()
+{
+    // 这里应该生成并返回时间表
+    Reservate r;
+    auto schedule = r.generateSchedule();
+    return schedule;
+}
+
+// 获取医生列表接口
+crow::response userHandler::getDoctorList(const crow::request &req)
+{
+    if (!checkDbConnection())
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", "database connection failed");
+        return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+    }
+
+    try
+    {
+        const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
+        if (doctorRoleId <= 0)
+        {
+            return ResponseHelper::system_error(req, "医生角色不存在");
+        }
+
+        const std::string todayDate = getTodayDate();
+
+        mysqlx::RowResult result = dbManager->getSession()
+                                       ->sql("SELECT u.id, u.name, u.phone, u.email, u.user_specialty, "
+                                             "COALESCE(od.status, 'offline') "
+                                             "FROM users AS u "
+                                             "LEFT JOIN onlineDoctors AS od "
+                                             "ON od.doctor_id = u.id AND od.date = ? "
+                                             "WHERE u.type_id = ?")
+                                      .bind(todayDate, doctorRoleId)
+                                      .execute();
+
+        nlohmann::json doctorList = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            doctorList.push_back(buildDoctorJson(row));
+        }
+
+        return ResponseHelper::success(req, doctorList);
+    }
+    catch (const mysqlx::Error &e)
+    {
+        std::cerr << "Database error: " << e.what() << std::endl;
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", e.what());
+        return ResponseHelper::database_error(req, "Failed to fetch doctor list", e.what());
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", e.what());
+        return ResponseHelper::operation_failed(req, "Failed to fetch doctor list", e.what());
+    }
+}
+
+// 取消预约接口
+crow::response userHandler::cancelReservation(const crow::request &req, int userId, int reservationId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "取消预约", "database connection failed", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        if (userId <= 0 || reservationId <= 0)
+        {
+            return ResponseHelper::validation(req, "Invalid reservation id");
+        }
+
+        std::string status = "已取消";
+
+        // 验证用户和预约记录是否匹配
+        mysqlx::SqlResult reservation_result = dbManager->getSession()
+                                                   ->sql("SELECT user_id FROM reaservations WHERE id = ?")
+                                                   .bind(reservationId)
+                                                   .execute();
+
+        auto reservation_row = reservation_result.fetchOne();
+        if (!reservation_row)
+        {
+            return ResponseHelper::notFound(req, "Reservation record does not exist");
+        }
+
+        if (reservation_row[0].get<int>() == userId) // 操作用户和预约记录用户匹配
+        {
+
+            mysqlx::SqlResult result = dbManager->getSession()
+                                        ->sql("UPDATE reaservations SET status = ? WHERE id = ?")
+                                        .bind(status, reservationId)
+                                        .execute();
+
+            // 检查是否有记录被更新
+            if (result.getAffectedItemsCount() > 0)
+            {
+                // 返回成功响应
+                nlohmann::json response;
+                response["message"] = "取消成功";
+                response["reservation_id"] = reservationId;
+                response["status"] = status;
+                return ResponseHelper::success(req, response);
+            }
+            else
+            {
+                return ResponseHelper::notFound(req, "未找到指定的预约记录");
+            }
+        }
+        else // 操作用户和预约记录用户不匹配
+        {
+            return ResponseHelper::permission_denied(
+                req,
+                "预约记录不匹配",
+                "Reservation record does not belong to current user");
+        }
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "取消预约", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        return ResponseHelper::operation_failed(req, "Failed to cancel reservation", e.what());
+    }
+}
+
+// 删除预约记录接口
+crow::response userHandler::deleteReservation(const crow::request &req, int userId, int reservationId)
+{
+    try
+    {
+        // 检查数据库连接是否存在
+        if (!checkDbConnection())
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "删除预约记录", "database connection failed", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        mysqlx::SqlResult reservation_result = dbManager->getSession()
+                                                   ->sql("SELECT user_id FROM reaservations WHERE id = ?")
+                                                   .bind(reservationId)
+                                                   .execute();
+
+        auto reservation_row = reservation_result.fetchOne();
+
+        if (!reservation_row)
+        {
+            return ResponseHelper::notFound(req, "Reservation record does not exist");
+        }
+
+        if (reservation_row[0].get<int>() == userId) // 操作用户和预约记录用户匹配才允许删除
+        {
+
+            // 删除指定ID的预约记录
+            mysqlx::SqlResult result = dbManager->getSession()
+                                        ->sql("DELETE FROM reaservations WHERE id = ?")
+                                        .bind(reservationId)
+                                        .execute();
+
+            // 检查是否有记录被删除
+            if (result.getAffectedItemsCount() > 0)
+            {
+                // 返回成功响应
+                nlohmann::json response;
+                response["message"] = "预约记录删除成功";
+                response["reservation_id"] = reservationId;
+                return ResponseHelper::success(req, response);
+            }
+            else
+            {
+                return ResponseHelper::notFound(req, "未找到指定的预约记录");
+            }
+        }
+        else
+        {
+            return ResponseHelper::permission_denied(
+                req,
+                "预约记录不匹配",
+                "Reservation record does not belong to current user");
+        }
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "删除预约记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        return ResponseHelper::operation_failed(req, "Failed to delete reservation", e.what());
+    }
 }

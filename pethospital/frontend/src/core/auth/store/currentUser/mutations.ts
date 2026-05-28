@@ -14,6 +14,14 @@ const applyDirtyMeta = (meta: CurrentUserState["profileMeta"]) => {
   meta.dirty = true;
 };
 
+const buildStorageUserName = (state: CurrentUserState) =>
+  [state.userLastName, state.userMiddleName, state.userFirstName]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join("·") ||
+  state.userName ||
+  "";
+
 // 确保地址对象被正确格式化
 const normalizeAddress = (payload: SetCurrentUserPayload) => {
   if (typeof payload.userAddress === "object" && payload.userAddress !== null) {
@@ -43,7 +51,10 @@ const persistCurrentUser = (
   authStorage.saveCurrentUserProfile({
     userType,
     userRole,
-    userName: state.userName || "",
+    userName: buildStorageUserName(state),
+    userLastName: state.userLastName || "",
+    userMiddleName: state.userMiddleName || "",
+    userFirstName: state.userFirstName || "",
     userBirthday: state.userBirthday || "",
     userEmail: state.userEmail || "",
     userPhone: state.userPhone || "",
@@ -56,6 +67,9 @@ const persistCurrentUser = (
 // 重置当前用户状态
 const resetCurrentUserState = (state: CurrentUserState) => {
   state.userName = null;
+  state.userLastName = null;
+  state.userMiddleName = null;
+  state.userFirstName = null;
   state.userBirthday = null;
   state.userEmail = null;
   state.userPhone = null;
@@ -76,6 +90,9 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
   // 设置当前用户
   setCurrentUser(state, payload: SetCurrentUserPayload) {
     state.userName = payload.userName;
+    state.userLastName = payload.userLastName || "";
+    state.userMiddleName = payload.userMiddleName || "";
+    state.userFirstName = payload.userFirstName || "";
     state.userPhone = payload.userPhone;
     state.userEmail = payload.userEmail;
     state.userBirthday = payload.userBirthday;
@@ -90,6 +107,9 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
   hydrateCurrentUserFromStorage(state) {
     const nextState = createCurrentUserState();
     state.userName = nextState.userName;
+    state.userLastName = nextState.userLastName;
+    state.userMiddleName = nextState.userMiddleName;
+    state.userFirstName = nextState.userFirstName;
     state.userBirthday = nextState.userBirthday;
     state.userEmail = nextState.userEmail;
     state.userPhone = nextState.userPhone;
@@ -105,6 +125,9 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
     payload: {
       field:
         | "userName"
+        | "userLastName"
+        | "userMiddleName"
+        | "userFirstName"
         | "userPhone"
         | "userEmail"
         | "userBirthday"
@@ -118,6 +141,15 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
     switch (payload.field) {
       case "userName":
         state.userName = payload.value;
+        break;
+      case "userLastName":
+        state.userLastName = payload.value;
+        break;
+      case "userMiddleName":
+        state.userMiddleName = payload.value;
+        break;
+      case "userFirstName":
+        state.userFirstName = payload.value;
         break;
       case "userPhone":
         state.userPhone = payload.value;
@@ -137,6 +169,25 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
       default:
         break;
     }
+
+    persistCurrentUser(state, payload.userType, payload.userRole);
+    applyLoadedMeta(state.profileMeta);
+  },
+
+  updateUserNameParts(
+    state,
+    payload: {
+      userLastName: string;
+      userMiddleName: string;
+      userFirstName: string;
+      userType?: number | null;
+      userRole?: string | null;
+    }
+  ) {
+    state.userLastName = payload.userLastName;
+    state.userMiddleName = payload.userMiddleName;
+    state.userFirstName = payload.userFirstName;
+    state.userName = buildStorageUserName(state);
 
     persistCurrentUser(state, payload.userType, payload.userRole);
     applyLoadedMeta(state.profileMeta);

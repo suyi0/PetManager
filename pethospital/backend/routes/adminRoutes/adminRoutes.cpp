@@ -291,5 +291,30 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "修改工资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
+    CROW_ROUTE(app, "/api/admin/order/getAllRecord")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "订单", "获取全部病历");
+                    return;
+                }
+
+                adminHandler handler(dbManager);
+                crow::response response = handler.getAllRecord(req, userId);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception& e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取全部病历", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "订单", "获取全部病历", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
     routes_setup = true;
 }

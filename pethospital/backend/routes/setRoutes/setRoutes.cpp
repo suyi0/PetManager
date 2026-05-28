@@ -178,13 +178,7 @@ void WebSocketServer::setupRoutes()
     // 注册用户路由
     UserRoutes::setupUserRoutes(*app_ptr_, DatabaseManager::getInstance());
 
-    // 注册预约路由
-    ReservationRoutes::setupReservationRoutes(*app_ptr_, DatabaseManager::getInstance());
-
-    // 注册订单路由
-    OrderRoutes::setupOrderRoutes(*app_ptr_, DatabaseManager::getInstance());
-
-    // 注册仓库路由
+    // 注册仓管路由
     warehouseManagerRoutes::setupwarehouseManagerRoutes(*app_ptr_, DatabaseManager::getInstance());
 
     // 注册医生路由

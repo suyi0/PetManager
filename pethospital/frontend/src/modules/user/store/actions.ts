@@ -1,16 +1,24 @@
 import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { orderApi, petApi, reservationApi } from "../api/userApi";
-import { OrderRecordItem } from "../api/types";
-import { PetProfile, UserPortalState } from "./types";
 import {
-  readUserOrderRecordsCache,
+  PetProfile,
+  OrderDetail,
+  OrderSummary,
+  ReservationOrderRecordItem,
+  ReservationSummary,
+} from "../api/types";
+import { UserPortalState } from "./types";
+import {
+  readUserCurrentReservationDetailCache,
+  readUserCurrentOrderDetailCache,
   readUserOrderSummariesCache,
   readUserPetProfilesCache,
   readUserReservationDoctorsCache,
   readUserReservationRecordsCache,
   readUserReservationScheduleCache,
-  saveUserOrderRecordsCache,
+  saveUserCurrentReservationDetailCache,
+  saveUserCurrentOrderDetailCache,
   saveUserOrderSummariesCache,
   saveUserPetProfilesCache,
   saveUserReservationDoctorsCache,
@@ -19,12 +27,6 @@ import {
 } from "../utils/userPortalDataCache";
 
 type UserPortalActionContext = ActionContext<UserPortalState, State>;
-
-const buildUserIdentity = (rootState: State) => ({
-  name: rootState.currentUser.userName,
-  phone: rootState.currentUser.userPhone,
-  email: rootState.currentUser.userEmail,
-});
 
 export const userPortalActions: ActionTree<UserPortalState, State> = {
   /**
@@ -69,27 +71,27 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
   },
 
   /**
-   * 保存当前用户的普通订单记录，并同步更新缓存与本地持久化。
-   */
-  saveOrderRecords(
-    { commit }: UserPortalActionContext,
-    records: OrderRecordItem[]
-  ) {
-    saveUserOrderRecordsCache(records);
-    commit("setOrderRecords", records);
-    return records;
-  },
-
-  /**
    * 保存当前用户的预约记录，并同步更新缓存与本地持久化。
    */
   saveReservationRecords(
     { commit }: UserPortalActionContext,
-    records: OrderRecordItem[]
+    records: ReservationSummary[]
   ) {
     saveUserReservationRecordsCache(records);
     commit("setReservationRecords", records);
     return records;
+  },
+
+  /**
+   * 保存当前用户的订单摘要列表，并同步更新缓存与本地持久化。
+   */
+  saveOrderSummaries(
+    { commit }: UserPortalActionContext,
+    summaries: OrderSummary[]
+  ) {
+    saveUserOrderSummariesCache(summaries);
+    commit("setOrderSummaries", summaries);
+    return summaries;
   },
 
   async createPetProfile(
@@ -192,7 +194,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
   },
 
   /**
-   * 预约页基础数据预热。
+   * 服务预约页基础数据预热。
    * 进入用户端时统一从后端刷新预约页常用数据，并同步写入本地缓存。
    */
   async ensureServiceData({ dispatch }: UserPortalActionContext) {
@@ -204,34 +206,44 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
   },
 
   /**
-   * 确保普通订单记录可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 按订单编号确保完整订单详情可用。
+   * 先判断 Vuex 与 localStorage 中缓存的订单编号是否命中；
+   * 不命中时从后端获取，并覆盖旧的完整订单详情缓存。
    */
-  async ensureOrderRecords(
-    { state, commit, rootState }: UserPortalActionContext,
+  async ensureOrderDetail(
+    { state, commit }: UserPortalActionContext,
+    orderId: number,
     options?: { force?: boolean }
-  ) {
-    if (!shouldFetch(state.orderRecordsMeta, options?.force)) {
-      return state.orderRecords;
+  ): Promise<OrderDetail | null> {
+    if (
+      state.currentOrderDetail &&
+      Number(state.currentOrderDetail.id) === Number(orderId) &&
+      !shouldFetch(state.currentOrderDetailMeta, options?.force)
+    ) {
+      return state.currentOrderDetail;
     }
 
-    commit("setOrderRecordsLoading", true);
+    commit("setCurrentOrderDetailLoading", true);
     try {
       if (!options?.force) {
-        const cachedRecords = readUserOrderRecordsCache();
-
-        if (cachedRecords) {
-          commit("setOrderRecords", cachedRecords);
-          return cachedRecords;
+        const cachedDetail = readUserCurrentOrderDetailCache();
+        if (cachedDetail && Number(cachedDetail.id) === Number(orderId)) {
+          commit("setCurrentOrderDetail", cachedDetail);
+          return cachedDetail;
         }
       }
 
-      const rows = await orderApi.getOrderRecords(buildUserIdentity(rootState));
-      saveUserOrderRecordsCache(rows);
-      commit("setOrderRecords", rows);
-      return rows;
+      const detail = await orderApi.getOrderDetail(orderId);
+      if (detail) {
+        saveUserCurrentOrderDetailCache(detail);
+        commit("setCurrentOrderDetail", detail);
+        return detail;
+      }
+
+      commit("setCurrentOrderDetail", null);
+      return null;
     } finally {
-      commit("setOrderRecordsLoading", false);
+      commit("setCurrentOrderDetailLoading", false);
     }
   },
 
@@ -240,7 +252,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
    * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureReservationRecords(
-    { state, commit, rootState }: UserPortalActionContext,
+    { state, commit }: UserPortalActionContext,
     options?: { force?: boolean }
   ) {
     if (!shouldFetch(state.reservationRecordsMeta, options?.force)) {
@@ -258,14 +270,54 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
         }
       }
 
-      const rows = await reservationApi.getReservationRecords(
-        buildUserIdentity(rootState)
-      );
+      const rows = await reservationApi.getReservationRecords();
       saveUserReservationRecordsCache(rows);
       commit("setReservationRecords", rows);
       return rows;
     } finally {
       commit("setReservationRecordsLoading", false);
+    }
+  },
+
+  /**
+   * 按预约编号确保完整预约详情可用。
+   * 先判断 Vuex 与 localStorage 中缓存的预约编号是否命中；
+   * 不命中时从后端获取，并覆盖旧的完整预约详情缓存。
+   */
+  async ensureReservationDetail(
+    { state, commit }: UserPortalActionContext,
+    reservationId: number,
+    options?: { force?: boolean }
+  ): Promise<ReservationOrderRecordItem | null> {
+    if (
+      state.currentReservationDetail &&
+      Number(state.currentReservationDetail.id) === Number(reservationId) &&
+      !shouldFetch(state.currentReservationDetailMeta, options?.force)
+    ) {
+      return state.currentReservationDetail;
+    }
+
+    commit("setCurrentReservationDetailLoading", true);
+    try {
+      if (!options?.force) {
+        const cachedDetail = readUserCurrentReservationDetailCache();
+        if (cachedDetail && Number(cachedDetail.id) === Number(reservationId)) {
+          commit("setCurrentReservationDetail", cachedDetail);
+          return cachedDetail;
+        }
+      }
+
+      const detail = await reservationApi.getReservationDetail(reservationId);
+      if (detail) {
+        saveUserCurrentReservationDetailCache(detail);
+        commit("setCurrentReservationDetail", detail);
+        return detail;
+      }
+
+      commit("setCurrentReservationDetail", null);
+      return null;
+    } finally {
+      commit("setCurrentReservationDetailLoading", false);
     }
   },
 
@@ -282,6 +334,12 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
     );
     saveUserReservationRecordsCache(records);
     commit("setReservationRecords", records);
+    if (
+      state.currentReservationDetail &&
+      Number(state.currentReservationDetail.id) === Number(reservationId)
+    ) {
+      commit("setCurrentReservationDetail", null);
+    }
     return records;
   },
 
@@ -293,6 +351,8 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
     { state, commit }: UserPortalActionContext,
     options?: { force?: boolean }
   ) {
+    // 这个判断的意思是：如果缓存不为空，并且缓存的更新时间小于30天，则返回缓存的数据；
+    // 否则需要重新获取数据。force参数可以强制刷新数据，忽略缓存的有效性。
     if (!shouldFetch(state.orderSummariesMeta, options?.force)) {
       return state.orderSummaries;
     }
@@ -323,7 +383,6 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
    */
   async ensureOrderPageData({ dispatch }: UserPortalActionContext) {
     await Promise.all([
-      dispatch("ensureOrderRecords"),
       dispatch("ensureReservationRecords"),
       dispatch("ensureOrderSummaries"),
     ]);
@@ -335,10 +394,6 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
   async refreshReservationSchedule({ dispatch }: UserPortalActionContext) {
     return dispatch("ensureReservationSchedule", { force: true });
-  },
-
-  async refreshOrderRecords({ dispatch }: UserPortalActionContext) {
-    return dispatch("ensureOrderRecords", { force: true });
   },
 
   async refreshReservationRecords({ dispatch }: UserPortalActionContext) {

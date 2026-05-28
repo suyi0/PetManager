@@ -5,9 +5,12 @@ import {
   CreateOrderRecordPayload,
   DoctorDutyStatus,
   DoctorUserProfile,
+  DoctorUserSummary,
+  OrderDetailItem,
   QueueItem,
   OrderRecordItem,
   ReservationItem,
+  ReservationSummaryItem,
 } from "./types";
 
 /**
@@ -47,6 +50,110 @@ const normalizeQueueItems = (items: QueueItem[]) =>
       petId: toNumber(source.petId ?? source.pet_id),
     };
   });
+
+const normalizeOrderStatus = (
+  value: unknown
+): OrderRecordItem["order_status"] =>
+  String(value || "待付款") as OrderRecordItem["order_status"];
+
+/**
+ * 将公共订单摘要接口返回的数据统一成医生端订单摘要结构。
+ */
+const normalizeOrderRecordItems = (items: Array<Record<string, unknown>>) =>
+  items.map((item) => {
+    return {
+      id: toNumber(item.id) ?? 0,
+      pet_name: String(item.pet_name ?? item.petName ?? ""),
+      doctor_name: String(item.doctor_name ?? item.doctorName ?? ""),
+      order_type: String(item.order_type ?? item.orderType ?? ""),
+      order_data: String(item.order_data ?? item.orderData ?? ""),
+      order_status: normalizeOrderStatus(item.order_status ?? item.status),
+      order_totalprice:
+        toNumber(item.order_totalprice ?? item.totalFee ?? item.total_fee) ?? 0,
+      created_at: String(item.created_at ?? item.createdAt ?? ""),
+    };
+  });
+
+/**
+ * 将创建订单接口返回的数据转为订单摘要，方便立即插入医生端订单摘要缓存。
+ */
+const normalizeOrderRecordItem = (
+  item: Record<string, unknown>
+): OrderRecordItem => normalizeOrderRecordItems([item])[0];
+
+const normalizeReservationSummaries = (
+  items: Array<Record<string, unknown>>
+): ReservationSummaryItem[] =>
+  items.map((item) => {
+    const date = String(item.date ?? "");
+    const timeSlot = String(item.time_slot ?? item.timeSlot ?? "");
+
+    return {
+      id: toNumber(item.id) ?? 0,
+      pet_name: String(item.pet_name ?? item.petName ?? ""),
+      doctor_name: String(item.doctor_name ?? item.doctorName ?? ""),
+      reservation_type: String(
+        item.reservation_type ?? item.reservationType ?? ""
+      ),
+      date,
+      time_slot: timeSlot,
+      schedule:
+        String(item.schedule ?? "") ||
+        [date, timeSlot].filter(Boolean).join(" "),
+      status: String(item.status ?? "预约成功"),
+    };
+  });
+
+const normalizeReservationDetail = (
+  detail: ReservationItem | null
+): ReservationItem | null => {
+  if (!detail) {
+    return null;
+  }
+
+  return {
+    ...detail,
+    schedule:
+      detail.schedule ||
+      [detail.date, detail.time_slot].filter(Boolean).join(" "),
+    price: typeof detail.price === "number" ? detail.price : 0,
+  };
+};
+
+/**
+ * 将医生端用户摘要接口返回的数据统一成前端列表卡片需要的结构。
+ */
+const normalizeDoctorUserSummaries = (
+  items: Array<Record<string, unknown>>
+): DoctorUserSummary[] =>
+  items.map((item) => ({
+    id: toNumber(item.id) ?? 0,
+    type_id: toNumber(item.type_id ?? item.typeId) ?? 0,
+    name: String(item.name ?? ""),
+    phone: String(item.phone ?? ""),
+    email: String(item.email ?? ""),
+    head_image: String(item.head_image ?? item.headImage ?? ""),
+    pets: Array.isArray(item.pets)
+      ? item.pets
+          .map((pet) => {
+            const source = pet as Record<string, unknown>;
+
+            return {
+              id: toNumber(source.id) ?? 0,
+              pet_name: String(source.pet_name ?? source.petName ?? ""),
+            };
+          })
+          .filter((pet) => pet.id > 0 || pet.pet_name)
+      : [],
+  }));
+
+/**
+ * 从订单详情接口响应中提取完整订单信息。
+ */
+const unwrapOrderDetail = (payload: unknown) => {
+  const detail = unwrapData<OrderDetailItem>(payload);
+  return detail && typeof detail === "object" ? detail : null;
+};
 
 export const doctorApi = {
   /**
@@ -93,6 +200,25 @@ export const doctorApi = {
   },
 
   /**
+   * 按用户名或手机号获取医生端用户摘要列表。
+   */
+  async getUserList(payload: {
+    data: string;
+    identifier: "name" | "phone";
+  }): Promise<DoctorUserSummary[]> {
+    try {
+      const { data } = await http.post("/api/doctor/getUserList", payload);
+
+      return normalizeDoctorUserSummaries(
+        unwrapList<Record<string, unknown>>(data)
+      );
+    } catch (error) {
+      console.warn("getUserList fallback to empty data", error);
+      return [];
+    }
+  },
+
+  /**
    * 获取待接诊队列信息
    * @returns 返回待接诊队列列表，每个队列项包含宠物的基本信息、症状描述和到院时间等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
    */
@@ -112,16 +238,47 @@ export const doctorApi = {
    * 获取预约档案信息
    * @returns 返回预约档案列表，每个档案包含预约的宠物信息、预约项目和当前状态等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
    */
-  async getReservationsProfiles(): Promise<ReservationItem[]> {
+  async getReservationsProfiles(): Promise<ReservationSummaryItem[]> {
     try {
-      const { data } = await http.get("/api/doctor/reservations");
-      const reservationItems = unwrapList<ReservationItem>(data);
+      const { data } = await http.get("/api/doctor/reservations/summary");
+      const reservationItems = normalizeReservationSummaries(
+        unwrapList<Record<string, unknown>>(data)
+      );
 
       return reservationItems;
     } catch (error) {
       console.warn("getReservationsProfiles fallback to empty data", error);
       return [];
     }
+  },
+
+  /**
+   * 按预约编号获取完整预约详情。
+   */
+  async getReservationDetail(
+    reservationId: number
+  ): Promise<ReservationItem | null> {
+    try {
+      const { data } = await http.get(
+        `/api/doctor/reservations/reservationInformation/${reservationId}`
+      );
+      return normalizeReservationDetail(unwrapData<ReservationItem>(data));
+    } catch (error) {
+      console.warn("getReservationDetail fallback to empty data", error);
+      return null;
+    }
+  },
+
+  /**
+   * 更新医生名下预约记录的状态。
+   */
+  async updateReservationStatus(
+    reservationId: number,
+    status: string
+  ): Promise<void> {
+    await http.post(`/api/doctor/reservations/${reservationId}/status`, {
+      status,
+    });
   },
 
   /**
@@ -142,11 +299,9 @@ export const doctorApi = {
         throw new Error("创建订单接口未返回订单记录");
       }
 
-      return {
-        ...createdRecord,
-        id: String(createdRecord.id),
-        status: createdRecord.status || "待付款",
-      };
+      return normalizeOrderRecordItem(
+        createdRecord as unknown as Record<string, unknown>
+      );
     } catch (error) {
       console.warn("createOrderRecord fallback to empty data", error);
       throw error;
@@ -159,13 +314,30 @@ export const doctorApi = {
    */
   async getOrderRecords(): Promise<OrderRecordItem[]> {
     try {
-      const { data } = await http.get("/api/doctor/getOrderRecord");
-      const orderRecordItems = unwrapList<OrderRecordItem>(data);
+      const { data } = await http.get("/api/doctor/order/getOrderSummary");
+      const orderRecordItems = normalizeOrderRecordItems(
+        unwrapList<Record<string, unknown>>(data)
+      );
 
       return orderRecordItems;
     } catch (error) {
       console.warn("getOrderRecord fallback to empty data", error);
       return [];
+    }
+  },
+
+  /**
+   * 按订单编号获取完整诊单详情。
+   */
+  async getOrderDetail(orderId: number): Promise<OrderDetailItem | null> {
+    try {
+      const { data } = await http.get(
+        `/api/doctor/order/getOrderInformation/${orderId}`
+      );
+      return unwrapOrderDetail(data);
+    } catch (error) {
+      console.warn("getOrderDetail fallback to empty data", error);
+      return null;
     }
   },
 

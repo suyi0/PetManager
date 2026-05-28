@@ -3,17 +3,22 @@ import { State, shouldFetch } from "@/app/store/types";
 import { doctorApi } from "../api/doctorApi";
 import { DoctorState } from "./types";
 import {
+  readDoctorCurrentReservationDetailCache,
+  readDoctorCurrentOrderDetailCache,
   readDoctorDutyStatusCache,
   readDoctorOrderRecordCache,
   readDoctorQueueItemsCache,
   readDoctorReservationsCache,
   readDoctorUserProfilesCache,
+  saveDoctorCurrentReservationDetailCache,
+  saveDoctorCurrentOrderDetailCache,
   saveDoctorDutyStatusCache,
   saveDoctorOrderRecordCache,
   saveDoctorQueueItemsCache,
   saveDoctorReservationsCache,
   saveDoctorUserProfilesCache,
 } from "../utils/doctorDataCache";
+import { OrderDetailItem, ReservationItem } from "../api/types";
 
 type DoctorActionContext = ActionContext<DoctorState, State>;
 
@@ -147,6 +152,82 @@ export const doctorActions: ActionTree<DoctorState, State> = {
   },
 
   /**
+   * 按预约编号确保完整预约详情可用。
+   * 先判断 Vuex 与 localStorage 中缓存的预约编号是否命中；
+   * 不命中时从后端获取，并覆盖旧的完整预约详情缓存。
+   */
+  async ensureReservationDetail(
+    { state, commit }: DoctorActionContext,
+    reservationId: number,
+    options?: { force?: boolean }
+  ): Promise<ReservationItem | null> {
+    if (
+      state.currentReservationDetail &&
+      Number(state.currentReservationDetail.id) === Number(reservationId) &&
+      !shouldFetch(state.currentReservationDetailMeta, options?.force)
+    ) {
+      return state.currentReservationDetail;
+    }
+
+    commit("setCurrentReservationDetailLoading", true);
+    try {
+      if (!options?.force) {
+        const cachedDetail = readDoctorCurrentReservationDetailCache();
+        if (cachedDetail && Number(cachedDetail.id) === Number(reservationId)) {
+          commit("setCurrentReservationDetail", cachedDetail);
+          return cachedDetail;
+        }
+      }
+
+      const detail = await doctorApi.getReservationDetail(reservationId);
+      if (detail) {
+        saveDoctorCurrentReservationDetailCache(detail);
+        commit("setCurrentReservationDetail", detail);
+        return detail;
+      }
+
+      commit("setCurrentReservationDetail", null);
+      return null;
+    } finally {
+      commit("setCurrentReservationDetailLoading", false);
+    }
+  },
+
+  /**
+   * 更新预约状态，并同步医生端 Vuex 与 localStorage 预约缓存。
+   */
+  async updateReservationStatus(
+    { state, commit }: DoctorActionContext,
+    payload: { reservationId: number; status: string }
+  ) {
+    await doctorApi.updateReservationStatus(
+      payload.reservationId,
+      payload.status
+    );
+
+    const reservations = state.reservations.map((item) =>
+      Number(item.id) === Number(payload.reservationId)
+        ? { ...item, status: payload.status }
+        : item
+    );
+    saveDoctorReservationsCache(reservations);
+    commit("setReservations", reservations);
+    if (
+      state.currentReservationDetail &&
+      Number(state.currentReservationDetail.id) ===
+        Number(payload.reservationId)
+    ) {
+      const detail = {
+        ...state.currentReservationDetail,
+        status: payload.status,
+      };
+      saveDoctorCurrentReservationDetailCache(detail);
+      commit("setCurrentReservationDetail", detail);
+    }
+    return reservations;
+  },
+
+  /**
    * 确保订单记录可用。
    * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
@@ -175,6 +256,48 @@ export const doctorActions: ActionTree<DoctorState, State> = {
       return orderRecords;
     } finally {
       commit("setOrderRecordsLoading", false);
+    }
+  },
+
+  /**
+   * 按订单编号确保完整诊单详情可用。
+   * 先判断 Vuex 与 localStorage 中缓存的订单编号是否命中；
+   * 不命中时从后端获取，并覆盖旧的完整诊单详情缓存。
+   */
+  async ensureOrderDetail(
+    { state, commit }: DoctorActionContext,
+    orderId: number,
+    options?: { force?: boolean }
+  ): Promise<OrderDetailItem | null> {
+    if (
+      state.currentOrderDetail &&
+      Number(state.currentOrderDetail.id) === Number(orderId) &&
+      !shouldFetch(state.currentOrderDetailMeta, options?.force)
+    ) {
+      return state.currentOrderDetail;
+    }
+
+    commit("setCurrentOrderDetailLoading", true);
+    try {
+      if (!options?.force) {
+        const cachedDetail = readDoctorCurrentOrderDetailCache();
+        if (cachedDetail && Number(cachedDetail.id) === Number(orderId)) {
+          commit("setCurrentOrderDetail", cachedDetail);
+          return cachedDetail;
+        }
+      }
+
+      const detail = await doctorApi.getOrderDetail(orderId);
+      if (detail) {
+        saveDoctorCurrentOrderDetailCache(detail);
+        commit("setCurrentOrderDetail", detail);
+        return detail;
+      }
+
+      commit("setCurrentOrderDetail", null);
+      return null;
+    } finally {
+      commit("setCurrentOrderDetailLoading", false);
     }
   },
 

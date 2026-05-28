@@ -1,7 +1,9 @@
 #ifndef DOCTORHANDLER_H
 #define DOCTORHANDLER_H 
 
+#include "RoleTypeUtils/RoleTypeUtils.h"
 #include "../../../utils/Utils.h"
+#include "../../OperationLogger/OperationLogger.h"
 
 class doctorHandler : public BaseHandler
 {
@@ -17,12 +19,10 @@ public:
 
     crow::response getUserProfiles(const crow::request& req);                 // 获取医生端用户档案 对应 /api/doctor/userProfiles
 
-    crow::response getReservations(const crow::request& req, int doctorId);    // 获取医生预约列表 对应 /api/doctor/reservations
+    crow::response updateReservationStatus(const crow::request& req, int doctorId, int reservationId);    // 更新医生名下预约状态
 
     crow::response createOrderRecord(const crow::request& req, int doctorId);    // 创建诊单记录 对应 /api/doctor/orderRecord
 
-    crow::response getOrderRecords(const crow::request& req, int doctorId);    // 获取医生诊单记录 对应 /api/doctor/orderRecord
-    
     crow::response getUserList(const crow::request &req, const std::string data, const std::string &identifier);   // 获取用户信息 对应 /api/doctor/getUserList
 
     crow::response handleDutyAction(const crow::request& req, int userId, bool requireDoctorId = false);   // 根据状态执行签到或签退
@@ -30,6 +30,9 @@ public:
     crow::response onlineDoctor(const crow::request& req, int userId);      // 医生上班 对应 /api/doctor/onlineDoctor
 
     crow::response offlineDoctor(const crow::request& req, int userId);       // 医生下班 对应 /api/doctor/offlineDoctor
+
+    nlohmann::json getOrderData(const int &orderId);
+    crow::response changeOrder(const crow::request& req,int &orderId);             //修改订单 对应 /api/doctor/order/changeOrder/<int>
 
 };
 

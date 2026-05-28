@@ -77,6 +77,9 @@ export default defineComponent({
           userType: bridge.userType,
           userRole: bridge.userRole,
           userName: bridge.userName,
+          userLastName: bridge.userLastName,
+          userMiddleName: bridge.userMiddleName,
+          userFirstName: bridge.userFirstName,
           userPhone: bridge.userPhone,
           userEmail: bridge.userEmail,
           userBirthday: bridge.userBirthday,
@@ -103,13 +106,13 @@ export default defineComponent({
 
 <style scoped>
 .shell {
+  --doctor-workspace-min-height: 760px;
   display: grid;
   width: 100%;
   grid-template-columns: 272px minmax(0, 1fr);
-  height: 100vh;
-  min-height: 100vh;
+  min-height: max(100vh, var(--doctor-workspace-min-height));
   align-items: stretch;
-  overflow: hidden;
+  overflow: visible;
   overflow-x: hidden;
   background: radial-gradient(
       circle at 85% 8%,
@@ -132,8 +135,8 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   align-self: stretch;
-  height: 100vh;
-  min-height: 100vh;
+  height: auto;
+  min-height: max(100vh, var(--doctor-workspace-min-height));
   padding: 32px 20px 24px;
   border-right: 1px solid rgba(143, 173, 165, 0.26);
   background: linear-gradient(
@@ -300,10 +303,9 @@ export default defineComponent({
 
 .content {
   min-width: 0;
-  height: 100vh;
-  min-height: 100vh;
+  min-height: max(100vh, var(--doctor-workspace-min-height));
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   padding: 26px 28px 34px;
   box-sizing: border-box;
@@ -311,6 +313,7 @@ export default defineComponent({
 
 @media (max-width: 980px) {
   .shell {
+    --doctor-workspace-min-height: 0px;
     height: auto;
     grid-template-columns: 1fr;
     overflow: visible;

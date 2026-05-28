@@ -610,7 +610,7 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
             typeName,
             isEmailLogin ? email : phone,
             isEmailLogin);
-        response["expiresIn"] = 300;
+        response["expiresIn"] = 1800;
         return ResponseHelper::success(req, response);
     }
     catch (const std::exception &e)

@@ -2,9 +2,11 @@ import { MutationTree } from "vuex";
 import {
   DoctorDutyStatus,
   DoctorUserProfile,
+  OrderDetailItem,
   OrderRecordItem,
   QueueItem,
   ReservationItem,
+  ReservationSummaryItem,
 } from "../api/types";
 import { createDoctorState } from "./state";
 import { DoctorState } from "./types";
@@ -111,7 +113,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param state 医生状态对象
    * @param reservations 预约项目列表，每个项目包含预约的基本信息、宠物信息和医生信息等数据
    */
-  setReservations(state, reservations: ReservationItem[]) {
+  setReservations(state, reservations: ReservationSummaryItem[]) {
     state.reservations = reservations;
     applyLoadedMeta(state.reservationsMeta);
   },
@@ -122,6 +124,28 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   markReservationsDirty(state) {
     applyDirtyMeta(state.reservationsMeta);
+  },
+
+  /**
+   * 预约详情加载中。
+   */
+  setCurrentReservationDetailLoading(state, loading: boolean) {
+    state.currentReservationDetailMeta.loading = loading;
+  },
+
+  /**
+   * 写入当前选中的完整预约详情。
+   */
+  setCurrentReservationDetail(state, detail: ReservationItem | null) {
+    state.currentReservationDetail = detail;
+    applyLoadedMeta(state.currentReservationDetailMeta);
+  },
+
+  /**
+   * 标记当前预约详情缓存过期。
+   */
+  markCurrentReservationDetailDirty(state) {
+    applyDirtyMeta(state.currentReservationDetailMeta);
   },
 
   /**
@@ -149,6 +173,28 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   markOrderRecordsDirty(state) {
     applyDirtyMeta(state.orderRecordsMeta);
+  },
+
+  /**
+   * 订单详情加载中。
+   */
+  setCurrentOrderDetailLoading(state, loading: boolean) {
+    state.currentOrderDetailMeta.loading = loading;
+  },
+
+  /**
+   * 写入当前选中的完整订单详情。
+   */
+  setCurrentOrderDetail(state, detail: OrderDetailItem | null) {
+    state.currentOrderDetail = detail;
+    applyLoadedMeta(state.currentOrderDetailMeta);
+  },
+
+  /**
+   * 标记当前订单详情缓存过期。
+   */
+  markCurrentOrderDetailDirty(state) {
+    applyDirtyMeta(state.currentOrderDetailMeta);
   },
 
   /**

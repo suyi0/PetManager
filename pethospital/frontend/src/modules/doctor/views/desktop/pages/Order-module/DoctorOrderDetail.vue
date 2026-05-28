@@ -3,7 +3,7 @@
     <header class="detail-hero">
       <div>
         <p class="eyebrow">医生端 / 诊单详情</p>
-        <h2>{{ order.petName }} · {{ order.id }}</h2>
+        <h2>{{ order.pet_name }} · {{ order.id }}</h2>
         <p class="subcopy">查看本次接诊的基础信息、诊断结论和用药明细。</p>
       </div>
       <button class="back-link" type="button" @click="goBack">
@@ -15,25 +15,26 @@
       <article
         class="detail-card detail-card--deep-green"
         :class="{
-          'detail-card detail-card--deep-red': order.status === '已取消',
-          'detail-card detail-card--deep-yellow': order.status === '待付款',
+          'detail-card detail-card--deep-red': order.order_status === '已取消',
+          'detail-card detail-card--deep-yellow':
+            order.order_status === '待付款',
         }"
       >
         <small>本次接诊</small>
-        <strong>¥{{ order.totalFee.toFixed(2) }}</strong>
-        <span>{{ order.status }} · {{ order.createdAt }}</span>
+        <strong>¥{{ order.order_totalprice.toFixed(2) }}</strong>
+        <span>{{ order.order_status }} · {{ order.created_at }}</span>
       </article>
 
       <article class="detail-card">
         <small>主人</small>
-        <strong>{{ order.ownerName }}</strong>
-        <span>{{ profile?.phone || "未登记手机号" }}</span>
+        <strong>{{ order.owner_name || "未记录主人" }}</strong>
+        <span>主人编号 {{ order.owner_id }}</span>
       </article>
 
       <article class="detail-card">
         <small>主治医生</small>
-        <strong>{{ order.doctorName }}</strong>
-        <span>{{ order.petName }} · {{ pet?.breed || "宠物档案" }}</span>
+        <strong>{{ order.doctor_name || "未记录医生" }}</strong>
+        <span>{{ order.pet_name }} · {{ order.pet_type || "宠物档案" }}</span>
       </article>
     </section>
 
@@ -45,19 +46,23 @@
         <div class="fact-list">
           <div>
             <span>主人</span>
-            <strong>{{ order.ownerName }}</strong>
+            <strong>{{ order.owner_name || "未记录" }}</strong>
           </div>
           <div>
             <span>宠物名</span>
-            <strong>{{ order.petName }}</strong>
+            <strong>{{ order.pet_name }}</strong>
+          </div>
+          <div>
+            <span>宠物信息</span>
+            <strong>{{ petDescription }}</strong>
           </div>
           <div>
             <span>诊单时间</span>
-            <strong>{{ order.createdAt }}</strong>
+            <strong>{{ order.created_at }}</strong>
           </div>
           <div>
             <span>诊单金额</span>
-            <strong>¥{{ order.totalFee.toFixed(2) }}</strong>
+            <strong>¥{{ order.order_totalprice.toFixed(2) }}</strong>
           </div>
         </div>
       </article>
@@ -67,16 +72,16 @@
           <h3>诊断记录</h3>
         </div>
         <div class="text-block">
-          <label>主诉</label>
-          <p>{{ order.symptom }}</p>
+          <label>诊单类型</label>
+          <p>{{ order.order_type || "诊疗" }}</p>
         </div>
         <div class="text-block">
-          <label>诊断</label>
-          <p>{{ order.diagnosis }}</p>
+          <label>诊断记录</label>
+          <p>{{ order.order_data || "暂无诊断记录" }}</p>
         </div>
         <div class="text-block">
-          <label>医嘱备注</label>
-          <p>{{ order.remark }}</p>
+          <label>当前状态</label>
+          <p>{{ order.order_status }}</p>
         </div>
       </article>
     </section>
@@ -87,14 +92,17 @@
       </div>
       <div class="medicine-list">
         <div
-          v-for="item in order.medicines"
+          v-for="item in order.orderMedicines"
           :key="item.id"
           class="medicine-card"
         >
-          <strong>{{ item.name }}</strong>
-          <span>{{ item.dosage }}</span>
+          <strong>{{ item.medicine_name }}</strong>
+          <span>{{ item.medicine_type || "药品" }}</span>
           <em>x{{ item.quantity }}</em>
-          <b>¥{{ item.price.toFixed(2) }}</b>
+          <b>¥{{ item.total_price.toFixed(2) }}</b>
+        </div>
+        <div v-if="order.orderMedicines.length === 0" class="medicine-empty">
+          暂无用药记录。
         </div>
       </div>
     </section>
@@ -109,7 +117,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted } from "vue";
+import { computed, defineComponent, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
@@ -121,36 +129,36 @@ export default defineComponent({
     const route = useRoute();
     const router = useRouter();
     const basePath = computed(() => "/doctor");
-    const orderId = computed(() => String(route.params.orderId ?? ""));
+    const orderId = computed(() => Number(route.params.orderId ?? 0));
+    const loading = ref(false);
 
     /**
-     * 诊单详情依赖用户档案缓存定位具体订单。
+     * 诊单详情只缓存当前选中的一条完整记录。
+     * 切换到新的订单 id 时会覆盖上一条详情缓存。
      */
-    const loadDoctorUserProfiles = async () => {
-      await store.dispatch("doctor/ensureUserProfiles");
+    const loadOrderDetail = async () => {
+      if (!orderId.value) {
+        return;
+      }
+
+      loading.value = true;
+      try {
+        await store.dispatch("doctor/ensureOrderDetail", orderId.value);
+      } finally {
+        loading.value = false;
+      }
     };
 
-    /**
-     * 获取当前用户的档案
-     */
-    const profile = computed(() =>
-      store.state.doctor.userProfiles.find((item) =>
-        item.orders.some((currentOrder) => currentOrder.id === orderId.value)
-      )
-    );
-
-    /**
-     * 根据订单ID从当前用户档案中找到对应的订单详情数据，如果没有找到则返回undefined
-     */
     const order = computed(() =>
-      profile.value?.orders.find((item) => item.id === orderId.value)
+      Number(store.state.doctor.currentOrderDetail?.id) === orderId.value
+        ? store.state.doctor.currentOrderDetail
+        : null
     );
 
-    /**
-     * 根据订单ID从当前用户档案中找到对应的宠物档案数据，如果没有找到则返回undefined
-     */
-    const pet = computed(() =>
-      profile.value?.pets.find((item) => item.id === order.value?.petId)
+    const petDescription = computed(() =>
+      [order.value?.pet_type, order.value?.pet_age, order.value?.pet_sex]
+        .filter(Boolean)
+        .join(" · ")
     );
 
     const fromRecords = computed(() => route.query.from === "records");
@@ -168,22 +176,17 @@ export default defineComponent({
         return;
       }
 
-      if (profile.value) {
-        router.push(`${basePath.value}/users/${profile.value.id}`);
-        return;
-      }
-
       goBackToWorkbench();
     };
 
     onMounted(() => {
-      void loadDoctorUserProfiles();
+      void loadOrderDetail();
     });
 
     return {
-      profile,
+      loading,
       order,
-      pet,
+      petDescription,
       backLabel,
       goBack,
       goBackToWorkbench,

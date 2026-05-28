@@ -6,6 +6,9 @@ export const createCurrentUserState = (): CurrentUserState => {
   const persistedCurrentUser = authStorage.loadCurrentUser();
   const hasPersistedProfile = Boolean(
     persistedCurrentUser.userName ||
+      persistedCurrentUser.userLastName ||
+      persistedCurrentUser.userMiddleName ||
+      persistedCurrentUser.userFirstName ||
       persistedCurrentUser.userPhone ||
       persistedCurrentUser.userEmail ||
       persistedCurrentUser.userBirthday ||
@@ -15,6 +18,9 @@ export const createCurrentUserState = (): CurrentUserState => {
 
   return {
     userName: persistedCurrentUser.userName,
+    userLastName: persistedCurrentUser.userLastName,
+    userMiddleName: persistedCurrentUser.userMiddleName,
+    userFirstName: persistedCurrentUser.userFirstName,
     userBirthday: persistedCurrentUser.userBirthday,
     userEmail: persistedCurrentUser.userEmail,
     userPhone: persistedCurrentUser.userPhone,

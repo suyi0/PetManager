@@ -4,13 +4,15 @@ import {
   reservationScheduleMock,
 } from "@/modules/user/api/userMock";
 import {
-  OrderRecordItem,
+  PetProfile,
+  OrderDetail,
+  ReservationOrderRecordItem,
+  ReservationSummary,
   OrderSummary,
   ReservationScheduleState,
   ReservationScheduleResponseItem,
 } from "@/modules/user/api/types";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
-import { PetProfile } from "@/modules/user/store/types";
 
 /**
  * 生成一个与 axios 成功响应结构兼容的 Promise。
@@ -36,67 +38,72 @@ const unwrapListData = <T>(response: unknown) => {
 };
 
 /**
- * 从订单记录接口响应中提取订单记录列表，并进行类型断言。
- * @param response 接受一个未知类型的响应对象，尝试从中提取订单记录列表。
- * @returns  返回订单记录列表，如果响应数据格式不正确则返回空数组。
- */
-const unwrapOrderRecords = (response: unknown) => {
-  const responseData = response as {
-    data?: {
-      data?: unknown;
-    };
-  };
-
-  const rows = responseData?.data?.data;
-  return Array.isArray(rows) ? (rows as OrderRecordItem[]) : [];
-};
-
-/**
  * 从订单列表接口响应中提取订单摘要列表，并进行类型断言。
  * @param response 接受一个未知类型的响应对象，尝试从中提取订单摘要列表。
  * @returns  返回订单摘要列表，如果响应数据格式不正确则返回空数组。
  */
 const unwrapOrderList = (response: unknown) => {
   const responseData = response as {
-    data?: unknown;
+    data?: unknown | { data?: unknown };
   };
 
-  return Array.isArray(responseData?.data)
-    ? (responseData.data as OrderSummary[])
-    : [];
+  if (Array.isArray(responseData?.data)) {
+    return responseData.data as OrderSummary[];
+  }
+
+  const nestedRows =
+    responseData?.data &&
+    typeof responseData.data === "object" &&
+    "data" in responseData.data
+      ? (responseData.data as { data?: unknown }).data
+      : null;
+
+  return Array.isArray(nestedRows) ? (nestedRows as OrderSummary[]) : [];
 };
 
 /**
- * 订单记录接口请求函数，接受用户标识参数并返回订单记录列表。
- * @param params 接受一个包含查询参数的对象，用于发送请求。
- * @returns 返回订单记录列表；缺少用户标识、接口为空或失败时返回空列表。
+ * 从订单详情接口响应中提取完整订单信息。
  */
-const fetchOrderRecordsResponse = (params: {
-  name?: string | null;
-  phone?: string | null;
-  email?: string | null;
-}) => {
-  if (!params.name && !params.phone && !params.email) {
-    return createSuccessResponse({
-      success: true,
-      data: [],
-    });
-  }
+const unwrapOrderDetail = (response: unknown) => {
+  const responseData = response as {
+    data?: unknown | { data?: unknown };
+  };
 
-  return http.get("/api/order/getrecord", { params }).catch(() =>
-    createSuccessResponse({
-      success: true,
-      data: [],
-    })
-  );
+  const detail =
+    responseData?.data &&
+    typeof responseData.data === "object" &&
+    "data" in responseData.data
+      ? (responseData.data as { data?: unknown }).data
+      : responseData?.data;
+
+  return detail && typeof detail === "object" ? (detail as OrderDetail) : null;
 };
+
+const normalizeReservationSummaries = (
+  rows: ReservationSummary[]
+): ReservationSummary[] =>
+  rows.map((item) => ({
+    ...item,
+    schedule:
+      item.schedule ||
+      [item.date, item.time_slot].filter(Boolean).join(" ") ||
+      "",
+  }));
 
 /**
  * 订单列表摘要接口请求函数。
  * @returns 返回订单摘要列表；接口为空或失败时返回空列表。
  */
 const fetchOrderSummariesResponse = () =>
-  http.get("/api/order/getOrderList").catch(() => createSuccessResponse([]));
+  http
+    .get("/api/user/order/getOrderSummary")
+    .catch(() => createSuccessResponse([]));
+
+/**
+ * 订单完整信息接口请求函数。
+ */
+const fetchOrderDetailResponse = (orderId: number) =>
+  http.get(`/api/user/order/getOrderInformation/${orderId}`);
 
 /**
  * 将后端预约时间表结构转换成预约页面可直接使用的拆分字段。
@@ -132,7 +139,7 @@ const normalizeScheduleData = (
  */
 const fetchScheduleResponse = () =>
   http
-    .get("/api/reservate/getData")
+    .get("/api/user/reservate/getDate")
     .then((response) => {
       const rows = Array.isArray(response?.data?.data)
         ? response.data.data
@@ -156,7 +163,7 @@ const fetchScheduleResponse = () =>
  */
 const fetchDoctorsResponse = () =>
   http
-    .get("/api/reservate/getDoctor")
+    .get("/api/user/reservate/getDoctor")
     .then((response) => {
       const rows = Array.isArray(response?.data?.data)
         ? response.data.data
@@ -176,27 +183,21 @@ const fetchDoctorsResponse = () =>
     );
 
 /**
- * 请求用户预约记录；缺少用户标识、接口为空或失败时返回空列表。
+ * 请求当前登录用户的预约记录，具体用户范围由后端登录态判断。
  */
-const fetchReservationRecordsResponse = (params: {
-  name?: string | null;
-  phone?: string | null;
-  email?: string | null;
-}) => {
-  if (!params.name && !params.phone && !params.email) {
-    return createSuccessResponse({
-      success: true,
-      data: [],
-    });
-  }
-
-  return http.get("/api/reservate/getrecord", { params }).catch(() =>
+const fetchReservationRecordsResponse = () =>
+  http.get("/api/user/reservations/summary").catch(() =>
     createSuccessResponse({
       success: true,
       data: [],
     })
   );
-};
+
+/**
+ * 请求当前选中的完整预约记录。
+ */
+const fetchReservationDetailResponse = (reservationId: number) =>
+  http.get(`/api/user/reservate/reservationInformation/${reservationId}`);
 
 /**
  * 用户档案相关接口函数集合，包含保存用户基础资料和上传用户头像等功能。
@@ -228,27 +229,23 @@ export const profileApi = {
 };
 
 /**
- * 订单相关接口函数集合，包含获取订单记录列表和订单摘要列表等功能。
+ * 订单相关接口函数集合，包含获取订单摘要列表和完整订单详情等功能。
  */
 export const orderApi = {
-  /**
-   * 获取当前用户的订单记录列表。
-   */
-  async getOrderRecords(params: {
-    name?: string | null;
-    phone?: string | null;
-    email?: string | null;
-  }): Promise<OrderRecordItem[]> {
-    const response = await fetchOrderRecordsResponse(params);
-    return unwrapOrderRecords(response);
-  },
-
   /**
    * 获取订单摘要列表，供订单详情页或列表页按编号继续查询使用。
    */
   async getOrderSummaries(): Promise<OrderSummary[]> {
     const response = await fetchOrderSummariesResponse();
     return unwrapOrderList(response);
+  },
+
+  /**
+   * 按订单编号获取完整订单信息。
+   */
+  async getOrderDetail(orderId: number): Promise<OrderDetail | null> {
+    const response = await fetchOrderDetailResponse(orderId);
+    return unwrapOrderDetail(response);
   },
 };
 
@@ -285,29 +282,52 @@ export const reservationApi = {
     email?: string | null;
     doctorId: number;
     petId: number;
+    reservationType: string;
     date: string;
     slot: string;
   }) {
-    return http.post("/api/reservate/record", payload);
+    return http.post("/api/user/reservate/record", payload);
   },
 
   /**
    * 获取当前用户的预约记录列表。
    */
-  async getReservationRecords(params: {
-    name?: string | null;
-    phone?: string | null;
-    email?: string | null;
-  }): Promise<OrderRecordItem[]> {
-    const response = await fetchReservationRecordsResponse(params);
-    return unwrapListData<OrderRecordItem>(response);
+  async getReservationRecords(): Promise<ReservationSummary[]> {
+    const response = await fetchReservationRecordsResponse();
+    return normalizeReservationSummaries(
+      unwrapListData<ReservationSummary>(response)
+    );
+  },
+
+  /**
+   * 按预约编号获取完整预约详情。
+   */
+  async getReservationDetail(
+    reservationId: number
+  ): Promise<ReservationOrderRecordItem | null> {
+    const response = await fetchReservationDetailResponse(reservationId);
+    const detail = (response.data?.data ||
+      response.data) as ReservationOrderRecordItem | null;
+
+    if (!detail || typeof detail !== "object") {
+      return null;
+    }
+
+    return {
+      ...detail,
+      schedule:
+        detail.schedule ||
+        [detail.date, detail.time_slot].filter(Boolean).join(" ") ||
+        "",
+      price: typeof detail.price === "number" ? detail.price : 0,
+    };
   },
 
   /**
    * 删除当前用户的一条预约记录。
    */
   async deleteReservationRecord(reservationId: number): Promise<void> {
-    await http.delete(`/api/reservate/deleterecord/${reservationId}`);
+    await http.delete(`/api/user/reservate/deleterecord/${reservationId}`);
   },
 };
 

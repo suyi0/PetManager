@@ -110,6 +110,9 @@ type PersonalTab =
 interface SubmitData {
   field: string;
   name?: string;
+  lastName?: string;
+  middleName?: string;
+  firstName?: string;
   birthday?: string;
   phone?: string;
   email?: string;
@@ -150,7 +153,7 @@ const navItems: Array<{
 
 const completionScore = computed(() => {
   const values = [
-    store.state.currentUser.userName,
+    store.getters["auth/formattedUserName"],
     store.state.currentUser.userPhone,
     store.state.currentUser.userEmail,
     store.state.currentUser.userBirthday,
@@ -239,10 +242,11 @@ const close = () => {
 const submit = (data: SubmitData) => {
   switchTab("personal");
 
-  if (data.field === "userName") {
-    store.dispatch("currentUser/updateUserField", {
-      field: data.field,
-      value: data.name,
+  if (data.field === "userNameParts") {
+    store.dispatch("currentUser/updateUserNameParts", {
+      userLastName: data.lastName || "",
+      userMiddleName: data.middleName || "",
+      userFirstName: data.firstName || "",
     });
   }
   if (data.field === "userBirthday") {

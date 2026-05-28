@@ -1,5 +1,6 @@
 #include "doctorHandler.h"
-#include "RoleTypeUtils/RoleTypeUtils.h"
+
+#include <unordered_map>
 
 crow::response doctorHandler::getDoctor(const crow::request &req)
 {
@@ -82,124 +83,75 @@ crow::response doctorHandler::getDutyStatus(const crow::request &req, int userId
     }
 }
 
-crow::response doctorHandler::getUserProfiles(const crow::request &req)
+
+namespace
 {
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
-        }
-
-        mysqlx::SqlResult users = dbManager->getSession()
-                                      ->sql("SELECT u.id, COALESCE(u.name, ''), COALESCE(u.phone, ''), COALESCE(u.email, ''), "
-                                            "CAST(u.created_at AS CHAR), COALESCE(t.type, '') "
-                                            "FROM users AS u "
-                                            "LEFT JOIN types AS t ON u.type_id = t.id "
-                                            "ORDER BY u.created_at DESC, u.id DESC "
-                                            "LIMIT 80")
-                                      .execute();
-
-        nlohmann::json response = nlohmann::json::array();
-        for (auto row : users)
-        {
-            const int userId = row[0].get<int>();
-
-            mysqlx::SqlResult pets = dbManager->getSession()
-                                         ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
-                                               "COALESCE(pet_age, ''), COALESCE(pet_sex, '') "
-                                               "FROM pets "
-                                               "WHERE user_id = ? "
-                                               "ORDER BY id DESC")
-                                         .bind(userId)
-                                         .execute();
-
-            nlohmann::json petList = nlohmann::json::array();
-            for (auto petRow : pets)
-            {
-                nlohmann::json pet;
-                pet["id"] = std::to_string(petRow[0].get<int>());
-                pet["name"] = petRow[1].isNull() ? "" : petRow[1].get<std::string>();
-                pet["species"] = petRow[2].isNull() ? "" : petRow[2].get<std::string>();
-                pet["breed"] = "";
-                pet["age"] = petRow[3].isNull() ? "" : petRow[3].get<std::string>();
-                pet["sex"] = petRow[4].isNull() ? "" : petRow[4].get<std::string>();
-                pet["weight"] = "";
-                pet["orderIds"] = nlohmann::json::array();
-                petList.push_back(pet);
-            }
-
-            nlohmann::json profile;
-            profile["id"] = std::to_string(userId);
-            profile["ownerName"] = row[1].isNull() ? "" : row[1].get<std::string>();
-            profile["phone"] = row[2].isNull() ? "" : row[2].get<std::string>();
-            profile["email"] = row[3].isNull() ? "" : row[3].get<std::string>();
-            profile["address"] = "";
-            profile["memberLevel"] = row[5].isNull() ? "" : row[5].get<std::string>();
-            profile["balance"] = 0;
-            profile["note"] = row[4].isNull() ? "" : row[4].get<std::string>();
-            profile["pets"] = petList;
-            profile["orders"] = nlohmann::json::array();
-            response.push_back(profile);
-        }
-
-        return ResponseHelper::success(req, response);
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
+bool isValidDoctorReservationStatus(const std::string &status)
+{
+    return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
+}
 }
 
-crow::response doctorHandler::getReservations(const crow::request &req, int doctorId)
+crow::response doctorHandler::updateReservationStatus(const crow::request &req, int doctorId, int reservationId)
 {
     try
     {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+        {
+            return res;
+        }
+        auto &request_body = request_body_opt.value();
+
+        if (request_body.find("status") == request_body.end() || !request_body["status"].is_string())
+        {
+            return ResponseHelper::validation(req, "缺少预约状态");
+        }
+
+        const std::string status = request_body["status"].get<std::string>();
+        if (!isValidDoctorReservationStatus(status))
+        {
+            return ResponseHelper::validation(req, "预约状态不合法");
+        }
+
         if (!checkDbConnection())
         {
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
         const bool isBoss = RoleTypeUtils::userHasBossRole(dbManager, doctorId);
-        const std::string sql =
-            "SELECT r.id, COALESCE(u.name, ''), COALESCE(u.phone, ''), COALESCE(d.name, ''), "
-            "r.pet_id, COALESCE(p.pet_name, ''), "
-            "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), COALESCE(r.status, ''), "
-            "CAST(r.created_at AS CHAR) "
-            "FROM reaservations AS r "
-            "LEFT JOIN users AS u ON r.user_id = u.id "
-            "LEFT JOIN users AS d ON r.doctor_id = d.id "
-            "LEFT JOIN pets AS p ON r.pet_id = p.id " +
-            std::string(isBoss ? "" : "WHERE r.doctor_id = ? ") +
-            "ORDER BY r.date DESC, r.created_at DESC";
-
-        auto query = dbManager->getSession()->sql(sql);
-        if (!isBoss)
+        mysqlx::SqlResult reservationResult = dbManager->getSession()
+                                                   ->sql("SELECT doctor_id FROM reaservations WHERE id = ? LIMIT 1")
+                                                   .bind(reservationId)
+                                                   .execute();
+        auto reservationRow = reservationResult.fetchOne();
+        if (!reservationRow)
         {
-            query.bind(doctorId);
-        }
-        mysqlx::SqlResult result = query.execute();
-
-        nlohmann::json response = nlohmann::json::array();
-        for (auto row : result)
-        {
-            const std::string date = row[6].isNull() ? "" : row[6].get<std::string>();
-            const std::string timeSlot = row[7].isNull() ? "" : row[7].get<std::string>();
-
-            nlohmann::json item;
-            item["id"] = row[0].get<int>();
-            item["petId"] = row[4].isNull() ? 0 : row[4].get<int>();
-            item["petName"] = row[5].isNull() || row[5].get<std::string>().empty() ? "预约记录" : row[5].get<std::string>();
-            item["ownerName"] = row[1].isNull() ? "" : row[1].get<std::string>();
-            item["phone"] = row[2].isNull() ? "" : row[2].get<std::string>();
-            item["doctorName"] = row[3].isNull() ? "" : row[3].get<std::string>();
-            item["schedule"] = date + (timeSlot.empty() ? "" : " " + timeSlot);
-            item["project"] = "门诊预约";
-            item["status"] = row[8].isNull() ? "待确认" : row[8].get<std::string>();
-            item["createdAt"] = row[9].isNull() ? "" : row[9].get<std::string>();
-            response.push_back(item);
+            return ResponseHelper::notFound(req, "未找到指定的预约记录");
         }
 
+        const int recordDoctorId = reservationRow[0].isNull() ? 0 : reservationRow[0].get<int>();
+        if (!isBoss && recordDoctorId != doctorId)
+        {
+            return ResponseHelper::permission_denied(req, "无权更新其他医生的预约记录");
+        }
+
+        mysqlx::SqlResult updateResult = dbManager->getSession()
+                                            ->sql("UPDATE reaservations SET status = ? WHERE id = ?")
+                                            .bind(status)
+                                            .bind(reservationId)
+                                            .execute();
+
+        if (updateResult.getAffectedItemsCount() == 0)
+        {
+            return ResponseHelper::notFound(req, "未找到指定的预约记录");
+        }
+
+        nlohmann::json response;
+        response["message"] = "预约状态更新成功";
+        response["reservation_id"] = reservationId;
+        response["status"] = status;
         return ResponseHelper::success(req, response);
     }
     catch (const std::exception &e)
@@ -207,6 +159,7 @@ crow::response doctorHandler::getReservations(const crow::request &req, int doct
         return ResponseHelper::system_error(req, e.what());
     }
 }
+
 
 crow::response doctorHandler::createOrderRecord(const crow::request &req, int doctorId)
 {
@@ -299,54 +252,6 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
     }
 }
 
-crow::response doctorHandler::getOrderRecords(const crow::request &req, int doctorId)
-{
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
-        }
-
-        const bool isBoss = RoleTypeUtils::userHasBossRole(dbManager, doctorId);
-        const std::string sql =
-            "SELECT o.id, COALESCE(p.pet_name, ''), COALESCE(u.name, ''), "
-            "CAST(o.created_at AS CHAR), COALESCE(o.order_totalprice, 0), COALESCE(o.order_status, ''), "
-            "(SELECT COUNT(*) FROM orderMedicines AS om WHERE om.order_id = o.id) "
-            "FROM orders AS o "
-            "LEFT JOIN pets AS p ON o.pet_id = p.id "
-            "LEFT JOIN users AS u ON p.user_id = u.id " +
-            std::string(isBoss ? "" : "WHERE o.doctor_id = ? ") +
-            "ORDER BY o.created_at DESC";
-
-        auto query = dbManager->getSession()->sql(sql);
-        if (!isBoss)
-        {
-            query.bind(doctorId);
-        }
-        mysqlx::SqlResult result = query.execute();
-
-        nlohmann::json response = nlohmann::json::array();
-        for (auto row : result)
-        {
-            nlohmann::json item;
-            item["id"] = std::to_string(row[0].get<int>());
-            item["petName"] = row[1].isNull() ? "" : row[1].get<std::string>();
-            item["ownerName"] = row[2].isNull() ? "" : row[2].get<std::string>();
-            item["createdAt"] = row[3].isNull() ? "" : row[3].get<std::string>();
-            item["totalFee"] = row[4].isNull() ? 0.0 : row[4].get<double>();
-            item["status"] = row[5].isNull() ? "待付款" : row[5].get<std::string>();
-            item["medicineCount"] = row[6].isNull() ? 0 : row[6].get<int>();
-            response.push_back(item);
-        }
-
-        return ResponseHelper::success(req, response);
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
 
 crow::response doctorHandler::getUserList(const crow::request &req, const std::string data, const std::string &identifier)
 {
@@ -356,7 +261,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         {
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
-
+ 
         if (data.empty())
         {
             return ResponseHelper::validation(req, "搜索关键词不能为空");
@@ -365,10 +270,12 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         mysqlx::SqlResult result;
         if (identifier == "name")
         {
-            result = dbManager->getSession()->sql("SELECT id, type_id, name, phone, email, birthday, head_image, created_at "
-                                                  "FROM users "
-                                                  "WHERE name LIKE ? "
-                                                  "ORDER BY name ASC "
+            result = dbManager->getSession()->sql("SELECT u.id, u.type_id, u.name, u.phone, u.email, u.head_image, "
+                                                  "p.id, COALESCE(p.pet_name, '') "
+                                                  "FROM users AS u "
+                                                  "LEFT JOIN pets AS p ON u.id = p.user_id "
+                                                  "WHERE u.name LIKE ? "
+                                                  "ORDER BY u.name ASC, p.created_at ASC, p.id ASC "
                                                   "LIMIT 20")
                          .bind(data + "%")
                          .execute();
@@ -379,20 +286,24 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
             if (data.size() == 4)
             {
                 sql =
-                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.birthday, u.head_image, u.created_at "
+                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image, "
+                    "pet.id, COALESCE(pet.pet_name, '') "
                     "FROM phones AS p "
                     "JOIN users AS u ON p.user_id = u.id "
+                    "LEFT JOIN pets AS pet ON u.id = pet.user_id "
                     "WHERE p.phone_lastfour = ? "
-                    "ORDER BY u.name ASC";
+                    "ORDER BY u.name ASC, pet.created_at ASC, pet.id ASC";
             }
             else
             {
                 sql =
-                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.birthday, u.head_image, u.created_at "
+                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image, "
+                    "pet.id, COALESCE(pet.pet_name, '') "
                     "FROM phones AS p "
                     "JOIN users AS u ON p.user_id = u.id "
+                    "LEFT JOIN pets AS pet ON u.id = pet.user_id "
                     "WHERE p.phone = ? "
-                    "LIMIT 1";
+                    "ORDER BY pet.created_at ASC, pet.id ASC";
             }
 
             result = dbManager->getSession()->sql(sql).bind(data).execute();
@@ -408,19 +319,39 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         }
 
         nlohmann::json response = nlohmann::json::array();
+        // 无序哈希表，快速查找对应的索引位置
+        std::unordered_map<int, std::size_t> userIndexById;
         for (auto row : result)
         {
-            nlohmann::json user;
-            user["id"] = row[0].get<int>();
-            user["type_id"] = row[1].get<int>();
-            user["name"] = row[2].get<std::string>();
-            user["phone"] = row[3].get<std::string>();
-            user["email"] = row[4].get<std::string>();
-            user["birthday"] = row[5].get<std::string>();
-            user["head_image"] = row[6].get<std::string>();
-            user["created_at"] = row[7].get<std::string>();
+            int userId = row[0].get<int>();
+            auto userIndexIt = userIndexById.find(userId);  // 查找用户id对应的索引位置
 
-            response.push_back(user);
+            if (userIndexIt == userIndexById.end())
+            {
+                nlohmann::json user;
+                user["id"] = userId;
+                user["type_id"] = row[1].isNull() ? 0 : row[1].get<int>();
+                user["name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+                user["phone"] = row[3].isNull() ? "" : row[3].get<std::string>();
+                user["email"] = row[4].isNull() ? "" : row[4].get<std::string>();
+                user["head_image"] = row[5].isNull() ? "" : row[5].get<std::string>();
+                user["pets"] = nlohmann::json::array();
+
+                response.push_back(user);
+                userIndexById[userId] = response.size() - 1;    // 从0开始编号，记录用户id对应的索引位置
+                userIndexIt = userIndexById.find(userId);
+            }
+
+            // 已有的用户直接添加宠物信息
+            if (!row[6].isNull())
+            {
+                nlohmann::json pet;
+                pet["id"] = row[6].get<int>();
+                pet["pet_name"] = row[7].isNull() ? "" : row[7].get<std::string>();
+
+                // it->first 是键（用户ID），it->second 是值（索引）。
+                response[userIndexIt->second]["pets"].push_back(pet);
+            }
         }
 
         return ResponseHelper::success(req, response);
@@ -430,6 +361,77 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         return ResponseHelper::system_error(req, e.what());
     }
 }
+
+
+crow::response doctorHandler::getUserProfiles(const crow::request &req)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        mysqlx::SqlResult users = dbManager->getSession()
+                                      ->sql("SELECT u.id, COALESCE(u.name, ''), COALESCE(u.phone, ''), COALESCE(u.email, ''), "
+                                            "CAST(u.created_at AS CHAR), COALESCE(t.type, '') "
+                                            "FROM users AS u "
+                                            "LEFT JOIN types AS t ON u.type_id = t.id "
+                                            "ORDER BY u.created_at DESC, u.id DESC "
+                                            "LIMIT 80")
+                                      .execute();
+
+        nlohmann::json response = nlohmann::json::array();
+        for (auto row : users)
+        {
+            const int userId = row[0].get<int>();
+
+            mysqlx::SqlResult pets = dbManager->getSession()
+                                         ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
+                                               "COALESCE(pet_age, ''), COALESCE(pet_sex, '') "
+                                               "FROM pets "
+                                               "WHERE user_id = ? "
+                                               "ORDER BY id DESC")
+                                         .bind(userId)
+                                         .execute();
+
+            nlohmann::json petList = nlohmann::json::array();
+            for (auto petRow : pets)
+            {
+                nlohmann::json pet;
+                pet["id"] = std::to_string(petRow[0].get<int>());
+                pet["name"] = petRow[1].isNull() ? "" : petRow[1].get<std::string>();
+                pet["species"] = petRow[2].isNull() ? "" : petRow[2].get<std::string>();
+                pet["breed"] = "";
+                pet["age"] = petRow[3].isNull() ? "" : petRow[3].get<std::string>();
+                pet["sex"] = petRow[4].isNull() ? "" : petRow[4].get<std::string>();
+                pet["weight"] = "";
+                pet["orderIds"] = nlohmann::json::array();
+                petList.push_back(pet);
+            }
+
+            nlohmann::json profile;
+            profile["id"] = std::to_string(userId);
+            profile["ownerName"] = row[1].isNull() ? "" : row[1].get<std::string>();
+            profile["phone"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            profile["email"] = row[3].isNull() ? "" : row[3].get<std::string>();
+            profile["address"] = "";
+            profile["memberLevel"] = row[5].isNull() ? "" : row[5].get<std::string>();
+            profile["balance"] = 0;
+            profile["note"] = row[4].isNull() ? "" : row[4].get<std::string>();
+            profile["pets"] = petList;
+            profile["orders"] = nlohmann::json::array();
+            response.push_back(profile);
+        }
+
+        return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
 
 crow::response doctorHandler::handleDutyAction(const crow::request &req, int userId, bool requireDoctorId)
 {
@@ -463,6 +465,7 @@ crow::response doctorHandler::handleDutyAction(const crow::request &req, int use
 
     return ResponseHelper::error(req, "status 参数无效，仅支持 online 或 offline");
 }
+
 
 crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
 {
@@ -546,6 +549,7 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
     }
 }
 
+
 crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId)
 {
     try
@@ -606,5 +610,151 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
     catch (const std::exception &e)
     {
         return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+
+nlohmann::json doctorHandler::getOrderData(const int &orderId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return nlohmann::json(); // 返回空JSON表示错误
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT o.id, o.pet_id, p.pet_name, p.pet_type, p.pet_age, p.pet_sex, o.doctor_id, "
+                                                                "o.order_type, o.order_data, o.order_status, o.order_totalprice, o.created_at "
+                                                                "FROM orders o "
+                                                                "JOIN pets as p ON o.pet_id = p.id "
+                                                                "WHERE o.id = ?")
+                                       .bind(orderId)
+                                       .execute();
+
+        if (result.count() == 0)
+        {
+            return nlohmann::json(); // 返回空JSON表示未找到
+        }
+
+        auto row = result.fetchOne();
+        return {
+            {"id", row[0].get<int>()},
+            {"pet_id", row[1].get<int>()},
+            {"pet_name", row[2].get<std::string>()},
+            {"pet_type", row[3].get<std::string>()},
+            {"pet_age", row[4].get<std::string>()},
+            {"pet_sex", row[5].get<std::string>()},
+            {"doctor_id", row[6].get<int>()},
+            {"order_type", row[7].get<std::string>()},
+            {"order_data", row[8].get<std::string>()},
+            {"order_status", row[9].get<std::string>()},
+            {"order_totalprice", row[10].get<double>()},
+            {"created_at", row[11].get<std::string>()}};
+    }
+    catch (const std::exception &)
+    {
+        return nlohmann::json(); // 异常时返回空JSON
+    }
+}
+crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId)
+{
+    crow::response res;
+    auto request_body_opt = validateRequest(req, res);
+    if (!request_body_opt)
+        return res;
+    auto &request_body = request_body_opt.value();
+
+    try
+    {
+        int order_id = orderId; // 这个ID是从URL中获取的(更安全，不会被恶意修改)
+        int DBpet_id = 0;
+        int DBdoctor_id = 0;
+        std::string DBorder_type = "";
+        std::string DBorder_data = "";
+        std::string DBorder_status = "";
+
+        mysqlx::SqlResult orders_result = dbManager->getSession()
+                                              ->sql("SELECT id, pet_id, doctor_id, order_type, order_data, order_status "
+                                                    "FROM orders WHERE id = ?")
+                                              .bind(order_id)
+                                              .execute();
+        if (orders_result.count() == 0)
+        {
+            return ResponseHelper::notFound(req, "订单不存在");
+        }
+
+        for (const auto &row : orders_result)
+        {
+            if (!row[1].isNull())
+            {
+                DBpet_id = row[1].get<int>();
+            }
+            if (!row[2].isNull())
+            {
+                DBdoctor_id = row[2].get<int>();
+            }
+            if (!row[3].isNull())
+            {
+                DBorder_type = clean_string(row[3].get<std::string>());
+            }
+            if (!row[4].isNull())
+            {
+                DBorder_data = clean_string(row[4].get<std::string>());
+            }
+            if (!row[5].isNull())
+            {
+                DBorder_status = clean_string(row[5].get<std::string>());
+            }
+        }
+
+        bool has_changes = false;
+
+        if (DBpet_id != request_body["pet_id"].get<int>())
+        {
+            has_changes = true;
+        }
+        if (DBdoctor_id != request_body["doctor_id"].get<int>())
+        {
+            has_changes = true;
+        }
+        if (DBorder_type != request_body["order_type"].get<std::string>())
+        {
+            has_changes = true;
+        }
+        if (DBorder_data != request_body["order_data"].get<std::string>())
+        {
+            has_changes = true;
+        }
+        if (DBorder_status != request_body["order_status"].get<std::string>())
+        {
+            has_changes = true;
+        }
+
+        if (has_changes)
+        {
+            dbManager->getSession()
+                ->sql("UPDATE orders SET pet_id = ?, doctor_id = ?, order_type = ?, order_data = ?, order_status = ? WHERE id = ?")
+                .bind(
+                    request_body["pet_id"].get<int>(),
+                    request_body["doctor_id"].get<int>(),
+                    request_body["order_type"].get<std::string>(),
+                    request_body["order_data"].get<std::string>(),
+                    request_body["order_status"].get<std::string>(),
+                    order_id)
+                .execute();
+            std::cout << "Order updated successfully" << std::endl;
+            return ResponseHelper::success(req, getOrderData(order_id));
+        }
+        else
+        {
+            std::cout << "No changes to update" << std::endl;
+            return ResponseHelper::success(req, "No changes to update");
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error updating order: " << e.what() << std::endl;
+        OperationLogger::LogExceptionOperation(dbManager, req, "订单", "修改订单", e.what());
+        return ResponseHelper::error(req, e.what());
     }
 }

@@ -10,6 +10,9 @@ type CurrentUserActionContext = ActionContext<CurrentUserState, State>;
 
 type UserEditableField =
   | "userName"
+  | "userLastName"
+  | "userMiddleName"
+  | "userFirstName"
   | "userPhone"
   | "userEmail"
   | "userBirthday"
@@ -17,6 +20,14 @@ type UserEditableField =
   | "userHeadImage";
 
 type UserFieldValue = string;
+
+const buildStorageUserName = (state: CurrentUserState) =>
+  [state.userLastName, state.userMiddleName, state.userFirstName]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join("·") ||
+  state.userName ||
+  "";
 
 export const currentUserActions: ActionTree<CurrentUserState, State> = {
   ensureProfile(
@@ -42,12 +53,13 @@ export const currentUserActions: ActionTree<CurrentUserState, State> = {
 
   // 更新用户数据到后端 API
   updateUserData({ state }: CurrentUserActionContext) {
-    if (!state.userName) {
+    const storageUserName = buildStorageUserName(state);
+    if (!storageUserName) {
       return Promise.resolve();
     }
 
     return profileApi.saveUserData({
-      name: state.userName,
+      name: storageUserName,
       phone: state.userPhone,
       email: state.userEmail,
       birthday: state.userBirthday,
@@ -77,6 +89,24 @@ export const currentUserActions: ActionTree<CurrentUserState, State> = {
   ) {
     commit("markProfileDirty");
     commit("updateUserField", {
+      ...payload,
+      userType: rootState.auth.userType,
+      userRole: rootState.auth.userRole,
+    });
+
+    dispatch("debouncedUpdateUserData");
+  },
+
+  updateUserNameParts(
+    { commit, dispatch, rootState }: CurrentUserActionContext,
+    payload: {
+      userLastName: string;
+      userMiddleName: string;
+      userFirstName: string;
+    }
+  ) {
+    commit("markProfileDirty");
+    commit("updateUserNameParts", {
       ...payload,
       userType: rootState.auth.userType,
       userRole: rootState.auth.userRole,

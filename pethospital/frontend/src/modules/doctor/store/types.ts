@@ -2,9 +2,11 @@ import { CacheMeta } from "@/app/store/types";
 import {
   DoctorDutyStatus,
   DoctorUserProfile,
+  OrderDetailItem,
   OrderRecordItem,
   QueueItem,
   ReservationItem,
+  ReservationSummaryItem,
 } from "../api/types";
 
 /**
@@ -15,11 +17,15 @@ export interface DoctorState {
   dutyStatus: DoctorDutyStatus;
   userProfiles: DoctorUserProfile[];
   queueItems: QueueItem[];
-  reservations: ReservationItem[];
+  reservations: ReservationSummaryItem[];
+  currentReservationDetail: ReservationItem | null;
   orderRecords: OrderRecordItem[];
+  currentOrderDetail: OrderDetailItem | null;
   dutyStatusMeta: CacheMeta;
   userProfilesMeta: CacheMeta;
   queueItemsMeta: CacheMeta;
   reservationsMeta: CacheMeta;
+  currentReservationDetailMeta: CacheMeta;
   orderRecordsMeta: CacheMeta;
+  currentOrderDetailMeta: CacheMeta;
 }

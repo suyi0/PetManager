@@ -1,21 +1,37 @@
 import { MutationTree } from "vuex";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 import {
-  OrderRecordItem,
+  PetProfile,
+  OrderDetail,
   OrderSummary,
+  ReservationOrderRecordItem,
+  ReservationSummary,
   ReservationScheduleState,
 } from "../api/types";
 import { createUserPortalState } from "./state";
-import { PetProfile, UserPortalState } from "./types";
+import { UserPortalState } from "./types";
 
-const applyLoadedMeta = (meta: UserPortalState["orderRecordsMeta"]) => {
+/**
+ * 处理缓存的元数据。
+ * @param meta 元信息对象
+ * @remarks
+ * 这里的 loaded 和 dirty 字段配合使用，表示数据是否已加载以及是否需要重新加载。
+ * - loaded: 数据是否已成功加载过一次。
+ * - dirty: 数据是否被标记为过期，需要重新加载。
+ * 当数据成功加载后，设置 loaded 为 true，dirty 为 false；当数据被修改或需要刷新时，设置 dirty 为 true。
+ */
+const applyLoadedMeta = (meta: UserPortalState["reservationRecordsMeta"]) => {
   meta.loaded = true;
   meta.dirty = false;
   meta.loading = false;
   meta.lastFetchedAt = Date.now();
 };
 
-const applyDirtyMeta = (meta: UserPortalState["orderRecordsMeta"]) => {
+/**
+ * 标记数据过期需要重新获取。
+ * @param meta 元信息对象
+ */
+const applyDirtyMeta = (meta: UserPortalState["reservationRecordsMeta"]) => {
   meta.dirty = true;
 };
 
@@ -90,28 +106,6 @@ export const userPortalMutations: MutationTree<UserPortalState> = {
   },
 
   /**
-   * 订单记录加载中。
-   */
-  setOrderRecordsLoading(state, loading: boolean) {
-    state.orderRecordsMeta.loading = loading;
-  },
-
-  /**
-   * 写入普通订单记录。
-   */
-  setOrderRecords(state, records: OrderRecordItem[]) {
-    state.orderRecords = records;
-    applyLoadedMeta(state.orderRecordsMeta);
-  },
-
-  /**
-   * 标记普通订单记录过期。
-   */
-  markOrderRecordsDirty(state) {
-    applyDirtyMeta(state.orderRecordsMeta);
-  },
-
-  /**
    * 预约记录加载中。
    */
   setReservationRecordsLoading(state, loading: boolean) {
@@ -121,7 +115,7 @@ export const userPortalMutations: MutationTree<UserPortalState> = {
   /**
    * 写入预约记录列表。
    */
-  setReservationRecords(state, records: OrderRecordItem[]) {
+  setReservationRecords(state, records: ReservationSummary[]) {
     state.reservationRecords = records;
     applyLoadedMeta(state.reservationRecordsMeta);
   },
@@ -131,6 +125,31 @@ export const userPortalMutations: MutationTree<UserPortalState> = {
    */
   markReservationRecordsDirty(state) {
     applyDirtyMeta(state.reservationRecordsMeta);
+  },
+
+  /**
+   * 当前预约详情加载中。
+   */
+  setCurrentReservationDetailLoading(state, loading: boolean) {
+    state.currentReservationDetailMeta.loading = loading;
+  },
+
+  /**
+   * 写入当前选中的完整预约详情。
+   */
+  setCurrentReservationDetail(
+    state,
+    detail: ReservationOrderRecordItem | null
+  ) {
+    state.currentReservationDetail = detail;
+    applyLoadedMeta(state.currentReservationDetailMeta);
+  },
+
+  /**
+   * 标记当前预约详情需要重新获取。
+   */
+  markCurrentReservationDetailDirty(state) {
+    applyDirtyMeta(state.currentReservationDetailMeta);
   },
 
   /**
@@ -149,10 +168,32 @@ export const userPortalMutations: MutationTree<UserPortalState> = {
   },
 
   /**
+   * 当前订单详情加载中。
+   */
+  setCurrentOrderDetailLoading(state, loading: boolean) {
+    state.currentOrderDetailMeta.loading = loading;
+  },
+
+  /**
+   * 写入当前选中的完整订单详情。
+   */
+  setCurrentOrderDetail(state, detail: OrderDetail | null) {
+    state.currentOrderDetail = detail;
+    applyLoadedMeta(state.currentOrderDetailMeta);
+  },
+
+  /**
    * 标记订单摘要需要重新获取。
    */
   markOrderSummariesDirty(state) {
     applyDirtyMeta(state.orderSummariesMeta);
+  },
+
+  /**
+   * 标记当前订单详情需要重新获取。
+   */
+  markCurrentOrderDetailDirty(state) {
+    applyDirtyMeta(state.currentOrderDetailMeta);
   },
 
   /**

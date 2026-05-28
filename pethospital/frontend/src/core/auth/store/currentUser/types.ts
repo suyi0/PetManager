@@ -2,6 +2,9 @@ import { CacheMeta } from "@/app/store/types";
 
 export interface CurrentUserState {
   userName: string | null;
+  userLastName: string | null;
+  userMiddleName: string | null;
+  userFirstName: string | null;
   userBirthday: string | null;
   userEmail: string | null;
   userPhone: string | null;
@@ -13,6 +16,9 @@ export interface CurrentUserState {
 
 export interface SetCurrentUserPayload {
   userName: string;
+  userLastName?: string;
+  userMiddleName?: string;
+  userFirstName?: string;
   userPhone: string;
   userEmail: string;
   userBirthday: string;

@@ -421,11 +421,12 @@ export default defineComponent({
          */
         const normalizedRecord: OrderRecordItem = {
           ...createdRecord,
-          petName: createdRecord.petName || patientForm.petName || "未命名宠物",
-          ownerName:
-            createdRecord.ownerName || patientForm.ownerName || "未填写主人",
-          totalFee: createdRecord.totalFee ?? total.value,
-          status: createdRecord.status || "待付款",
+          pet_name:
+            createdRecord.pet_name || patientForm.petName || "未命名宠物",
+          order_type: createdRecord.order_type || "诊疗",
+          order_data: createdRecord.order_data || patientForm.symptom,
+          order_totalprice: createdRecord.order_totalprice ?? total.value,
+          order_status: createdRecord.order_status || "待付款",
         };
 
         /**
@@ -434,7 +435,7 @@ export default defineComponent({
         store.commit("doctor/setOrderRecords", [
           normalizedRecord,
           ...store.state.doctor.orderRecords.filter(
-            (item) => item.id !== normalizedRecord.id
+            (item) => Number(item.id) !== Number(normalizedRecord.id)
           ),
         ]);
         prependDoctorOrderRecordCache(normalizedRecord);

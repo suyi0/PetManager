@@ -1,18 +1,21 @@
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 import {
-  OrderRecordItem,
+  PetProfile,
+  OrderDetail,
   OrderSummary,
+  ReservationOrderRecordItem,
+  ReservationSummary,
   ReservationScheduleState,
 } from "../api/types";
-import { PetProfile } from "../store/types";
 
 const USER_PORTAL_CACHE_KEYS = {
   petProfiles: "user-portal:pet-profiles:cache",
   reservationDoctors: "user-portal:reservation-doctors:cache",
   reservationSchedule: "user-portal:reservation-schedule:cache",
-  orderRecords: "user-portal:order-records:cache",
   reservationRecords: "user-portal:reservation-records:cache",
+  currentReservationDetail: "user-portal:current-reservation-detail:cache",
   orderSummaries: "user-portal:order-summaries:cache",
+  currentOrderDetail: "user-portal:current-order-detail:cache",
 };
 
 const readJsonCache = <T>(key: string): T | null => {
@@ -87,34 +90,6 @@ export const saveUserReservationScheduleCache = (
 };
 
 /**
- * 从本地缓存读取用户端普通订单记录。
- * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
- */
-export const readUserOrderRecordsCache = () =>
-  readArrayCache<OrderRecordItem>(USER_PORTAL_CACHE_KEYS.orderRecords);
-
-/**
- * 写入用户端普通订单记录本地缓存。
- */
-export const saveUserOrderRecordsCache = (records: OrderRecordItem[]) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.orderRecords, records);
-};
-
-/**
- * 从本地缓存读取用户端预约记录。
- * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
- */
-export const readUserReservationRecordsCache = () =>
-  readArrayCache<OrderRecordItem>(USER_PORTAL_CACHE_KEYS.reservationRecords);
-
-/**
- * 写入用户端预约记录本地缓存。
- */
-export const saveUserReservationRecordsCache = (records: OrderRecordItem[]) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.reservationRecords, records);
-};
-
-/**
  * 从本地缓存读取用户端订单摘要。
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
@@ -126,6 +101,54 @@ export const readUserOrderSummariesCache = () =>
  */
 export const saveUserOrderSummariesCache = (summaries: OrderSummary[]) => {
   saveJsonCache(USER_PORTAL_CACHE_KEYS.orderSummaries, summaries);
+};
+
+/**
+ * 从本地缓存读取当前选中的完整订单信息。
+ * 该缓存只保存一条记录，进入新订单详情时会覆盖旧记录。
+ */
+export const readUserCurrentOrderDetailCache = () =>
+  readJsonCache<OrderDetail>(USER_PORTAL_CACHE_KEYS.currentOrderDetail);
+
+/**
+ * 写入当前选中的完整订单信息，并覆盖上一条详情缓存。
+ */
+export const saveUserCurrentOrderDetailCache = (detail: OrderDetail) => {
+  saveJsonCache(USER_PORTAL_CACHE_KEYS.currentOrderDetail, detail);
+};
+
+/**
+ * 从本地缓存读取用户端预约记录。
+ * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
+ */
+export const readUserReservationRecordsCache = () =>
+  readArrayCache<ReservationSummary>(USER_PORTAL_CACHE_KEYS.reservationRecords);
+
+/**
+ * 写入用户端预约记录本地缓存。
+ */
+export const saveUserReservationRecordsCache = (
+  records: ReservationSummary[]
+) => {
+  saveJsonCache(USER_PORTAL_CACHE_KEYS.reservationRecords, records);
+};
+
+/**
+ * 从本地缓存读取当前选中的完整预约信息。
+ * 该缓存只保存一条记录，进入新预约详情时会覆盖旧记录。
+ */
+export const readUserCurrentReservationDetailCache = () =>
+  readJsonCache<ReservationOrderRecordItem>(
+    USER_PORTAL_CACHE_KEYS.currentReservationDetail
+  );
+
+/**
+ * 写入当前选中的完整预约信息，并覆盖上一条详情缓存。
+ */
+export const saveUserCurrentReservationDetailCache = (
+  detail: ReservationOrderRecordItem
+) => {
+  saveJsonCache(USER_PORTAL_CACHE_KEYS.currentReservationDetail, detail);
 };
 
 /**

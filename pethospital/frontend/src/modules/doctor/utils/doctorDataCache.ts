@@ -1,9 +1,11 @@
 import {
   DoctorDutyStatus,
   DoctorUserProfile,
+  OrderDetailItem,
   OrderRecordItem,
   QueueItem,
   ReservationItem,
+  ReservationSummaryItem,
 } from "../api/types";
 
 const DOCTOR_CACHE_KEYS = {
@@ -11,7 +13,9 @@ const DOCTOR_CACHE_KEYS = {
   userProfiles: "doctor:user-profiles:cache",
   queueItems: "doctor:queue-items:cache",
   reservations: "doctor:reservations:cache",
+  currentReservationDetail: "doctor:current-reservation-detail:cache",
   orderRecords: "doctor:order-records:cache",
+  currentOrderDetail: "doctor:current-order-detail:cache",
 };
 
 /**
@@ -60,12 +64,12 @@ const readArrayCache = <T>(key: string): T[] | null => {
  * @returns 标准化后的订单记录列表
  */
 const normalizeOrderRecords = (records: OrderRecordItem[]) => {
-  const uniqueRecords = new Map<string, OrderRecordItem>();
+  const uniqueRecords = new Map<number, OrderRecordItem>();
 
   records.forEach((record) => {
-    uniqueRecords.set(String(record.id), {
+    uniqueRecords.set(Number(record.id), {
       ...record,
-      id: String(record.id),
+      id: Number(record.id),
     });
   });
 
@@ -119,15 +123,31 @@ export const saveDoctorQueueItemsCache = (queueItems: QueueItem[]) => {
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
 export const readDoctorReservationsCache = () =>
-  readArrayCache<ReservationItem>(DOCTOR_CACHE_KEYS.reservations);
+  readArrayCache<ReservationSummaryItem>(DOCTOR_CACHE_KEYS.reservations);
 
 /**
  * 写入医生端预约列表本地缓存。
  */
 export const saveDoctorReservationsCache = (
-  reservations: ReservationItem[]
+  reservations: ReservationSummaryItem[]
 ) => {
   saveJsonCache(DOCTOR_CACHE_KEYS.reservations, reservations);
+};
+
+/**
+ * 从本地缓存读取当前选中的完整预约信息。
+ * 该缓存只保存一条记录，进入新预约详情时会覆盖旧记录。
+ */
+export const readDoctorCurrentReservationDetailCache = () =>
+  readJsonCache<ReservationItem>(DOCTOR_CACHE_KEYS.currentReservationDetail);
+
+/**
+ * 写入当前选中的完整预约信息，并覆盖上一条详情缓存。
+ */
+export const saveDoctorCurrentReservationDetailCache = (
+  detail: ReservationItem
+) => {
+  saveJsonCache(DOCTOR_CACHE_KEYS.currentReservationDetail, detail);
 };
 
 /**
@@ -152,16 +172,32 @@ export const saveDoctorOrderRecordCache = (records: OrderRecordItem[]) => {
 export const prependDoctorOrderRecordCache = (record: OrderRecordItem) => {
   const normalizedRecord = {
     ...record,
-    id: String(record.id),
+    id: Number(record.id),
   };
   const cachedRecords = readDoctorOrderRecordCache() ?? [];
   const nextRecords = [
     normalizedRecord,
-    ...cachedRecords.filter((item) => item.id !== normalizedRecord.id),
+    ...cachedRecords.filter(
+      (item) => Number(item.id) !== Number(normalizedRecord.id)
+    ),
   ];
 
   saveDoctorOrderRecordCache(nextRecords);
   return nextRecords;
+};
+
+/**
+ * 从本地缓存读取当前选中的完整订单信息。
+ * 该缓存只保存一条记录，进入新订单详情时会覆盖旧记录。
+ */
+export const readDoctorCurrentOrderDetailCache = () =>
+  readJsonCache<OrderDetailItem>(DOCTOR_CACHE_KEYS.currentOrderDetail);
+
+/**
+ * 写入当前选中的完整订单信息，并覆盖上一条详情缓存。
+ */
+export const saveDoctorCurrentOrderDetailCache = (detail: OrderDetailItem) => {
+  saveJsonCache(DOCTOR_CACHE_KEYS.currentOrderDetail, detail);
 };
 
 /**

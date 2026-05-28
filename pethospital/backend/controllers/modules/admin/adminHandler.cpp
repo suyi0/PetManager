@@ -717,3 +717,79 @@ int adminHandler::calculateLogsCount()
         throw std::runtime_error("Failed to get logsCount: " + std::string(e.what()));
     }
 }
+
+crow::response adminHandler::getAllRecord(const crow::request &req, int &userId, int batch_size, int offset)
+{
+    try
+    {
+        if(!checkDbConnection())
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取订单详情", "database connection failed");
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        // 使用 JOIN 一次性查询，避免 N+1 查询问题
+        mysqlx::SqlResult orders_result = dbManager->getSession()->sql(
+                                                                     "SELECT o.id, o.pet_id, p.pet_name, o.doctor_id, o.order_type, "
+                                                                     "o.order_data, o.order_status, o.order_totalprice, o.created_at "
+                                                                     "FROM orders as o "
+                                                                     "JOIN pets as p ON o.pet_id = p.id "
+                                                                     "WHERE p.user_id = ? "
+                                                                     "ORDER BY o.order_data DESC, o.created_at DESC "
+                                                                     "LIMIT ? offset ? ")
+                                              .bind(userId, batch_size, (offset - 1) * batch_size)
+                                              .execute();
+
+        nlohmann::json response_data = nlohmann::json::array();
+        for (auto order_row : orders_result)
+        {
+            nlohmann::json order;
+            order["id"] = order_row[0].get<int>();
+            order["pet_id"] = order_row[1].get<int>();
+            order["pet_name"] = order_row[2].get<std::string>();
+            order["doctor_id"] = order_row[3].get<int>();
+            order["order_type"] = order_row[4].get<std::string>();
+            order["order_data"] = order_row[5].get<std::string>();
+            order["order_status"] = order_row[6].get<std::string>();
+            order["order_totalprice"] = order_row[7].get<double>();
+            order["created_at"] = order_row[8].get<std::string>();
+
+            // 第二步：查询该订单关联的药品信息
+            int order_id = order["id"];
+            mysqlx::SqlResult medicines_result = dbManager->getSession()->sql(
+                                                                            "SELECT om.id, om.medicine_id, om.quantity, om.price, om.total_price, "
+                                                                            "w.item_name, w.item_type "
+                                                                            "FROM orderMedicines as om "
+                                                                            "JOIN warehouse as w ON om.medicine_id = w.id "
+                                                                            "WHERE om.order_id = ?")
+                                                     .bind(order_id)
+                                                     .execute();
+
+            nlohmann::json medicines = nlohmann::json::array();
+            for (auto med_row : medicines_result)
+            {
+                nlohmann::json medicine;
+                medicine["id"] = med_row[0].get<int>();          // orderMedicines 表的 ID
+                medicine["medicine_id"] = med_row[1].get<int>(); // warehouse 表的 ID
+                medicine["quantity"] = med_row[2].get<int>();
+                medicine["price"] = med_row[3].get<double>();
+                medicine["total_price"] = med_row[4].get<double>();
+                medicine["item_name"] = med_row[5].get<std::string>();
+                medicine["item_type"] = med_row[6].get<std::string>();
+
+                medicines.push_back(medicine);
+            }
+
+            // 将药品列表嵌套到订单对象中
+            order["orderMedicines"] = medicines;
+
+            response_data.push_back(order);
+        }
+
+        return ResponseHelper::success(req, response_data);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}

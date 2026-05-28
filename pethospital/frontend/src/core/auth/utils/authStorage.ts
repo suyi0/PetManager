@@ -6,6 +6,9 @@ const STORAGE_KEYS = {
   userType: "user_type",
   userRole: "user_role",
   userName: "user_name",
+  userLastName: "user_last_name",
+  userMiddleName: "user_middle_name",
+  userFirstName: "user_first_name",
   userBirthday: "user_birthday",
   userEmail: "user_email",
   userPhone: "user_phone",
@@ -22,6 +25,9 @@ const AUTH_STORAGE_KEYS = [
   STORAGE_KEYS.userType,
   STORAGE_KEYS.userRole,
   STORAGE_KEYS.userName,
+  STORAGE_KEYS.userLastName,
+  STORAGE_KEYS.userMiddleName,
+  STORAGE_KEYS.userFirstName,
   STORAGE_KEYS.userBirthday,
   STORAGE_KEYS.userEmail,
   STORAGE_KEYS.userPhone,
@@ -55,6 +61,9 @@ const clearKeysFromStorage = (
 
 type PersistedUser = {
   userName: string | null;
+  userLastName: string | null;
+  userMiddleName: string | null;
+  userFirstName: string | null;
   userType: number | null;
   userRole: string | null;
   userBirthday: string | null;
@@ -76,6 +85,9 @@ type PersistedSession = {
 
 type PersistedCurrentUser = {
   userName: string | null;
+  userLastName: string | null;
+  userMiddleName: string | null;
+  userFirstName: string | null;
   userBirthday: string | null;
   userEmail: string | null;
   userPhone: string | null;
@@ -90,6 +102,9 @@ type AdminPortalBridge = {
   userType: number;
   userRole?: string;
   userName: string;
+  userLastName?: string;
+  userMiddleName?: string;
+  userFirstName?: string;
   userBirthday: string;
   userEmail: string;
   userPhone: string;
@@ -198,6 +213,9 @@ export const authStorage = {
     if (!token || !activeStorage) {
       return {
         userName: null,
+        userLastName: null,
+        userMiddleName: null,
+        userFirstName: null,
         userType: null,
         userRole: null,
         userBirthday: null,
@@ -220,6 +238,9 @@ export const authStorage = {
 
     return {
       userName: activeStorage.getItem(STORAGE_KEYS.userName),
+      userLastName: activeStorage.getItem(STORAGE_KEYS.userLastName),
+      userMiddleName: activeStorage.getItem(STORAGE_KEYS.userMiddleName),
+      userFirstName: activeStorage.getItem(STORAGE_KEYS.userFirstName),
       userType: userTypeRaw ? Number(userTypeRaw) : null,
       userRole: activeStorage.getItem(STORAGE_KEYS.userRole) || payloadRole,
       userBirthday: activeStorage.getItem(STORAGE_KEYS.userBirthday),
@@ -251,6 +272,9 @@ export const authStorage = {
 
     return {
       userName: persistedUser.userName,
+      userLastName: persistedUser.userLastName,
+      userMiddleName: persistedUser.userMiddleName,
+      userFirstName: persistedUser.userFirstName,
       userBirthday: persistedUser.userBirthday,
       userEmail: persistedUser.userEmail,
       userPhone: persistedUser.userPhone,
@@ -284,6 +308,9 @@ export const authStorage = {
   // 保存当前用户信息到持久化存储
   saveCurrentUserProfile(payload: {
     userName: string;
+    userLastName?: string;
+    userMiddleName?: string;
+    userFirstName?: string;
     userBirthday: string;
     userEmail: string;
     userPhone: string;
@@ -298,6 +325,18 @@ export const authStorage = {
       : getActiveAuthStorage() ?? localStorage;
 
     authStorageTarget.setItem(STORAGE_KEYS.userName, payload.userName);
+    authStorageTarget.setItem(
+      STORAGE_KEYS.userLastName,
+      payload.userLastName || ""
+    );
+    authStorageTarget.setItem(
+      STORAGE_KEYS.userMiddleName,
+      payload.userMiddleName || ""
+    );
+    authStorageTarget.setItem(
+      STORAGE_KEYS.userFirstName,
+      payload.userFirstName || ""
+    );
     authStorageTarget.setItem(STORAGE_KEYS.userBirthday, payload.userBirthday);
     authStorageTarget.setItem(STORAGE_KEYS.userEmail, payload.userEmail);
     authStorageTarget.setItem(STORAGE_KEYS.userPhone, payload.userPhone);
@@ -322,6 +361,9 @@ export const authStorage = {
     userType?: number | null;
     userRole?: string | null;
     userName: string;
+    userLastName?: string;
+    userMiddleName?: string;
+    userFirstName?: string;
     userBirthday: string;
     userEmail: string;
     userPhone: string;
@@ -338,6 +380,9 @@ export const authStorage = {
       userType: payload.userType,
       userRole: payload.userRole,
       userName: payload.userName,
+      userLastName: payload.userLastName,
+      userMiddleName: payload.userMiddleName,
+      userFirstName: payload.userFirstName,
       userBirthday: payload.userBirthday,
       userEmail: payload.userEmail,
       userPhone: payload.userPhone,

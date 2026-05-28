@@ -3,6 +3,8 @@
 
 #include "../../controllers/modules/doctor/doctorHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../controllers/common/orderCommon/orderCommonHandler.h"
+#include "../../controllers/common/reservationCommon/reservationCommonHandler.h"
 
 class DoctorRoutes {
 public:

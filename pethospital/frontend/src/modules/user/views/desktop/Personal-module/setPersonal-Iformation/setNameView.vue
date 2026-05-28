@@ -15,7 +15,7 @@
       <div class="profile-editor__badge">{{ userInitial }}</div>
       <div class="profile-editor__summary">
         <small>当前显示名</small>
-        <strong>{{ previewName }}</strong>
+        <strong>{{ previewDisplayName }}</strong>
         <span>
           支持把姓名拆成三段来维护，空白项会自动忽略，不会影响最终显示。
         </span>
@@ -56,7 +56,7 @@
       <div class="editor-tips">
         <article>
           <small>格式预览</small>
-          <strong>{{ previewName }}</strong>
+          <strong>{{ previewDisplayName }}</strong>
         </article>
         <article>
           <small>填写建议</small>
@@ -87,29 +87,28 @@ const lastName = ref("");
 const middleName = ref("");
 const firstName = ref("");
 
-function parseNameString(nameString: string) {
-  if (!nameString) return;
-
-  const parts = nameString
-    .split("·")
+const nameParts = computed(() =>
+  [lastName.value, middleName.value, firstName.value]
     .map((part) => part.trim())
-    .filter((part) => part.length > 0);
+    .filter((part) => part.length > 0)
+);
 
-  lastName.value = parts[0] || "";
-  middleName.value = parts[1] || "";
-  firstName.value = parts[2] || "";
-}
+const storageName = computed(() => {
+  if (firstName.value.trim()) {
+    return [lastName.value, middleName.value, firstName.value]
+      .map((part) => part.trim())
+      .join("·");
+  }
 
-const previewName = computed(() => {
-  const parts = [lastName.value, middleName.value, firstName.value]
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
+  return nameParts.value.join("·");
+});
 
-  return parts.join("·") || "未设置姓名";
+const previewDisplayName = computed(() => {
+  return nameParts.value.join("") || "未设置姓名";
 });
 
 const userInitial = computed(() =>
-  String(previewName.value || "U")
+  String(previewDisplayName.value || "U")
     .trim()
     .charAt(0)
     .toUpperCase()
@@ -123,8 +122,11 @@ function cancel() {
 function handleContinue() {
   isButtonActive.value = false;
   emit("submit", {
-    field: "userName",
-    name: previewName.value === "未设置姓名" ? "" : previewName.value,
+    field: "userNameParts",
+    name: previewDisplayName.value === "未设置姓名" ? "" : storageName.value,
+    lastName: lastName.value.trim(),
+    middleName: middleName.value.trim(),
+    firstName: firstName.value.trim(),
   });
 }
 
@@ -133,10 +135,9 @@ function close() {
 }
 
 onMounted(() => {
-  const savedName = store.state.currentUser.userName;
-  if (savedName) {
-    parseNameString(savedName);
-  }
+  lastName.value = store.state.currentUser.userLastName || "";
+  middleName.value = store.state.currentUser.userMiddleName || "";
+  firstName.value = store.state.currentUser.userFirstName || "";
 });
 </script>
 
