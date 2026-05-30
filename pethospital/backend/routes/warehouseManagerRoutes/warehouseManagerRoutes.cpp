@@ -134,7 +134,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                     }
 
                     warehouseManagerHandler handler(dbManager);
-                    crow::response response = handler.deleteData(req);
+                    crow::response response = handler.deleteData(req, userId);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
                     OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "删除物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);

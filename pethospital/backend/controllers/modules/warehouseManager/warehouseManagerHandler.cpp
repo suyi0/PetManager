@@ -77,7 +77,7 @@ crow::response warehouseManagerHandler::selectAllData(const crow::request &req)
         mysqlx::SqlResult result = dbManager->getSession()->sql(
             "SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
             "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
-            "FROM warehouse ORDER BY id DESC")
+            "FROM warehouse WHERE is_deleted = 0 ORDER BY id DESC")
             .execute();
 
         nlohmann::json response_data = nlohmann::json::array();
@@ -137,7 +137,7 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
             result = dbManager->getSession()->sql(
                 "SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
                 "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
-                "FROM warehouse WHERE id = ?")
+                "FROM warehouse WHERE id = ? AND is_deleted = 0")
                 .bind(dataID)
                 .execute();
         }
@@ -151,7 +151,7 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
             result = dbManager->getSession()->sql(
                 "SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
                 "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
-                "FROM warehouse WHERE item_name = ? ORDER BY id DESC")
+                "FROM warehouse WHERE item_name = ? AND is_deleted = 0 ORDER BY id DESC")
                 .bind(value)
                 .execute();
         }
@@ -248,7 +248,8 @@ crow::response warehouseManagerHandler::updata(const crow::request &req, const i
         }
 
         mysqlx::RowResult result = dbManager->getSession()->sql(
-            "UPDATE warehouse SET item_name = ?, item_type = ?, item_productiondate = ?, item_expirationdate = ?, item_number = ?, item_price = ? WHERE id = ?")
+            "UPDATE warehouse SET item_name = ?, item_type = ?, item_productiondate = ?, item_expirationdate = ?, item_number = ?, item_price = ? "
+            "WHERE id = ? AND is_deleted = 0")
                 .bind(item_name, item_type, item_productiondate, item_expirationdate, item_number, item_price, dataID)
                 .execute();
 
@@ -265,7 +266,7 @@ crow::response warehouseManagerHandler::updata(const crow::request &req, const i
     }
 }
 
-crow::response warehouseManagerHandler::deleteData(const crow::request &req)
+crow::response warehouseManagerHandler::deleteData(const crow::request &req, int userId)
 {
     try
     {
@@ -282,8 +283,11 @@ crow::response warehouseManagerHandler::deleteData(const crow::request &req)
             return ResponseHelper::validation(req, "无效的数据ID");
         }
 
-        mysqlx::RowResult result = dbManager->getSession()->sql("DELETE FROM warehouse WHERE id = ?")
-                                    .bind(dataID)
+        mysqlx::RowResult result = dbManager->getSession()
+                                    ->sql("UPDATE warehouse "
+                                          "SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? "
+                                          "WHERE id = ? AND is_deleted = 0")
+                                    .bind(userId, dataID)
                                     .execute();
         
         if(result.getAffectedItemsCount() > 0)

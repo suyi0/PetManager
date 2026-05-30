@@ -60,21 +60,6 @@ export type OrderStatus =
   | "部分退款";
 
 /**
- * 订单摘要项数据类型定义。
- * 列表页只保存轻量字段，完整药品明细进入详情页后按订单 id 单独获取。
- */
-export interface OrderRecordItem {
-  id: number;
-  pet_name: string;
-  doctor_name: string;
-  order_type: string;
-  order_data: string;
-  order_status: OrderStatus;
-  order_totalprice: number;
-  created_at: string;
-}
-
-/**
  * 医生端创建订单记录时提交给后端的数据结构。
  */
 export interface CreateOrderRecordPayload {
@@ -145,9 +130,23 @@ export interface OrderMedicineItem {
 }
 
 /**
+ * 订单摘要项数据类型定义。
+ * 列表页只保存轻量字段，完整药品明细进入详情页后按订单 id 单独获取。
+ */
+export interface OrderSummaryItem {
+  id: number;
+  pet_name: string;
+  doctor_name: string;
+  order_type: string;
+  order_data: string;
+  order_status: OrderStatus;
+  order_totalprice: number;
+}
+
+/**
  * 订单详情项数据类型定义，进入详情页时按订单 id 从后端获取。
  */
-export interface OrderDetailItem extends OrderRecordItem {
+export interface OrderDetailItem extends OrderSummaryItem {
   owner_id: number;
   owner_name: string;
   pet_id: number;
@@ -155,63 +154,58 @@ export interface OrderDetailItem extends OrderRecordItem {
   pet_age: string;
   pet_sex: string;
   doctor_id: number;
+  created_at: string;
   updated_at: string;
   orderMedicines: OrderMedicineItem[];
 }
 
 /**
- * 用户档案页面的旧订单简略项。
- * 该页面仍来自医生用户档案接口，不参与医生订单摘要缓存。
+ * 医生端用户详情页的宠物摘要。
  */
-export interface LegacyOrderRecordItem {
-  id: string;
-  petId?: string;
-  petName: string;
-  ownerName: string;
-  doctorName?: string;
-  createdAt: string;
-  totalFee: number;
-  status: OrderStatus;
-  symptom?: string;
-  diagnosis?: string;
-  remark?: string;
-  medicines?: Array<{
-    id: number;
-    name: string;
-    dosage: string;
-    quantity: number;
-    price: number;
-  }>;
+export interface DoctorUserProfilePetSummary {
+  id: number;
+  pet_name: string;
+  pet_type: string;
+  pet_sex: string;
+  pet_age?: string;
+  pet_breed?: string;
 }
 
 /**
- * 医生端宠物档案数据类型定义
+ * 医生端管理用户宠物档案时使用的完整宠物数据。
  */
-export interface DoctorPetProfile {
+export interface DoctorManagedPetProfile {
   id: string;
   name: string;
   species: string;
   breed: string;
   age: string;
-  sex: string;
-  weight: string;
-  orderIds: string[];
+  gender: string;
+  neutered: string;
+  vaccineStatus: string;
+  preference: string;
+  notes: string;
 }
 
 /**
- * 医生端用户档案数据类型定义，包含用户的基本信息、宠物档案列表和订单详情列表
+ * 医生端用户详情数据，基础信息完整展示，宠物与订单只保留摘要。
  */
 export interface DoctorUserProfile {
-  id: string; // 用户ID
-  ownerName: string; // 用户名
-  phone: string; // 手机号
-  email: string; // 邮箱
-  address: string; // 地址
-  memberLevel: string; // 会员等级
-  balance: number; // 账户余额
-  note: string; // 备注信息
-  pets: DoctorPetProfile[]; // 宠物档案列表
-  orders: LegacyOrderRecordItem[]; // 订单简略列表
+  id: number;
+  type_id: number;
+  type_name: string;
+  name: string;
+  phone: string;
+  email: string;
+  birthday: string;
+  head_image: string;
+  user_specialty: string;
+  user_introduction: string;
+  user_level: number;
+  salary: number;
+  created_at: string;
+  pets: DoctorUserProfilePetSummary[];
+  orders: OrderSummaryItem[];
 }
 
 /**

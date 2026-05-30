@@ -42,7 +42,6 @@ export interface OrderSummary {
   order_data: string;
   order_status: string;
   order_totalprice: number;
-  created_at: string;
 }
 
 export interface OrderMedicine {
@@ -66,6 +65,7 @@ export interface OrderDetail extends OrderSummary {
   pet_age: string;
   pet_sex: string;
   doctor_id: number;
+  created_at: string;
   updated_at: string;
   orderMedicines: OrderMedicine[];
 }

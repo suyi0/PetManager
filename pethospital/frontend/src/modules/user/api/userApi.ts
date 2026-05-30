@@ -94,16 +94,14 @@ const normalizeReservationSummaries = (
  * 订单列表摘要接口请求函数。
  * @returns 返回订单摘要列表；接口为空或失败时返回空列表。
  */
-const fetchOrderSummariesResponse = () =>
-  http
-    .get("/api/user/order/getOrderSummary")
-    .catch(() => createSuccessResponse([]));
+const fetchGetOrderSummaryResponse = () =>
+  http.get("/api/user/orders").catch(() => createSuccessResponse([]));
 
 /**
  * 订单完整信息接口请求函数。
  */
-const fetchOrderDetailResponse = (orderId: number) =>
-  http.get(`/api/user/order/getOrderInformation/${orderId}`);
+const fetchGetOrderInformationResponse = (orderId: number) =>
+  http.get(`/api/user/orders/${orderId}`);
 
 /**
  * 将后端预约时间表结构转换成预约页面可直接使用的拆分字段。
@@ -137,9 +135,9 @@ const normalizeScheduleData = (
 /**
  * 请求预约时间表，并在接口为空或失败时回退到预约时间 mock 数据。
  */
-const fetchScheduleResponse = () =>
+const fetchGetDateResponse = () =>
   http
-    .get("/api/user/reservate/getDate")
+    .get("/api/user/reservations/dates")
     .then((response) => {
       const rows = Array.isArray(response?.data?.data)
         ? response.data.data
@@ -161,9 +159,9 @@ const fetchScheduleResponse = () =>
 /**
  * 请求预约医生列表，并在接口为空或失败时回退到医生 mock 数据。
  */
-const fetchDoctorsResponse = () =>
+const fetchGetDoctorResponse = () =>
   http
-    .get("/api/user/reservate/getDoctor")
+    .get("/api/user/reservations/doctors")
     .then((response) => {
       const rows = Array.isArray(response?.data?.data)
         ? response.data.data
@@ -185,8 +183,8 @@ const fetchDoctorsResponse = () =>
 /**
  * 请求当前登录用户的预约记录，具体用户范围由后端登录态判断。
  */
-const fetchReservationRecordsResponse = () =>
-  http.get("/api/user/reservations/summary").catch(() =>
+const fetchReservationsSummaryResponse = () =>
+  http.get("/api/user/reservations").catch(() =>
     createSuccessResponse({
       success: true,
       data: [],
@@ -196,8 +194,8 @@ const fetchReservationRecordsResponse = () =>
 /**
  * 请求当前选中的完整预约记录。
  */
-const fetchReservationDetailResponse = (reservationId: number) =>
-  http.get(`/api/user/reservate/reservationInformation/${reservationId}`);
+const fetchReservationInformationResponse = (reservationId: number) =>
+  http.get(`/api/user/reservations/${reservationId}`);
 
 /**
  * 用户档案相关接口函数集合，包含保存用户基础资料和上传用户头像等功能。
@@ -215,14 +213,14 @@ export const profileApi = {
     address?: string | null;
     headImage?: string | null | undefined;
   }) {
-    return http.post("/api/upload/form", payload);
+    return http.put("/api/user/profile", payload);
   },
 
   /**
    * 上传用户头像文件。
    */
   uploadAvatar(formData: FormData) {
-    return http.post("/api/upload/avatar", formData, {
+    return http.post("/api/user/avatar", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
@@ -235,16 +233,16 @@ export const orderApi = {
   /**
    * 获取订单摘要列表，供订单详情页或列表页按编号继续查询使用。
    */
-  async getOrderSummaries(): Promise<OrderSummary[]> {
-    const response = await fetchOrderSummariesResponse();
+  async getOrderSummary(): Promise<OrderSummary[]> {
+    const response = await fetchGetOrderSummaryResponse();
     return unwrapOrderList(response);
   },
 
   /**
    * 按订单编号获取完整订单信息。
    */
-  async getOrderDetail(orderId: number): Promise<OrderDetail | null> {
-    const response = await fetchOrderDetailResponse(orderId);
+  async getOrderInformation(orderId: number): Promise<OrderDetail | null> {
+    const response = await fetchGetOrderInformationResponse(orderId);
     return unwrapOrderDetail(response);
   },
 };
@@ -256,10 +254,8 @@ export const reservationApi = {
   /**
    * 获取预约日期与时段，并转换成预约页面可直接使用的结构。
    */
-  async getScheduleOptions(): Promise<
-    Omit<ReservationScheduleState, "doctorData">
-  > {
-    const response = await fetchScheduleResponse();
+  async getDate(): Promise<Omit<ReservationScheduleState, "doctorData">> {
+    const response = await fetchGetDateResponse();
     const rows = unwrapListData<ReservationScheduleResponseItem>(response);
     return normalizeScheduleData(rows.length ? rows : reservationScheduleMock);
   },
@@ -267,8 +263,8 @@ export const reservationApi = {
   /**
    * 获取预约医生列表，并在接口不可用时回退到 mock 数据。
    */
-  async getDoctorOptions(): Promise<DoctorDataItem[]> {
-    const response = await fetchDoctorsResponse();
+  async getDoctor(): Promise<DoctorDataItem[]> {
+    const response = await fetchGetDoctorResponse();
     const rows = unwrapListData<DoctorDataItem>(response);
     return rows.length ? rows : reservationDoctorsMock;
   },
@@ -276,7 +272,7 @@ export const reservationApi = {
   /**
    * 提交用户预约记录。
    */
-  createReservationRecord(payload: {
+  record(payload: {
     name?: string | null;
     phone?: string | null;
     email?: string | null;
@@ -286,14 +282,14 @@ export const reservationApi = {
     date: string;
     slot: string;
   }) {
-    return http.post("/api/user/reservate/record", payload);
+    return http.post("/api/user/reservations", payload);
   },
 
   /**
    * 获取当前用户的预约记录列表。
    */
-  async getReservationRecords(): Promise<ReservationSummary[]> {
-    const response = await fetchReservationRecordsResponse();
+  async getReservationsSummary(): Promise<ReservationSummary[]> {
+    const response = await fetchReservationsSummaryResponse();
     return normalizeReservationSummaries(
       unwrapListData<ReservationSummary>(response)
     );
@@ -302,10 +298,10 @@ export const reservationApi = {
   /**
    * 按预约编号获取完整预约详情。
    */
-  async getReservationDetail(
+  async reservationInformation(
     reservationId: number
   ): Promise<ReservationOrderRecordItem | null> {
-    const response = await fetchReservationDetailResponse(reservationId);
+    const response = await fetchReservationInformationResponse(reservationId);
     const detail = (response.data?.data ||
       response.data) as ReservationOrderRecordItem | null;
 
@@ -326,28 +322,31 @@ export const reservationApi = {
   /**
    * 删除当前用户的一条预约记录。
    */
-  async deleteReservationRecord(reservationId: number): Promise<void> {
-    await http.delete(`/api/user/reservate/deleterecord/${reservationId}`);
+  async deleterecord(reservationId: number): Promise<void> {
+    await http.delete(`/api/user/reservations/${reservationId}`);
   },
 };
 
 export const petApi = {
   async getPetProfiles(): Promise<PetProfile[]> {
-    const response = await http.get("/api/user/pets");
+    const response = await http.get("/api/user/petProfiles");
     return unwrapListData<PetProfile>(response);
   },
 
   async createPetProfile(payload: Omit<PetProfile, "id">): Promise<PetProfile> {
-    const response = await http.post("/api/user/pets", payload);
+    const response = await http.post("/api/user/petProfiles", payload);
     return (response.data?.data || response.data) as PetProfile;
   },
 
   async updatePetProfile(payload: PetProfile): Promise<PetProfile> {
-    const response = await http.put(`/api/user/pets/${payload.id}`, payload);
+    const response = await http.put(
+      `/api/user/petProfiles/${payload.id}`,
+      payload
+    );
     return (response.data?.data || response.data) as PetProfile;
   },
 
   async deletePetProfile(petId: string): Promise<void> {
-    await http.delete(`/api/user/pets/${petId}`);
+    await http.delete(`/api/user/petProfiles/${petId}`);
   },
 };

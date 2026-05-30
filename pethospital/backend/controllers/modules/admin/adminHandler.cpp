@@ -18,7 +18,8 @@ crow::response adminHandler::getUsers(const crow::request &req)
                                              "u.address_id, u.head_image, od.status "
                                              "FROM users AS u "
                                              "LEFT JOIN types AS t ON u.type_id = t.id "
-                                             "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id")
+                                             "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id "
+                                             "WHERE u.is_deleted = 0")
                                        .execute();
 
         nlohmann::json response_data = nlohmann::json::array();
@@ -469,7 +470,7 @@ crow::response adminHandler::getSalaryManagementData(const crow::request &req)
                                                      "FROM users AS u "
                                                      "LEFT JOIN types AS t ON u.type_id = t.id "
                                                      "LEFT JOIN salary AS s ON s.user_id = u.id "
-                                                     "WHERE u.type_id <> ? "
+                                                     "WHERE u.type_id <> ? AND u.is_deleted = 0 "
                                                      "ORDER BY COALESCE(s.total_salary, 0) DESC, u.id ASC")
                                                .bind(normalUserRoleId)
                                                .execute();

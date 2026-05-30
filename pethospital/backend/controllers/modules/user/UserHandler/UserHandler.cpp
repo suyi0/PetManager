@@ -44,6 +44,7 @@ void appendUserNameParts(nlohmann::json &target, const std::string &rawName)
 }
 }
 
+
 // 添加获取文件MIME类型的函数
 std::string getMimeType(const std::string &filepath)
 {
@@ -152,6 +153,7 @@ std::string getMimeType(const std::string &filepath)
     }
 }
 
+
 // 添加文件类型验证函数
 bool isValidImageExtension(const std::string &extension)
 {
@@ -160,6 +162,7 @@ bool isValidImageExtension(const std::string &extension)
     return (ext_lower == "jpg" || ext_lower == "jpeg" || ext_lower == "png" ||
             ext_lower == "gif" || ext_lower == "webp");
 }
+
 
 // 添加生成唯一文件名的函数
 std::string generateUniqueFilename(const std::string &original_filename)
@@ -189,6 +192,7 @@ std::string generateUniqueFilename(const std::string &original_filename)
 
     return unique_name;
 }
+
 
 // 添加获取地址数据库最大ID的函数
 int getAddressDatabaseMaxID(const std::shared_ptr<DatabaseManagerInterface>& dbManager)
@@ -220,6 +224,7 @@ int getAddressDatabaseMaxID(const std::shared_ptr<DatabaseManagerInterface>& dbM
 
     return new_id;
 }
+
 
 // 保存地址到数据库的函数
 bool saveAddressToDatabase(const std::shared_ptr<DatabaseManagerInterface>& dbManager, int DBaddress_id, const std::string &address_text, double longitude = 0.0, double latitude = 0.0)
@@ -269,6 +274,7 @@ bool saveAddressToDatabase(const std::shared_ptr<DatabaseManagerInterface>& dbMa
     }
 }
 
+
 // 获取路径最后的文件名
 std::string getLastFileName(const std::string &url)
 {
@@ -285,6 +291,7 @@ std::string getLastFileName(const std::string &url)
     // 如果没有找到斜杠，返回原字符串（或者返回空字符串）
     return url;
 }
+
 
 nlohmann::json userHandler::getUserData(const int &id)
 {
@@ -336,212 +343,6 @@ nlohmann::json userHandler::getUserData(const int &id)
     return user_data;
 }
 
-namespace
-{
-nlohmann::json mapPetRow(const mysqlx::Row &row)
-{
-    const auto safeString = [&row](int index) -> std::string
-    {
-        if (row[index].isNull())
-        {
-            return "";
-        }
-
-        return clean_string(row[index].get<std::string>());
-    };
-
-    return {
-        {"id", std::to_string(row[0].get<int>())},
-        {"name", safeString(1)},
-        {"species", safeString(2)},
-        {"breed", safeString(5)},
-        {"age", safeString(3)},
-        {"gender", safeString(4)},
-        {"neutered", safeString(6)},
-        {"vaccineStatus", safeString(7)},
-        {"preference", safeString(8)},
-        {"notes", safeString(9)},
-    };
-}
-
-std::string optionalString(const nlohmann::json &body, const std::string &key)
-{
-    if (!body.contains(key) || body[key].is_null())
-    {
-        return "";
-    }
-
-    return body[key].is_string() ? body[key].get<std::string>() : body[key].dump();
-}
-}
-
-crow::response userHandler::getPetProfiles(const crow::request &req, int userId)
-{
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
-        }
-
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
-                                             "COALESCE(pet_age, ''), COALESCE(pet_sex, ''), COALESCE(pet_breed, ''), "
-                                             "COALESCE(pet_neutered, ''), COALESCE(vaccine_status, ''), "
-                                             "COALESCE(preference, ''), COALESCE(notes, '') "
-                                             "FROM pets WHERE user_id = ? ORDER BY id DESC")
-                                       .bind(userId)
-                                       .execute();
-
-        nlohmann::json response = nlohmann::json::array();
-        for (auto row : result)
-        {
-            response.push_back(mapPetRow(row));
-        }
-
-        return ResponseHelper::success(req, response);
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
-
-crow::response userHandler::createPetProfile(const crow::request &req, int userId)
-{
-    try
-    {
-        crow::response res;
-        auto request_body_opt = validateRequest(req, res);
-        if (!request_body_opt)
-        {
-            return res;
-        }
-        auto &body = request_body_opt.value();
-
-        const std::string name = optionalString(body, "name");
-        if (name.empty())
-        {
-            return ResponseHelper::validation(req, "宠物名称不能为空");
-        }
-
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("INSERT INTO pets "
-                                             "(user_id, pet_name, pet_type, pet_age, pet_sex, pet_breed, pet_neutered, vaccine_status, preference, notes) "
-                                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                                       .bind(userId)
-                                       .bind(name)
-                                       .bind(optionalString(body, "species"))
-                                       .bind(optionalString(body, "age"))
-                                       .bind(optionalString(body, "gender"))
-                                       .bind(optionalString(body, "breed"))
-                                       .bind(optionalString(body, "neutered"))
-                                       .bind(optionalString(body, "vaccineStatus"))
-                                       .bind(optionalString(body, "preference"))
-                                       .bind(optionalString(body, "notes"))
-                                       .execute();
-
-        const int petId = static_cast<int>(result.getAutoIncrementValue());
-        mysqlx::SqlResult created = dbManager->getSession()
-                                       ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
-                                             "COALESCE(pet_age, ''), COALESCE(pet_sex, ''), COALESCE(pet_breed, ''), "
-                                             "COALESCE(pet_neutered, ''), COALESCE(vaccine_status, ''), "
-                                             "COALESCE(preference, ''), COALESCE(notes, '') "
-                                             "FROM pets WHERE id = ? AND user_id = ?")
-                                       .bind(petId)
-                                       .bind(userId)
-                                       .execute();
-
-        auto row = created.fetchOne();
-        return ResponseHelper::success(req, row ? mapPetRow(row) : nlohmann::json::object());
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
-
-crow::response userHandler::updatePetProfile(const crow::request &req, int userId, int petId)
-{
-    try
-    {
-        crow::response res;
-        auto request_body_opt = validateRequest(req, res);
-        if (!request_body_opt)
-        {
-            return res;
-        }
-        auto &body = request_body_opt.value();
-
-        const std::string name = optionalString(body, "name");
-        if (name.empty())
-        {
-            return ResponseHelper::validation(req, "宠物名称不能为空");
-        }
-
-        dbManager->getSession()
-            ->sql("UPDATE pets SET pet_name = ?, pet_type = ?, pet_age = ?, pet_sex = ?, pet_breed = ?, "
-                  "pet_neutered = ?, vaccine_status = ?, preference = ?, notes = ? "
-                  "WHERE id = ? AND user_id = ?")
-            .bind(name)
-            .bind(optionalString(body, "species"))
-            .bind(optionalString(body, "age"))
-            .bind(optionalString(body, "gender"))
-            .bind(optionalString(body, "breed"))
-            .bind(optionalString(body, "neutered"))
-            .bind(optionalString(body, "vaccineStatus"))
-            .bind(optionalString(body, "preference"))
-            .bind(optionalString(body, "notes"))
-            .bind(petId)
-            .bind(userId)
-            .execute();
-
-        mysqlx::SqlResult updated = dbManager->getSession()
-                                      ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
-                                            "COALESCE(pet_age, ''), COALESCE(pet_sex, ''), COALESCE(pet_breed, ''), "
-                                            "COALESCE(pet_neutered, ''), COALESCE(vaccine_status, ''), "
-                                            "COALESCE(preference, ''), COALESCE(notes, '') "
-                                            "FROM pets WHERE id = ? AND user_id = ?")
-                                      .bind(petId)
-                                      .bind(userId)
-                                      .execute();
-
-        auto row = updated.fetchOne();
-        if (!row)
-        {
-            return ResponseHelper::error(req, "宠物档案不存在");
-        }
-
-        return ResponseHelper::success(req, mapPetRow(row));
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
-
-crow::response userHandler::deletePetProfile(const crow::request &req, int userId, int petId)
-{
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
-        }
-
-        dbManager->getSession()
-            ->sql("DELETE FROM pets WHERE id = ? AND user_id = ?")
-            .bind(petId)
-            .bind(userId)
-            .execute();
-
-        return ResponseHelper::success(req, "宠物档案已删除");
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
 
 crow::response userHandler::userLogin(const crow::request &req)
 {
@@ -874,6 +675,7 @@ crow::response userHandler::userLogin(const crow::request &req)
         return ResponseHelper::system_error(req, "Internal server error" + std::string(e.what()));
     }
 }
+
 
 crow::response userHandler::userUpdate(const crow::request &req, int authenticatedUserId)
 {
@@ -1700,6 +1502,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int authenticat
     }
 }
 
+
 crow::response userHandler::userUploadAvatar(const crow::request &req)
 {
     try
@@ -1799,6 +1602,7 @@ crow::response userHandler::userUploadAvatar(const crow::request &req)
     }
 }
 
+
 crow::response userHandler::upload(const crow::request &req, const std::string &filename)
 {
     crow::response res;
@@ -1845,6 +1649,7 @@ crow::response userHandler::upload(const crow::request &req, const std::string &
     return res;
 }
 
+
 namespace
 {
 std::string getTodayDate()
@@ -1871,6 +1676,7 @@ bool isValidReservationStatus(const std::string &status)
     return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
 }
 }
+
 
 // 创建预约表记录接口
 crow::response userHandler::createReservation(const crow::request &req, int user_id, int pet_id, int doctor_id, std::string reservation_type, std::string date, std::string time_slot, std::string status)
@@ -1900,7 +1706,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
             try
             {
                 mysqlx::SqlResult petResult = dbManager->getSession()
-                                                  ->sql("SELECT COUNT(*) FROM pets WHERE id = ? AND user_id = ?")
+                                                  ->sql("SELECT COUNT(*) FROM pets WHERE id = ? AND user_id = ? AND is_deleted = 0")
                                                   .bind(pet_id, user_id)
                                                   .execute();
                 auto petRow = petResult.fetchOne();
@@ -1984,6 +1790,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
     }
 }
 
+
 // 获取预约时间表数据接口
 nlohmann::json userHandler::getReservationDate()
 {
@@ -1992,6 +1799,7 @@ nlohmann::json userHandler::getReservationDate()
     auto schedule = r.generateSchedule();
     return schedule;
 }
+
 
 // 获取医生列表接口
 crow::response userHandler::getDoctorList(const crow::request &req)
@@ -2018,7 +1826,7 @@ crow::response userHandler::getDoctorList(const crow::request &req)
                                              "FROM users AS u "
                                              "LEFT JOIN onlineDoctors AS od "
                                              "ON od.doctor_id = u.id AND od.date = ? "
-                                             "WHERE u.type_id = ?")
+                                             "WHERE u.type_id = ? AND u.is_deleted = 0")
                                       .bind(todayDate, doctorRoleId)
                                       .execute();
 
@@ -2043,6 +1851,7 @@ crow::response userHandler::getDoctorList(const crow::request &req)
     }
 }
 
+
 // 取消预约接口
 crow::response userHandler::cancelReservation(const crow::request &req, int userId, int reservationId)
 {
@@ -2063,7 +1872,7 @@ crow::response userHandler::cancelReservation(const crow::request &req, int user
 
         // 验证用户和预约记录是否匹配
         mysqlx::SqlResult reservation_result = dbManager->getSession()
-                                                   ->sql("SELECT user_id FROM reaservations WHERE id = ?")
+                                                   ->sql("SELECT user_id FROM reaservations WHERE id = ? AND user_hidden = 0")
                                                    .bind(reservationId)
                                                    .execute();
 
@@ -2111,6 +1920,7 @@ crow::response userHandler::cancelReservation(const crow::request &req, int user
     }
 }
 
+
 // 删除预约记录接口
 crow::response userHandler::deleteReservation(const crow::request &req, int userId, int reservationId)
 {
@@ -2138,10 +1948,12 @@ crow::response userHandler::deleteReservation(const crow::request &req, int user
         if (reservation_row[0].get<int>() == userId) // 操作用户和预约记录用户匹配才允许删除
         {
 
-            // 删除指定ID的预约记录
+            // 用户侧删除只隐藏预约记录，医生端和管理端仍可查看历史记录。
             mysqlx::SqlResult result = dbManager->getSession()
-                                        ->sql("DELETE FROM reaservations WHERE id = ?")
-                                        .bind(reservationId)
+                                        ->sql("UPDATE reaservations "
+                                              "SET user_hidden = 1, user_hidden_at = NOW(), hidden_by = ? "
+                                              "WHERE id = ? AND user_id = ? AND user_hidden = 0")
+                                        .bind(userId, reservationId, userId)
                                         .execute();
 
             // 检查是否有记录被删除

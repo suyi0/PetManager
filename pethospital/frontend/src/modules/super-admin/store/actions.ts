@@ -137,7 +137,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
         }
       }
 
-      const homePageData = await superAdminApi.getHomePageData();
+      const homePageData = await superAdminApi.homePageGetData();
       saveSuperAdminHomePageDataCache(homePageData);
       commit("setHomePageData", homePageData);
       return homePageData;

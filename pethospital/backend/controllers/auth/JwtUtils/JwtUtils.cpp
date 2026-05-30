@@ -55,7 +55,7 @@ namespace
             result = dbManager->getSession()
                          ->sql("SELECT u.id, t.type FROM users AS u "
                                "JOIN types AS t ON u.type_id = t.id "
-                               "WHERE u.email = ?")
+                               "WHERE u.email = ? AND u.is_deleted = 0")
                          .bind(identifier)
                          .execute();
         }
@@ -64,7 +64,7 @@ namespace
             result = dbManager->getSession()
                          ->sql("SELECT u.id, t.type FROM users AS u "
                                "JOIN types AS t ON u.type_id = t.id "
-                               "WHERE u.phone = ?")
+                               "WHERE u.phone = ? AND u.is_deleted = 0")
                          .bind(identifier)
                          .execute();
         }
@@ -92,7 +92,7 @@ namespace
         auto result = dbManager->getSession()
                           ->sql("SELECT u.id, t.type FROM users AS u "
                                 "JOIN types AS t ON u.type_id = t.id "
-                                "WHERE u.id = ?")
+                                "WHERE u.id = ? AND u.is_deleted = 0")
                           .bind(userId)
                           .execute();
 

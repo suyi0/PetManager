@@ -2,7 +2,7 @@ import {
   DoctorDutyStatus,
   DoctorUserProfile,
   OrderDetailItem,
-  OrderRecordItem,
+  OrderSummaryItem,
   QueueItem,
   ReservationItem,
   ReservationSummaryItem,
@@ -10,7 +10,7 @@ import {
 
 const DOCTOR_CACHE_KEYS = {
   dutyStatus: "doctor:duty-status:cache",
-  userProfiles: "doctor:user-profiles:cache",
+  currentUserProfile: "doctor:current-user-profile:cache",
   queueItems: "doctor:queue-items:cache",
   reservations: "doctor:reservations:cache",
   currentReservationDetail: "doctor:current-reservation-detail:cache",
@@ -63,8 +63,8 @@ const readArrayCache = <T>(key: string): T[] | null => {
  * @param records 接收的订单记录列表
  * @returns 标准化后的订单记录列表
  */
-const normalizeOrderRecords = (records: OrderRecordItem[]) => {
-  const uniqueRecords = new Map<number, OrderRecordItem>();
+const normalizeOrderRecords = (records: OrderSummaryItem[]) => {
+  const uniqueRecords = new Map<number, OrderSummaryItem>();
 
   records.forEach((record) => {
     uniqueRecords.set(Number(record.id), {
@@ -91,17 +91,19 @@ export const saveDoctorDutyStatusCache = (status: DoctorDutyStatus) => {
 };
 
 /**
- * 从本地缓存读取医生端用户档案列表。
- * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
+ * 从本地缓存读取当前选中的用户详情。
+ * 该缓存只保存一条记录，进入新用户详情时会覆盖旧记录。
  */
-export const readDoctorUserProfilesCache = () =>
-  readArrayCache<DoctorUserProfile>(DOCTOR_CACHE_KEYS.userProfiles);
+export const readDoctorCurrentUserProfileCache = () =>
+  readJsonCache<DoctorUserProfile>(DOCTOR_CACHE_KEYS.currentUserProfile);
 
 /**
- * 写入医生端用户档案列表本地缓存。
+ * 写入当前选中的用户详情，并覆盖上一条详情缓存。
  */
-export const saveDoctorUserProfilesCache = (profiles: DoctorUserProfile[]) => {
-  saveJsonCache(DOCTOR_CACHE_KEYS.userProfiles, profiles);
+export const saveDoctorCurrentUserProfileCache = (
+  profile: DoctorUserProfile
+) => {
+  saveJsonCache(DOCTOR_CACHE_KEYS.currentUserProfile, profile);
 };
 
 /**
@@ -155,13 +157,13 @@ export const saveDoctorCurrentReservationDetailCache = (
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
 export const readDoctorOrderRecordCache = () =>
-  readArrayCache<OrderRecordItem>(DOCTOR_CACHE_KEYS.orderRecords);
+  readArrayCache<OrderSummaryItem>(DOCTOR_CACHE_KEYS.orderRecords);
 
 /**
  * 将后端返回的医生端订单记录列表写入浏览器本地缓存。
  * 写入前会按订单 id 去重，避免重复渲染同一条订单记录。
  */
-export const saveDoctorOrderRecordCache = (records: OrderRecordItem[]) => {
+export const saveDoctorOrderRecordCache = (records: OrderSummaryItem[]) => {
   saveJsonCache(DOCTOR_CACHE_KEYS.orderRecords, normalizeOrderRecords(records));
 };
 
@@ -169,7 +171,7 @@ export const saveDoctorOrderRecordCache = (records: OrderRecordItem[]) => {
  * 把后端刚创建成功返回的订单记录插入本地缓存列表顶部。
  * 如果缓存中已经存在同 id 记录，会用新记录覆盖旧记录。
  */
-export const prependDoctorOrderRecordCache = (record: OrderRecordItem) => {
+export const prependDoctorOrderRecordCache = (record: OrderSummaryItem) => {
   const normalizedRecord = {
     ...record,
     id: Number(record.id),

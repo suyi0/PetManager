@@ -12,6 +12,8 @@ import { UserPortalState } from "./types";
 import {
   readUserCurrentReservationDetailCache,
   readUserCurrentOrderDetailCache,
+  clearUserCurrentOrderDetailCache,
+  clearUserCurrentReservationDetailCache,
   readUserOrderSummariesCache,
   readUserPetProfilesCache,
   readUserReservationDoctorsCache,
@@ -152,7 +154,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
         }
       }
 
-      const doctors = await reservationApi.getDoctorOptions();
+      const doctors = await reservationApi.getDoctor();
       saveUserReservationDoctorsCache(doctors);
       commit("setReservationDoctors", doctors);
       return doctors;
@@ -184,7 +186,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
         }
       }
 
-      const schedule = await reservationApi.getScheduleOptions();
+      const schedule = await reservationApi.getDate();
       saveUserReservationScheduleCache(schedule);
       commit("setReservationSchedule", schedule);
       return schedule;
@@ -233,7 +235,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
         }
       }
 
-      const detail = await orderApi.getOrderDetail(orderId);
+      const detail = await orderApi.getOrderInformation(orderId);
       if (detail) {
         saveUserCurrentOrderDetailCache(detail);
         commit("setCurrentOrderDetail", detail);
@@ -241,6 +243,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
       }
 
       commit("setCurrentOrderDetail", null);
+      clearUserCurrentOrderDetailCache();
       return null;
     } finally {
       commit("setCurrentOrderDetailLoading", false);
@@ -270,7 +273,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
         }
       }
 
-      const rows = await reservationApi.getReservationRecords();
+      const rows = await reservationApi.getReservationsSummary();
       saveUserReservationRecordsCache(rows);
       commit("setReservationRecords", rows);
       return rows;
@@ -307,7 +310,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
         }
       }
 
-      const detail = await reservationApi.getReservationDetail(reservationId);
+      const detail = await reservationApi.reservationInformation(reservationId);
       if (detail) {
         saveUserCurrentReservationDetailCache(detail);
         commit("setCurrentReservationDetail", detail);
@@ -315,6 +318,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
       }
 
       commit("setCurrentReservationDetail", null);
+      clearUserCurrentReservationDetailCache();
       return null;
     } finally {
       commit("setCurrentReservationDetailLoading", false);
@@ -328,7 +332,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
     { state, commit }: UserPortalActionContext,
     reservationId: number
   ) {
-    await reservationApi.deleteReservationRecord(reservationId);
+    await reservationApi.deleterecord(reservationId);
     const records = state.reservationRecords.filter(
       (item) => Number(item.id) !== Number(reservationId)
     );
@@ -339,6 +343,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
       Number(state.currentReservationDetail.id) === Number(reservationId)
     ) {
       commit("setCurrentReservationDetail", null);
+      clearUserCurrentReservationDetailCache();
     }
     return records;
   },
@@ -368,7 +373,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
         }
       }
 
-      const rows = await orderApi.getOrderSummaries();
+      const rows = await orderApi.getOrderSummary();
       saveUserOrderSummariesCache(rows);
       commit("setOrderSummaries", rows);
       return rows;

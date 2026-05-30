@@ -12,7 +12,7 @@ export const personnelApi = {
     try {
       const { data } = await http.get("/api/admin/getUsers");
       const rows = unwrapList<UserRow>(data);
-      return rows.length ? rows : superAdminUserRowsMock;
+      return rows;
     } catch {
       return superAdminUserRowsMock;
     }
@@ -26,13 +26,13 @@ export const personnelApi = {
     await http.post("/api/personnel/deleteDoctor", { user_id: userID });
   },
 
-  async createWarehouseAdmin(userID: number): Promise<void> {
+  async createWarehouserManager(userID: number): Promise<void> {
     await http.post("/api/personnel/createWarehouserManager", {
       user_id: userID,
     });
   },
 
-  async deleteWarehouseAdmin(userID: number): Promise<void> {
+  async deleteWarehouserManager(userID: number): Promise<void> {
     await http.post("/api/personnel/deleteWarehouserManager", {
       user_id: userID,
     });

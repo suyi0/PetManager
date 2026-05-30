@@ -69,7 +69,7 @@ export const authApi = {
    * 注册阶段提交用户账号基础信息。
    */
   registerSetUser(payload: { email: string; password: string }) {
-    return http.post("/api/upload/form", {
+    return http.post("/api/user/register", {
       password: payload.password,
       email: payload.email,
     });

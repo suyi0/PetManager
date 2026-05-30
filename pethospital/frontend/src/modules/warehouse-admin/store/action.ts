@@ -36,7 +36,7 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
         }
       }
 
-      const items = await warehouseAdminApi.getAllItems();
+      const items = await warehouseAdminApi.select();
       saveWarehouseItemsCache(items);
       commit("setItems", items);
       return items;

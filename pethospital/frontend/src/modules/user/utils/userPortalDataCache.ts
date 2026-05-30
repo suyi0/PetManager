@@ -118,6 +118,13 @@ export const saveUserCurrentOrderDetailCache = (detail: OrderDetail) => {
 };
 
 /**
+ * 清空当前选中的完整订单信息缓存。
+ */
+export const clearUserCurrentOrderDetailCache = () => {
+  localStorage.removeItem(USER_PORTAL_CACHE_KEYS.currentOrderDetail);
+};
+
+/**
  * 从本地缓存读取用户端预约记录。
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
@@ -149,6 +156,13 @@ export const saveUserCurrentReservationDetailCache = (
   detail: ReservationOrderRecordItem
 ) => {
   saveJsonCache(USER_PORTAL_CACHE_KEYS.currentReservationDetail, detail);
+};
+
+/**
+ * 清空当前选中的完整预约信息缓存。
+ */
+export const clearUserCurrentReservationDetailCache = () => {
+  localStorage.removeItem(USER_PORTAL_CACHE_KEYS.currentReservationDetail);
 };
 
 /**

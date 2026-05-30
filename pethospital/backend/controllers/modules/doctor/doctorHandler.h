@@ -17,13 +17,13 @@ public:
 
     crow::response getDutyStatus(const crow::request& req, int userId);        // 获取当前医生签到状态 对应 /api/doctor/dutyStatus
 
-    crow::response getUserProfiles(const crow::request& req);                 // 获取医生端用户档案 对应 /api/doctor/userProfiles
-
     crow::response updateReservationStatus(const crow::request& req, int doctorId, int reservationId);    // 更新医生名下预约状态
-
+    
     crow::response createOrderRecord(const crow::request& req, int doctorId);    // 创建诊单记录 对应 /api/doctor/orderRecord
-
+    
     crow::response getUserList(const crow::request &req, const std::string data, const std::string &identifier);   // 获取用户信息 对应 /api/doctor/getUserList
+
+    crow::response getUserProfiles(const crow::request& req, int userId);                 // 获取医生端用户详细档案 对应 /api/doctor/userProfiles/<int>
 
     crow::response handleDutyAction(const crow::request& req, int userId, bool requireDoctorId = false);   // 根据状态执行签到或签退
 

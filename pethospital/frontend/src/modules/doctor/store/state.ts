@@ -15,14 +15,14 @@ const createDutyStatus = (): DoctorDutyStatus => ({
  */
 export const createDoctorState = (): DoctorState => ({
   dutyStatus: createDutyStatus(),
-  userProfiles: [],
+  currentUserProfile: null,
   queueItems: [],
   reservations: [],
   currentReservationDetail: null,
   orderRecords: [],
   currentOrderDetail: null,
   dutyStatusMeta: createCacheMeta(),
-  userProfilesMeta: createCacheMeta(),
+  currentUserProfileMeta: createCacheMeta(),
   queueItemsMeta: createCacheMeta(),
   reservationsMeta: createCacheMeta(),
   currentReservationDetailMeta: createCacheMeta(),

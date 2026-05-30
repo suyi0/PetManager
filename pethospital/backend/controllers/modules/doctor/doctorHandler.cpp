@@ -1,6 +1,7 @@
 #include "doctorHandler.h"
 
 #include <unordered_map>
+#include <vector>
 
 crow::response doctorHandler::getDoctor(const crow::request &req)
 {
@@ -15,7 +16,7 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
                                                                 "FROM users as u "
                                                                 "JOIN onlineDoctors as od ON u.id = od.doctor_id "
                                                                 "JOIN types as t ON u.type_id = t.id "
-                                                                "WHERE t.type = '医生' AND od.status = 'online'")
+                                                                "WHERE t.type = '医生' AND od.status = 'online' AND u.is_deleted = 0")
                                        .execute();
 
         nlohmann::json response = nlohmann::json::array();
@@ -37,6 +38,7 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
         return ResponseHelper::system_error(req, e.what());
     }
 }
+
 
 crow::response doctorHandler::getDutyStatus(const crow::request &req, int userId)
 {
@@ -253,6 +255,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
 }
 
 
+// 医生端获取用户列表，支持根据姓名或手机号搜索，并返回用户的基本信息和宠物信息
 crow::response doctorHandler::getUserList(const crow::request &req, const std::string data, const std::string &identifier)
 {
     try
@@ -270,12 +273,10 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         mysqlx::SqlResult result;
         if (identifier == "name")
         {
-            result = dbManager->getSession()->sql("SELECT u.id, u.type_id, u.name, u.phone, u.email, u.head_image, "
-                                                  "p.id, COALESCE(p.pet_name, '') "
+            result = dbManager->getSession()->sql("SELECT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
                                                   "FROM users AS u "
-                                                  "LEFT JOIN pets AS p ON u.id = p.user_id "
-                                                  "WHERE u.name LIKE ? "
-                                                  "ORDER BY u.name ASC, p.created_at ASC, p.id ASC "
+                                                  "WHERE u.name LIKE ? AND u.is_deleted = 0 "
+                                                  "ORDER BY u.name ASC "
                                                   "LIMIT 20")
                          .bind(data + "%")
                          .execute();
@@ -286,24 +287,22 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
             if (data.size() == 4)
             {
                 sql =
-                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image, "
-                    "pet.id, COALESCE(pet.pet_name, '') "
+                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
                     "FROM phones AS p "
                     "JOIN users AS u ON p.user_id = u.id "
-                    "LEFT JOIN pets AS pet ON u.id = pet.user_id "
-                    "WHERE p.phone_lastfour = ? "
-                    "ORDER BY u.name ASC, pet.created_at ASC, pet.id ASC";
+                    "WHERE p.phone_lastfour = ? AND u.is_deleted = 0 "
+                    "ORDER BY u.name ASC "
+                    "LIMIT 20";
             }
             else
             {
                 sql =
-                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image, "
-                    "pet.id, COALESCE(pet.pet_name, '') "
+                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
                     "FROM phones AS p "
                     "JOIN users AS u ON p.user_id = u.id "
-                    "LEFT JOIN pets AS pet ON u.id = pet.user_id "
-                    "WHERE p.phone = ? "
-                    "ORDER BY pet.created_at ASC, pet.id ASC";
+                    "WHERE p.phone = ? AND u.is_deleted = 0 "
+                    "ORDER BY u.name ASC "
+                    "LIMIT 20";
             }
 
             result = dbManager->getSession()->sql(sql).bind(data).execute();
@@ -319,37 +318,62 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         }
 
         nlohmann::json response = nlohmann::json::array();
-        // 无序哈希表，快速查找对应的索引位置
-        std::unordered_map<int, std::size_t> userIndexById;
+        std::unordered_map<int, std::size_t> userIndexById; // 无序哈希表，作用快速根据用户ID找到对应的用户在响应数组中的位置
+        std::vector<int> userIds;   // 存储用户ID列表，方便后续查询宠物信息
         for (auto row : result)
         {
-            int userId = row[0].get<int>();
-            auto userIndexIt = userIndexById.find(userId);  // 查找用户id对应的索引位置
+            const int userId = row[0].get<int>();
 
-            if (userIndexIt == userIndexById.end())
+            nlohmann::json user;
+            user["id"] = userId;
+            user["type_id"] = row[1].isNull() ? 0 : row[1].get<int>();
+            user["name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            user["phone"] = row[3].isNull() ? "" : row[3].get<std::string>();
+            user["email"] = row[4].isNull() ? "" : row[4].get<std::string>();
+            user["head_image"] = row[5].isNull() ? "" : row[5].get<std::string>();
+            user["pets"] = nlohmann::json::array();
+
+            response.push_back(user);
+            userIndexById[userId] = response.size() - 1;    // 记录用户ID与响应数组索引的映射关系
+            userIds.push_back(userId);  // 搜集用户ID
+        }
+
+        // 根据用户ID列表批量查询宠物信息，避免在循环内对每个用户单独查询造成的性能问题
+        if (!userIds.empty())
+        {
+            std::string placeholders;   // 用于构建SQL查询中的占位符字符串，例如 "?, ?, ?" 以匹配用户ID列表的长度，以便一次性查询20个用户的全部相关宠物信息
+            for (std::size_t index = 0; index < userIds.size(); ++index)
             {
-                nlohmann::json user;
-                user["id"] = userId;
-                user["type_id"] = row[1].isNull() ? 0 : row[1].get<int>();
-                user["name"] = row[2].isNull() ? "" : row[2].get<std::string>();
-                user["phone"] = row[3].isNull() ? "" : row[3].get<std::string>();
-                user["email"] = row[4].isNull() ? "" : row[4].get<std::string>();
-                user["head_image"] = row[5].isNull() ? "" : row[5].get<std::string>();
-                user["pets"] = nlohmann::json::array();
-
-                response.push_back(user);
-                userIndexById[userId] = response.size() - 1;    // 从0开始编号，记录用户id对应的索引位置
-                userIndexIt = userIndexById.find(userId);
+                placeholders += index == 0 ? "?" : ", ?";
             }
 
-            // 已有的用户直接添加宠物信息
-            if (!row[6].isNull())
-            {
-                nlohmann::json pet;
-                pet["id"] = row[6].get<int>();
-                pet["pet_name"] = row[7].isNull() ? "" : row[7].get<std::string>();
+            auto petQuery = dbManager->getSession()
+                                ->sql("SELECT id, user_id, COALESCE(pet_name, '') "
+                                      "FROM pets "
+                                      "WHERE user_id IN (" + placeholders + ") AND is_deleted = 0 "
+                                      "ORDER BY user_id ASC, created_at ASC, id ASC");
 
-                // it->first 是键（用户ID），it->second 是值（索引）。
+            for (const int userId : userIds)
+            {
+                petQuery.bind(userId);
+            }
+
+            mysqlx::SqlResult petResult = petQuery.execute();
+            for (auto row : petResult)
+            {
+                const int userId = row[1].get<int>();
+                auto userIndexIt = userIndexById.find(userId);
+                // 快速通过用户ID找到对应的用户在响应数组中的位置，避免再次遍历响应数组查找用户对象，提高性能
+
+                if (userIndexIt == userIndexById.end())
+                {
+                    continue;
+                }
+
+                nlohmann::json pet;
+                pet["id"] = row[0].get<int>();
+                pet["pet_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+                // it->first response的键     it->second response的键值
                 response[userIndexIt->second]["pets"].push_back(pet);
             }
         }
@@ -363,7 +387,8 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
 }
 
 
-crow::response doctorHandler::getUserProfiles(const crow::request &req)
+// 医生端获取用户详细档案信息，包括基本信息、宠物信息和订单信息
+crow::response doctorHandler::getUserProfiles(const crow::request &req, int userId)
 {
     try
     {
@@ -374,54 +399,118 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req)
 
         mysqlx::SqlResult users = dbManager->getSession()
                                       ->sql("SELECT u.id, COALESCE(u.name, ''), COALESCE(u.phone, ''), COALESCE(u.email, ''), "
-                                            "CAST(u.created_at AS CHAR), COALESCE(t.type, '') "
+                                            "CAST(u.birthday AS CHAR), COALESCE(u.head_image, ''), COALESCE(u.user_specialty, ''), "
+                                            "COALESCE(u.user_introduction, ''), COALESCE(u.user_level, 0), COALESCE(s.total_salary, 0), "
+                                            "CAST(u.created_at AS CHAR), COALESCE(t.type, ''), COALESCE(u.type_id, 0) "
                                             "FROM users AS u "
                                             "LEFT JOIN types AS t ON u.type_id = t.id "
-                                            "ORDER BY u.created_at DESC, u.id DESC "
-                                            "LIMIT 80")
+                                            "LEFT JOIN salary AS s ON s.user_id = u.id "
+                                            "WHERE u.id = ? ")
+                                      .bind(userId)
                                       .execute();
 
         nlohmann::json response = nlohmann::json::array();
+        std::unordered_map<int, std::size_t> userIndexById;
+        std::vector<int> userIds;
         for (auto row : users)
         {
             const int userId = row[0].get<int>();
 
-            mysqlx::SqlResult pets = dbManager->getSession()
-                                         ->sql("SELECT id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
-                                               "COALESCE(pet_age, ''), COALESCE(pet_sex, '') "
-                                               "FROM pets "
-                                               "WHERE user_id = ? "
-                                               "ORDER BY id DESC")
-                                         .bind(userId)
-                                         .execute();
+            nlohmann::json user;
+            user["id"] = userId;
+            user["type_id"] = row[12].isNull() ? 0 : row[12].get<int>();
+            user["type_name"] = row[11].isNull() ? "" : row[11].get<std::string>();
+            user["name"] = row[1].isNull() ? "" : row[1].get<std::string>();
+            user["phone"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            user["email"] = row[3].isNull() ? "" : row[3].get<std::string>();
+            user["birthday"] = row[4].isNull() ? "" : row[4].get<std::string>();
+            user["head_image"] = row[5].isNull() ? "" : row[5].get<std::string>();
+            user["user_specialty"] = row[6].isNull() ? "" : row[6].get<std::string>();
+            user["user_introduction"] = row[7].isNull() ? "" : row[7].get<std::string>();
+            user["user_level"] = row[8].isNull() ? 0 : row[8].get<int>();
+            user["salary"] = row[9].isNull() ? 0.0 : row[9].get<double>();
+            user["created_at"] = row[10].isNull() ? "" : row[10].get<std::string>();
+            user["pets"] = nlohmann::json::array();
+            user["orders"] = nlohmann::json::array();
+            response.push_back(user);
+            userIndexById[userId] = response.size() - 1;
+            userIds.push_back(userId);
+        }
 
-            nlohmann::json petList = nlohmann::json::array();
-            for (auto petRow : pets)
+        if (!userIds.empty())
+        {
+            std::string placeholders;   // 用于构建SQL查询中的占位符字符串，例如 "?, ?, ?" 以匹配用户ID列表的长度，以便一次性查询20个用户的全部相关宠物信息
+            for (std::size_t index = 0; index < userIds.size(); ++index)
             {
-                nlohmann::json pet;
-                pet["id"] = std::to_string(petRow[0].get<int>());
-                pet["name"] = petRow[1].isNull() ? "" : petRow[1].get<std::string>();
-                pet["species"] = petRow[2].isNull() ? "" : petRow[2].get<std::string>();
-                pet["breed"] = "";
-                pet["age"] = petRow[3].isNull() ? "" : petRow[3].get<std::string>();
-                pet["sex"] = petRow[4].isNull() ? "" : petRow[4].get<std::string>();
-                pet["weight"] = "";
-                pet["orderIds"] = nlohmann::json::array();
-                petList.push_back(pet);
+                placeholders += index == 0 ? "?" : ", ?";
             }
 
-            nlohmann::json profile;
-            profile["id"] = std::to_string(userId);
-            profile["ownerName"] = row[1].isNull() ? "" : row[1].get<std::string>();
-            profile["phone"] = row[2].isNull() ? "" : row[2].get<std::string>();
-            profile["email"] = row[3].isNull() ? "" : row[3].get<std::string>();
-            profile["address"] = "";
-            profile["memberLevel"] = row[5].isNull() ? "" : row[5].get<std::string>();
-            profile["balance"] = 0;
-            profile["note"] = row[4].isNull() ? "" : row[4].get<std::string>();
-            profile["pets"] = petList;
-            profile["orders"] = nlohmann::json::array();
-            response.push_back(profile);
+            auto petQuery = dbManager->getSession()
+                                ->sql("SELECT id, user_id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
+                                      "COALESCE(pet_sex, '') "
+                                      "FROM pets "
+                                      "WHERE user_id IN (" + placeholders + ") AND is_deleted = 0 "
+                                      "ORDER BY user_id ASC, created_at ASC, id ASC");
+
+            auto orderQuery = dbManager->getSession()
+                                    ->sql("SELECT o.id, o.owner_id, COALESCE(p.pet_name, ''), COALESCE(doctor.name, ''), "
+                                          "COALESCE(o.order_type, ''), COALESCE(o.order_data, ''), "
+                                          "COALESCE(o.order_status, '待付款'), COALESCE(o.order_totalprice, 0.0) "
+                                          "FROM orders AS o "
+                                          "LEFT JOIN pets AS p ON o.pet_id = p.id "
+                                          "LEFT JOIN users AS doctor ON doctor.id = o.doctor_id "
+                                          "WHERE o.owner_id IN (" + placeholders + ") "
+                                          "ORDER BY o.created_at DESC, o.id DESC");
+
+            for (const int userId : userIds)
+            {
+                petQuery.bind(userId);
+                orderQuery.bind(userId);
+            }
+
+            mysqlx::SqlResult petResult = petQuery.execute();
+            mysqlx::SqlResult orderResult = orderQuery.execute();
+            for (auto row : petResult)
+            {
+                const int ownerId = row[1].get<int>();
+                auto userIndexIt = userIndexById.find(ownerId);
+                // 快速通过用户ID找到对应的用户在响应数组中的位置，避免再次遍历响应数组查找用户对象，提高性能
+
+                if (userIndexIt == userIndexById.end())
+                {
+                    continue;
+                }
+
+                nlohmann::json pet;
+                pet["id"] = row[0].get<int>();
+                pet["pet_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+                pet["pet_type"] = row[3].isNull() ? "" : row[3].get<std::string>();
+                pet["pet_sex"] = row[4].isNull() ? "" : row[4].get<std::string>();
+                // it->first response的键     it->second response的键值
+                response[userIndexIt->second]["pets"].push_back(pet);
+            }
+
+            for(auto row : orderResult)
+            {
+                const int ownerId = row[1].get<int>();
+                auto userIndexIt = userIndexById.find(ownerId);
+
+                if (userIndexIt == userIndexById.end())
+                {
+                    continue;
+                }
+
+                nlohmann::json order;
+                order["id"] = row[0].get<int>();
+                order["pet_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+                order["doctor_name"] = row[3].isNull() ? "" : row[3].get<std::string>();
+                order["order_type"] = row[4].isNull() ? "" : row[4].get<std::string>();
+                order["order_data"] = row[5].isNull() ? "" : row[5].get<std::string>();
+                order["order_status"] = row[6].isNull() ? "待付款" : row[6].get<std::string>();
+                order["order_totalprice"] = row[7].isNull() ? 0.0 : row[7].get<double>();
+
+                response[userIndexIt->second]["orders"].push_back(order);
+            }
         }
 
         return ResponseHelper::success(req, response);

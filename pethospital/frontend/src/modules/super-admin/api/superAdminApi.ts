@@ -62,7 +62,7 @@ export const superAdminApi = {
     try {
       const { data } = await http.get("/api/admin/getUsers");
       const rows = unwrapList<UserRow>(data);
-      return rows.length ? rows : superAdminUserRowsMock;
+      return rows;
     } catch {
       return superAdminUserRowsMock;
     }
@@ -103,7 +103,7 @@ export const superAdminApi = {
    * 获取首页摘要数据，包括用户总数、在线医生总数和日志总数。
    * @returns 包含首页摘要数据的对象；如果请求失败，则返回默认值为 0 的对象。
    */
-  async getHomePageData(): Promise<HomePageSummary> {
+  async homePageGetData(): Promise<HomePageSummary> {
     try {
       const { data } = await http.get("/api/admin/homePageGetData");
       const summary = data?.data ?? data;

@@ -3,7 +3,7 @@ import {
   DoctorDutyStatus,
   DoctorUserProfile,
   OrderDetailItem,
-  OrderRecordItem,
+  OrderSummaryItem,
   QueueItem,
   ReservationItem,
   ReservationSummaryItem,
@@ -46,30 +46,30 @@ export const doctorMutations: MutationTree<DoctorState> = {
   },
 
   /**
-   * 用户档案加载中。
+   * 用户详情加载中。
    * @param state 医生状态对象
    * @param loading 是否正在加载用户档案
    */
-  setUserProfilesLoading(state, loading: boolean) {
-    state.userProfilesMeta.loading = loading;
+  setCurrentUserProfileLoading(state, loading: boolean) {
+    state.currentUserProfileMeta.loading = loading;
   },
 
   /**
-   * 写入最新用户档案。
+   * 写入当前选中的用户详情。
    * @param state 医生状态对象
    * @param profiles 用户档案列表，每个档案包含用户的基本信息、宠物档案列表和订单详情列表等数据
    */
-  setUserProfiles(state, profiles: DoctorUserProfile[]) {
-    state.userProfiles = profiles;
-    applyLoadedMeta(state.userProfilesMeta);
+  setCurrentUserProfile(state, profile: DoctorUserProfile | null) {
+    state.currentUserProfile = profile;
+    applyLoadedMeta(state.currentUserProfileMeta);
   },
 
   /**
-   * 标记用户档案缓存过期。
+   * 标记当前用户详情缓存过期。
    * @param state 医生状态对象
    */
-  markUserProfilesDirty(state) {
-    applyDirtyMeta(state.userProfilesMeta);
+  markCurrentUserProfileDirty(state) {
+    applyDirtyMeta(state.currentUserProfileMeta);
   },
 
   /**
@@ -162,7 +162,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param state 医生状态对象
    * @param orderRecords 订单记录列表，每个记录包含订单的基本信息、宠物信息和医生信息等数据
    */
-  setOrderRecords(state, orderRecords: OrderRecordItem[]) {
+  setOrderRecords(state, orderRecords: OrderSummaryItem[]) {
     state.orderRecords = orderRecords;
     applyLoadedMeta(state.orderRecordsMeta);
   },

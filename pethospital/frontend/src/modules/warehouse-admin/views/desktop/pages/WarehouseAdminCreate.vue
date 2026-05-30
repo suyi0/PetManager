@@ -74,7 +74,7 @@ export default defineComponent({
 
     const submitForm = async () => {
       try {
-        await warehouseAdminApi.createItem({ ...form });
+        await warehouseAdminApi.upload({ ...form });
         // 创建成功后，库存列表缓存需要失效，操作流也追加一条本地记录。
         store.commit("warehouseAdmin/markItemsDirty");
         store.commit("warehouseAdmin/appendOperationLog", {

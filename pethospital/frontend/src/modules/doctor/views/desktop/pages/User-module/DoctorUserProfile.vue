@@ -3,9 +3,9 @@
     <header class="hero-card">
       <div class="hero-copy">
         <p class="eyebrow">医生端 / 用户档案</p>
-        <h2>{{ profile.ownerName }}</h2>
+        <h2>{{ profile.name }}</h2>
         <p class="subcopy">
-          聚合展示宠物家庭档案、余额状态与近期诊疗记录，方便医生快速接诊。
+          聚合展示用户基础信息、宠物摘要与近期诊单记录，方便医生快速接诊。
         </p>
       </div>
       <div class="hero-side">
@@ -13,9 +13,9 @@
           返回搜索
         </button>
         <div class="balance-card">
-          <span>帐号余额</span>
-          <strong>¥{{ profile.balance.toFixed(2) }}</strong>
-          <em>{{ profile.memberLevel }}</em>
+          <span>用户类型</span>
+          <strong>{{ profile.type_name || "未设置" }}</strong>
+          <em>等级 {{ profile.user_level || 0 }}</em>
         </div>
       </div>
     </header>
@@ -25,23 +25,31 @@
         <small>基础信息</small>
         <ul class="info-list">
           <li>
+            <span>用户编号</span>
+            <strong>{{ profile.id }}</strong>
+          </li>
+          <li>
             <span>手机号</span>
-            <strong>{{ profile.phone }}</strong>
+            <strong>{{ profile.phone || "未登记" }}</strong>
           </li>
           <li>
             <span>邮箱</span>
-            <strong>{{ profile.email }}</strong>
+            <strong>{{ profile.email || "未登记" }}</strong>
           </li>
           <li>
-            <span>联系地址</span>
-            <strong>{{ profile.address }}</strong>
+            <span>生日</span>
+            <strong>{{ profile.birthday || "未登记" }}</strong>
+          </li>
+          <li>
+            <span>创建时间</span>
+            <strong>{{ profile.created_at || "暂无" }}</strong>
           </li>
         </ul>
       </article>
 
       <article class="info-card info-card--note">
-        <small>接诊备注</small>
-        <p>{{ profile.note }}</p>
+        <small>用户说明</small>
+        <p>{{ profile.user_introduction || "暂无用户说明。" }}</p>
       </article>
     </section>
 
@@ -62,29 +70,26 @@
           :class="{ 'pet-tab--active': pet.id === selectedPetId }"
           @click="selectedPetId = pet.id"
         >
-          <strong>{{ pet.name }}</strong>
-          <span>{{ pet.species }} · {{ pet.breed }}</span>
+          <strong>{{ pet.pet_name || "未命名宠物" }}</strong>
+          <span>{{ formatPetBrief(pet) }}</span>
         </button>
       </div>
 
       <div v-if="selectedPet" class="pet-detail">
         <div class="pet-spotlight">
           <small>当前宠物</small>
-          <h4>{{ selectedPet.name }}</h4>
-          <p>
-            {{ selectedPet.sex }} · {{ selectedPet.age }} ·
-            {{ selectedPet.weight }}
-          </p>
+          <h4>{{ selectedPet.pet_name || "未命名宠物" }}</h4>
+          <p>{{ formatPetBrief(selectedPet) }}</p>
         </div>
 
         <div class="pet-meta">
           <div>
             <span>品类</span>
-            <strong>{{ selectedPet.species }}</strong>
+            <strong>{{ selectedPet.pet_type || "未登记" }}</strong>
           </div>
           <div>
             <span>品种</span>
-            <strong>{{ selectedPet.breed }}</strong>
+            <strong>{{ selectedPet.pet_breed || "未登记" }}</strong>
           </div>
           <div>
             <span>诊单数</span>
@@ -103,14 +108,14 @@
       </div>
 
       <div v-if="selectedPet" class="order-summary-banner">
-        <strong>{{ selectedPet.name }}</strong>
+        <strong>{{ selectedPet.pet_name || "未命名宠物" }}</strong>
         <span>当前共 {{ selectedOrders.length }} 条诊单记录</span>
       </div>
 
       <div class="order-list">
         <div v-if="selectedOrders.length" class="order-head">
-          <span>主人</span>
           <span>宠物名</span>
+          <span>医生</span>
           <span>诊单时间</span>
           <span>诊单金额</span>
         </div>
@@ -121,20 +126,20 @@
           class="order-row"
         >
           <div class="order-cell">
-            <label>主人</label>
-            <span>{{ item.ownerName }}</span>
+            <label>宠物名</label>
+            <strong>{{ item.pet_name || "未登记" }}</strong>
           </div>
           <div class="order-cell">
-            <label>宠物名</label>
-            <strong>{{ item.petName }}</strong>
+            <label>医生</label>
+            <span>{{ item.doctor_name || "未登记" }}</span>
           </div>
           <div class="order-cell">
             <label>诊单时间</label>
-            <span>{{ item.createdAt }}</span>
+            <span>{{ item.order_data || "暂无" }}</span>
           </div>
           <div class="order-cell order-cell--price">
             <label>诊单金额</label>
-            <em>¥{{ item.totalFee.toFixed(2) }}</em>
+            <em>¥{{ item.order_totalprice.toFixed(2) }}</em>
           </div>
         </RouterLink>
         <div v-if="!selectedOrders.length" class="empty-state">
@@ -142,6 +147,10 @@
         </div>
       </div>
     </section>
+  </section>
+
+  <section v-else-if="loading" class="empty-page">
+    <h2>正在加载用户详情...</h2>
   </section>
 
   <section v-else class="empty-page">
@@ -153,10 +162,11 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref, watchEffect } from "vue";
+import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
+import { DoctorUserProfilePetSummary } from "@/modules/doctor/api/types";
 
 export default defineComponent({
   name: "DoctorUserProfile",
@@ -166,46 +176,83 @@ export default defineComponent({
     const router = useRouter();
     const basePath = computed(() => "/doctor");
 
+    const userId = computed(() => Number(route.params.userId));
     const profile = computed(() =>
-      store.state.doctor.userProfiles.find(
-        (item) => item.id === route.params.userId
-      )
+      Number(store.state.doctor.currentUserProfile?.id) === userId.value
+        ? store.state.doctor.currentUserProfile
+        : null
     );
-    const selectedPetId = ref("");
+    const loading = computed(
+      () => store.state.doctor.currentUserProfileMeta.loading
+    );
+    const selectedPetId = ref<number | null>(null);
 
     onMounted(() => {
-      // 用户档案页优先复用医生端用户资料缓存。
-      void store.dispatch("doctor/ensureUserProfiles");
-    });
-
-    watchEffect(() => {
-      if (profile.value?.pets.length && !selectedPetId.value) {
-        selectedPetId.value = profile.value.pets[0].id;
+      if (Number.isFinite(userId.value) && userId.value > 0) {
+        void store.dispatch("doctor/ensureUserProfile", userId.value);
       }
     });
 
-    const selectedPet = computed(() =>
-      profile.value?.pets.find((pet) => pet.id === selectedPetId.value)
+    watch(
+      () => profile.value?.id,
+      () => {
+        selectedPetId.value = profile.value?.pets[0]?.id ?? null;
+      }
     );
-    const selectedOrders = computed(
-      () =>
-        profile.value?.orders.filter(
-          (order) => order.petId === selectedPetId.value
-        ) || []
+
+    watch(
+      () => profile.value?.pets,
+      () => {
+        if (profile.value?.pets.length && !selectedPetId.value) {
+          selectedPetId.value = profile.value.pets[0].id;
+        }
+      },
+      { immediate: true }
     );
+
+    const selectedPet = computed(() => {
+      if (!selectedPetId.value) {
+        return profile.value?.pets[0] ?? null;
+      }
+
+      return (
+        profile.value?.pets.find((pet) => pet.id === selectedPetId.value) ??
+        null
+      );
+    });
+    const selectedOrders = computed(() => {
+      if (!profile.value) {
+        return [];
+      }
+
+      if (!selectedPet.value) {
+        return profile.value.orders;
+      }
+
+      return profile.value.orders.filter(
+        (order) => order.pet_name === selectedPet.value?.pet_name
+      );
+    });
+
+    const formatPetBrief = (pet: DoctorUserProfilePetSummary) =>
+      [pet.pet_type, pet.pet_breed, pet.pet_sex, pet.pet_age]
+        .filter(Boolean)
+        .join(" · ") || "暂无宠物摘要";
 
     const goBackToWorkbench = () => {
       router.push(`${basePath.value}/home`);
     };
 
-    const getOrderDetailPath = (orderId: string) =>
+    const getOrderDetailPath = (orderId: number) =>
       `${basePath.value}/orders/${orderId}`;
 
     return {
       profile,
+      loading,
       selectedPetId,
       selectedPet,
       selectedOrders,
+      formatPetBrief,
       goBackToWorkbench,
       getOrderDetailPath,
     };

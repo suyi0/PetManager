@@ -3,22 +3,26 @@ import { State, shouldFetch } from "@/app/store/types";
 import { doctorApi } from "../api/doctorApi";
 import { DoctorState } from "./types";
 import {
+  readDoctorCurrentUserProfileCache,
   readDoctorCurrentReservationDetailCache,
   readDoctorCurrentOrderDetailCache,
   readDoctorDutyStatusCache,
   readDoctorOrderRecordCache,
   readDoctorQueueItemsCache,
   readDoctorReservationsCache,
-  readDoctorUserProfilesCache,
+  saveDoctorCurrentUserProfileCache,
   saveDoctorCurrentReservationDetailCache,
   saveDoctorCurrentOrderDetailCache,
   saveDoctorDutyStatusCache,
   saveDoctorOrderRecordCache,
   saveDoctorQueueItemsCache,
   saveDoctorReservationsCache,
-  saveDoctorUserProfilesCache,
 } from "../utils/doctorDataCache";
-import { OrderDetailItem, ReservationItem } from "../api/types";
+import {
+  DoctorUserProfile,
+  OrderDetailItem,
+  ReservationItem,
+} from "../api/types";
 
 type DoctorActionContext = ActionContext<DoctorState, State>;
 
@@ -56,34 +60,44 @@ export const doctorActions: ActionTree<DoctorState, State> = {
   },
 
   /**
-   * 确保医生端用户档案可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 按用户编号确保当前用户详情可用。
+   * 先判断 Vuex 与 localStorage 中缓存的用户编号是否命中；
+   * 不命中时从后端获取，并覆盖旧的完整用户详情缓存。
    */
-  async ensureUserProfiles(
+  async ensureUserProfile(
     { state, commit }: DoctorActionContext,
+    userId: number,
     options?: { force?: boolean }
-  ) {
-    if (!shouldFetch(state.userProfilesMeta, options?.force)) {
-      return state.userProfiles;
+  ): Promise<DoctorUserProfile | null> {
+    if (
+      state.currentUserProfile &&
+      Number(state.currentUserProfile.id) === Number(userId) &&
+      !shouldFetch(state.currentUserProfileMeta, options?.force)
+    ) {
+      return state.currentUserProfile;
     }
 
-    commit("setUserProfilesLoading", true);
+    commit("setCurrentUserProfileLoading", true);
     try {
       if (!options?.force) {
-        const cachedProfiles = readDoctorUserProfilesCache();
-
-        if (cachedProfiles) {
-          commit("setUserProfiles", cachedProfiles);
-          return cachedProfiles;
+        const cachedProfile = readDoctorCurrentUserProfileCache();
+        if (cachedProfile && Number(cachedProfile.id) === Number(userId)) {
+          commit("setCurrentUserProfile", cachedProfile);
+          return cachedProfile;
         }
       }
 
-      const profiles = await doctorApi.getUserProfiles();
-      saveDoctorUserProfilesCache(profiles);
-      commit("setUserProfiles", profiles);
-      return profiles;
+      const profile = await doctorApi.getUserProfiles(userId);
+      if (profile) {
+        saveDoctorCurrentUserProfileCache(profile);
+        commit("setCurrentUserProfile", profile);
+        return profile;
+      }
+
+      commit("setCurrentUserProfile", null);
+      return null;
     } finally {
-      commit("setUserProfilesLoading", false);
+      commit("setCurrentUserProfileLoading", false);
     }
   },
 
@@ -110,7 +124,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
         }
       }
 
-      const queueItems = await doctorApi.getQueueItems();
+      const queueItems = await doctorApi.queue();
       saveDoctorQueueItemsCache(queueItems);
       commit("setQueueItems", queueItems);
       return queueItems;
@@ -142,7 +156,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
         }
       }
 
-      const reservations = await doctorApi.getReservationsProfiles();
+      const reservations = await doctorApi.getReservationsSummary();
       saveDoctorReservationsCache(reservations);
       commit("setReservations", reservations);
       return reservations;
@@ -179,7 +193,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
         }
       }
 
-      const detail = await doctorApi.getReservationDetail(reservationId);
+      const detail = await doctorApi.getReservationInformation(reservationId);
       if (detail) {
         saveDoctorCurrentReservationDetailCache(detail);
         commit("setCurrentReservationDetail", detail);
@@ -250,7 +264,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
         }
       }
 
-      const orderRecords = await doctorApi.getOrderRecords();
+      const orderRecords = await doctorApi.getOrderSummary();
       saveDoctorOrderRecordCache(orderRecords);
       commit("setOrderRecords", orderRecords);
       return orderRecords;
@@ -287,7 +301,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
         }
       }
 
-      const detail = await doctorApi.getOrderDetail(orderId);
+      const detail = await doctorApi.getOrderInformation(orderId);
       if (detail) {
         saveDoctorCurrentOrderDetailCache(detail);
         commit("setCurrentOrderDetail", detail);
@@ -309,7 +323,6 @@ export const doctorActions: ActionTree<DoctorState, State> = {
     await Promise.all([
       dispatch("refreshDutyStatus"),
       dispatch("refreshQueueItems"),
-      dispatch("refreshUserProfiles"),
       dispatch("refreshReservations"),
       dispatch("refreshOrderRecords"),
     ]);
@@ -317,10 +330,6 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   async refreshDutyStatus({ dispatch }: DoctorActionContext) {
     return dispatch("ensureDutyStatus", { force: true });
-  },
-
-  async refreshUserProfiles({ dispatch }: DoctorActionContext) {
-    return dispatch("ensureUserProfiles", { force: true });
   },
 
   async refreshQueueItems({ dispatch }: DoctorActionContext) {

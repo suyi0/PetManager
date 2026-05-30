@@ -502,7 +502,7 @@ crow::response authHandler::checkVerifyEmailCode(const crow::request &req)
         if (isValid)
         {
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT id, name, type_id FROM users WHERE email = ?")
+                                           ->sql("SELECT id, name, type_id FROM users WHERE email = ? AND is_deleted = 0")
                                            .bind(email)
                                            .execute();
 
@@ -573,7 +573,7 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
                                        ->sql("SELECT u.type_id, t.type, u.name, u.email, u.phone "
                                              "FROM users AS u "
                                              "JOIN types AS t ON u.type_id = t.id "
-                                             "WHERE u.id = ?")
+                                             "WHERE u.id = ? AND u.is_deleted = 0")
                                        .bind(userId)
                                        .execute();
 
@@ -805,7 +805,7 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
         if (isValid)
         {
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT id, name FROM users WHERE phone = ?")
+                                           ->sql("SELECT id, name FROM users WHERE phone = ? AND is_deleted = 0")
                                            .bind(phone)
                                            .execute();
             for (const auto &row : result)

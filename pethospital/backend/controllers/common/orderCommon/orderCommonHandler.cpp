@@ -16,10 +16,10 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
         const std::string filterSql = isBoss
                                           ? ""
                                       : isMedicalStaff ? "WHERE o.doctor_id = ? "
-                                                       : "WHERE o.owner_id = ? ";
+                                                       : "WHERE o.owner_id = ? AND o.user_hidden = 0 ";
 
         const std::string sql = "SELECT o.id, p.pet_name, COALESCE(d.name, ''), o.order_type, "
-                                "o.order_data, o.order_status, o.order_totalprice, o.created_at "
+                                "o.order_data, o.order_status, o.order_totalprice "
                                 "FROM orders as o "
                                 "JOIN pets as p ON o.pet_id = p.id "
                                 "LEFT JOIN users as d ON o.doctor_id = d.id " +
@@ -44,7 +44,6 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
             orderSummary["order_data"] = row[4].get<std::string>();
             orderSummary["order_status"] = row[5].get<std::string>();
             orderSummary["order_totalprice"] = row[6].get<double>();
-            orderSummary["created_at"] = row[7].get<std::string>();
             data.push_back(orderSummary);
         }
         return ResponseHelper::success(req, data);
@@ -52,67 +51,6 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
     catch (const std::exception &e)
     {
         OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取订单列表", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
-
-crow::response orderCommonHandler::getOrderRecords(const crow::request &req, int staffId)
-{
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
-        }
-
-        const bool isBoss = RoleTypeUtils::userHasBossRole(dbManager, staffId);
-        const std::string sql =
-            "SELECT o.id, o.owner_id, COALESCE(owner.name, ''), "
-            "o.pet_id, COALESCE(p.pet_name, ''), o.doctor_id, COALESCE(doctor.name, ''), "
-            "COALESCE(o.order_type, ''), COALESCE(o.order_data, ''), "
-            "COALESCE(o.order_status, '待付款'), COALESCE(o.order_totalprice, 0.0), "
-            "CAST(o.created_at AS CHAR), CAST(o.updated_at AS CHAR), "
-            "(SELECT COUNT(*) FROM orderMedicines AS om WHERE om.order_id = o.id) "
-            "FROM orders AS o "
-            "LEFT JOIN users AS owner ON owner.id = o.owner_id "
-            "LEFT JOIN pets AS p ON p.id = o.pet_id "
-            "LEFT JOIN users AS doctor ON doctor.id = o.doctor_id " +
-            std::string(isBoss ? "" : "WHERE o.doctor_id = ? ") +
-            "ORDER BY o.created_at DESC";
-
-        auto query = dbManager->getSession()->sql(sql);
-        if (!isBoss)
-        {
-            query.bind(staffId);
-        }
-
-        mysqlx::SqlResult result = query.execute();
-        nlohmann::json response = nlohmann::json::array();
-        for (auto row : result)
-        {
-            nlohmann::json item;
-            item["id"] = row[0].get<int>();
-            item["owner_id"] = row[1].get<int>();
-            item["owner_name"] = row[2].get<std::string>();
-            item["pet_id"] = row[3].get<int>();
-            item["pet_name"] = row[4].get<std::string>();
-            item["doctor_id"] = row[5].get<int>();
-            item["doctor_name"] = row[6].get<std::string>();
-            item["order_type"] = row[7].get<std::string>();
-            item["order_data"] = row[8].get<std::string>();
-            item["order_status"] = row[9].get<std::string>();
-            item["order_totalprice"] = row[10].get<double>();
-            item["created_at"] = row[11].get<std::string>();
-            item["updated_at"] = row[12].get<std::string>();
-            item["medicine_count"] = row[13].get<int>();
-            response.push_back(item);
-        }
-
-        return ResponseHelper::success(req, response);
-    }
-    catch (const std::exception &e)
-    {
-        OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取订单记录", e.what(), staffId > 0 ? std::optional<int>(staffId) : std::nullopt);
         return ResponseHelper::system_error(req, e.what());
     }
 }
@@ -195,7 +133,6 @@ nlohmann::json orderCommonHandler::getOrderData(const int &orderId)
         return nlohmann::json(); // 异常时返回空JSON
     }
 }
-
 crow::response orderCommonHandler::getOrderInformation(const crow::request &req, int &orderId)
 {
     try

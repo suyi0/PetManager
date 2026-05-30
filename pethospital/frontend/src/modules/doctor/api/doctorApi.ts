@@ -3,12 +3,13 @@ import { unwrapMessage, unwrapList } from "@/api/response";
 import { queueItemsMock } from "./doctorMock";
 import {
   CreateOrderRecordPayload,
+  DoctorManagedPetProfile,
   DoctorDutyStatus,
   DoctorUserProfile,
   DoctorUserSummary,
   OrderDetailItem,
   QueueItem,
-  OrderRecordItem,
+  OrderSummaryItem,
   ReservationItem,
   ReservationSummaryItem,
 } from "./types";
@@ -24,6 +25,16 @@ const unwrapData = <T>(payload: unknown): T | null => {
   }
 
   return (payload as T) ?? null;
+};
+
+/**
+ * 从宠物档案接口响应中提取数组数据。
+ */
+const unwrapDoctorPetProfiles = (
+  payload: unknown
+): DoctorManagedPetProfile[] => {
+  const rows = unwrapData<unknown>(payload);
+  return Array.isArray(rows) ? (rows as DoctorManagedPetProfile[]) : [];
 };
 
 /**
@@ -53,13 +64,13 @@ const normalizeQueueItems = (items: QueueItem[]) =>
 
 const normalizeOrderStatus = (
   value: unknown
-): OrderRecordItem["order_status"] =>
-  String(value || "待付款") as OrderRecordItem["order_status"];
+): OrderSummaryItem["order_status"] =>
+  String(value || "待付款") as OrderSummaryItem["order_status"];
 
 /**
  * 将公共订单摘要接口返回的数据统一成医生端订单摘要结构。
  */
-const normalizeOrderRecordItems = (items: Array<Record<string, unknown>>) =>
+const normalizeOrderSummaryItems = (items: Array<Record<string, unknown>>) =>
   items.map((item) => {
     return {
       id: toNumber(item.id) ?? 0,
@@ -70,16 +81,15 @@ const normalizeOrderRecordItems = (items: Array<Record<string, unknown>>) =>
       order_status: normalizeOrderStatus(item.order_status ?? item.status),
       order_totalprice:
         toNumber(item.order_totalprice ?? item.totalFee ?? item.total_fee) ?? 0,
-      created_at: String(item.created_at ?? item.createdAt ?? ""),
     };
   });
 
 /**
  * 将创建订单接口返回的数据转为订单摘要，方便立即插入医生端订单摘要缓存。
  */
-const normalizeOrderRecordItem = (
+const normalizeOrderSummaryItem = (
   item: Record<string, unknown>
-): OrderRecordItem => normalizeOrderRecordItems([item])[0];
+): OrderSummaryItem => normalizeOrderSummaryItems([item])[0];
 
 const normalizeReservationSummaries = (
   items: Array<Record<string, unknown>>
@@ -148,6 +158,63 @@ const normalizeDoctorUserSummaries = (
   }));
 
 /**
+ * 将医生端用户详情接口返回的数据统一成页面直接使用的结构。
+ */
+const normalizeDoctorUserProfile = (
+  item: Record<string, unknown>
+): DoctorUserProfile => ({
+  id: toNumber(item.id) ?? 0,
+  type_id: toNumber(item.type_id ?? item.typeId) ?? 0,
+  type_name: String(item.type_name ?? item.typeName ?? ""),
+  name: String(item.name ?? item.ownerName ?? ""),
+  phone: String(item.phone ?? ""),
+  email: String(item.email ?? ""),
+  birthday: String(item.birthday ?? ""),
+  head_image: String(item.head_image ?? item.headImage ?? ""),
+  user_specialty: String(item.user_specialty ?? item.userSpecialty ?? ""),
+  user_introduction: String(
+    item.user_introduction ?? item.userIntroduction ?? ""
+  ),
+  user_level: toNumber(item.user_level ?? item.userLevel) ?? 0,
+  salary: toNumber(item.salary) ?? 0,
+  created_at: String(item.created_at ?? item.createdAt ?? ""),
+  pets: Array.isArray(item.pets)
+    ? item.pets.map((pet) => {
+        const source = pet as Record<string, unknown>;
+
+        return {
+          id: toNumber(source.id) ?? 0,
+          pet_name: String(source.pet_name ?? source.petName ?? ""),
+          pet_type: String(source.pet_type ?? source.petType ?? ""),
+          pet_age: String(source.pet_age ?? source.petAge ?? ""),
+          pet_sex: String(source.pet_sex ?? source.petSex ?? ""),
+          pet_breed: String(source.pet_breed ?? source.petBreed ?? ""),
+        };
+      })
+    : [],
+  orders: Array.isArray(item.orders)
+    ? item.orders.map((order) => {
+        const source = order as Record<string, unknown>;
+
+        return {
+          id: toNumber(source.id) ?? 0,
+          pet_name: String(source.pet_name ?? source.petName ?? ""),
+          doctor_name: String(source.doctor_name ?? source.doctorName ?? ""),
+          order_type: String(source.order_type ?? source.orderType ?? ""),
+          order_data: String(source.order_data ?? source.orderData ?? ""),
+          order_status: normalizeOrderStatus(
+            source.order_status ?? source.status
+          ),
+          order_totalprice:
+            toNumber(
+              source.order_totalprice ?? source.totalFee ?? source.total_fee
+            ) ?? 0,
+        };
+      })
+    : [],
+});
+
+/**
  * 从订单详情接口响应中提取完整订单信息。
  */
 const unwrapOrderDetail = (payload: unknown) => {
@@ -184,19 +251,83 @@ export const doctorApi = {
   },
 
   /**
-   * 获取医生用户档案信息
-   * @returns 返回医生用户档案列表，每个档案包含用户的基本信息、宠物档案列表和订单详情列表等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
+   * 按用户编号获取医生端用户详情。
    */
-  async getUserProfiles(): Promise<DoctorUserProfile[]> {
+  async getUserProfiles(userId: number): Promise<DoctorUserProfile | null> {
     try {
-      const { data } = await http.get("/api/doctor/userProfiles");
-      const profiles = unwrapList<DoctorUserProfile>(data);
+      const { data } = await http.get(`/api/doctor/userProfiles/${userId}`);
+      const profile = unwrapList<Record<string, unknown>>(data)[0];
 
-      return profiles;
+      return profile ? normalizeDoctorUserProfile(profile) : null;
     } catch (error) {
       console.warn("getUserProfiles fallback to empty data", error);
+      return null;
+    }
+  },
+
+  /**
+   * 获取指定用户的完整宠物档案列表，供医生端用户档案管理页使用。
+   */
+  async getUserPetProfiles(userId: number): Promise<DoctorManagedPetProfile[]> {
+    try {
+      const { data } = await http.get(
+        `/api/doctor/userProfiles/${userId}/petsProfile`
+      );
+
+      return unwrapDoctorPetProfiles(data);
+    } catch (error) {
+      console.warn("getUserPetProfiles fallback to empty data", error);
       return [];
     }
+  },
+
+  /**
+   * 为指定用户创建宠物档案。
+   */
+  async createUserPetProfile(
+    userId: number,
+    payload: Omit<DoctorManagedPetProfile, "id">
+  ): Promise<DoctorManagedPetProfile | null> {
+    try {
+      const { data } = await http.post(
+        `/api/doctor/userProfiles/${userId}/petsProfile`,
+        payload
+      );
+
+      return unwrapDoctorPetProfiles(data)[0] ?? null;
+    } catch (error) {
+      console.warn("createUserPetProfile failed", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 更新指定用户的一条宠物档案。
+   */
+  async updateUserPetProfile(
+    userId: number,
+    payload: DoctorManagedPetProfile
+  ): Promise<DoctorManagedPetProfile | null> {
+    try {
+      const { data } = await http.put(
+        `/api/doctor/userProfiles/${userId}/petsProfile/${payload.id}`,
+        payload
+      );
+
+      return unwrapDoctorPetProfiles(data)[0] ?? null;
+    } catch (error) {
+      console.warn("updateUserPetProfile failed", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 删除指定用户的一条宠物档案。
+   */
+  async deleteUserPetProfile(userId: number, petId: string): Promise<void> {
+    await http.delete(
+      `/api/doctor/userProfiles/${userId}/petsProfile/${petId}`
+    );
   },
 
   /**
@@ -222,23 +353,7 @@ export const doctorApi = {
    * 获取待接诊队列信息
    * @returns 返回待接诊队列列表，每个队列项包含宠物的基本信息、症状描述和到院时间等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
    */
-  async getQueueProfiles(): Promise<QueueItem[]> {
-    try {
-      const { data } = await http.get("/api/doctor/queue");
-      const queueItems = normalizeQueueItems(unwrapList<QueueItem>(data));
-
-      return queueItems.length > 0 ? queueItems : queueItemsMock;
-    } catch (error) {
-      console.warn("getQueueProfiles fallback to mock data", error);
-      return queueItemsMock;
-    }
-  },
-
-  /**
-   * 获取预约档案信息
-   * @returns 返回预约档案列表，每个档案包含预约的宠物信息、预约项目和当前状态等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
-   */
-  async getReservationsProfiles(): Promise<ReservationSummaryItem[]> {
+  async getReservationsSummary(): Promise<ReservationSummaryItem[]> {
     try {
       const { data } = await http.get("/api/doctor/reservations/summary");
       const reservationItems = normalizeReservationSummaries(
@@ -247,7 +362,7 @@ export const doctorApi = {
 
       return reservationItems;
     } catch (error) {
-      console.warn("getReservationsProfiles fallback to empty data", error);
+      console.warn("getReservationsSummary fallback to empty data", error);
       return [];
     }
   },
@@ -255,7 +370,7 @@ export const doctorApi = {
   /**
    * 按预约编号获取完整预约详情。
    */
-  async getReservationDetail(
+  async getReservationInformation(
     reservationId: number
   ): Promise<ReservationItem | null> {
     try {
@@ -264,7 +379,7 @@ export const doctorApi = {
       );
       return normalizeReservationDetail(unwrapData<ReservationItem>(data));
     } catch (error) {
-      console.warn("getReservationDetail fallback to empty data", error);
+      console.warn("getReservationInformation fallback to empty data", error);
       return null;
     }
   },
@@ -287,19 +402,19 @@ export const doctorApi = {
    */
   async createOrderRecord(
     payload: CreateOrderRecordPayload
-  ): Promise<OrderRecordItem> {
+  ): Promise<OrderSummaryItem> {
     try {
       const { data } = await http.post(
         "/api/doctor/createOrderRecord",
         payload
       );
-      const createdRecord = unwrapData<OrderRecordItem>(data);
+      const createdRecord = unwrapData<OrderSummaryItem>(data);
 
       if (!createdRecord) {
         throw new Error("创建订单接口未返回订单记录");
       }
 
-      return normalizeOrderRecordItem(
+      return normalizeOrderSummaryItem(
         createdRecord as unknown as Record<string, unknown>
       );
     } catch (error) {
@@ -312,16 +427,16 @@ export const doctorApi = {
    * 获取订单记录信息
    * @returns 返回订单记录列表，每个记录包含订单的基本信息和当前状态等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
    */
-  async getOrderRecords(): Promise<OrderRecordItem[]> {
+  async getOrderSummary(): Promise<OrderSummaryItem[]> {
     try {
       const { data } = await http.get("/api/doctor/order/getOrderSummary");
-      const orderRecordItems = normalizeOrderRecordItems(
+      const orderRecordItems = normalizeOrderSummaryItems(
         unwrapList<Record<string, unknown>>(data)
       );
 
       return orderRecordItems;
     } catch (error) {
-      console.warn("getOrderRecord fallback to empty data", error);
+      console.warn("getOrderSummary fallback to empty data", error);
       return [];
     }
   },
@@ -329,14 +444,14 @@ export const doctorApi = {
   /**
    * 按订单编号获取完整诊单详情。
    */
-  async getOrderDetail(orderId: number): Promise<OrderDetailItem | null> {
+  async getOrderInformation(orderId: number): Promise<OrderDetailItem | null> {
     try {
       const { data } = await http.get(
         `/api/doctor/order/getOrderInformation/${orderId}`
       );
       return unwrapOrderDetail(data);
     } catch (error) {
-      console.warn("getOrderDetail fallback to empty data", error);
+      console.warn("getOrderInformation fallback to empty data", error);
       return null;
     }
   },
@@ -345,7 +460,7 @@ export const doctorApi = {
    * 获取待接诊队列信息
    * @returns 返回待接诊队列列表，每个队列项包含宠物的基本信息、症状描述和到院时间等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
    */
-  async getQueueItems(): Promise<QueueItem[]> {
+  async queue(): Promise<QueueItem[]> {
     try {
       const { data } = await http.get("/api/doctor/queue");
       const queueItems = normalizeQueueItems(unwrapList<QueueItem>(data));

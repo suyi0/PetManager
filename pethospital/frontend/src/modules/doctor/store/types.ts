@@ -3,7 +3,7 @@ import {
   DoctorDutyStatus,
   DoctorUserProfile,
   OrderDetailItem,
-  OrderRecordItem,
+  OrderSummaryItem,
   QueueItem,
   ReservationItem,
   ReservationSummaryItem,
@@ -15,14 +15,14 @@ import {
  */
 export interface DoctorState {
   dutyStatus: DoctorDutyStatus;
-  userProfiles: DoctorUserProfile[];
+  currentUserProfile: DoctorUserProfile | null;
   queueItems: QueueItem[];
   reservations: ReservationSummaryItem[];
   currentReservationDetail: ReservationItem | null;
-  orderRecords: OrderRecordItem[];
+  orderRecords: OrderSummaryItem[];
   currentOrderDetail: OrderDetailItem | null;
   dutyStatusMeta: CacheMeta;
-  userProfilesMeta: CacheMeta;
+  currentUserProfileMeta: CacheMeta;
   queueItemsMeta: CacheMeta;
   reservationsMeta: CacheMeta;
   currentReservationDetailMeta: CacheMeta;

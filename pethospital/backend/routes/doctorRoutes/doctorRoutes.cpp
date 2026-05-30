@@ -36,7 +36,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
 
     // 获取用户列表路由.
     CROW_ROUTE(app,"/api/doctor/getUserList")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
+            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
                 int userId = -1;
                 try
                 {
@@ -70,8 +70,8 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 获取用户档案信息路由.
-    CROW_ROUTE(app, "/api/doctor/userProfiles")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res) {
+    CROW_ROUTE(app, "/api/doctor/userProfiles/<int>")
+            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int goalUserId) {
                 int userId = -1;
                 try
                 {
@@ -84,7 +84,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     }
 
                     doctorHandler doctorHandler(dbManager);
-                    crow::response response = doctorHandler.getUserProfiles(req);
+                    crow::response response = doctorHandler.getUserProfiles(req, goalUserId);
                     ProcessHandlerResponse(req, res, response);
                 }
                 catch (const std::exception &e) {
@@ -270,6 +270,64 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取诊单详情", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
+
+    // 医生端管理指定用户的宠物档案路由
+    CROW_ROUTE(app, "/api/doctor/userProfiles/<int>/petsProfile")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int targetUserId)
+                                                                                           {
+            int doctorId = -1;
+            try
+            {
+                doctorId = isValidMedicalStaffToken(req, res, dbManager);
+                if (res.code != 200 || doctorId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "管理宠物档案");
+                    return;
+                }
+
+                petCommonHandler handler(dbManager);
+                crow::response handlerResponse =
+                    req.method == crow::HTTPMethod::Post
+                        ? handler.createPetProfile(req, targetUserId)
+                        : handler.getPetProfiles(req, targetUserId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", "管理宠物档案", e.what(), doctorId > 0 ? std::optional<int>(doctorId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "管理宠物档案", doctorId > 0 ? std::optional<int>(doctorId) : std::nullopt, req.method != crow::HTTPMethod::Get); });
+
+    // 医生端更新/删除指定用户的宠物档案路由
+    CROW_ROUTE(app, "/api/doctor/userProfiles/<int>/petsProfile/<int>")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int targetUserId, int petId)
+                                                                                             {
+            int doctorId = -1;
+            try
+            {
+                doctorId = isValidMedicalStaffToken(req, res, dbManager);
+                if (res.code != 200 || doctorId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "管理宠物档案");
+                    return;
+                }
+
+                petCommonHandler handler(dbManager);
+                crow::response handlerResponse =
+                    req.method == crow::HTTPMethod::Delete
+                        ? handler.deletePetProfile(req, targetUserId, petId)
+                        : handler.updatePetProfile(req, targetUserId, petId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", "管理宠物档案", e.what(), doctorId > 0 ? std::optional<int>(doctorId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "管理宠物档案", doctorId > 0 ? std::optional<int>(doctorId) : std::nullopt); });
 
     // 医生打卡接口
     CROW_ROUTE(app, "/api/doctor/dutyStatus/action")

@@ -17,7 +17,7 @@ crow::response reservationCommonHandler::getReservationSummary(const crow::reque
         const std::string filterSql = isBoss
                                           ? ""
                                       : isMedicalStaff ? "WHERE r.doctor_id = ? "
-                                                       : "WHERE r.user_id = ? ";
+                                                       : "WHERE r.user_id = ? AND r.user_hidden = 0 ";
 
         const std::string sql = "SELECT r.id, p.pet_name, d.name, "
                                 "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), "

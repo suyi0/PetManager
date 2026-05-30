@@ -1,8 +1,7 @@
 import {
   DoctorStat,
-  DoctorUserProfile,
   MedicineSearchItem,
-  OrderRecordItem,
+  OrderSummaryItem,
   QueueItem,
   ReservationItem,
   SelectedMedicineItem,
@@ -125,7 +124,7 @@ export const reservationItemsMock: ReservationItem[] = [
 /**
  * 订单记录列表，包含订单的基本信息和当前状态
  */
-export const orderRecordItemsMock: OrderRecordItem[] = [
+export const orderRecordItemsMock: OrderSummaryItem[] = [
   {
     id: 31008,
     pet_name: "可乐",
@@ -134,7 +133,6 @@ export const orderRecordItemsMock: OrderRecordItem[] = [
     order_data: "呕吐、精神不振",
     order_totalprice: 41.5,
     order_status: "待付款",
-    created_at: "2026-03-10 10:12",
   },
   {
     id: 31005,
@@ -144,7 +142,6 @@ export const orderRecordItemsMock: OrderRecordItem[] = [
     order_data: "皮肤检查",
     order_totalprice: 86,
     order_status: "已付款",
-    created_at: "2026-03-10 09:03",
   },
   {
     id: 30918,
@@ -154,7 +151,6 @@ export const orderRecordItemsMock: OrderRecordItem[] = [
     order_data: "免疫复查",
     order_totalprice: 23,
     order_status: "已取消",
-    created_at: "2026-03-09 18:40",
   },
 ];
 
@@ -216,7 +212,7 @@ export const selectedMedicinesMock: SelectedMedicineItem[] = [
 /**
  * 医生获取到的用户基本信息列表，包含用户的个人资料、宠物信息和订单记录等详细数据
  */
-export const userProfilesMock: DoctorUserProfile[] = [
+export const userProfilesMock = [
   {
     id: "owner-zhou",
     ownerName: "周女士",

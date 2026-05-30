@@ -279,7 +279,7 @@ export default defineComponent({
 
     const grantWarehouseAdmin = async () => {
       try {
-        await personnelApi.createWarehouseAdmin(ensureUserID());
+        await personnelApi.createWarehouserManager(ensureUserID());
         await store.dispatch("personnel/refreshUsers");
         message.value = "仓库管理员授权成功";
       } catch (error) {
@@ -290,7 +290,7 @@ export default defineComponent({
 
     const revokeWarehouseAdmin = async () => {
       try {
-        await personnelApi.deleteWarehouseAdmin(ensureUserID());
+        await personnelApi.deleteWarehouserManager(ensureUserID());
         await store.dispatch("personnel/refreshUsers");
         message.value = "仓库管理员权限移除成功";
       } catch (error) {

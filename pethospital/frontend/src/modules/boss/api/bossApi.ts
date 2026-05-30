@@ -18,7 +18,7 @@ const normalizeBossStockItem = (
 });
 
 export const bossApi = {
-  async getStockDistribution(): Promise<BossStockDistribution> {
+  async getStock(): Promise<BossStockDistribution> {
     try {
       const { data } = await http.get("/api/boss/getStock");
       const payload = data?.data ?? data;

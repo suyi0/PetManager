@@ -185,7 +185,7 @@ import { doctorApi } from "@/modules/doctor/api/doctorApi";
 import { medicineSearchItemsMock } from "@/modules/doctor/api/doctorMock";
 import {
   MedicineSearchItem,
-  OrderRecordItem,
+  OrderSummaryItem,
   SelectedMedicineItem,
 } from "@/modules/doctor/api/types";
 import {
@@ -419,7 +419,7 @@ export default defineComponent({
         /**
          * 标准化后端返回的订单记录
          */
-        const normalizedRecord: OrderRecordItem = {
+        const normalizedRecord: OrderSummaryItem = {
           ...createdRecord,
           pet_name:
             createdRecord.pet_name || patientForm.petName || "未命名宠物",

@@ -453,9 +453,7 @@ const getItemSortTimeValue = (item: SearchableOrderItem) => {
     return Number.isNaN(timestamp) ? 0 : timestamp;
   }
 
-  const timestamp = new Date(
-    item.order_data || item.created_at || ""
-  ).getTime();
+  const timestamp = new Date(item.order_data || "").getTime();
   return Number.isNaN(timestamp) ? 0 : timestamp;
 };
 
@@ -473,8 +471,8 @@ const formatTimeValue = (item: SearchableOrderItem) => {
     }
   }
 
-  if (item.order_data || item.created_at) {
-    return item.order_data || item.created_at || "待同步";
+  if (item.order_data) {
+    return item.order_data;
   }
 
   return "待同步";

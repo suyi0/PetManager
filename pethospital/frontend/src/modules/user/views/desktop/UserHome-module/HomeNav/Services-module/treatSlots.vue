@@ -537,7 +537,7 @@ async function submit() {
   upSlot.value = selectedSlot;
 
   try {
-    const response = await reservationApi.createReservationRecord({
+    const response = await reservationApi.record({
       name: store.state.currentUser.userName,
       phone: store.state.currentUser.userPhone,
       email: store.state.currentUser.userEmail,

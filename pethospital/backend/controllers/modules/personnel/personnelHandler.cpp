@@ -146,7 +146,7 @@ crow::response personnelHandler::deleteUser(const crow::request &req, int &userI
         }
 
         mysqlx::SqlResult target_result = dbManager->getSession()
-                                              ->sql("SELECT type_id FROM users WHERE id = ?")
+                                              ->sql("SELECT type_id FROM users WHERE id = ? AND is_deleted = 0")
                                               .bind(userID)
                                               .execute();
 
@@ -165,8 +165,10 @@ crow::response personnelHandler::deleteUser(const crow::request &req, int &userI
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("DELETE FROM users WHERE id = ? AND type_id = ?")
-                                       .bind(userID, target_type)
+                                       ->sql("UPDATE users "
+                                             "SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? "
+                                             "WHERE id = ? AND type_id = ? AND is_deleted = 0")
+                                       .bind(userId, userID, target_type)
                                        .execute();
 
         if (result.getAffectedItemsCount() == 0)

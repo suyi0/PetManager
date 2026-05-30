@@ -5,6 +5,7 @@
 #include "../../controllers/auth/authHandler/authHandler.h"
 #include "../../controllers/common/orderCommon/orderCommonHandler.h"
 #include "../../controllers/common/reservationCommon/reservationCommonHandler.h"
+#include "../../controllers/common/petCommon/petCommonHandler.h"
 
 class UserRoutes
 {

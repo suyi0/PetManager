@@ -37,7 +37,6 @@
             <th>宠物</th>
             <th>医生</th>
             <th>类型</th>
-            <th>创建时间</th>
             <th>总费用</th>
             <th>状态</th>
           </tr>
@@ -53,7 +52,6 @@
             <td>{{ item.pet_name }}</td>
             <td>{{ item.doctor_name || "未记录" }}</td>
             <td>{{ item.order_type || "诊疗" }}</td>
-            <td>{{ item.created_at }}</td>
             <td>¥{{ item.order_totalprice.toFixed(2) }}</td>
             <td>
               <span
@@ -69,10 +67,10 @@
             :key="`placeholder-${placeholder}`"
             class="placeholder-row"
           >
-            <td colspan="7"></td>
+            <td colspan="6"></td>
           </tr>
           <tr v-if="visibleItems.length === 0">
-            <td colspan="7" class="empty-cell">当前分类下暂无订单记录。</td>
+            <td colspan="6" class="empty-cell">当前分类下暂无订单记录。</td>
           </tr>
         </tbody>
       </table>
@@ -86,7 +84,7 @@ import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
-import { OrderRecordItem } from "@/modules/doctor/api/types";
+import { OrderSummaryItem } from "@/modules/doctor/api/types";
 
 export default defineComponent({
   name: "DoctorOrderRecords",
@@ -94,10 +92,10 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const activeStatus = ref<"全部" | OrderRecordItem["order_status"]>("全部");
+    const activeStatus = ref<"全部" | OrderSummaryItem["order_status"]>("全部");
     const page = ref(1);
     const pageSize = 10;
-    const orderRecords = computed<OrderRecordItem[]>(
+    const orderRecords = computed<OrderSummaryItem[]>(
       () => store.state.doctor.orderRecords
     );
 
@@ -111,13 +109,10 @@ export default defineComponent({
     };
 
     /**
-     * 重新排序订单记录列表，默认按照创建时间降序排列，以确保最新的订单记录显示在最前面。
-      如果需要按照其他字段排序，可以在这里进行调整。
+     * 按订单编号降序展示，确保新创建的订单摘要排在前面。
      */
     const items = computed(() =>
-      [...orderRecords.value].sort((a, b) =>
-        b.created_at.localeCompare(a.created_at)
-      )
+      [...orderRecords.value].sort((a, b) => Number(b.id) - Number(a.id))
     );
 
     /**
@@ -154,7 +149,7 @@ export default defineComponent({
      * 状态标签
      */
     const statusTabs = computed(() => {
-      const statuses: Array<"全部" | OrderRecordItem["order_status"]> = [
+      const statuses: Array<"全部" | OrderSummaryItem["order_status"]> = [
         "全部",
         "待付款",
         "已付款",
@@ -173,7 +168,7 @@ export default defineComponent({
       }));
     });
 
-    const statusClassName = (status: OrderRecordItem["order_status"]) => {
+    const statusClassName = (status: OrderSummaryItem["order_status"]) => {
       if (status === "待付款") return "status-pill--pending";
       if (status === "已付款") return "status-pill--done";
       return "status-pill--cancelled";

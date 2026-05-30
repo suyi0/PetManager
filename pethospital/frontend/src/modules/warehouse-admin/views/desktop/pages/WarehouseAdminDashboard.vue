@@ -423,11 +423,11 @@ export default defineComponent({
       try {
         const isEditing = Boolean(editingItem.value);
         if (editingItem.value) {
-          await warehouseAdminApi.updateItem(editingItem.value.id, {
+          await warehouseAdminApi.updata(editingItem.value.id, {
             ...editForm,
           });
         } else {
-          await warehouseAdminApi.createItem({ ...editForm });
+          await warehouseAdminApi.upload({ ...editForm });
         }
         store.commit("warehouseAdmin/markItemsDirty");
         store.commit("warehouseAdmin/appendOperationLog", {
@@ -453,7 +453,7 @@ export default defineComponent({
       if (!deletingItem.value) return;
 
       try {
-        await warehouseAdminApi.deleteItem(deletingItem.value.id);
+        await warehouseAdminApi.delete(deletingItem.value.id);
         store.commit("warehouseAdmin/markItemsDirty");
         store.commit("warehouseAdmin/appendOperationLog", {
           time: new Date().toTimeString().slice(0, 5),

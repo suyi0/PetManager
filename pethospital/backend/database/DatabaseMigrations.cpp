@@ -152,6 +152,32 @@ namespace DatabaseMigrations
             std::cout << "types table created successfully." << std::endl;
         }
 
+        if (salaryRecord_exists)
+        {
+            std::cout << "salaryRecord table is exists." << std::endl;
+        }
+        else
+        {
+            std::cout << "salaryRecord table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE salaryRecord ("
+                         "id INT PRIMARY KEY AUTO_INCREMENT, "
+                         "salesCount DECIMAL(18, 2), "
+                         "costCount DECIMAL(18, 2), "
+                         "profitCount DECIMAL(18, 2), "
+                         "record_type ENUM('day', 'month'), "
+                         "business_date DATE NOT NULL, "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         "UNIQUE KEY uq_salary_record_type_business_date (record_type, business_date), "
+                         "INDEX idx_salaryRecord_is_deleted (is_deleted) "
+                         ")")
+                .execute();
+            std::cout << "salaryRecord table created successfully." << std::endl;
+        }
+
         if (users_exists)
         {
             std::cout << "users table is exists." << std::endl;
@@ -175,14 +201,39 @@ namespace DatabaseMigrations
                          "user_introduction TEXT, "
                          "user_level int, "
                          "salary_id INT, "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_user_type FOREIGN KEY (type_id) REFERENCES types(id) ON DELETE CASCADE, "
-                         "CONSTRAINT fk_user_salary FOREIGN KEY (salary_id) REFERENCES salary(id) ON DELETE CASCADE"
-                         "INDEX idx_users_name (name)"
+                         "INDEX idx_users_name (name), "
+                         "INDEX idx_users_is_deleted (is_deleted) "
                          ")")
                 .execute();
             std::cout << "users table created successfully." << std::endl;
+        }
+
+        if (salary_exists)
+        {
+            std::cout << "salary table is exists." << std::endl;
+        }
+        else
+        {
+            std::cout << "salary table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE salary ("
+                         "id INT PRIMARY KEY AUTO_INCREMENT, "
+                         "user_id INT NOT NULL, "
+                         "base_salary DECIMAL(18, 2), "
+                         "PA_Award DECIMAL(18, 2), "
+                         "PB_Award DECIMAL(18, 2), "
+                         "total_salary DECIMAL(18, 2), "
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         "CONSTRAINT fk_salary_userId FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE "
+                         ")")
+                .execute();
+            std::cout << "salary table created successfully." << std::endl;
         }
 
         if (phones_exists)
@@ -209,50 +260,37 @@ namespace DatabaseMigrations
             Backfills::backfillPhones(dbManager);
         }
 
-        if (salary_exists)
+        if (pets_exists)
         {
-            std::cout << "salary table is exists." << std::endl;
+            std::cout << "pets table is exists." << std::endl;
+            Columns::migratePets(dbManager);
+            ForeignKeys::migratePets(dbManager);
         }
         else
         {
-            std::cout << "salary table does not exist. Creating..." << std::endl;
-            session->sql("CREATE TABLE salary ("
+            std::cout << "pets table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE pets ( "
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
                          "user_id INT NOT NULL, "
-                         "base_salary DECIMAL(18, 2), "
-                         "PA_Award DECIMAL(18, 2), "
-                         "PB_Award DECIMAL(18, 2), "
-                         "total_salary DECIMAL(18, 2), "
-                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "CONSTRAINT fk_salary_userId FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE "
+                         "pet_name VARCHAR(255), "
+                         "pet_type VARCHAR(255), "
+                         "pet_age VARCHAR(255), "
+                         "pet_sex VARCHAR(255), "
+                         "pet_breed VARCHAR(255), "
+                         "pet_neutered VARCHAR(255), "
+                         "vaccine_status VARCHAR(255), "
+                         "preference TEXT, "
+                         "notes TEXT, "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
+                         "CONSTRAINT fk_pets_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "INDEX idx_pets_is_deleted (is_deleted) "
                          ")")
                 .execute();
-            std::cout << "salary table created successfully." << std::endl;
+            std::cout << "pets table created successfully" << std::endl;
         }
-
-        if (salaryRecord_exists)
-        {
-            std::cout << "salaryRecord table is exists." << std::endl;
-        }
-        else
-        {
-            std::cout << "salaryRecord table does not exist. Creating..." << std::endl;
-            session->sql("CREATE TABLE salaryRecord ("
-                         "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "salesCount DECIMAL(18, 2), "
-                         "costCount DECIMAL(18, 2), "
-                         "profitCount DECIMAL(18, 2), "
-                         "record_type ENUM('day', 'month'), "
-                         "business_date DATE NOT NULL, "
-                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "UNIQUE KEY uq_salary_record_type_business_date (record_type, business_date) "
-                         ")")
-                .execute();
-            std::cout << "salaryRecord table created successfully." << std::endl;
-        }
-
+        
         if (monthlySalaryRecord_exists)
         {
             std::cout << "monthlySalaryRecord table is exists." << std::endl;
@@ -312,10 +350,14 @@ namespace DatabaseMigrations
                          "item_price DECIMAL(10, 2), "
                          "item_number INT, "
                          "item_totalprice DECIMAL(18, 2) GENERATED ALWAYS AS (item_price * item_number) STORED, "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "INDEX idx_id_exp (id, days_until_expire), "
-                         "INDEX idx_exp (days_until_expire) "
+                         "INDEX idx_exp (days_until_expire), "
+                         "INDEX idx_warehouse_is_deleted (is_deleted) "
                          ")")
                 .execute();
             std::cout << "warehouse table created successfully" << std::endl;
@@ -375,45 +417,20 @@ namespace DatabaseMigrations
                          "date DATE, "
                          "time_slot VARCHAR(20), "
                          "status ENUM('预约成功', '预约失败', '已取消', '已到院') NOT NULL, "
+                         "user_hidden TINYINT NOT NULL DEFAULT 0 COMMENT '用户是否隐藏预约信息', "
+                         "user_hidden_at DATETIME NULL COMMENT '用户隐藏时间', "
+                         "hidden_by INT NULL COMMENT '执行隐藏的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
-                         "INDEX idx_userId_creationTime (user_id, created_at), "
-                         "INDEX idx_userId_date (user_id, date), "
+                         "INDEX idx_user_hidden (user_id, user_hidden), "
                          "INDEX idx_doctorId_date_slot (doctor_id, date, time_slot), "
                          "INDEX idx_petId_date (pet_id, date) "
                          ")")
                 .execute();
             std::cout << "reaservations table created successfully." << std::endl;
-        }
-
-        if (pets_exists)
-        {
-            std::cout << "pets table is exists." << std::endl;
-            Columns::migratePets(dbManager);
-            ForeignKeys::migratePets(dbManager);
-        }
-        else
-        {
-            std::cout << "pets table does not exist. Creating..." << std::endl;
-            session->sql("CREATE TABLE pets ( "
-                         "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "user_id INT NOT NULL, "
-                         "pet_name VARCHAR(255), "
-                         "pet_type VARCHAR(255), "
-                         "pet_age VARCHAR(255), "
-                         "pet_sex VARCHAR(255), "
-                         "pet_breed VARCHAR(255), "
-                         "pet_neutered VARCHAR(255), "
-                         "vaccine_status VARCHAR(255), "
-                         "preference TEXT, "
-                         "notes TEXT, "
-                         "CONSTRAINT fk_pets_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE "
-                         ")")
-                .execute();
-            std::cout << "pets table created successfully" << std::endl;
         }
 
         if (orders_exists)
@@ -434,11 +451,16 @@ namespace DatabaseMigrations
                          "order_data VARCHAR(255), "
                          "order_status ENUM('待付款', '已付款', '已取消', '已退款', '部分退款') NOT NULL DEFAULT '待付款', "
                          "order_totalprice DECIMAL(18, 2), "
+                         "user_hidden TINYINT NOT NULL DEFAULT 0 COMMENT '用户是否隐藏订单信息', "
+                         "user_hidden_at DATETIME NULL COMMENT '用户隐藏时间', "
+                         "hidden_by INT NULL COMMENT '执行隐藏的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_orders_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_orders_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_orders_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "INDEX idx_orders_owner_hidden (owner_id, user_hidden), "
+                         "INDEX idx_orders_doctor_time (doctor_id, created_at), "
                          "INDEX idx_petId_time (pet_id, created_at) "
                          ")")
                 .execute();
@@ -488,10 +510,13 @@ namespace DatabaseMigrations
                          "check_out_time TIME, "
                          "status ENUM('pending', 'approved', 'rejected'), "
                          "notes TEXT, "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_worktime_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
-                         "INDEX idx_user (doctor_id)"
+                         "INDEX idx_user_deleted (doctor_id, is_deleted) "
                          ")")
                 .execute();
             std::cout << "workTimeRecords table created successfully." << std::endl;
@@ -521,7 +546,7 @@ namespace DatabaseMigrations
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "INDEX idx_time (created_at), "
                          "INDEX idx_system_category (category), "
-                         "INDEX idx_system_result (result)"
+                         "INDEX idx_system_result (result) "
                          ")")
                 .execute();
             std::cout << "system_operations table created successfully." << std::endl;

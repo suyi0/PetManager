@@ -36,7 +36,7 @@ export const bossActions: ActionTree<BossState, State> = {
         }
       }
 
-      const distribution = await bossApi.getStockDistribution();
+      const distribution = await bossApi.getStock();
       saveBossStockDistributionCache(distribution);
       commit("setStockDistribution", distribution);
       return distribution;
