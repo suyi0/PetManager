@@ -591,7 +591,7 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         }
 
         std::string userName = clean_string(row[2].get<std::string>());
-        std::string email = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+        std::string email = row[3].isNull() ? "" : row[3].get<std::string>();
         std::string phone = row[4].isNull() ? "" : normalizePhoneIdentifier(row[4].get<std::string>());
 
         bool isEmailLogin = !email.empty() && identifier == email;

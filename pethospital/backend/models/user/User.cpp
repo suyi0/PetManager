@@ -8,8 +8,8 @@ void User::to_json(nlohmann::json &j)
         {"id", this->id},
         {"type_id", this->type_id},
         {"name", clean_string(this->name)},
-        {"phone", clean_string(this->phone)},
-        {"email", clean_string(this->email)},
+        {"phone", this->phone},
+        {"email", this->email},
         {"birthday", boost::gregorian::to_iso_extended_string(this->birthday)},  // 转换为 ISO 格式
         {"address_id", this->address_id},
         {"address", clean_string(this->address)},
@@ -33,4 +33,3 @@ void User::from_json(const nlohmann::json &j)
     j.at("head_image").get_to(this->head_image);
     j.at("doctor_specialty").get_to(this->doctor_specialty);
 }
-

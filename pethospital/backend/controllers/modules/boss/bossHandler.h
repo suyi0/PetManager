@@ -10,12 +10,12 @@ private:
 public:
     explicit bossHandler (std::shared_ptr<DatabaseManagerInterface> db) : BaseHandler(db), dbManager(std::move(db)){}
 
-    crow::response allocateTotalStock(const crow::request& req);    // 设置总仓股份 对应 /boss/allocateTotalStock
+    crow::response allocateTotalStock(const crow::request& req);    // 设置总仓股份 对应 /api/boss/allocateTotalStock
 
-    crow::response allocateStock(const crow::request& req);   // 修改股份分配 对应 /boss/allocateStock
+    crow::response allocateStock(const crow::request& req);   // 修改股份分配 对应 /api/boss/allocateStock
 
-    crow::response changeStock(const crow::request& req);   // 修改股份 对应 /boss/changeStock
+    crow::response changeStock(const crow::request& req);   // 修改股份 对应 /api/boss/changeStock
 
-    crow::response getStock(const crow::request& req);  // 获取股份分布 对应 /boss/getStock
+    crow::response getStock(const crow::request& req);  // 获取股份分布 对应 /api/boss/getStock
 };
 #endif

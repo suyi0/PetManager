@@ -28,31 +28,53 @@ std::string urlencode(const std::string &value)
 
     return escaped.str();
 }
-// 使用 cURL 发起 HTTP 请求(高德地图API Key)
+// 使用 cURL 发起 HTTP 请求(高德地图API Key)，获取地址的经纬度信息
 std::string geocodeAddress(const std::string &address)
 {
     std::string url = "https://restapi.amap.com/v3/geocode/geo?key=YOUR_KEY&address=" +
                       urlencode(address);
 
-    CURL *curl = curl_easy_init();
+    CURL *curl = curl_easy_init(); // 初始化 CURL* 句柄
     if (!curl)
         return "";
 
     std::string response;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    /*
+        curl_easy_setopt(已初始化的CURL* 句柄,
+                         libcurl 预定义的选项常量表示接下来要设置的是请求的 URL,
+                         一个以 \0 结尾的 C 风格字符串（const char*），即实际要访问的 HTTP/HTTPS 地址)
+    */
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str()); // 设置请求的目标 URL
+
+    /*
+        curl_easy_setopt(已初始化的CURL* 句柄,
+                         libcurl 预定义的选项常量表示接下来要设置的是回调函数,
+                         一个函数指针，指向一个用户定义的函数，这个函数将被 libcurl 调用来处理服务器响应的数据)
+    */
+    /*
+        lambda函数 [](指向接收到的数据块, 每个元素的字节数, 元素的数量, 用户数据指针) -> 返回值类型
+        这个函数会被 libcurl 调用，
+        每当接收到服务器响应的数据时，libcurl 会将数据块的指针、每个元素的字节数、元素的数量以及用户数据指针传递给这个函数。
+        函数的返回值实际处理的字节数（必须等于 size * nmemb，否则 libcurl 会报错）
+    */
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, [](void *ptr, size_t size, size_t nmemb, void *userdata) -> size_t
                      {
         std::string* str = static_cast<std::string*>(userdata);
         str->append(static_cast<char*>(ptr), size * nmemb);
-        return size * nmemb; });
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+        return size * nmemb; }); // 注册回调函数，将响应数据写入字符串
 
-    CURLcode res = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
+    /*
+        curl_easy_setopt(已初始化的CURL* 句柄,
+                         libcurl 预定义的选项常量表示接下来要设置的是回调函数的用户数据,
+                         一个指针，指向用户定义的数据结构，这个指针会被传递给上面设置的回调函数)
+    */
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response); // 将 &response（一个 std::string*）作为用户数据传递给之前设置的写回调函数（CURLOPT_WRITEFUNCTION）
 
-    if (res != CURLE_OK)
+    CURLcode res = curl_easy_perform(curl); // 执行 curl 请求
+    curl_easy_cleanup(curl);                // 清理 curl 句柄
+
+    if (res != CURLE_OK) // 检查 curl 请求是否成功
     {
-        std::cerr << "Geocoding failed: " << curl_easy_strerror(res) << std::endl;
         return "";
     }
 
@@ -61,8 +83,23 @@ std::string geocodeAddress(const std::string &address)
         nlohmann::json j = nlohmann::json::parse(response);
         if (j["status"] == "1" && !j["geocodes"].empty())
         {
+            /*
+                j{
+                    "status": "1",
+                    "geocodes": [
+                        {
+                            "formatted_address": "北京市朝阳区xxx",
+                            "province": "北京市",
+                            "city": "北京市",
+                            "district": "朝阳区",
+                            // ... 其他地址组件字段
+                        }
+                    ]
+                }
+            */
             auto &geo = j["geocodes"][0];
-            return geo.dump(); // 返回 JSON 字符串
+            geo["geocode_source"] = "amap"; // 设置来源为高德
+            return geo.dump();              // 返回 JSON 字符串
         }
     }
     catch (const std::exception &e)
@@ -72,4 +109,3 @@ std::string geocodeAddress(const std::string &address)
 
     return "";
 }
-

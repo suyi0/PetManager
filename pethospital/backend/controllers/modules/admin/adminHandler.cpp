@@ -28,14 +28,14 @@ crow::response adminHandler::getUsers(const crow::request &req)
             nlohmann::json user_json;
             user_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
             user_json["type_id"] = row[1].isNull() ? nullptr : nlohmann::json(row[1].get<int>());
-            user_json["type_name"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
+            user_json["type_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
             user_json["name"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
             user_json["phone"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
             user_json["email"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
-            user_json["birthday"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
+            user_json["birthday"] = row[6].isNull() ? "" : row[6].get<std::string>();
             user_json["address_id"] = row[7].isNull() ? nullptr : nlohmann::json(row[7].get<int>());
             user_json["head_image"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
-            user_json["status"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
+            user_json["status"] = row[9].isNull() ? "" : row[9].get<std::string>();
 
             response_data.push_back(user_json);
         }
@@ -402,19 +402,19 @@ crow::response adminHandler::getLogs(const crow::request &req)
         for (auto row : userLogs_result)
         {
             nlohmann::json log;
-            log["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
-            log["category"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+            log["id"] = row[0].isNull() ? "" : row[0].get<std::string>();
+            log["category"] = row[1].isNull() ? "" : row[1].get<std::string>();
             log["userRole"] = row[2].isNull()
                                   ? nlohmann::json(nullptr)
-                                  : nlohmann::json(clean_string(row[2].get<std::string>()));
+                                  : nlohmann::json(row[2].get<std::string>());
             log["operator"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
             log["module"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
             log["action"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
-            log["result"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
-            log["time"] = row[7].isNull() ? "" : clean_string(row[7].get<std::string>());
+            log["result"] = row[6].isNull() ? "" : row[6].get<std::string>();
+            log["time"] = row[7].isNull() ? "" : row[7].get<std::string>();
             log["summary"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
             log["details"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
-            log["source"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+            log["source"] = row[10].isNull() ? "" : row[10].get<std::string>();
 
             response["userLogs"].push_back(log);
         }
@@ -422,19 +422,19 @@ crow::response adminHandler::getLogs(const crow::request &req)
         for (auto row : systemLogs_result)
         {
             nlohmann::json log;
-            log["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
-            log["category"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+            log["id"] = row[0].isNull() ? "" : row[0].get<std::string>();
+            log["category"] = row[1].isNull() ? "" : row[1].get<std::string>();
             log["systemRole"] = row[2].isNull()
                                     ? nlohmann::json(nullptr)
-                                    : nlohmann::json(clean_string(row[2].get<std::string>()));
+                                    : nlohmann::json(row[2].get<std::string>());
             log["operator"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
             log["module"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
             log["action"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
-            log["result"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
-            log["time"] = row[7].isNull() ? "" : clean_string(row[7].get<std::string>());
+            log["result"] = row[6].isNull() ? "" : row[6].get<std::string>();
+            log["time"] = row[7].isNull() ? "" : row[7].get<std::string>();
             log["summary"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
             log["details"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
-            log["source"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+            log["source"] = row[10].isNull() ? "" : row[10].get<std::string>();
 
             response["systemLogs"].push_back(log);
         }
@@ -510,7 +510,7 @@ crow::response adminHandler::getSalaryManagementData(const crow::request &req)
 
             employee["id"] = row[0].isNull() ? 0 : row[0].get<int>();
             employee["type_id"] = row[1].isNull() ? nullptr : nlohmann::json(row[1].get<int>());
-            employee["type_name"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
+            employee["type_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
             employee["name"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
             employee["phone"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
             employee["email"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
@@ -518,7 +518,7 @@ crow::response adminHandler::getSalaryManagementData(const crow::request &req)
             employee["pa_award"] = paAward;
             employee["pb_award"] = pbAward;
             employee["total_salary"] = totalSalary;
-            employee["updated_at"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+            employee["updated_at"] = row[10].isNull() ? "" : row[10].get<std::string>();
 
             totalPayroll += totalSalary;
             employeeCount += 1;
@@ -528,22 +528,22 @@ crow::response adminHandler::getSalaryManagementData(const crow::request &req)
         for (auto row : monthlyRecordsResult)
         {
             nlohmann::json record;
-            record["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
+            record["id"] = row[0].isNull() ? "" : row[0].get<std::string>();
             record["salesCount"] = row[1].isNull() ? 0.0 : row[1].get<double>();
             record["costCount"] = row[2].isNull() ? 0.0 : row[2].get<double>();
             record["profitCount"] = row[3].isNull() ? 0.0 : row[3].get<double>();
-            record["created_at"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            record["created_at"] = row[4].isNull() ? "" : row[4].get<std::string>();
             response["monthlyRecords"].push_back(record);
         }
 
         for (auto row : dailyRecordsResult)
         {
             nlohmann::json record;
-            record["id"] = row[0].isNull() ? "" : clean_string(row[0].get<std::string>());
+            record["id"] = row[0].isNull() ? "" : row[0].get<std::string>();
             record["salesCount"] = row[1].isNull() ? 0.0 : row[1].get<double>();
             record["costCount"] = row[2].isNull() ? 0.0 : row[2].get<double>();
             record["profitCount"] = row[3].isNull() ? 0.0 : row[3].get<double>();
-            record["created_at"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            record["created_at"] = row[4].isNull() ? "" : row[4].get<std::string>();
             response["dailyRecords"].push_back(record);
         }
 

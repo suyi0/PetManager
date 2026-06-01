@@ -10,22 +10,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     if (routes_setup)
         return;
 
-    // 添加登录路由
-    CROW_ROUTE(app, "/api/user/login")
-        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                    {
-            try {
-                userHandler handler(dbManager);
-                crow::response handlerResponse = handler.userLogin(req);
-
-                ProcessHandlerResponse(req, res, handlerResponse);
-            } catch(const std::exception& e) {
-                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "账号登录", e.what());
-                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
-            }
-                                                        
-            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "账号登录"); });
-
+    
     // 添加注册路由
     CROW_ROUTE(app, "/api/user/register")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
@@ -43,6 +28,22 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "注册账号", std::nullopt, false); });
+    
+    // 添加登录路由
+    CROW_ROUTE(app, "/api/user/login")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
+            try {
+                userHandler handler(dbManager);
+                crow::response handlerResponse = handler.userLogin(req);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            } catch(const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "账号登录", e.what());
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+                                                        
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "账号登录"); });
 
     // 添加用户资料更新路由
     CROW_ROUTE(app, "/api/user/profile")

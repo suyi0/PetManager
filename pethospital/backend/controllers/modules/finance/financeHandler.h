@@ -14,7 +14,7 @@ public:
 
     double calculateCostCount();
 
-    crow::response homePageGetData(const crow::request &req);            // 获取总览数据 对应 /finance/homeGetData
+    crow::response homePageGetData(const crow::request &req);            // 获取总览数据 对应 /api/finance/homePageGetData 与 /api/admin/homePageGetData
 
 };
 #endif

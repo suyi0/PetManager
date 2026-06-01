@@ -784,15 +784,15 @@ crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId
             }
             if (!row[3].isNull())
             {
-                DBorder_type = clean_string(row[3].get<std::string>());
+                DBorder_type = row[3].get<std::string>();
             }
             if (!row[4].isNull())
             {
-                DBorder_data = clean_string(row[4].get<std::string>());
+                DBorder_data = row[4].get<std::string>();
             }
             if (!row[5].isNull())
             {
-                DBorder_status = clean_string(row[5].get<std::string>());
+                DBorder_status = row[5].get<std::string>();
             }
         }
 

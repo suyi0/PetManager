@@ -48,6 +48,7 @@ namespace DatabaseMigrations
         bool types_exists = false;
         bool phones_exists = false;
         bool users_exists = false;
+        bool address_small_exists = false;
         bool salary_exists = false;
         bool salaryRecord_exists = false;
         bool monthlySalaryRecord_exists = false;
@@ -77,6 +78,10 @@ namespace DatabaseMigrations
             else if (table_name == "users")
             {
                 users_exists = true;
+            }
+            else if (table_name == "address_small")
+            {
+                address_small_exists = true;
             }
             else if (table_name == "salary")
             {
@@ -212,6 +217,51 @@ namespace DatabaseMigrations
                          ")")
                 .execute();
             std::cout << "users table created successfully." << std::endl;
+        }
+
+        if (address_small_exists)
+        {
+            std::cout << "address_small table is exists." << std::endl;
+        }
+        else
+        {
+            std::cout << "address_small table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE address_small ("
+                         "id INT PRIMARY KEY AUTO_INCREMENT, "
+                         "user_id INT NULL COMMENT '地址所属用户ID', "
+                         "contact_name VARCHAR(80) COMMENT '联系人姓名', "
+                         "contact_phone VARCHAR(20) COMMENT '联系人手机号', "
+                         "country VARCHAR(80) DEFAULT '中国' COMMENT '国家或地区', "
+                         "province VARCHAR(80) COMMENT '省/直辖市/自治区', "
+                         "city VARCHAR(80) COMMENT '城市', "
+                         "district VARCHAR(80) COMMENT '区/县', "
+                         "street VARCHAR(120) COMMENT '街道/乡镇', "
+                         "community VARCHAR(120) COMMENT '小区/园区/商圈', "
+                         "building VARCHAR(80) COMMENT '楼栋/楼号', "
+                         "unit VARCHAR(80) COMMENT '单元/门牌', "
+                         "room VARCHAR(80) COMMENT '房间号', "
+                         "detail_address VARCHAR(255) COMMENT '门牌号及详细地址', "
+                         "address_text VARCHAR(500) COMMENT '完整地址文本', "
+                         "postal_code VARCHAR(20) COMMENT '邮政编码，用户选填或后端根据地址库补全', "
+                         "address_tag ENUM('家', '公司', '医院', '学校', '其他') DEFAULT '家' COMMENT '地址标签', "
+                         "is_default TINYINT NOT NULL DEFAULT 0 COMMENT '是否默认地址', "
+                         "longitude DECIMAL(10, 7) DEFAULT 0.0000000 COMMENT '经度', "
+                         "latitude DECIMAL(10, 7) DEFAULT 0.0000000 COMMENT '纬度', "
+                         "geocode_source VARCHAR(50) COMMENT '地理编码来源', "
+                         "remarks VARCHAR(255) COMMENT '备注', "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         "CONSTRAINT fk_address_small_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL, "
+                         "INDEX idx_address_small_user_default (user_id, is_default, is_deleted), "
+                         "INDEX idx_address_small_contact_phone (contact_phone), "
+                         "INDEX idx_address_small_region (province, city, district), "
+                         "INDEX idx_address_small_is_deleted (is_deleted) "
+                         ")")
+                .execute();
+            std::cout << "address_small table created successfully." << std::endl;
         }
 
         if (salary_exists)

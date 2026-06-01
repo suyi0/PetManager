@@ -86,15 +86,15 @@ crow::response warehouseManagerHandler::selectAllData(const crow::request &req)
             nlohmann::json item_json;
             item_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
             item_json["item_name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
-            item_json["item_type"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
-            item_json["item_productiondate"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
-            item_json["item_expirationdate"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            item_json["item_type"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            item_json["item_productiondate"] = row[3].isNull() ? "" : row[3].get<std::string>();
+            item_json["item_expirationdate"] = row[4].isNull() ? "" : row[4].get<std::string>();
             item_json["days_until_expire"] = row[5].isNull() ? nullptr : nlohmann::json(row[5].get<int>());
             item_json["item_price"] = row[6].isNull() ? 0.0 : row[6].get<double>();
             item_json["item_number"] = row[7].isNull() ? 0 : row[7].get<int>();
             item_json["item_totalprice"] = row[8].isNull() ? 0.0 : row[8].get<double>();
-            item_json["created_at"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
-            item_json["updated_at"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+            item_json["created_at"] = row[9].isNull() ? "" : row[9].get<std::string>();
+            item_json["updated_at"] = row[10].isNull() ? "" : row[10].get<std::string>();
             response_data.push_back(item_json);
         }
 
@@ -166,15 +166,15 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
             nlohmann::json item_json;
             item_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
             item_json["item_name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
-            item_json["item_type"] = row[2].isNull() ? "" : clean_string(row[2].get<std::string>());
-            item_json["item_productiondate"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
-            item_json["item_expirationdate"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            item_json["item_type"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            item_json["item_productiondate"] = row[3].isNull() ? "" : row[3].get<std::string>();
+            item_json["item_expirationdate"] = row[4].isNull() ? "" : row[4].get<std::string>();
             item_json["days_until_expire"] = row[5].isNull() ? nullptr : nlohmann::json(row[5].get<int>());
             item_json["item_price"] = row[6].isNull() ? 0.0 : row[6].get<double>();
             item_json["item_number"] = row[7].isNull() ? 0 : row[7].get<int>();
             item_json["item_totalprice"] = row[8].isNull() ? 0.0 : row[8].get<double>();
-            item_json["created_at"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
-            item_json["updated_at"] = row[10].isNull() ? "" : clean_string(row[10].get<std::string>());
+            item_json["created_at"] = row[9].isNull() ? "" : row[9].get<std::string>();
+            item_json["updated_at"] = row[10].isNull() ? "" : row[10].get<std::string>();
             response_data.push_back(item_json);
         }
 

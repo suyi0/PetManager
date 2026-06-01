@@ -39,7 +39,7 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
             nlohmann::json orderSummary;
             orderSummary["id"] = row[0].get<int>();
             orderSummary["pet_name"] = row[1].get<std::string>();
-            orderSummary["doctor_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            orderSummary["doctor_name"] = row[2].get<std::string>();
             orderSummary["order_type"] = row[3].get<std::string>();
             orderSummary["order_data"] = row[4].get<std::string>();
             orderSummary["order_status"] = row[5].get<std::string>();

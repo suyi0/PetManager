@@ -85,7 +85,7 @@ std::vector<unsigned char> derive_pbkdf2_hash(const std::string &password,
 }
 } // namespace
 
-// SHA256哈希函数
+// 计算SHA256哈希值
 std::string sha256_hash(const std::string &input)
 {
     unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -128,6 +128,7 @@ std::string sha256_hash(const std::string &input)
     return ss.str();
 }
 
+// 生成带盐的密码哈希
 std::string hash_password(const std::string &password)
 {
     std::vector<unsigned char> salt(kSaltSize);
@@ -141,7 +142,7 @@ std::string hash_password(const std::string &password)
     return kPasswordScheme + "$" + std::to_string(kPbkdf2Iterations) + "$" +
            bytes_to_hex(salt) + "$" + bytes_to_hex(derived_key);
 }
-
+// 校验密码哈希
 bool verify_password_hash(const std::string &password, const std::string &stored_hash)
 {
     if (stored_hash.rfind(kPasswordScheme + "$", 0) == 0)
@@ -173,6 +174,7 @@ bool verify_password_hash(const std::string &password, const std::string &stored
     return false;
 }
 
+// 判断是否需要升级旧哈希
 bool password_hash_needs_upgrade(const std::string &stored_hash)
 {
     if (is_legacy_sha256_hash(stored_hash))
