@@ -9,6 +9,51 @@
 
 namespace
 {
+    // 获取请求参数
+    std::string getRequestString(const nlohmann::json &request_body, const std::string &key, const std::string &defaultValue = "")
+    {
+        if (!request_body.contains(key) || request_body[key].is_null())
+        {
+            return defaultValue;
+        }
+        if (request_body[key].is_string())
+        {
+            return request_body[key].get<std::string>();
+        }
+        return request_body[key].dump();
+    }
+
+    void geocode(const std::string &address_text, double &longitude, double &latitude, std::string &geocode_source)
+    {
+        std::string geocoded_result = geocodeAddress(address_text);
+        if (!geocoded_result.empty())
+        {
+            try
+            {
+                // 解析地理编码结果
+                nlohmann::json geo_json = nlohmann::json::parse(geocoded_result);
+                if (geo_json.value("status", "") == "1" &&
+                    geo_json.contains("geocodes") &&
+                    geo_json["geocodes"].is_array() &&
+                    !geo_json["geocodes"].empty())
+                {
+                    auto &geo = geo_json["geocodes"][0]; // 获取JSON数组的geocodes的第一个结果
+                    std::string location_str = geo.value("location", "");
+                    size_t comma_pos = location_str.find(',');
+                    if (comma_pos != std::string::npos)
+                    {
+                        longitude = std::stod(location_str.substr(0, comma_pos));
+                        latitude = std::stod(location_str.substr(comma_pos + 1));
+                        geocode_source = geo.value("geocode_source", "");
+                    }
+                }
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Failed to parse geocode result: " << e.what() << std::endl;
+            }
+        }
+    }
     nlohmann::json splitUserName(const std::string &rawName)
     {
         const std::string delimiter = "·";
@@ -190,52 +235,6 @@ std::string generateUniqueFilename(const std::string &original_filename)
     return unique_name;
 }
 
-// 保存地址到数据库的函数
-bool saveAddressToDatabase(const std::shared_ptr<DatabaseManagerInterface> &dbManager, int DBaddress_id, const std::string &address_text, double longitude = 0.0, double latitude = 0.0)
-{
-    try
-    {
-        if (!dbManager || !dbManager->getSchema())
-        {
-            return false;
-        }
-
-        if (DBaddress_id <= 0)
-        {
-            // 传入地址ID无效，取消存储地址信息操作
-            return false;
-        }
-        else
-        {
-            mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT id FROM address_small WHERE address_id = ?").bind(DBaddress_id).execute();
-
-            // 如果已存在，使用这个ID更新对应地址信息
-            if (result.fetchOne())
-            {
-                // 如果已存在，则更新该地址信息
-                mysqlx::SqlResult result = dbManager->getSession()->sql("UPDATE address_small SET address_text = ?, longitude = ?, latitude = ? "
-                                                                        "WHERE id = ?")
-                                               .bind(address_text, longitude, latitude, DBaddress_id)
-                                               .execute();
-            }
-            else // 不存在，直接使用该地址ID存储地址信息
-            {
-                // 插入新的地址记录
-                mysqlx::SqlResult result = dbManager->getSession()->sql("INSERT INTO address_small (id, address_text, longitude, latitude) "
-                                                                        "VALUES (?, ?, ?, ?)")
-                                               .bind(DBaddress_id, address_text, longitude, latitude)
-                                               .execute();
-            }
-            return true; // 成功
-        }
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Error saving address to database: " << e.what() << std::endl;
-        return false; // 失败
-    }
-}
-
 // 获取路径最后的文件名
 std::string getLastFileName(const std::string &url)
 {
@@ -261,7 +260,7 @@ nlohmann::json userHandler::getUserData(const int &id)
     }
 
     mysqlx::SqlResult result = dbManager->getSession()
-                                   ->sql("SELECT id, name, password, phone, email, CAST(birthday AS CHAR), address_id, head_image "
+                                   ->sql("SELECT id, name, password, phone, email, CAST(birthday AS CHAR), head_image "
                                          "FROM users WHERE id = ?")
                                    .bind(id)
                                    .execute();
@@ -296,8 +295,7 @@ nlohmann::json userHandler::getUserData(const int &id)
             {"phone", safeString(3)},
             {"email", safeString(4)},
             {"birthday", safeString(5, false)},
-            {"address_id", row[6].isNull() ? 0 : row[6].get<int>()},
-            {"head_image", safeString(7)},
+            {"head_image", safeString(6)},
         };
         appendUserNameParts(user_data, userName);
         break;
@@ -318,7 +316,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         // 检查是否有更新字段
         const auto hasUpdateField = [&request_body]() -> bool
         {
-            for (const char *key : {"name", "password", "phone", "email", "birthday", "address_id", "address", "headImage"})
+            for (const char *key : {"name", "password", "phone", "email", "birthday", "headImage"})
             {
                 if (request_body.contains(key))
                 {
@@ -416,7 +414,6 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         std::string user_specialty = getOptionalString("user_specialty");
         std::string user_introduction = getOptionalString("user_introduction");
         int user_level = getOptionalInt("user_level", 0);
-        int salary_id = getOptionalInt("salary_id", 0);
         int is_deleted = getOptionalInt("is_deleted", 0);
         int deleted_by = getOptionalInt("deleted_by", 0);
         std::string deleted_at = getOptionalString("deleted_at");
@@ -447,9 +444,9 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
 
             try
             {
-                mysqlx::SqlResult result = session->sql("INSERT INTO users(type_id, name, phone, email, password, birthday, head_image, user_specialty, user_introduction, user_level, salary_id, is_deleted, deleted_by, deleted_at) "
+                mysqlx::SqlResult result = session->sql("INSERT INTO users(type_id, name, phone, email, password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at) "
                                                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                                               .bind(type_id, name, phone, email, hashed_password, birthday, headImage, user_specialty, user_introduction, user_level, salary_id, is_deleted, deleted_by, deleted_at)
+                                               .bind(type_id, name, phone, email, hashed_password, birthday, headImage, user_specialty, user_introduction, user_level, 0.0, is_deleted, deleted_by, deleted_at)
                                                .execute();
 
                 // 用户注册过程中，若手机号同步失败，则回滚整个事务，确保数据一致性
@@ -706,6 +703,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新用户数据", "Exception occurred: " + std::string(e.what()));
         return ResponseHelper::operation_failed(req, "Failed to update user data", e.what());
     }
 }
@@ -735,7 +733,6 @@ crow::response userHandler::userLogin(const crow::request &req)
         std::string email = "";
         std::string phone = "";
         std::string password = "";
-        int DBaddress_id = 0;
 
         // 安全地获取字段值
         if (hasIdentifier)
@@ -806,7 +803,7 @@ crow::response userHandler::userLogin(const crow::request &req)
                 // 通过email查询用户
                 result = dbManager->getSession()
                              ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, u.phone, u.email, "
-                                   "CAST(u.birthday AS CHAR), u.address_id, u.head_image "
+                                   "CAST(u.birthday AS CHAR), u.head_image "
                                    "FROM users AS u "
                                    "LEFT JOIN types AS t ON u.type_id = t.id "
                                    "WHERE u.email = ?")
@@ -819,7 +816,7 @@ crow::response userHandler::userLogin(const crow::request &req)
                 // 通过phone查询用户
                 result = dbManager->getSession()
                              ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, u.phone, u.email, "
-                                   "CAST(u.birthday AS CHAR), u.address_id, u.head_image "
+                                   "CAST(u.birthday AS CHAR), u.head_image "
                                    "FROM users AS u "
                                    "LEFT JOIN types AS t ON u.type_id = t.id "
                                    "WHERE u.phone = ? OR u.phone = ?")
@@ -918,23 +915,7 @@ crow::response userHandler::userLogin(const crow::request &req)
                 }
                 try
                 {
-                    if (!row[8].isNull())
-                    {
-                        DBaddress_id = row[8].get<int>();
-                        user->setAddressID(DBaddress_id); // 设置地址ID
-                    }
-                    else
-                    {
-                        user->setAddressID(DBaddress_id); // 默认地址ID
-                    }
-                }
-                catch (...)
-                {
-                    user->setAddressID(DBaddress_id); // 默认地址ID
-                }
-                try
-                {
-                    user->setHeadImage(clean_string(row[9].get<std::string>()));
+                    user->setHeadImage(clean_string(row[8].get<std::string>()));
                 }
                 catch (...)
                 {
@@ -979,8 +960,7 @@ crow::response userHandler::userLogin(const crow::request &req)
                 }
                 catch (const std::exception &e)
                 {
-                    std::cerr << "Failed to upgrade password hash for user " << user->getID()
-                              << ": " << e.what() << std::endl;
+                    OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新密码", "Failed to upgrade password hash for user " + std::to_string(user->getID()) + ": " + std::string(e.what()));
                 }
             }
 
@@ -1009,7 +989,6 @@ crow::response userHandler::userLogin(const crow::request &req)
             appendUserNameParts(user_json, user->getName());
             user_json["email"] = user->getEmail();
             user_json["phone"] = user->getPhone();
-            user_json["address_id"] = user->getAddressID();
             user_json["head_image"] = user->getHeadImage();
 
             // 特别处理birthday字段，将其转换为字符串格式
@@ -1026,8 +1005,7 @@ crow::response userHandler::userLogin(const crow::request &req)
     }
     catch (const std::exception &e)
     {
-        std::cout << "[CRITICAL ERROR] Exception in userLogin: " << e.what() << std::endl;
-        std::cout << "[CRITICAL ERROR] Stack trace would go here if available" << std::endl;
+        OperationLogger::LogExceptionOperation(dbManager, req, "用户", "登录", "Exception occurred: " + std::string(e.what()));
         return ResponseHelper::system_error(req, "Internal server error" + std::string(e.what()));
     }
 }
@@ -1047,34 +1025,20 @@ crow::response userHandler::addNewAddress(const crow::request &req, int userId)
             return ResponseHelper::unauthorized(req, "Invalid user identity");
         }
 
-        const auto getString = [&request_body](const std::string &key, const std::string &defaultValue = "") -> std::string
-        {
-            if (!request_body.contains(key) || request_body[key].is_null())
-            {
-                return defaultValue;
-            }
-            if (request_body[key].is_string())
-            {
-                return request_body[key].get<std::string>();
-            }
-            return request_body[key].dump();
-        };
-
-        std::string contact_name = getString("contact_name");
-        std::string contact_phone = getString("contact_phone");
+        std::string contact_name = getRequestString(request_body, "contact_name");
+        std::string contact_phone = getRequestString(request_body, "contact_phone");
         std::string country = "中国"; // 默认国家为中国
-        std::string province = getString("province");
-        std::string city = getString("city");
-        std::string district = getString("district");
-        std::string detail_address = getString("detail_address");
+        std::string province = getRequestString(request_body, "province");
+        std::string city = getRequestString(request_body, "city");
+        std::string district = getRequestString(request_body, "district");
+        std::string detail_address = getRequestString(request_body, "detail_address");
         std::string address_text = province + city + district + detail_address; // 用于地理编码的地址文本
-        std::string postal_code = getString("postal_code");
-        std::string address_tag = getString("address_tag", "家");
-        int is_default = request_body.value("is_default", 0);
+        std::string postal_code = getRequestString(request_body, "postal_code");
+        std::string address_tag = getRequestString(request_body, "address_tag", "家");
+        std::string remarks = getRequestString(request_body, "remarks");
         double longitude = 0.0;
         double latitude = 0.0;
         std::string geocode_source = "";
-        std::string remarks = getString("remarks");
 
         if (contact_name.empty() || contact_phone.empty() || province.empty() ||
             city.empty() || district.empty() || detail_address.empty())
@@ -1084,34 +1048,8 @@ crow::response userHandler::addNewAddress(const crow::request &req, int userId)
 
         if (!address_text.empty())
         {
-            // 地理编码只是增强信息，失败不阻止地址保存。
-            std::string geocoded_result = geocodeAddress(address_text);
-            if (!geocoded_result.empty())
-            {
-                try
-                {
-                    nlohmann::json geo_json = nlohmann::json::parse(geocoded_result);
-                    if (geo_json.value("status", "") == "1" &&
-                        geo_json.contains("geocodes") &&
-                        geo_json["geocodes"].is_array() &&
-                        !geo_json["geocodes"].empty())
-                    {
-                        auto &geo = geo_json["geocodes"][0];
-                        std::string location_str = geo.value("location", "");
-                        size_t comma_pos = location_str.find(',');
-                        if (comma_pos != std::string::npos)
-                        {
-                            longitude = std::stod(location_str.substr(0, comma_pos));
-                            latitude = std::stod(location_str.substr(comma_pos + 1));
-                            geocode_source = "amap";
-                        }
-                    }
-                }
-                catch (const std::exception &e)
-                {
-                    std::cerr << "Failed to parse geocode result: " << e.what() << std::endl;
-                }
-            }
+            // 调用地理编码函数获取经纬度和地理编码来源
+            geocode(address_text, longitude, latitude, geocode_source);
         }
 
         auto session = dbManager->getSession();
@@ -1119,48 +1057,35 @@ crow::response userHandler::addNewAddress(const crow::request &req, int userId)
 
         try
         {
-            if (is_default == 1)
-            {
-                session->sql("UPDATE address_small SET is_default = 0 WHERE user_id = ? AND is_deleted = 0")
-                    .bind(userId)
-                    .execute();
-            }
+            mysqlx::SqlResult existingAddressResult = session->sql("SELECT id FROM address WHERE user_id = ? AND is_deleted = 0 LIMIT 1")
+                                                          .bind(userId)
+                                                          .execute();
+            const int is_default = existingAddressResult.fetchOne() ? 0 : 1;
 
-            mysqlx::SqlResult result = session->sql("INSERT INTO address_small (user_id, contact_name, contact_phone, country, province, city, district, detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, geocode_source, remarks) "
-                                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                                            .bind(userId, contact_name, contact_phone, country, province, city, district, detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, geocode_source, remarks)
-                                            .execute();
+            mysqlx::SqlResult insert_result = session->sql("INSERT INTO address (user_id, contact_name, contact_phone, country, province, city, district, detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, geocode_source, remarks) "
+                                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                                                  .bind(userId, contact_name, contact_phone, country, province, city, district, detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, geocode_source, remarks)
+                                                  .execute();
 
-            if (result.getAffectedItemsCount() == 0)
+            if (insert_result.getAffectedItemsCount() == 0)
             {
                 session->sql("ROLLBACK").execute();
                 return ResponseHelper::operation_failed(req, "Failed to insert new address");
             }
 
-            const int address_id = static_cast<int>(result.getAutoIncrementValue());
-
-            mysqlx::SqlResult update_address_id = session->sql("UPDATE users SET address_id = ? WHERE id = ?")
-                                                      .bind(address_id, userId)
-                                                      .execute();
-
-            if (update_address_id.getAffectedItemsCount() == 0)
-            {
-                session->sql("ROLLBACK").execute();
-                return ResponseHelper::operation_failed(req, "Failed to update user's address_id");
-            }
+            const int address_id = static_cast<int>(insert_result.getAutoIncrementValue());
 
             session->sql("COMMIT").execute();
 
-            mysqlx::SqlResult addressResult = session->sql(
-                                                        "SELECT id, user_id, contact_name, contact_phone, country, province, city, district, "
-                                                        "detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, "
-                                                        "geocode_source, remarks "
-                                                        "FROM address_small "
-                                                        "WHERE id = ? AND user_id = ? AND is_deleted = 0")
-                                                   .bind(address_id, userId)
-                                                   .execute();
+            mysqlx::SqlResult getAddress_result = session->sql(
+                                                             "SELECT id, user_id, contact_name, contact_phone, country, province, city, district, "
+                                                             "detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, remarks "
+                                                             "FROM address "
+                                                             "WHERE id = ? AND user_id = ? AND is_deleted = 0")
+                                                      .bind(address_id, userId)
+                                                      .execute();
 
-            auto row = addressResult.fetchOne();
+            auto row = getAddress_result.fetchOne();
             if (!row)
             {
                 return ResponseHelper::operation_failed(req, "New address was inserted but could not be loaded");
@@ -1182,8 +1107,7 @@ crow::response userHandler::addNewAddress(const crow::request &req, int userId)
                 {"is_default", row[12].isNull() ? 0 : row[12].get<int>()},
                 {"longitude", row[13].isNull() ? 0.0 : row[13].get<double>()},
                 {"latitude", row[14].isNull() ? 0.0 : row[14].get<double>()},
-                {"geocode_source", row[15].isNull() ? "" : row[15].get<std::string>()},
-                {"remarks", row[16].isNull() ? "" : row[16].get<std::string>()},
+                {"remarks", row[15].isNull() ? "" : row[15].get<std::string>()}};
 
             return ResponseHelper::success(req, data);
         }
@@ -1195,21 +1119,190 @@ crow::response userHandler::addNewAddress(const crow::request &req, int userId)
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "地址", "添加新地址", "Failed to add new address for user ID " + std::to_string(userId) + ": " + std::string(e.what()));
         return ResponseHelper::operation_failed(req, "Failed to add new address", e.what());
     }
 }
 
-crow::response userHandler::addressUpdate(const crow::request &req, int addressId)
+crow::response userHandler::addressUpdate(const crow::request &req, int userId, int addressId)
 {
     try
     {
-        return ResponseHelper::operation_failed(req, "地址更新功能暂未实现");
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        if (userId <= 0)
+        {
+            return ResponseHelper::unauthorized(req, "Invalid user identity");
+        }
+        if (addressId <= 0)
+        {
+            return ResponseHelper::validation(req, "Invalid address ID");
+        }
+
+        if (request_body.contains("contact_name") || request_body.contains("contact_phone") ||
+            request_body.contains("province") || request_body.contains("city") ||
+            request_body.contains("district") || request_body.contains("detail_address"))
+        {
+            return ResponseHelper::validation(req, "联系人、手机号、省、市、区和详细地址不能为空");
+        }
+
+        auto session = dbManager->getSession();
+
+        mysqlx::SqlResult result = session->sql(
+                                              "SELECT id, user_id, contact_name, contact_phone, country, province, city, district, "
+                                              "detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, "
+                                              "geocode_source, remarks "
+                                              "FROM address WHERE id = ? AND user_id = ? AND is_deleted = 0")
+                                       .bind(addressId, userId)
+                                       .execute();
+
+        auto row = result.fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::notFound(req, "Address not found");
+        }
+
+        std::string DBcontact_name = row[2].isNull() ? "" : row[2].get<std::string>();
+        std::string DBcontact_phone = row[3].isNull() ? "" : row[3].get<std::string>();
+        std::string DBcountry = row[4].isNull() ? "中国" : row[4].get<std::string>();
+        std::string DBprovince = row[5].isNull() ? "" : row[5].get<std::string>();
+        std::string DBcity = row[6].isNull() ? "" : row[6].get<std::string>();
+        std::string DBdistrict = row[7].isNull() ? "" : row[7].get<std::string>();
+        std::string DBdetail_address = row[8].isNull() ? "" : row[8].get<std::string>();
+        std::string DBaddress_text = row[9].isNull() ? "" : row[9].get<std::string>();
+        std::string DBpostal_code = row[10].isNull() ? "" : row[10].get<std::string>();
+        std::string DBaddress_tag = row[11].isNull() ? "" : row[11].get<std::string>();
+        int DBis_default = row[12].isNull() ? 0 : row[12].get<int>();
+        double DBlongitude = row[13].isNull() ? 0.0 : row[13].get<double>();
+        double DBlatitude = row[14].isNull() ? 0.0 : row[14].get<double>();
+        std::string DBgeocode_source = row[15].isNull() ? "" : row[15].get<std::string>();
+        std::string DBremarks = row[16].isNull() ? "" : row[16].get<std::string>();
+
+        auto nextString = [&request_body](const std::string &key, const std::string &currentValue) -> std::string
+        {
+            // 检查request_body是否存在key值，如果存在则返回request_body中的值，否则返回currentValue（数据库中的原值）
+            return request_body.contains(key) ? getRequestString(request_body, key) : currentValue;
+        };
+
+        std::string contact_name = nextString("contact_name", DBcontact_name);
+        std::string contact_phone = nextString("contact_phone", DBcontact_phone);
+        std::string country = nextString("country", DBcountry);
+        std::string province = nextString("province", DBprovince);
+        std::string city = nextString("city", DBcity);
+        std::string district = nextString("district", DBdistrict);
+        std::string detail_address = nextString("detail_address", DBdetail_address);
+        std::string postal_code = nextString("postal_code", DBpostal_code);
+        std::string address_tag = nextString("address_tag", DBaddress_tag.empty() ? "家" : DBaddress_tag);
+        std::string remarks = nextString("remarks", DBremarks);
+
+        if (address_tag != "家" && address_tag != "公司" && address_tag != "医院" &&
+            address_tag != "学校" && address_tag != "其他")
+        {
+            return ResponseHelper::validation(req, "地址标签无效");
+        }
+
+        const bool addressBodyChanged = province != DBprovince ||
+                                        city != DBcity ||
+                                        district != DBdistrict ||
+                                        detail_address != DBdetail_address;
+        std::string address_text = province + city + district + detail_address;
+        double longitude = DBlongitude;
+        double latitude = DBlatitude;
+        std::string geocode_source = DBgeocode_source;
+
+        // 当地址主体信息发生变化时，才重新进行地理编码获取经纬度和地理编码来源
+        if (addressBodyChanged)
+        {
+            longitude = 0.0;
+            latitude = 0.0;
+            geocode_source.clear();
+            geocode(address_text, longitude, latitude, geocode_source);
+        }
+
+        const bool has_changes = contact_name != DBcontact_name ||
+                                 contact_phone != DBcontact_phone ||
+                                 country != DBcountry ||
+                                 address_text != DBaddress_text ||
+                                 postal_code != DBpostal_code ||
+                                 address_tag != DBaddress_tag ||
+                                 remarks != DBremarks;
+
+        if (!has_changes)
+        {
+            return ResponseHelper::success(req, "Address has no changes");
+        }
+
+        session->sql("START TRANSACTION").execute();
+        try
+        {
+            mysqlx::SqlResult updateResult = session->sql(
+                                                        "UPDATE address SET contact_name = ?, contact_phone = ?, country = ?, "
+                                                        "province = ?, city = ?, district = ?, detail_address = ?, address_text = ?, "
+                                                        "postal_code = ?, address_tag = ?, longitude = ?, latitude = ?, "
+                                                        "geocode_source = ?, remarks = ? "
+                                                        "WHERE id = ? AND user_id = ? AND is_deleted = 0")
+                                                 .bind(contact_name, contact_phone, country, province, city, district,
+                                                       detail_address, address_text, postal_code, address_tag,
+                                                       longitude, latitude, geocode_source, remarks, addressId, userId)
+                                                 .execute();
+
+            if (updateResult.getAffectedItemsCount() == 0)
+            {
+                session->sql("ROLLBACK").execute();
+                return ResponseHelper::notFound(req, "Address not found");
+            }
+
+            mysqlx::SqlResult updatedResult = session->sql(
+                                                         "SELECT id, user_id, contact_name, contact_phone, country, province, city, district, "
+                                                         "detail_address, address_text, postal_code, address_tag, is_default, longitude, latitude, remarks "
+                                                         "FROM address WHERE id = ? AND user_id = ? AND is_deleted = 0")
+                                                  .bind(addressId, userId)
+                                                  .execute();
+            auto updatedRow = updatedResult.fetchOne();
+            if (!updatedRow)
+            {
+                session->sql("ROLLBACK").execute();
+                return ResponseHelper::notFound(req, "Address not found after update");
+            }
+
+            nlohmann::json data = {
+                {"id", updatedRow[0].isNull() ? 0 : updatedRow[0].get<int>()},
+                {"user_id", updatedRow[1].isNull() ? 0 : updatedRow[1].get<int>()},
+                {"contact_name", updatedRow[2].isNull() ? "" : updatedRow[2].get<std::string>()},
+                {"contact_phone", updatedRow[3].isNull() ? "" : updatedRow[3].get<std::string>()},
+                {"country", updatedRow[4].isNull() ? "" : updatedRow[4].get<std::string>()},
+                {"province", updatedRow[5].isNull() ? "" : updatedRow[5].get<std::string>()},
+                {"city", updatedRow[6].isNull() ? "" : updatedRow[6].get<std::string>()},
+                {"district", updatedRow[7].isNull() ? "" : updatedRow[7].get<std::string>()},
+                {"detail_address", updatedRow[8].isNull() ? "" : updatedRow[8].get<std::string>()},
+                {"address_text", updatedRow[9].isNull() ? "" : updatedRow[9].get<std::string>()},
+                {"postal_code", updatedRow[10].isNull() ? "" : updatedRow[10].get<std::string>()},
+                {"address_tag", updatedRow[11].isNull() ? "" : updatedRow[11].get<std::string>()},
+                {"is_default", updatedRow[12].isNull() ? 0 : updatedRow[12].get<int>()},
+                {"longitude", updatedRow[13].isNull() ? 0.0 : updatedRow[13].get<double>()},
+                {"latitude", updatedRow[14].isNull() ? 0.0 : updatedRow[14].get<double>()},
+                {"remarks", updatedRow[15].isNull() ? "" : updatedRow[15].get<std::string>()}};
+
+            session->sql("COMMIT").execute();
+            return ResponseHelper::success(req, data);
+        }
+        catch (...)
+        {
+            session->sql("ROLLBACK").execute();
+            throw;
+        }
     }
     catch (const std::exception &e)
     {
+        OperationLogger::LogExceptionOperation(dbManager, req, "地址", "更新地址", "Failed to update address with ID " + std::to_string(addressId) + ": " + std::string(e.what()));
         return ResponseHelper::operation_failed(req, "Failed to update address", e.what());
     }
 }
+
 crow::response userHandler::userUploadAvatar(const crow::request &req)
 {
     try
@@ -1303,8 +1396,7 @@ crow::response userHandler::userUploadAvatar(const crow::request &req)
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Error in file upload: " << e.what() << std::endl;
-
+        OperationLogger::LogExceptionOperation(dbManager, req, "用户", "上传头像", "Exception occurred during avatar upload: " + std::string(e.what()));
         return ResponseHelper::system_error(req);
     }
 }

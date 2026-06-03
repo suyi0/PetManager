@@ -20,7 +20,6 @@ export interface UserRow {
   phone: string;
   email: string;
   birthday: string;
-  address_id: string;
   head_image: string;
   status?: "online" | "offline" | "";
 }
@@ -67,7 +66,6 @@ export interface CreateUserPayload {
   email?: string;
   password?: string;
   birthday?: string;
-  address_id?: number;
 }
 
 export interface ApiListResponse<T> {

@@ -17,7 +17,6 @@ crow::response personnelHandler::createUser(const crow::request &req)
         std::string email = request_body.value("email", "");
         std::string password = request_body.value("password", "");
         std::string birthday = request_body.value("birthday", "1970-01-01");
-        int address_id = request_body.value("address_id", 0);
         std::string head_image = request_body.value("head_image", "");
 
         if (name.empty())
@@ -76,9 +75,9 @@ crow::response personnelHandler::createUser(const crow::request &req)
         mysqlx::SqlResult result;
         try
         {
-            result = session->sql("INSERT INTO users (type_id, name, phone, password, email, birthday, address_id, head_image) "
-                                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                         .bind(defaultUserRoleId, name, phone, hashed_password, email, birthday, address_id, head_image)
+            result = session->sql("INSERT INTO users (type_id, name, phone, password, email, birthday, head_image) "
+                                  "VALUES (?, ?, ?, ?, ?, ?, ?)")
+                         .bind(defaultUserRoleId, name, phone, hashed_password, email, birthday, head_image)
                          .execute();
 
             if (result.getAffectedItemsCount() == 0)
@@ -112,7 +111,6 @@ crow::response personnelHandler::createUser(const crow::request &req)
             {"phone", phone},
             {"email", email},
             {"birthday", birthday},
-            {"address_id", address_id},
             {"head_image", head_image},
         };
 

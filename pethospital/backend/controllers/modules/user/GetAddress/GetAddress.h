@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <iostream>
+#include <cstdlib>
 
 // 声明URL编码和地理编码函数
 std::string urlencode(const std::string &value);

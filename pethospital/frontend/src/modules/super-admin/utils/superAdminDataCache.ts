@@ -1,9 +1,4 @@
-import type {
-  HomePageSummary,
-  SalaryManagementPayload,
-  UserRow,
-  WorkTimeRecord,
-} from "../api/types";
+import type { HomePageSummary, UserRow, WorkTimeRecord } from "../api/types";
 import type { LogsPayload } from "../store/types";
 
 const SUPER_ADMIN_CACHE_KEYS = {
@@ -11,7 +6,6 @@ const SUPER_ADMIN_CACHE_KEYS = {
   workTimeRecords: "super-admin:work-time-records:cache",
   logs: "super-admin:logs:cache",
   homePageData: "super-admin:home-page-data:cache",
-  salaryManagement: "super-admin:salary-management:cache",
 };
 
 const readJsonCache = <T>(key: string): T | null => {
@@ -95,24 +89,6 @@ export const readSuperAdminHomePageDataCache = () =>
  */
 export const saveSuperAdminHomePageDataCache = (summary: HomePageSummary) => {
   saveJsonCache(SUPER_ADMIN_CACHE_KEYS.homePageData, summary);
-};
-
-/**
- * 从本地缓存读取超级管理端薪资管理数据。
- * 缓存不存在或格式异常时返回 null。
- */
-export const readSuperAdminSalaryManagementCache = () =>
-  readJsonCache<SalaryManagementPayload>(
-    SUPER_ADMIN_CACHE_KEYS.salaryManagement
-  );
-
-/**
- * 写入超级管理端薪资管理数据本地缓存。
- */
-export const saveSuperAdminSalaryManagementCache = (
-  payload: SalaryManagementPayload
-) => {
-  saveJsonCache(SUPER_ADMIN_CACHE_KEYS.salaryManagement, payload);
 };
 
 /**

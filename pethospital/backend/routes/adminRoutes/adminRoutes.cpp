@@ -239,57 +239,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取首页数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
 
-    CROW_ROUTE(app, "/api/admin/getSalaryManagementData")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res)
-            {
-                int userId = -1;
-                try
-                {
-                    userId = isValidManagementToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1)
-                    {
-                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取工资管理数据");
-                        return;
-                    }
 
-                    adminHandler handler(dbManager);
-                    crow::response response = handler.getSalaryManagementData(req);
-                    ProcessHandlerResponse(req, res, response);
-                }
-                catch (const std::exception &e)
-                {
-                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "获取工资管理数据", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-                    res = ResponseHelper::system_error(req);
-                }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取工资管理数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
-
-    CROW_ROUTE(app, "/api/admin/changeSalary")
-        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res)
-            {
-                int userId = -1;
-                try
-                {
-                    userId = isValidManagementToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1)
-                    {
-                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "修改工资");
-                        return;
-                    }
-
-                    adminHandler handler(dbManager);
-                    crow::response response = handler.changeSalary(req);
-                    ProcessHandlerResponse(req, res, response);
-                }
-                catch (const std::exception &e)
-                {
-                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "修改工资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-                    res = ResponseHelper::system_error(req);
-                }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "修改工资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            });
 
     CROW_ROUTE(app, "/api/admin/order/getAllRecord")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)

@@ -51,7 +51,6 @@ type PortalEntry = {
     userPhone: string;
     userEmail: string;
     userBirthday: string;
-    userAddressId: string;
     userAddress: string;
     userHeadImage: string;
   };
@@ -82,7 +81,6 @@ export default defineComponent({
           userPhone: "13600136000",
           userEmail: "super.admin@example.com",
           userBirthday: "1988-02-14",
-          userAddressId: "super-admin-address",
           userAddress: "上海市徐汇区宠物医院总部 18 层",
           userHeadImage: "",
         },
@@ -99,7 +97,6 @@ export default defineComponent({
       //     userPhone: "13600136002",
       //     userEmail: "finance.lin@example.com",
       //     userBirthday: "1990-04-26",
-      //     userAddressId: "finance-address",
       //     userAddress: "上海市徐汇区财务管理中心 12 楼",
       //     userHeadImage: "",
       //   },
@@ -116,7 +113,6 @@ export default defineComponent({
           userPhone: "13600136001",
           userEmail: "personnel.xu@example.com",
           userBirthday: "1992-08-19",
-          userAddressId: "personnel-address",
           userAddress: "上海市徐汇区人事管理中心 8 楼",
           userHeadImage: "",
         },
@@ -133,7 +129,6 @@ export default defineComponent({
           userPhone: "13700137000",
           userEmail: "warehouse.chen@example.com",
           userBirthday: "1993-11-22",
-          userAddressId: "warehouse-address",
           userAddress: "苏州市工业园区补给仓 A-03",
           userHeadImage: "",
         },
@@ -150,7 +145,6 @@ export default defineComponent({
           userPhone: "13900139000",
           userEmail: "doctor.zhou@example.com",
           userBirthday: "1991-03-09",
-          userAddressId: "doctor-address",
           userAddress: "杭州市滨江区宠医中心 6 楼",
           userHeadImage: "",
         },
@@ -167,7 +161,6 @@ export default defineComponent({
           userPhone: "13800138000",
           userEmail: "pet.user@example.com",
           userBirthday: "1998-06-18",
-          userAddressId: "user-address",
           userAddress: "上海市浦东新区爪印大道 18 号",
           userHeadImage: "",
         },

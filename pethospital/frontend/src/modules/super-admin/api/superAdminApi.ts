@@ -9,7 +9,6 @@ import {
 import {
   CreateUserPayload,
   HomePageSummary,
-  SalaryManagementPayload,
   UserRow,
   WorkTimeRecord,
   UserLogs,
@@ -132,45 +131,5 @@ export const superAdminApi = {
         profitCount: 0,
       };
     }
-  },
-
-  async getSalaryManagementData(): Promise<SalaryManagementPayload> {
-    try {
-      const { data } = await http.get("/api/admin/getSalaryManagementData");
-      const payload = data?.data ?? data;
-
-      return {
-        summary: {
-          employeeCount: Number(payload?.summary?.employeeCount ?? 0),
-          monthlyPayroll: Number(payload?.summary?.monthlyPayroll ?? 0),
-          todayCost: Number(payload?.summary?.todayCost ?? 0),
-          todayProfit: Number(payload?.summary?.todayProfit ?? 0),
-        },
-        employees: unwrapList(payload?.employees),
-        monthlyRecords: unwrapList(payload?.monthlyRecords),
-        dailyRecords: unwrapList(payload?.dailyRecords),
-      };
-    } catch {
-      return {
-        summary: {
-          employeeCount: 0,
-          monthlyPayroll: 0,
-          todayCost: 0,
-          todayProfit: 0,
-        },
-        employees: [],
-        monthlyRecords: [],
-        dailyRecords: [],
-      };
-    }
-  },
-
-  async changeSalary(payload: {
-    userId: number;
-    baseSalary: number;
-    paAward: number;
-    pbAward: number;
-  }): Promise<void> {
-    await http.post("/api/admin/changeSalary", payload);
   },
 };

@@ -52,10 +52,6 @@
             <span>生日</span>
             <strong>{{ user.birthday || "未填写" }}</strong>
           </div>
-          <div>
-            <span>地址 ID</span>
-            <strong>{{ user.address_id || "未填写" }}</strong>
-          </div>
         </div>
       </article>
 

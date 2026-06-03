@@ -83,7 +83,6 @@ export default defineComponent({
           userPhone: bridge.userPhone,
           userEmail: bridge.userEmail,
           userBirthday: bridge.userBirthday,
-          userAddressId: bridge.userAddressId,
           userAddress: bridge.userAddress || "",
           userHeadImage: bridge.userHeadImage || "",
         },

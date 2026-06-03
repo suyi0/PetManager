@@ -209,7 +209,6 @@ export const profileApi = {
     phone?: string | null;
     email?: string | null;
     birthday?: string | null;
-    address_id?: string | null;
     address?: string | null;
     headImage?: string | null | undefined;
   }) {

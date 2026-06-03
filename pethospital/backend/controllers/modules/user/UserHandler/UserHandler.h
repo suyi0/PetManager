@@ -30,7 +30,7 @@ public:
     
     crow::response addNewAddress(const crow::request &req, int userId); // 添加新地址 "/api/user/address"
 
-    crow::response addressUpdate(const crow::request &req, int addressId); // 对应地址更新 "/api/user/address/<int>"
+    crow::response addressUpdate(const crow::request &req, int userId, int addressId); // 对应地址更新 "/api/user/address/<int>"
 
     crow::response userUploadAvatar(const crow::request& req); // 对应 上传头像 "/api/user/avatar"
 

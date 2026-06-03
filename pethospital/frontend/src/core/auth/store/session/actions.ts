@@ -4,6 +4,7 @@ import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { State } from "@/app/store/types";
 import { clearBossDataCache } from "@/modules/boss/utils/bossDataCache";
 import { clearDoctorDataCache } from "@/modules/doctor/utils/doctorDataCache";
+import { clearFinanceDataCache } from "@/modules/finance/utils/financeDataCache";
 import { clearPersonnelDataCache } from "@/modules/personnel/utils/personnelDataCache";
 import { clearSuperAdminDataCache } from "@/modules/super-admin/utils/superAdminDataCache";
 import { clearUserPortalDataCache } from "@/modules/user/utils/userPortalDataCache";
@@ -132,7 +133,6 @@ export const authActions: ActionTree<AuthState, State> = {
               userEmail: user.email,
               userPhone: user.phone,
               userBirthday: user.birthday,
-              userAddressId: user.address_id,
               userAddress: user.address,
               userHeadImage: user.head_image,
             },
@@ -152,6 +152,7 @@ export const authActions: ActionTree<AuthState, State> = {
   logout({ commit }: AuthActionContext) {
     clearBossDataCache();
     clearDoctorDataCache();
+    clearFinanceDataCache();
     clearPersonnelDataCache();
     clearSuperAdminDataCache();
     clearUserPortalDataCache();
@@ -159,6 +160,7 @@ export const authActions: ActionTree<AuthState, State> = {
     commit("currentUser/clearCurrentUser", undefined, { root: true });
     commit("boss/resetState", undefined, { root: true });
     commit("doctor/resetState", undefined, { root: true });
+    commit("finance/resetState", undefined, { root: true });
     commit("personnel/resetState", undefined, { root: true });
     commit("superAdmin/resetState", undefined, { root: true });
     commit("userPortal/resetState", undefined, { root: true });

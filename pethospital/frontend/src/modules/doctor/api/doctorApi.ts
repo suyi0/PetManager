@@ -176,7 +176,7 @@ const normalizeDoctorUserProfile = (
     item.user_introduction ?? item.userIntroduction ?? ""
   ),
   user_level: toNumber(item.user_level ?? item.userLevel) ?? 0,
-  salary: toNumber(item.salary) ?? 0,
+  funds: toNumber(item.funds ?? item.salary) ?? 0,
   created_at: String(item.created_at ?? item.createdAt ?? ""),
   pets: Array.isArray(item.pets)
     ? item.pets.map((pet) => {

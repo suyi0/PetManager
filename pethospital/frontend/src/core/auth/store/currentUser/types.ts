@@ -8,7 +8,6 @@ export interface CurrentUserState {
   userBirthday: string | null;
   userEmail: string | null;
   userPhone: string | null;
-  userAddressId: string | null;
   userAddress: string | null;
   userHeadImage: string | undefined;
   profileMeta: CacheMeta;
@@ -32,7 +31,6 @@ export interface SetCurrentUserPayload {
       }
     | string;
   userHeadImage: string;
-  userAddressId?: string;
   userType?: number | null;
   userRole?: string | null;
 }

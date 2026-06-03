@@ -48,7 +48,7 @@ namespace DatabaseMigrations
         bool types_exists = false;
         bool phones_exists = false;
         bool users_exists = false;
-        bool address_small_exists = false;
+        bool address_exists = false;
         bool salary_exists = false;
         bool salaryRecord_exists = false;
         bool monthlySalaryRecord_exists = false;
@@ -79,9 +79,9 @@ namespace DatabaseMigrations
             {
                 users_exists = true;
             }
-            else if (table_name == "address_small")
+            else if (table_name == "address")
             {
-                address_small_exists = true;
+                address_exists = true;
             }
             else if (table_name == "salary")
             {
@@ -166,9 +166,9 @@ namespace DatabaseMigrations
             std::cout << "salaryRecord table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE salaryRecord ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "salesCount DECIMAL(18, 2), "
-                         "costCount DECIMAL(18, 2), "
-                         "profitCount DECIMAL(18, 2), "
+                         "salesCount DECIMAL(18, 2) COMMENT '销售金额', "
+                         "costCount DECIMAL(18, 2) COMMENT '成本金额', "
+                         "profitCount DECIMAL(18, 2) COMMENT '利润金额', "
                          "record_type ENUM('day', 'month'), "
                          "business_date DATE NOT NULL, "
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
@@ -200,12 +200,11 @@ namespace DatabaseMigrations
                          "phone VARCHAR(20), "
                          "email VARCHAR(255), "
                          "birthday DATE, "
-                         "address_id int, "
                          "head_image VARCHAR(255),"
                          "user_specialty VARCHAR(255),"
                          "user_introduction TEXT, "
                          "user_level int, "
-                         "salary_id INT, "
+                         "funds DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '用户账户余额', "
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
                          "deleted_at DATETIME NULL COMMENT '软删除时间', "
                          "deleted_by INT NULL COMMENT '执行删除的用户ID', "
@@ -219,27 +218,22 @@ namespace DatabaseMigrations
             std::cout << "users table created successfully." << std::endl;
         }
 
-        if (address_small_exists)
+        if (address_exists)
         {
-            std::cout << "address_small table is exists." << std::endl;
+            std::cout << "address table is exists." << std::endl;
         }
         else
         {
-            std::cout << "address_small table does not exist. Creating..." << std::endl;
-            session->sql("CREATE TABLE address_small ("
+            std::cout << "address table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE address ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "user_id INT NULL COMMENT '地址所属用户ID', "
+                         "user_id INT NOT NULL COMMENT '地址所属用户ID', "
                          "contact_name VARCHAR(80) COMMENT '联系人姓名', "
                          "contact_phone VARCHAR(20) COMMENT '联系人手机号', "
                          "country VARCHAR(80) DEFAULT '中国' COMMENT '国家或地区', "
                          "province VARCHAR(80) COMMENT '省/直辖市/自治区', "
                          "city VARCHAR(80) COMMENT '城市', "
                          "district VARCHAR(80) COMMENT '区/县', "
-                         "street VARCHAR(120) COMMENT '街道/乡镇', "
-                         "community VARCHAR(120) COMMENT '小区/园区/商圈', "
-                         "building VARCHAR(80) COMMENT '楼栋/楼号', "
-                         "unit VARCHAR(80) COMMENT '单元/门牌', "
-                         "room VARCHAR(80) COMMENT '房间号', "
                          "detail_address VARCHAR(255) COMMENT '门牌号及详细地址', "
                          "address_text VARCHAR(500) COMMENT '完整地址文本', "
                          "postal_code VARCHAR(20) COMMENT '邮政编码，用户选填或后端根据地址库补全', "
@@ -254,14 +248,14 @@ namespace DatabaseMigrations
                          "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "CONSTRAINT fk_address_small_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL, "
-                         "INDEX idx_address_small_user_default (user_id, is_default, is_deleted), "
-                         "INDEX idx_address_small_contact_phone (contact_phone), "
-                         "INDEX idx_address_small_region (province, city, district), "
-                         "INDEX idx_address_small_is_deleted (is_deleted) "
+                         "CONSTRAINT fk_address_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "INDEX idx_address_user_default (user_id, is_default, is_deleted), "
+                         "INDEX idx_address_contact_phone (contact_phone), "
+                         "INDEX idx_address_region (province, city, district), "
+                         "INDEX idx_address_is_deleted (is_deleted) "
                          ")")
                 .execute();
-            std::cout << "address_small table created successfully." << std::endl;
+            std::cout << "address table created successfully." << std::endl;
         }
 
         if (salary_exists)
@@ -274,10 +268,10 @@ namespace DatabaseMigrations
             session->sql("CREATE TABLE salary ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
                          "user_id INT NOT NULL, "
-                         "base_salary DECIMAL(18, 2), "
-                         "PA_Award DECIMAL(18, 2), "
-                         "PB_Award DECIMAL(18, 2), "
-                         "total_salary DECIMAL(18, 2), "
+                         "base_salary DECIMAL(18, 2) COMMENT '基本工资', "
+                         "PA_Award DECIMAL(18, 2) COMMENT '全勤奖', "
+                         "PB_Award DECIMAL(18, 2) COMMENT '绩效奖金', "
+                         "total_salary DECIMAL(18, 2) COMMENT '总工资', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_salary_userId FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE "
@@ -350,9 +344,9 @@ namespace DatabaseMigrations
             std::cout << "monthlySalaryRecord table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE monthlySalaryRecord ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
-                         "salesCount DECIMAL(18, 2), "
-                         "costCount DECIMAL(18, 2), "
-                         "profitCount DECIMAL(18, 2), "
+                         "salesCount DECIMAL(18, 2) COMMENT '销售金额', "
+                         "costCount DECIMAL(18, 2) COMMENT '成本金额', "
+                         "profitCount DECIMAL(18, 2) COMMENT '利润金额', "
                          "business_date DATE NOT NULL, "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "

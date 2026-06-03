@@ -17,7 +17,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 try
                 {
                     userId = isValidManagementToken(req, res, dbManager);
-                    if( res.code != 200 && userId == -1)
+                    if (res.code != 200 && userId == -1)
                     {
                         OperationLogger::LogAuthorizationFailure(dbManager, req, res, "财务", "获取首页数据");
                         return;
@@ -25,11 +25,118 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
 
                     financeHandler handler(dbManager);
                     crow::response response = handler.homePageGetData(req);
-                } catch (const std::exception& e)
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
                 {
                     OperationLogger::LogExceptionOperation(dbManager, req, "财务", "获取首页数据", "route exception", userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取首页数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
 
+    CROW_ROUTE(app, "/api/finance/getSalarySummary/<int>")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int page)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "获取工资管理数据");
+                        return;
+                    }
+
+                    financeHandler handler(dbManager);
+                    crow::response response = handler.getSalarySummary(req, page);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "财务", "获取工资管理数据", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取工资管理数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
+    CROW_ROUTE(app, "/api/finance/getSalaryInformation/<int>")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int salaryId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "获取工资详情");
+                        return;
+                    }
+
+                    financeHandler handler(dbManager);
+                    crow::response response = handler.getSalaryInformation(req, salaryId);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "财务", "获取工资详情", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取工资详情", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/finance/getSalaryManagementData")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "获取工资管理数据");
+                        return;
+                    }
+
+                    financeHandler handler(dbManager);
+                    crow::response response = handler.getSalaryManagementData(req);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "财务", "获取工资管理数据", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取工资管理数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
+    CROW_ROUTE(app, "/api/finance/changeSalary")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "修改工资");
+                        return;
+                    }
+
+                    financeHandler handler(dbManager);
+                    crow::response response = handler.changeSalary(req);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "财务", "修改工资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "修改工资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 }

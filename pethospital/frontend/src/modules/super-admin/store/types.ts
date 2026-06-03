@@ -1,6 +1,5 @@
 import {
   HomePageSummary,
-  SalaryManagementPayload,
   SystemLogs,
   UserLogs,
   UserRow,
@@ -25,10 +24,8 @@ export interface SuperAdminState {
   workTimeRecords: WorkTimeRecord[];
   logs: LogsPayload;
   homePageData: HomePageSummary;
-  salaryManagement: SalaryManagementPayload;
   usersMeta: CacheMeta;
   workTimeRecordsMeta: CacheMeta;
   logsMeta: CacheMeta;
   homePageDataMeta: CacheMeta;
-  salaryManagementMeta: CacheMeta;
 }

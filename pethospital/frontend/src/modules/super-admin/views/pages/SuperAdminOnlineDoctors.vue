@@ -161,10 +161,6 @@
               <span>生日</span>
               <strong>{{ selectedDoctor.birthday || "未填写" }}</strong>
             </article>
-            <article>
-              <span>地址 ID</span>
-              <strong>{{ selectedDoctor.address_id || "未填写" }}</strong>
-            </article>
           </section>
 
           <section class="doctor-detail__shift">
@@ -328,13 +324,7 @@ export default defineComponent({
         return true;
       }
 
-      return [
-        String(item.id),
-        item.name,
-        item.phone,
-        item.email,
-        item.address_id ? String(item.address_id) : "",
-      ]
+      return [String(item.id), item.name, item.phone, item.email]
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(search));
     };

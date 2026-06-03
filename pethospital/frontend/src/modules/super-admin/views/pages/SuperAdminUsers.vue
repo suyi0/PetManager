@@ -228,11 +228,6 @@
             <span>生日</span>
             <input v-model="form.birthday" type="date" />
           </label>
-          <label>
-            <span>地址ID</span>
-            <input v-model.number="form.address_id" type="number" min="0" />
-          </label>
-
           <p v-if="formError" class="form-error">{{ formError }}</p>
 
           <div class="dialog__actions">
@@ -308,7 +303,6 @@ export default defineComponent({
       email: "",
       password: "",
       birthday: "",
-      address_id: 0,
     });
 
     /**
@@ -484,7 +478,6 @@ export default defineComponent({
       form.email = "";
       form.password = "";
       form.birthday = "";
-      form.address_id = 0;
       formError.value = "";
     };
 
@@ -534,7 +527,6 @@ export default defineComponent({
           email: form.email || undefined,
           password: form.password || undefined,
           birthday: form.birthday || undefined,
-          address_id: form.address_id || 0,
         });
         // 创建成功后，用户列表和日志都已经过期，后续页面会读到新数据。
         store.commit("superAdmin/markUsersDirty");

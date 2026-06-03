@@ -400,11 +400,10 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
         mysqlx::SqlResult users = dbManager->getSession()
                                       ->sql("SELECT u.id, COALESCE(u.name, ''), COALESCE(u.phone, ''), COALESCE(u.email, ''), "
                                             "CAST(u.birthday AS CHAR), COALESCE(u.head_image, ''), COALESCE(u.user_specialty, ''), "
-                                            "COALESCE(u.user_introduction, ''), COALESCE(u.user_level, 0), COALESCE(s.total_salary, 0), "
+                                            "COALESCE(u.user_introduction, ''), COALESCE(u.user_level, 0), COALESCE(u.funds, 0.0), "
                                             "CAST(u.created_at AS CHAR), COALESCE(t.type, ''), COALESCE(u.type_id, 0) "
                                             "FROM users AS u "
                                             "LEFT JOIN types AS t ON u.type_id = t.id "
-                                            "LEFT JOIN salary AS s ON s.user_id = u.id "
                                             "WHERE u.id = ? ")
                                       .bind(userId)
                                       .execute();
@@ -428,7 +427,7 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
             user["user_specialty"] = row[6].isNull() ? "" : row[6].get<std::string>();
             user["user_introduction"] = row[7].isNull() ? "" : row[7].get<std::string>();
             user["user_level"] = row[8].isNull() ? 0 : row[8].get<int>();
-            user["salary"] = row[9].isNull() ? 0.0 : row[9].get<double>();
+            user["funds"] = row[9].isNull() ? 0.0 : row[9].get<double>();
             user["created_at"] = row[10].isNull() ? "" : row[10].get<std::string>();
             user["pets"] = nlohmann::json::array();
             user["orders"] = nlohmann::json::array();

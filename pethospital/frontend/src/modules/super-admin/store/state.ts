@@ -1,4 +1,4 @@
-import { HomePageSummary, SalaryManagementPayload } from "../api/types";
+import { HomePageSummary } from "../api/types";
 import { LogsPayload, SuperAdminState } from "./types";
 import { createCacheMeta } from "@/app/store/state";
 
@@ -22,18 +22,6 @@ const createHomePageSummary = (): HomePageSummary => ({
   profitCount: 0,
 });
 
-const createSalaryManagementPayload = (): SalaryManagementPayload => ({
-  summary: {
-    employeeCount: 0,
-    monthlyPayroll: 0,
-    todayCost: 0,
-    todayProfit: 0,
-  },
-  employees: [],
-  monthlyRecords: [],
-  dailyRecords: [],
-});
-
 /**
  * 创建超级管理员模块的初始状态。
  */
@@ -42,10 +30,8 @@ export const createSuperAdminState = (): SuperAdminState => ({
   workTimeRecords: [],
   logs: createLogsPayload(),
   homePageData: createHomePageSummary(),
-  salaryManagement: createSalaryManagementPayload(),
   usersMeta: createCacheMeta(),
   workTimeRecordsMeta: createCacheMeta(),
   logsMeta: createCacheMeta(),
   homePageDataMeta: createCacheMeta(),
-  salaryManagementMeta: createCacheMeta(),
 });

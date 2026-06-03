@@ -59,7 +59,6 @@ const persistCurrentUser = (
     userEmail: state.userEmail || "",
     userPhone: state.userPhone || "",
     userHeadImage: state.userHeadImage,
-    userAddressId: state.userAddressId || undefined,
     userAddress: state.userAddress || "",
   });
 };
@@ -73,7 +72,6 @@ const resetCurrentUserState = (state: CurrentUserState) => {
   state.userBirthday = null;
   state.userEmail = null;
   state.userPhone = null;
-  state.userAddressId = null;
   state.userAddress = null;
   state.userHeadImage = undefined;
   state.profileMeta.loaded = false;
@@ -97,7 +95,6 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
     state.userEmail = payload.userEmail;
     state.userBirthday = payload.userBirthday;
     state.userHeadImage = payload.userHeadImage;
-    state.userAddressId = payload.userAddressId ?? null;
     state.userAddress = normalizeAddress(payload);
 
     persistCurrentUser(state, payload.userType, payload.userRole);
@@ -113,7 +110,6 @@ export const currentUserMutations: MutationTree<CurrentUserState> = {
     state.userBirthday = nextState.userBirthday;
     state.userEmail = nextState.userEmail;
     state.userPhone = nextState.userPhone;
-    state.userAddressId = nextState.userAddressId;
     state.userAddress = nextState.userAddress;
     state.userHeadImage = nextState.userHeadImage;
     state.profileMeta = nextState.profileMeta;

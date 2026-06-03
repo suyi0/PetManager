@@ -202,7 +202,7 @@ export interface DoctorUserProfile {
   user_specialty: string;
   user_introduction: string;
   user_level: number;
-  salary: number;
+  funds: number;
   created_at: string;
   pets: DoctorUserProfilePetSummary[];
   orders: OrderSummaryItem[];

@@ -11,7 +11,6 @@ void User::to_json(nlohmann::json &j)
         {"phone", this->phone},
         {"email", this->email},
         {"birthday", boost::gregorian::to_iso_extended_string(this->birthday)},  // 转换为 ISO 格式
-        {"address_id", this->address_id},
         {"address", clean_string(this->address)},
         {"head_image", clean_string(this->head_image)},
         {"doctor_specialty", clean_string(this->doctor_specialty)}
@@ -28,7 +27,6 @@ void User::from_json(const nlohmann::json &j)
     // 修复日期字段的反序列化
     std::string birthday_str = j.at("birthday").get<std::string>();
     this->birthday = boost::gregorian::from_simple_string(birthday_str);
-    j.at("address_id").get_to(this->address_id);
     j.at("address").get_to(this->address);
     j.at("head_image").get_to(this->head_image);
     j.at("doctor_specialty").get_to(this->doctor_specialty);

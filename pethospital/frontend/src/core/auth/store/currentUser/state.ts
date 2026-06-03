@@ -24,7 +24,6 @@ export const createCurrentUserState = (): CurrentUserState => {
     userBirthday: persistedCurrentUser.userBirthday,
     userEmail: persistedCurrentUser.userEmail,
     userPhone: persistedCurrentUser.userPhone,
-    userAddressId: persistedCurrentUser.userAddressId,
     userAddress: persistedCurrentUser.userAddress,
     userHeadImage: persistedCurrentUser.userHeadImage || undefined,
     profileMeta: {

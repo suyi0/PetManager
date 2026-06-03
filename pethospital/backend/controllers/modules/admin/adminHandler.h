@@ -29,10 +29,6 @@ public:
 
     crow::response getLogs(const crow::request &req);                     // 获取日志记录 对应 /api/admin/getLogs
 
-    crow::response getSalaryManagementData(const crow::request &req);    // 获取工资管理页数据 对应 /api/admin/getSalaryManagementData
-
-    crow::response changeSalary(const crow::request& req);               // 修改员工工资 对应 /api/admin/changeSalary
-
     crow::response getAllRecord(const crow::request& req, int &userId, int batch_size = 100, int offset = 1);                       // 获取订单记录 对应 /api/admin/order/getAllRecord
 };
 

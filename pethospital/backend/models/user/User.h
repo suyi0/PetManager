@@ -22,7 +22,6 @@ class User
     std::string phone;         // 手机号 // ← 注意：此字段包含国际区号，如 +86，不应被清理
     std::string email;         // 邮箱
     boost::gregorian::date birthday;  // 使用 boost::date_time
-    int address_id;    // 地址ID
     std::string address;       // 地址
     std::string head_image;    // 头像
     bool token = false;         // 令牌
@@ -64,10 +63,6 @@ public:
     void setBirthday(const boost::gregorian::date &birthday)   // 设置生日
     {
         this->birthday = birthday;
-    }
-    void setAddressID(int &address_id)                          // 设置地址ID
-    {
-        this->address_id = address_id;
     }
     void setAddress(const std::string &address)                // 设置地址
     {
@@ -114,10 +109,6 @@ public:
     boost::gregorian::date getBirthday()  // 获取生日
     {
         return birthday;
-    }
-    int getAddressID()            // 获取地址ID
-    {
-        return address_id;
     }
     std::string getAddress()              // 获取地址
     {

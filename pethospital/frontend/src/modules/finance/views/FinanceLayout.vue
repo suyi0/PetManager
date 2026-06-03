@@ -48,7 +48,7 @@ export default defineComponent({
 
     onMounted(() => {
       startFinanceSessionGuard(store, router);
-      void store.dispatch("superAdmin/ensureSalaryManagement");
+      void store.dispatch("finance/ensureSalaryManagement");
     });
 
     onBeforeUnmount(() => {

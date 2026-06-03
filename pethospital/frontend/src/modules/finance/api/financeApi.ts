@@ -1,0 +1,116 @@
+import http from "@/api/http";
+import { unwrapList } from "@/api/response";
+import {
+  ChangeSalaryPayload,
+  SalaryInformationCache,
+  SalaryManagementPayload,
+  SalarySummaryCache,
+  SalarySummaryItem,
+} from "./types";
+
+const createEmptySalaryManagementPayload = (): SalaryManagementPayload => ({
+  summary: {
+    employeeCount: 0,
+    monthlyPayroll: 0,
+    todayCost: 0,
+    todayProfit: 0,
+  },
+  employees: [],
+  monthlyRecords: [],
+  dailyRecords: [],
+});
+
+const createEmptySalarySummaryCache = (page = 1): SalarySummaryCache => ({
+  list: [],
+  total_count: 0,
+  page,
+  page_size: 150,
+});
+
+export const financeApi = {
+  /**
+   * 获取财务端工资管理数据。
+   */
+  async getSalaryManagementData(): Promise<SalaryManagementPayload> {
+    try {
+      const { data } = await http.get("/api/finance/getSalaryManagementData");
+      const payload = data?.data ?? data;
+
+      return {
+        summary: {
+          employeeCount: Number(payload?.summary?.employeeCount ?? 0),
+          monthlyPayroll: Number(payload?.summary?.monthlyPayroll ?? 0),
+          todayCost: Number(payload?.summary?.todayCost ?? 0),
+          todayProfit: Number(payload?.summary?.todayProfit ?? 0),
+        },
+        employees: unwrapList(payload?.employees),
+        monthlyRecords: unwrapList(payload?.monthlyRecords),
+        dailyRecords: unwrapList(payload?.dailyRecords),
+      };
+    } catch {
+      return createEmptySalaryManagementPayload();
+    }
+  },
+
+  /**
+   * 获取员工工资摘要分页数据。
+   * 后端固定每页返回 150 条，前端按页码缓存当前页摘要列表。
+   */
+  async getSalarySummary(page = 1): Promise<SalarySummaryCache> {
+    try {
+      const { data } = await http.get(`/api/finance/getSalarySummary/${page}`);
+      const payload = data?.data ?? data;
+      const list = unwrapList<SalarySummaryItem>(payload?.list).map((item) => ({
+        salary_id: Number(item.salary_id ?? 0),
+        employee_name: item.employee_name ?? "",
+        type: item.type ?? "",
+        total_salary: Number(item.total_salary ?? 0),
+      }));
+
+      return {
+        list,
+        total_count: Number(payload?.total_count ?? list.length),
+        page: Number(payload?.page ?? page),
+        page_size: 150,
+      };
+    } catch {
+      return createEmptySalarySummaryCache(page);
+    }
+  },
+
+  /**
+   * 获取员工工资详情。
+   * 前端只缓存当前查看的一条详情记录，切换工资单时用新记录覆盖旧缓存。
+   */
+  async getSalaryInformation(
+    salaryId: number
+  ): Promise<SalaryInformationCache | null> {
+    try {
+      const { data } = await http.get(
+        `/api/finance/getSalaryInformation/${salaryId}`
+      );
+      const payload = data?.data ?? data;
+
+      return {
+        user_id: Number(payload?.user_id ?? 0),
+        salary_id: Number(payload?.salary_id ?? salaryId),
+        name: payload?.name ?? "",
+        type: payload?.type ?? "",
+        base_salary: Number(payload?.base_salary ?? 0),
+        PA_Award: Number(payload?.PA_Award ?? 0),
+        PB_Award: Number(payload?.PB_Award ?? 0),
+        total_salary: Number(payload?.total_salary ?? 0),
+        updated_at: payload?.updated_at ?? "",
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * 修改员工工资结构。
+   */
+  async changeSalary(payload: ChangeSalaryPayload): Promise<void> {
+    await http.post("/api/finance/changeSalary", payload);
+  },
+};

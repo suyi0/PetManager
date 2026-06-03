@@ -10,7 +10,6 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     if (routes_setup)
         return;
 
-    
     // 添加注册路由
     CROW_ROUTE(app, "/api/user/register")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
@@ -28,7 +27,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "注册账号", std::nullopt, false); });
-    
+
     // 添加登录路由
     CROW_ROUTE(app, "/api/user/login")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
@@ -71,6 +70,58 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新资料", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
+    // 添加新地址路由
+    CROW_ROUTE(app, "/api/user/address/add")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "添加新地址");
+                    return;
+                }
+
+                userHandler handler(dbManager);
+                crow::response handlerResponse = handler.addNewAddress(req, userId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            } catch (const std::exception& e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "添加新地址", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "添加新地址", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    // 添加地址更新路由
+    CROW_ROUTE(app, "/api/user/address/update/<int>")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int addressId)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新地址");
+                    return;
+                }
+                userHandler handler(dbManager);
+                crow::response handlerResponse = handler.addressUpdate(req, userId, addressId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            } catch (const std::exception& e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新地址", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新地址", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
     // 上传头像
     // 文件上传请求,客户端发送的是 multipart/form-data 格式，不是 JSON 格式
     CROW_ROUTE(app, "/api/user/avatar")
@@ -96,7 +147,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "上传头像", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
-        
+
     // 添加静态文件服务路由
     CROW_ROUTE(app, "/uploads/<string>")
         .methods(crow::HTTPMethod::Get)([dbManager](const crow::request &req, crow::response &res, std::string filename)

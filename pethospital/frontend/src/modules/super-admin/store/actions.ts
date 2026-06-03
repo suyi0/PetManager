@@ -5,12 +5,10 @@ import { SuperAdminState } from "./types";
 import {
   readSuperAdminHomePageDataCache,
   readSuperAdminLogsCache,
-  readSuperAdminSalaryManagementCache,
   readSuperAdminUsersCache,
   readSuperAdminWorkTimeRecordsCache,
   saveSuperAdminHomePageDataCache,
   saveSuperAdminLogsCache,
-  saveSuperAdminSalaryManagementCache,
   saveSuperAdminUsersCache,
   saveSuperAdminWorkTimeRecordsCache,
 } from "../utils/superAdminDataCache";
@@ -154,38 +152,6 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
   },
 
   /**
-   * 确保薪资管理数据可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
-   */
-  async ensureSalaryManagement(
-    { state, commit }: SuperAdminActionContext,
-    options?: { force?: boolean }
-  ) {
-    if (!shouldFetch(state.salaryManagementMeta, options?.force)) {
-      return state.salaryManagement;
-    }
-
-    commit("setSalaryManagementLoading", true);
-    try {
-      if (!options?.force) {
-        const cachedPayload = readSuperAdminSalaryManagementCache();
-
-        if (cachedPayload) {
-          commit("setSalaryManagement", cachedPayload);
-          return cachedPayload;
-        }
-      }
-
-      const payload = await superAdminApi.getSalaryManagementData();
-      saveSuperAdminSalaryManagementCache(payload);
-      commit("setSalaryManagement", payload);
-      return payload;
-    } finally {
-      commit("setSalaryManagementLoading", false);
-    }
-  },
-
-  /**
    * 在线医生页复用用户列表和考勤记录两份缓存。
    * 只有其中任一缓存首次进入、超时或被标脏时，才会真正重新请求。
    */
@@ -206,7 +172,6 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
       dispatch("refreshWorkTimeRecords"),
       dispatch("refreshLogs"),
       dispatch("refreshHomePageData"),
-      dispatch("refreshSalaryManagement"),
     ]);
   },
 
@@ -243,13 +208,6 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
    */
   async refreshOverviewData({ dispatch }: SuperAdminActionContext) {
     await dispatch("refreshHomePageData");
-  },
-
-  /**
-   * 强制刷新薪资管理数据。
-   */
-  async refreshSalaryManagement({ dispatch }: SuperAdminActionContext) {
-    return dispatch("ensureSalaryManagement", { force: true });
   },
 
   /**

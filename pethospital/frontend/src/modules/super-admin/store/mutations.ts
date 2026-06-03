@@ -1,12 +1,7 @@
 import { MutationTree } from "vuex";
 import { createSuperAdminState } from "./state";
 import { LogsPayload, SuperAdminState } from "./types";
-import {
-  HomePageSummary,
-  SalaryManagementPayload,
-  UserRow,
-  WorkTimeRecord,
-} from "../api/types";
+import { HomePageSummary, UserRow, WorkTimeRecord } from "../api/types";
 
 /**
  * 成功拉取数据后统一更新元信息。
@@ -113,19 +108,6 @@ export const superAdminMutations: MutationTree<SuperAdminState> = {
    */
   markHomePageDataDirty(state) {
     applyDirtyMeta(state.homePageDataMeta);
-  },
-
-  setSalaryManagementLoading(state, loading: boolean) {
-    state.salaryManagementMeta.loading = loading;
-  },
-
-  setSalaryManagement(state, payload: SalaryManagementPayload) {
-    state.salaryManagement = payload;
-    applyLoadedMeta(state.salaryManagementMeta);
-  },
-
-  markSalaryManagementDirty(state) {
-    applyDirtyMeta(state.salaryManagementMeta);
   },
 
   /**

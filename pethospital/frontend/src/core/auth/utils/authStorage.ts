@@ -12,7 +12,6 @@ const STORAGE_KEYS = {
   userBirthday: "user_birthday",
   userEmail: "user_email",
   userPhone: "user_phone",
-  userAddressId: "address_id",
   userAddress: "user_address",
   userHeadImage: "user_head_image",
   adminPortalBridge: "admin_portal_bridge",
@@ -31,7 +30,6 @@ const AUTH_STORAGE_KEYS = [
   STORAGE_KEYS.userBirthday,
   STORAGE_KEYS.userEmail,
   STORAGE_KEYS.userPhone,
-  STORAGE_KEYS.userAddressId,
   STORAGE_KEYS.userAddress,
   STORAGE_KEYS.userHeadImage,
 ] as const;
@@ -69,7 +67,6 @@ type PersistedUser = {
   userBirthday: string | null;
   userEmail: string | null;
   userPhone: string | null;
-  userAddressId: string | null;
   userAddress: string | null;
   userHeadImage: string | null;
   token: string | null;
@@ -91,7 +88,6 @@ type PersistedCurrentUser = {
   userBirthday: string | null;
   userEmail: string | null;
   userPhone: string | null;
-  userAddressId: string | null;
   userAddress: string | null;
   userHeadImage: string | null;
 };
@@ -108,7 +104,6 @@ type AdminPortalBridge = {
   userBirthday: string;
   userEmail: string;
   userPhone: string;
-  userAddressId?: string;
   userAddress?: string;
   userHeadImage?: string;
 };
@@ -221,7 +216,6 @@ export const authStorage = {
         userBirthday: null,
         userEmail: null,
         userPhone: null,
-        userAddressId: null,
         userAddress: null,
         userHeadImage: null,
         token: null,
@@ -246,7 +240,6 @@ export const authStorage = {
       userBirthday: activeStorage.getItem(STORAGE_KEYS.userBirthday),
       userEmail: activeStorage.getItem(STORAGE_KEYS.userEmail),
       userPhone: activeStorage.getItem(STORAGE_KEYS.userPhone),
-      userAddressId: activeStorage.getItem(STORAGE_KEYS.userAddressId),
       userAddress: activeStorage.getItem(STORAGE_KEYS.userAddress),
       userHeadImage: activeStorage.getItem(STORAGE_KEYS.userHeadImage),
       token,
@@ -278,7 +271,6 @@ export const authStorage = {
       userBirthday: persistedUser.userBirthday,
       userEmail: persistedUser.userEmail,
       userPhone: persistedUser.userPhone,
-      userAddressId: persistedUser.userAddressId,
       userAddress: persistedUser.userAddress,
       userHeadImage: persistedUser.userHeadImage,
     };
@@ -315,7 +307,6 @@ export const authStorage = {
     userEmail: string;
     userPhone: string;
     userHeadImage?: string;
-    userAddressId?: string;
     userAddress?: string;
     userType?: number | null;
     userRole?: string | null;
@@ -345,10 +336,6 @@ export const authStorage = {
       payload.userHeadImage || ""
     );
     authStorageTarget.setItem(
-      STORAGE_KEYS.userAddressId,
-      payload.userAddressId || ""
-    );
-    authStorageTarget.setItem(
       STORAGE_KEYS.userAddress,
       payload.userAddress || ""
     );
@@ -368,7 +355,6 @@ export const authStorage = {
     userEmail: string;
     userPhone: string;
     userHeadImage?: string;
-    userAddressId?: string;
     userAddress?: string;
   }) {
     this.saveSession({
@@ -387,7 +373,6 @@ export const authStorage = {
       userEmail: payload.userEmail,
       userPhone: payload.userPhone,
       userHeadImage: payload.userHeadImage,
-      userAddressId: payload.userAddressId,
       userAddress: payload.userAddress,
     });
   },

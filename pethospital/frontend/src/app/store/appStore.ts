@@ -21,6 +21,10 @@ import { doctorActions } from "@/modules/doctor/store/actions";
 import { doctorMutations } from "@/modules/doctor/store/mutations";
 import { createDoctorState } from "@/modules/doctor/store/state";
 import { DoctorState } from "@/modules/doctor/store/types";
+import { financeActions } from "@/modules/finance/store/actions";
+import { financeMutations } from "@/modules/finance/store/mutations";
+import { createFinanceState } from "@/modules/finance/store/state";
+import { FinanceState } from "@/modules/finance/store/types";
 import { personnelActions } from "@/modules/personnel/store/actions";
 import { personnelMutations } from "@/modules/personnel/store/mutations";
 import { createPersonnelState } from "@/modules/personnel/store/state";
@@ -71,6 +75,12 @@ export const appStore = createStore<State>({
       state: createDoctorState() as DoctorState,
       mutations: doctorMutations,
       actions: doctorActions,
+    },
+    finance: {
+      namespaced: true,
+      state: createFinanceState() as FinanceState,
+      mutations: financeMutations,
+      actions: financeActions,
     },
     personnel: {
       namespaced: true,

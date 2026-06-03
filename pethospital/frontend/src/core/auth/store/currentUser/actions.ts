@@ -63,7 +63,6 @@ export const currentUserActions: ActionTree<CurrentUserState, State> = {
       phone: state.userPhone,
       email: state.userEmail,
       birthday: state.userBirthday,
-      address_id: state.userAddressId,
       address: state.userAddress,
       headImage: state.userHeadImage,
     });

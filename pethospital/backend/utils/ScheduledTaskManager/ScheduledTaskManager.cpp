@@ -260,7 +260,7 @@ void ScheduledTaskManager::recordSystemInfo()
     // 记录到数据库
     if (canUseDatabase(dbManager))
     {
-        OperationLogger::logSystemOperation(dbManager, "SystemInfo", ss.str());
+        OperationLogger::logSystemOperation(dbManager, "系统信息", ss.str());
     }
 
     std::cout << "系统信息已记录: " << ss.str() << std::endl;
@@ -283,7 +283,7 @@ void ScheduledTaskManager::recordDatabaseStatus()
         // 记录到数据库
         if (canUseDatabase(dbManager))
         {
-            OperationLogger::logSystemOperation(dbManager, "DatabaseStatus", ss.str());
+            OperationLogger::logSystemOperation(dbManager, "数据库状态", ss.str());
         }
 
         std::cout << "数据库状态已记录: " << ss.str() << std::endl;
@@ -342,7 +342,7 @@ void ScheduledTaskManager::recordMemoryUsage()
     // 记录到数据库
     if (canUseDatabase(dbManager))
     {
-        OperationLogger::logSystemOperation(dbManager, "MemoryUsage", ss.str());
+        OperationLogger::logSystemOperation(dbManager, "内存使用量", ss.str());
     }
 
     std::cout << "内存使用情况已记录: " << ss.str() << std::endl;
@@ -364,7 +364,7 @@ void ScheduledTaskManager::recordUserActivity()
         // 记录到数据库
         if (canUseDatabase(dbManager))
         {
-            OperationLogger::logSystemOperation(dbManager, "UserActivity", ss.str());
+            OperationLogger::logSystemOperation(dbManager, "用户行为", ss.str());
         }
 
         std::cout << "用户活动统计已记录: " << ss.str() << std::endl;
