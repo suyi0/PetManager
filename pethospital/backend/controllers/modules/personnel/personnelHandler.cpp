@@ -382,3 +382,4 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
         return ResponseHelper::system_error(req, e.what());
     }
 }
+

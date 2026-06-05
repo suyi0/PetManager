@@ -4,50 +4,50 @@
 
 namespace UserPhoneSync
 {
-bool upsertUserPhone(mysqlx::Session &session, int user_id, const std::string &phone)
-{
-    if (user_id <= 0 || phone.empty())
+    bool upsertUserPhone(mysqlx::Session &session, int userId, const std::string &phone)
     {
-        return true;
-    }
-
-    try
-    {
-        auto result = session.sql("SELECT id FROM phones WHERE user_id = ? LIMIT 1")
-                          .bind(user_id)
-                          .execute();
-        auto row = result.fetchOne();
-
-        if (row)
+        if (userId <= 0 || phone.empty())
         {
-            session.sql("UPDATE phones SET phone = ? WHERE user_id = ?")
-                .bind(phone, user_id)
-                .execute();
-        }
-        else
-        {
-            session.sql("INSERT INTO phones (user_id, phone) VALUES (?, ?)")
-                .bind(user_id, phone)
-                .execute();
+            return true;
         }
 
-        return true;
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Failed to sync users.phone into phones: " << e.what() << std::endl;
-        return false;
-    }
-}
+        try
+        {
+            auto result = session.sql("SELECT id FROM phones WHERE user_id = ? LIMIT 1")
+                              .bind(userId)
+                              .execute();
+            auto row = result.fetchOne();
 
-bool upsertUserPhone(DatabaseManagerInterface &dbManager, int user_id, const std::string &phone)
-{
-    auto *session = dbManager.getSession();
-    if (!session)
-    {
-        return false;
+            if (row)
+            {
+                session.sql("UPDATE phones SET phone = ? WHERE user_id = ?")
+                    .bind(phone, userId)
+                    .execute();
+            }
+            else
+            {
+                session.sql("INSERT INTO phones (user_id, phone) VALUES (?, ?)")
+                    .bind(userId, phone)
+                    .execute();
+            }
+
+            return true;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Failed to sync users.phone into phones: " << e.what() << std::endl;
+            return false;
+        }
     }
 
-    return upsertUserPhone(*session, user_id, phone);
-}
+    bool upsertUserPhone(DatabaseManagerInterface &dbManager, int userId, const std::string &phone)
+    {
+        auto *session = dbManager.getSession();
+        if (!session)
+        {
+            return false;
+        }
+
+        return upsertUserPhone(*session, userId, phone);
+    }
 }

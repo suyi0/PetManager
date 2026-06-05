@@ -8,6 +8,7 @@
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 #include <algorithm>
+#include <stdexcept>
 #include <mysqlx/xdevapi.h>
 #include "../middleware/CorsMiddleware/CorsMiddleware.h"
 #include "../middleware/RateLimitMiddleware/RateLimitMiddleware.h"
@@ -23,6 +24,8 @@ std::string getCreateTime();
 std::string clean_string(const std::string &input);
 std::string format_date(const std::tm &tm);
 std::string normalizeDate(const std::string &date_str);
+double getRequestDouble(const nlohmann::json &request_body, const std::string &key, double defaultValue = 0.0);
+double getRequestDoubleWithFallback(const nlohmann::json &request_body, const std::string &primaryKey, const std::string &fallbackKey, double defaultValue = 0.0);
 
 std::string formatDateTime(const boost::posix_time::ptime &pt);
 std::string formatDateOnly(const boost::posix_time::ptime &pt); // 只提取日期部分

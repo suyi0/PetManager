@@ -170,13 +170,11 @@ namespace DatabaseMigrations
                          "costCount DECIMAL(18, 2) COMMENT '成本金额', "
                          "profitCount DECIMAL(18, 2) COMMENT '利润金额', "
                          "record_type ENUM('day', 'month'), "
-                         "business_date DATE NOT NULL, "
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
                          "deleted_at DATETIME NULL COMMENT '软删除时间', "
                          "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "UNIQUE KEY uq_salary_record_type_business_date (record_type, business_date), "
                          "INDEX idx_salaryRecord_is_deleted (is_deleted) "
                          ")")
                 .execute();
@@ -274,7 +272,8 @@ namespace DatabaseMigrations
                          "total_salary DECIMAL(18, 2) COMMENT '总工资', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "CONSTRAINT fk_salary_userId FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE "
+                         "CONSTRAINT fk_salary_userId FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "UNIQUE KEY uq_salary_user_id (user_id) "
                          ")")
                 .execute();
             std::cout << "salary table created successfully." << std::endl;
@@ -349,8 +348,7 @@ namespace DatabaseMigrations
                          "profitCount DECIMAL(18, 2) COMMENT '利润金额', "
                          "business_date DATE NOT NULL, "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "UNIQUE KEY uq_monthly_salary_business_date (business_date) "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP "
                          ")")
                 .execute();
             std::cout << "monthlySalaryRecord table created successfully." << std::endl;

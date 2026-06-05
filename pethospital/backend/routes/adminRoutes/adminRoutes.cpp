@@ -14,6 +14,33 @@ void adminRoutes::setupAdminRoutes(
         return;
     }
 
+    // 用于页面首次加载、手动刷新、SSE 断线后的兜底请求。
+    CROW_ROUTE(app, "/api/admin/getHomeData")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取超级管理员首页数据");
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    crow::response response = handler.getHomeData(req);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "获取超级管理员首页数据", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取首页数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
     CROW_ROUTE(app, "/api/admin/getUsers")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
@@ -212,34 +239,6 @@ void adminRoutes::setupAdminRoutes(
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "查询操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
-
-    CROW_ROUTE(app, "/api/admin/homePageGetData")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res)
-            {
-                int userId = -1;
-                try
-                {
-                    userId = isValidManagementToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1)
-                    {
-                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取超级管理员首页数据");
-                        return;
-                    }
-
-                    financeHandler handler(dbManager);
-                    crow::response response = handler.homePageGetData(req);
-                    ProcessHandlerResponse(req, res, response);
-                }
-                catch (const std::exception &e)
-                {
-                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "获取超级管理员首页数据", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-                    res = ResponseHelper::system_error(req);
-                }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取首页数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
-
-
 
     CROW_ROUTE(app, "/api/admin/order/getAllRecord")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)

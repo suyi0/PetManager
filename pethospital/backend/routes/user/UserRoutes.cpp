@@ -70,6 +70,78 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新资料", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
+    // 更新用户密码路由
+    CROW_ROUTE(app, "/api/user/security/password")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新密码");
+                    return;
+                }
+                userHandler handler(dbManager);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新密码", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新密码", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    // 更新用户邮箱地址路由
+    CROW_ROUTE(app, "/api/user/security/email")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新邮箱地址");
+                    return;
+                }
+                userHandler handler(dbManager);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新邮箱地址", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新邮箱地址", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    // 更新用户手机号路由
+    CROW_ROUTE(app, "/api/user/security/phone")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新手机号");
+                    return;
+                }
+                userHandler handler(dbManager);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新手机号", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新手机号", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
     // 添加新地址路由
     CROW_ROUTE(app, "/api/user/address/add")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)

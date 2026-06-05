@@ -9,20 +9,6 @@
 
 namespace
 {
-    // 获取请求参数
-    std::string getRequestString(const nlohmann::json &request_body, const std::string &key, const std::string &defaultValue = "")
-    {
-        if (!request_body.contains(key) || request_body[key].is_null())
-        {
-            return defaultValue;
-        }
-        if (request_body[key].is_string())
-        {
-            return request_body[key].get<std::string>();
-        }
-        return request_body[key].dump();
-    }
-
     void geocode(const std::string &address_text, double &longitude, double &latitude, std::string &geocode_source)
     {
         std::string geocoded_result = geocodeAddress(address_text);
@@ -395,35 +381,98 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
             return rawBirthday;
         };
 
+        boost::gregorian::date DBbirthday = boost::gregorian::date(1970, 1, 1);
+
+        // 从数据库中获取用户信息
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT name, password, phone, email, CAST(birthday AS CHAR), head_image "
+                                             "FROM users WHERE id = ? "
+                                             "LIMIT 1")
+                                       .bind(userId)
+                                       .execute();
+
+        auto row = result.fetchOne();
+        if (result.count() == 0)
+        {
+            return ResponseHelper::notFound(req, "User not found");
+        }
+
+        // 即使email变量包含恶意代码，也会被当作普通字符串值处理
+        // 处理结果,把数据库数据放入user对象中
+
+        const std::string DBname = row[0].isNull() ? "" : row[0].get<std::string>();
+        const std::string DBpassword = row[1].isNull() ? "" : row[1]get<std::string>();
+        const std::string DBphone = row[2].isNull() ? "" : row[2]get<std::string>();
+        const std::string DBemail = row[3].isNull() ? "" : row[3]get<std::string>();
+        if (!row[4].isNull())
+        {
+            const std::string date_str = row[4].get<std::string>();
+
+#ifdef DEBUG
+            std::cout << "Debug: Raw date string from database: '" << date_str << "'" << std::endl;
+#endif
+
+            std::regex date_pattern(R"(^(\d{4})-(\d{1,2})-(\d{1,2})$)"); // 匹配格式为 YYYY-MM-DD
+            std::smatch match;
+            if (std::regex_match(date_str,      // 待匹配的字符串（这里是 std::string 类型）
+                                 match,         // 匹配结果（类型通常是 std::smatch ）
+                                 date_pattern)) // 正则表达式对象（这里是 std::regex 类型）
+            {
+                try
+                {
+                    // boost::gregorian::date(year, month, day)
+                    DBbirthday = boost::gregorian::date(
+                        std::stoi(match[1].str()),
+                        std::stoi(match[2].str()),
+                        std::stoi(match[3].str()));
+#ifdef DEBUG
+                    std::cout << "Debug: Parsed valid date: " << boost::gregorian::to_iso_extended_string(DBbirthday) << std::endl;
+#endif
+                }
+                catch (const std::exception &e)
+                {
+#ifdef DEBUG
+                    std::cout << "Debug: Failed to parse birthday, using default: " << e.what() << std::endl;
+#endif
+                }
+            }
+            else
+            {
+#ifdef DEBUG
+                std::cout << "Debug: Invalid birthday format, using default" << std::endl;
+#endif
+            }
+        }
+        else
+        {
+#ifdef DEBUG
+            std::cout << "Debug: Null birthday value, using default" << std::endl;
+#endif
+        }
+        const std::string DBheadImage = row[5].isNull() ? "" : row[5].get<std::string>();
+
         int type_id = RoleTypeUtils::getRoleId(dbManager, "普通用户");
-        std::string phone = getOptionalString("phone");
-        std::string email = getOptionalString("email");
-        std::string name = getOptionalString("name");
+        std::string name = getRequestStringWithFallback(request_body, "name", "name", DBname);
+        std::string phone = getRequestStringWithFallback(request_body, "phone", "phone", DBphone);
+        std::string email = getRequestStringWithFallback(request_body, "email", "email", DBemail);
         if (name.empty())
         {
             name = !email.empty() ? email : (!phone.empty() ? phone : "未命名");
         }
-        std::string password = getOptionalString("password");
-        std::string birthday = normalizeBirthday(getOptionalString("birthday"));
+        std::string password = getRequestStringWithFallback(request_body, "password", "password", DBpassword);
+        std::string birthday = getRequestStringWithFallback(request_body, "birthday", "birthday", DBbirthday);
         if (birthday.empty())
         {
             birthday = "1970-01-01";
         }
 
-        std::string headImage = getOptionalString("headImage");
-        std::string user_specialty = getOptionalString("user_specialty");
-        std::string user_introduction = getOptionalString("user_introduction");
+        std::string headImage = getRequestStringWithFallback(request_body, "head_image", "head_image", DBheadImage);
+        std::string user_specialty = getRequestStringWithFallback(request_body, "user_specialty", "user_specialty", "");
+        std::string user_introduction = getRequestStringWithFallback(request_body, "user_introduction", "user_introduction", "");
         int user_level = getOptionalInt("user_level", 0);
         int is_deleted = getOptionalInt("is_deleted", 0);
         int deleted_by = getOptionalInt("deleted_by", 0);
-        std::string deleted_at = getOptionalString("deleted_at");
-
-        std::string DBname = "";
-        std::string DBpassword = ""; // 数据库里存储的密码就是加密后的密码（哈希值）
-        std::string DBphone = "";
-        std::string DBemail = "";
-        boost::gregorian::date DBbirthday = boost::gregorian::date(1970, 1, 1);
-        std::string DBheadImage = "";
+        std::string deleted_at = getRequestStringWithFallback(request_body, "deleted_at", "deleted_at", "");
 
         std::string hashed_password = password.empty() ? "" : hash_password(password);
 
@@ -469,91 +518,6 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         // 更新用户数据
         else if (hasUpdateField() && userId > 0)
         {
-            // 从数据库中获取用户信息
-            try
-            {
-                mysqlx::SqlResult result;
-
-                result = dbManager->getSession()
-                             ->sql("SELECT name, password, phone, email, CAST(birthday AS CHAR), head_image "
-                                   "FROM users WHERE id = ?")
-                             .bind(userId)
-                             .execute();
-
-                if (result.count() == 0)
-                {
-                    return ResponseHelper::notFound(req, "User not found");
-                }
-
-                // 即使email变量包含恶意代码，也会被当作普通字符串值处理
-                // 处理结果,把数据库数据放入user对象中
-                for (auto row : result)
-                {
-                    DBname = row[0].get<std::string>();
-                    DBpassword = row[1].get<std::string>();
-                    DBphone = row[2].get<std::string>();
-                    DBemail = row[3].get<std::string>();
-                    if (!row[4].isNull())
-                    {
-                        const std::string date_str = row[4].get<std::string>();
-
-#ifdef DEBUG
-                        std::cout << "Debug: Raw date string from database: '" << date_str << "'" << std::endl;
-#endif
-
-                        std::regex date_pattern(R"(^(\d{4})-(\d{1,2})-(\d{1,2})$)"); // 匹配格式为 YYYY-MM-DD
-                        std::smatch match;
-                        if (std::regex_match(date_str,      // 待匹配的字符串（这里是 std::string 类型）
-                                             match,         // 匹配结果（类型通常是 std::smatch ）
-                                             date_pattern)) // 正则表达式对象（这里是 std::regex 类型）
-                        {
-                            try
-                            {
-                                // boost::gregorian::date(year, month, day)
-                                DBbirthday = boost::gregorian::date(
-                                    std::stoi(match[1].str()),
-                                    std::stoi(match[2].str()),
-                                    std::stoi(match[3].str()));
-#ifdef DEBUG
-                                std::cout << "Debug: Parsed valid date: " << boost::gregorian::to_iso_extended_string(DBbirthday) << std::endl;
-#endif
-                            }
-                            catch (const std::exception &e)
-                            {
-#ifdef DEBUG
-                                std::cout << "Debug: Failed to parse birthday, using default: " << e.what() << std::endl;
-#endif
-                            }
-                        }
-                        else
-                        {
-#ifdef DEBUG
-                            std::cout << "Debug: Invalid birthday format, using default" << std::endl;
-#endif
-                        }
-                    }
-                    else
-                    {
-#ifdef DEBUG
-                        std::cout << "Debug: Null birthday value, using default" << std::endl;
-#endif
-                    }
-                    DBheadImage = row[5].get<std::string>();
-
-                    break; // 只需要第一个匹配的用户
-                }
-            }
-            catch (const mysqlx::Error &e)
-            {
-                // 数据库操作错误
-                return ResponseHelper::system_error(req, "Database error: " + std::string(e.what()) + "\"");
-            }
-            catch (const std::exception &e)
-            {
-                // 其他错误
-                return ResponseHelper::system_error(req, "Error: " + std::string(e.what()) + "\"");
-            }
-
             bool password_changed = false;
             if (!password.empty())
             {
@@ -584,8 +548,6 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
             }
 
             bool has_changes = false; // 添加一个标志来跟踪是否有字段需要更新
-
-            // 只有当前端数据与数据库数据不同时才更新
             if ((!name.empty() && DBname != name) ||
                 password_changed ||
                 (!email.empty() && DBemail != email) ||
@@ -626,45 +588,13 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
 
                 try
                 {
-                    // 根据id进行更新
                     if (userId != 0)
                     {
-                        if (!name.empty() && DBname != name)
-                        {
-                            session->sql("UPDATE users SET name = ? WHERE id = ?")
-                                .bind(name, userId)
-                                .execute();
-                        }
-                        if (password_changed)
-                        {
-                            session->sql("UPDATE users SET password = ? WHERE id = ?")
-                                .bind(hashed_password, userId)
-                                .execute();
-                        }
-                        if (!phone.empty() && DBphone != phone)
-                        {
-                            session->sql("UPDATE users SET phone = ? WHERE id = ?")
-                                .bind(phone, userId)
-                                .execute();
-                        }
-                        if (!email.empty() && DBemail != email)
-                        {
-                            session->sql("UPDATE users SET email = ? WHERE id = ?")
-                                .bind(email, userId)
-                                .execute();
-                        }
-                        if (!birthday.empty() && birthday != "\t" && birthday != "1970-01-01" && DBbirthday != boost::gregorian::from_simple_string(birthday))
-                        {
-                            session->sql("UPDATE users SET birthday = ? WHERE id = ?")
-                                .bind(birthday, userId)
-                                .execute();
-                        }
-                        if (!headImage.empty() && DBheadImage != headImage)
-                        {
-                            session->sql("UPDATE users SET head_image = ? WHERE id = ?")
-                                .bind(headImage, userId)
-                                .execute();
-                        }
+                        mysqlx::SqlResult result = session->sql("UPDATE users SET name = ?, phone = ?, email = ?, birthday = ?, head_image = ? "
+                                                                "WHERE id = ?")
+                                                       .bind(name, phone, email, birthday, headImage, userId)
+                                                       .execute();
+
                         if (!phone.empty() && DBphone != phone &&
                             !UserPhoneSync::upsertUserPhone(*session, userId, phone))
                         {
@@ -1182,22 +1112,16 @@ crow::response userHandler::addressUpdate(const crow::request &req, int userId, 
         std::string DBgeocode_source = row[15].isNull() ? "" : row[15].get<std::string>();
         std::string DBremarks = row[16].isNull() ? "" : row[16].get<std::string>();
 
-        auto nextString = [&request_body](const std::string &key, const std::string &currentValue) -> std::string
-        {
-            // 检查request_body是否存在key值，如果存在则返回request_body中的值，否则返回currentValue（数据库中的原值）
-            return request_body.contains(key) ? getRequestString(request_body, key) : currentValue;
-        };
-
-        std::string contact_name = nextString("contact_name", DBcontact_name);
-        std::string contact_phone = nextString("contact_phone", DBcontact_phone);
-        std::string country = nextString("country", DBcountry);
-        std::string province = nextString("province", DBprovince);
-        std::string city = nextString("city", DBcity);
-        std::string district = nextString("district", DBdistrict);
-        std::string detail_address = nextString("detail_address", DBdetail_address);
-        std::string postal_code = nextString("postal_code", DBpostal_code);
-        std::string address_tag = nextString("address_tag", DBaddress_tag.empty() ? "家" : DBaddress_tag);
-        std::string remarks = nextString("remarks", DBremarks);
+        std::string contact_name = getRequestStringWithFallback(request_body, "contact_name", "contact_name", DBcontact_name);
+        std::string contact_phone = getRequestStringWithFallback(request_body, "contact_phone", "contactPhone", DBcontact_phone);
+        std::string country = getRequestStringWithFallback(request_body, "country", "country", DBcountry);
+        std::string province = getRequestStringWithFallback(request_body, "province", "province", DBprovince);
+        std::string city = getRequestStringWithFallback(request_body, "city", "city", DBcity);
+        std::string district = getRequestStringWithFallback(request_body, "district", "district", DBdistrict);
+        std::string detail_address = getRequestStringWithFallback(request_body, "detail_address", "detailAddress", DBdetail_address);
+        std::string postal_code = getRequestStringWithFallback(request_body, "postal_code", "postalCode", DBpostal_code);
+        std::string address_tag = getRequestStringWithFallback(request_body, "address_tag", "addressTag", DBaddress_tag);
+        std::string remarks = getRequestStringWithFallback(request_body, "remarks", "remarks", DBremarks);
 
         if (address_tag != "家" && address_tag != "公司" && address_tag != "医院" &&
             address_tag != "学校" && address_tag != "其他")

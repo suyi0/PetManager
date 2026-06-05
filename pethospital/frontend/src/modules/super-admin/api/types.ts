@@ -78,12 +78,15 @@ export interface ApiListResponse<T> {
  * 超级管理员首页摘要数据。
  */
 export interface HomePageSummary {
+  dailyExpense: number;
+  dailyCost: number;
+  dailySales: number;
+  dailyProfit: number;
   userCount: number;
   onlineDoctorCount: number;
-  logsCount: number;
-  salesCount: number;
-  costCount: number;
-  profitCount: number;
+  allLogCount: number;
+  userLogCount: number;
+  systemLogCount: number;
 }
 /**
  * 日志大类枚举，包含用户类和系统类两种类型

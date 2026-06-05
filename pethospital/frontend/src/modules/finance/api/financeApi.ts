@@ -2,6 +2,7 @@ import http from "@/api/http";
 import { unwrapList } from "@/api/response";
 import {
   ChangeSalaryPayload,
+  FinanceHomeData,
   SalaryInformationCache,
   SalaryManagementPayload,
   SalarySummaryCache,
@@ -27,7 +28,38 @@ const createEmptySalarySummaryCache = (page = 1): SalarySummaryCache => ({
   page_size: 150,
 });
 
+const createEmptyFinanceHomeData = (): FinanceHomeData => ({
+  userCount: 0,
+  onlineDoctorCount: 0,
+  logCount: 0,
+  salesCount: 0,
+  costCount: 0,
+  profitCount: 0,
+});
+
 export const financeApi = {
+  /**
+   * 获取财务端首页总览数据。
+   * 接口路径对应后端 /api/finance/getHomeData。
+   */
+  async getHomeData(): Promise<FinanceHomeData> {
+    try {
+      const { data } = await http.get("/api/finance/getHomeData");
+      const payload = data?.data ?? data;
+
+      return {
+        userCount: Number(payload?.userCount ?? 0),
+        onlineDoctorCount: Number(payload?.onlineDoctorCount ?? 0),
+        logCount: Number(payload?.logCount ?? payload?.logsCount ?? 0),
+        salesCount: Number(payload?.salesCount ?? 0),
+        costCount: Number(payload?.costCount ?? 0),
+        profitCount: Number(payload?.profitCount ?? 0),
+      };
+    } catch {
+      return createEmptyFinanceHomeData();
+    }
+  },
+
   /**
    * 获取财务端工资管理数据。
    */

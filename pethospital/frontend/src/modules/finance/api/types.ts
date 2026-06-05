@@ -1,3 +1,12 @@
+export interface FinanceHomeData {
+  userCount: number;
+  onlineDoctorCount: number;
+  logCount: number;
+  salesCount: number;
+  costCount: number;
+  profitCount: number;
+}
+
 export interface SalaryEmployeeRow {
   id: number;
   type_id: number | null;

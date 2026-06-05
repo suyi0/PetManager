@@ -31,6 +31,74 @@ void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow:
     res = std::move(handlerResponse);
 }
 
+
+
+// 从请求 JSON 中读取字符串字段；字段不存在或为 null 时返回默认值。
+std::string getRequestString(const nlohmann::json &request_body, const std::string &key, const std::string &defaultValue)
+{
+    if (!request_body.contains(key) || request_body[key].is_null())
+    {
+        return defaultValue;
+    }
+    if (!request_body[key].is_string())
+    {
+        throw std::invalid_argument(key + " must be a string");
+    }
+
+    return request_body[key].dump();
+}
+
+std::string getRequestStringWithFallback(
+    const nlohmann::json &request_body,
+    const std::string &primaryKey,
+    const std::string &fallbackKey,
+    const std::string &DBValue)
+{
+    // 检查request_body是否存在key值，如果存在则返回request_body中的值，否则返回DBValue（数据库中的原值）
+    if (request_body.contains(primaryKey))
+    {
+        return getRequestString(request_body, primaryKey, DBValue);
+    }
+
+    return getRequestString(request_body, fallbackKey, DBValue);
+};
+
+// 从请求 JSON 中读取数字字段；字段不存在或为 null 时返回默认值。
+double getRequestDouble(
+    const nlohmann::json &request_body,
+    const std::string &key,
+    double defaultValue)
+{
+    if (!request_body.contains(key) || request_body[key].is_null())
+    {
+        return defaultValue;
+    }
+
+    if (!request_body[key].is_number())
+    {
+        throw std::invalid_argument(key + " must be a number");
+    }
+
+    return request_body[key].get<double>();
+}
+
+// 优先读取 primaryKey，缺失时兼容 fallbackKey，适合接口字段重命名过渡期复用。
+double getRequestDoubleWithFallback(
+    const nlohmann::json &request_body,
+    const std::string &primaryKey,
+    const std::string &fallbackKey,
+    double DBValue)
+{
+    if (request_body.contains(primaryKey))
+    {
+        return getRequestDouble(request_body, primaryKey, DBValue);
+    }
+
+    return getRequestDouble(request_body, fallbackKey, DBValue);
+}
+
+
+
 // 添加一个更严格的UTF-8字符串清理函数
 std::string clean_string(const std::string &input)
 {
@@ -193,27 +261,27 @@ std::string normalizeDate(const std::string &date_str)
 }
 
 // 将boost::posix_time转换为MySQL datetime字符串格式 (YYYY-MM-DD HH:mm:ss)
-std::string formatDateTime(const boost::posix_time::ptime& pt)
+std::string formatDateTime(const boost::posix_time::ptime &pt)
 {
     std::ostringstream oss;
-    boost::posix_time::time_facet* facet = new boost::posix_time::time_facet("%Y-%m-%d %H:%M:%S");
+    boost::posix_time::time_facet *facet = new boost::posix_time::time_facet("%Y-%m-%d %H:%M:%S");
     oss.imbue(std::locale(std::locale::classic(), facet));
     oss << pt;
     return oss.str();
 }
 
 // 只提取日期部分 YYYY-MM-DD
-std::string formatDateOnly(const boost::posix_time::ptime& pt)
+std::string formatDateOnly(const boost::posix_time::ptime &pt)
 {
     return boost::gregorian::to_iso_extended_string(pt.date());
 }
 
 // 只提取时间部分 HH:MM:SS
-std::string formatTimeOnly(const boost::posix_time::ptime& pt)
+std::string formatTimeOnly(const boost::posix_time::ptime &pt)
 {
     std::ostringstream oss;
     boost::posix_time::time_duration time = pt.time_of_day();
-    boost::posix_time::time_facet* facet = new boost::posix_time::time_facet("%H:%M:%S");
+    boost::posix_time::time_facet *facet = new boost::posix_time::time_facet("%H:%M:%S");
     oss.imbue(std::locale(std::locale::classic(), facet));
     oss << time;
     return oss.str();

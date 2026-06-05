@@ -3,6 +3,138 @@
 #include "../../OperationLogger/OperationLogger.h"
 #include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
 
+int adminHandler::calculateUserCount()
+{
+    try
+    {
+        int userCount = dbManager->getSession()
+                            ->sql("SELECT COUNT(*) FROM users")
+                            .execute()
+                            .fetchOne()[0]
+                            .get<int>();
+        return userCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get userCount: " + std::string(e.what()));
+    }
+}
+
+int adminHandler::calculateOnlineDoctorCount()
+{
+    try
+    {
+        int OnlineDoctorCount = dbManager->getSession()
+                                    ->sql("SELECT COUNT(*) FROM onlineDoctors WHERE status = 'online'")
+                                    .execute()
+                                    .fetchOne()[0]
+                                    .get<int>();
+        return OnlineDoctorCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get onlineDoctorCount: " + std::string(e.what()));
+    }
+}
+
+int adminHandler::calculateLogsCount()
+{
+    try
+    {
+        const int logsCount = dbManager->getSession()
+                                  ->sql("SELECT "
+                                        "(SELECT COUNT(*) FROM system_operations) + "
+                                        "(SELECT COUNT(*) FROM user_operations)")
+                                  .execute()
+                                  .fetchOne()[0]
+                                  .get<int>();
+        return logsCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get logsCount: " + std::string(e.what()));
+    }
+}
+
+int adminHandler::calculateUserLogsCount()
+{
+    try
+    {
+        const int userLogsCount = dbManager->getSession()
+                                      ->sql("SELECT COUNT(*) "
+                                            "FROM user_operations ")
+                                      .execute()
+                                      .fetchOne()[0]
+                                      .get<int>();
+        return userLogsCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get userLogsCount: " + std::string(e.what()));
+    }
+}
+
+int adminHandler::calculateSystemLogsCount()
+{
+    try
+    {
+        const int systemLogsCount = dbManager->getSession()
+                                        ->sql("SELECT COUNT(*) "
+                                              "FROM system_operations ")
+                                        .execute()
+                                        .fetchOne()[0]
+                                        .get<int>();
+
+        return systemLogsCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get systemLogsCount: " + std::string(e.what()));
+    }
+}
+
+nlohmann::json adminHandler::buildHomeData()
+{
+    auto session = dbManager->getSession();
+
+    // 获取每日员工工资开销记录
+    mysqlx::SqlResult dailyExpensesResult = session->sql("SELECT COALESCE(ROUND(SUM(total_salary / 31)), 0)  "
+                                                         "FROM salary ")
+                                                .execute();
+
+    auto dailyRow = dailyExpensesResult.fetchOne();
+
+    double salesCount = financer.calculateSalesCount();
+    double costCount = financer.calculateCostCount();
+
+    return {
+        {"dailyExpense", dailyRow && !dailyRow[0].isNull() ? dailyRow[0].get<double>() : 0.0},
+        {"dailyCost", costCount},
+        {"dailySales", salesCount},
+        {"dailyProfit", salesCount - costCount},
+        {"userCount", calculateUserCount()},
+        {"onlineDoctorCount", calculateOnlineDoctorCount()},
+        {"allLogCount", calculateLogsCount()},
+        {"userLogCount", calculateUserLogsCount()},
+        {"systemLogCount", calculateSystemLogsCount()}};
+}
+
+crow::response adminHandler::getHomeData(const crow::request &req)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        return ResponseHelper::success(req, buildHomeData());
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
 
 crow::response adminHandler::getUsers(const crow::request &req)
 {
@@ -46,7 +178,6 @@ crow::response adminHandler::getUsers(const crow::request &req)
         return ResponseHelper::operation_failed(req, "Failed to fetch data", e.what());
     }
 }
-
 
 crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
 {
@@ -171,7 +302,6 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
     }
 }
 
-
 crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int &userId, const std::string &date, const std::string &identifier)
 {
     try
@@ -238,7 +368,6 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
 
 crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, int &userId, bool requireDoctorId)
 {
@@ -374,7 +503,6 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
     }
 }
 
-
 crow::response adminHandler::getLogs(const crow::request &req)
 {
     try
@@ -450,83 +578,11 @@ crow::response adminHandler::getLogs(const crow::request &req)
     }
 }
 
-
-int adminHandler::calculateUserCount()
-{
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return -1; // 或者抛出异常，具体取决于你的错误处理策略
-        }
-
-        int userCount = dbManager->getSession()
-                            ->sql("SELECT COUNT(*) FROM users")
-                            .execute()
-                            .fetchOne()[0]
-                            .get<int>();
-        return userCount;
-    }
-    catch (const std::exception &e)
-    {
-        throw std::runtime_error("Failed to get userCount: " + std::string(e.what()));
-    }
-}
-
-
-int adminHandler::calculateOnlineDoctorCount()
-{
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return -1;
-        }
-
-        int OnlineDoctorCount = dbManager->getSession()
-                                    ->sql("SELECT COUNT(*) FROM onlineDoctors WHERE status = 'online'")
-                                    .execute()
-                                    .fetchOne()[0]
-                                    .get<int>();
-        return OnlineDoctorCount;
-    }
-    catch (const std::exception &e)
-    {
-        throw std::runtime_error("Failed to get onlineDoctorCount: " + std::string(e.what()));
-    }
-}
-
-
-int adminHandler::calculateLogsCount()
-{
-    try
-    {
-        if (!checkDbConnection())
-        {
-            return -1;
-        }
-
-        const int logsCount = dbManager->getSession()
-                                  ->sql("SELECT "
-                                        "(SELECT COUNT(*) FROM system_operations) + "
-                                        "(SELECT COUNT(*) FROM user_operations)")
-                                  .execute()
-                                  .fetchOne()[0]
-                                  .get<int>();
-        return logsCount;
-    }
-    catch (const std::exception &e)
-    {
-        throw std::runtime_error("Failed to get logsCount: " + std::string(e.what()));
-    }
-}
-
-
 crow::response adminHandler::getAllRecord(const crow::request &req, int &userId, int batch_size, int offset)
 {
     try
     {
-        if(!checkDbConnection())
+        if (!checkDbConnection())
         {
             OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取订单详情", "database connection failed");
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");

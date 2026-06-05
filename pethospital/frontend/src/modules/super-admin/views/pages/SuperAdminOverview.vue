@@ -11,15 +11,21 @@
       <StatCard
         class="statCard"
         label="在线医生"
-        :value="onlineCount"
+        :value="onlineDoctorCount"
         hint="实时值班接诊医生"
         @click="toOnlineDoctorsPage"
       />
       <StatCard
         class="statCard"
-        label="今日日志"
-        :value="logCount"
-        hint="今日审计与系统记录"
+        label="每日开销"
+        :value="expenseAmount"
+        hint="员工工资每日摊销"
+      />
+      <StatCard
+        class="statCard"
+        label="全部日志"
+        :value="allLogCount"
+        hint="用户与系统日志总量"
         @click="toLogsPage"
       />
       <StatCard
@@ -40,16 +46,32 @@
         :value="profitAmount"
         hint="营业额减成本"
       />
+      <StatCard
+        class="statCard"
+        label="用户日志"
+        :value="userLogCount"
+        hint="用户行为日志总量"
+        @click="toLogsPage"
+      />
+      <StatCard
+        class="statCard"
+        label="系统日志"
+        :value="systemLogCount"
+        hint="系统运行日志总量"
+        @click="toLogsPage"
+      />
     </div>
   </section>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted } from "vue";
+import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import StatCard from "../../components/StatCard.vue";
 import { useRouter } from "vue-router";
+import { saveSuperAdminHomePageDataCache } from "../../utils/superAdminDataCache";
+import { subscribeSuperAdminHomeData } from "../../utils/superAdminHomeDataStream";
 
 export default defineComponent({
   name: "SuperAdminOverview",
@@ -57,20 +79,26 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
+    let closeHomeDataStream: (() => void) | null = null;
     const summary = computed(() => store.state.superAdmin.homePageData);
     const userCount = computed(() => summary.value.userCount);
-    const onlineCount = computed(() => summary.value.onlineDoctorCount);
-    const logCount = computed(() => summary.value.logsCount);
+    const onlineDoctorCount = computed(() => summary.value.onlineDoctorCount);
+    const allLogCount = computed(() => summary.value.allLogCount);
+    const userLogCount = computed(() => summary.value.userLogCount);
+    const systemLogCount = computed(() => summary.value.systemLogCount);
     const formatCurrency = (value: number) =>
       `￥${Number(value || 0).toLocaleString("zh-CN", {
         maximumFractionDigits: 2,
       })}`;
-    const salesAmount = computed(() =>
-      formatCurrency(summary.value.salesCount)
+    const expenseAmount = computed(() =>
+      formatCurrency(summary.value.dailyExpense)
     );
-    const costAmount = computed(() => formatCurrency(summary.value.costCount));
+    const salesAmount = computed(() =>
+      formatCurrency(summary.value.dailySales)
+    );
+    const costAmount = computed(() => formatCurrency(summary.value.dailyCost));
     const profitAmount = computed(() =>
-      formatCurrency(summary.value.profitCount)
+      formatCurrency(summary.value.dailyProfit)
     );
 
     const routePrefix = computed(() => "/super-admin");
@@ -90,12 +118,25 @@ export default defineComponent({
     onMounted(() => {
       // 页面首次进入时优先复用首页摘要缓存，只有过期或脏数据时才会重拉。
       void store.dispatch("superAdmin/ensureOverviewData");
+
+      closeHomeDataStream = subscribeSuperAdminHomeData((homeData) => {
+        store.commit("superAdmin/setHomePageData", homeData);
+        saveSuperAdminHomePageDataCache(homeData);
+      });
+    });
+
+    onBeforeUnmount(() => {
+      closeHomeDataStream?.();
+      closeHomeDataStream = null;
     });
 
     return {
       userCount,
-      onlineCount,
-      logCount,
+      onlineDoctorCount,
+      allLogCount,
+      userLogCount,
+      systemLogCount,
+      expenseAmount,
       salesAmount,
       costAmount,
       profitAmount,

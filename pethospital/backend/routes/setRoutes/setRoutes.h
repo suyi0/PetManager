@@ -69,7 +69,9 @@ private:
     crow::App<CorsMiddleware, RateLimitMiddleware>* app_ptr_ = nullptr;  // 使用指针，以便外部传入
     std::thread server_thread;
     std::unordered_set<crow::websocket::connection *> active_connections;
+    std::unordered_set<crow::websocket::connection *> admin_home_connections;
     std::mutex conn_mutex;
+    std::mutex admin_home_conn_mutex;
     std::atomic<bool> shutdown_requested{false};    // 表示“已经收到关闭请求” 在 Ctrl+C 的信号处理里设置
     std::atomic<bool> server_stopped{false};        // 表示“Crow 的 run() 已经真正返回” 在服务线程退出时设置
 };

@@ -14,12 +14,15 @@ const createLogsPayload = (): LogsPayload => ({
  * 首页摘要的默认空数据。
  */
 const createHomePageSummary = (): HomePageSummary => ({
+  dailyExpense: 0,
+  dailyCost: 0,
+  dailySales: 0,
+  dailyProfit: 0,
   userCount: 0,
   onlineDoctorCount: 0,
-  logsCount: 0,
-  salesCount: 0,
-  costCount: 0,
-  profitCount: 0,
+  allLogCount: 0,
+  userLogCount: 0,
+  systemLogCount: 0,
 });
 
 /**

@@ -104,31 +104,40 @@ export const superAdminApi = {
    */
   async homePageGetData(): Promise<HomePageSummary> {
     try {
-      const { data } = await http.get("/api/admin/homePageGetData");
+      const { data } = await http.get("/api/admin/getHomeData");
       const summary = data?.data ?? data;
+      const dailyExpense = Number(summary?.dailyExpense ?? 0);
+      const dailyCost = Number(summary?.dailyCost ?? 0);
+      const dailySales = Number(summary?.dailySales ?? 0);
+      const dailyProfit = Number(summary?.dailyProfit ?? 0);
       const userCount = Number(summary?.userCount ?? 0);
       const onlineDoctorCount = Number(summary?.onlineDoctorCount ?? 0);
-      const logsCount = Number(summary?.logsCount ?? summary?.logCount ?? 0);
-      const salesCount = Number(summary?.salesCount ?? 0);
-      const costCount = Number(summary?.costCount ?? 0);
-      const profitCount = Number(summary?.profitCount ?? 0);
+      const allLogCount = Number(summary?.allLogCount ?? 0);
+      const userLogCount = Number(summary?.userLogCount ?? 0);
+      const systemLogCount = Number(summary?.systemLogCount ?? 0);
 
       return {
+        dailyExpense,
+        dailyCost,
+        dailySales,
+        dailyProfit,
         userCount,
         onlineDoctorCount,
-        logsCount,
-        salesCount,
-        costCount,
-        profitCount,
+        allLogCount,
+        userLogCount,
+        systemLogCount,
       };
     } catch {
       return {
+        dailyExpense: 0,
+        dailyCost: 0,
+        dailySales: 0,
+        dailyProfit: 0,
         userCount: 0,
         onlineDoctorCount: 0,
-        logsCount: 0,
-        salesCount: 0,
-        costCount: 0,
-        profitCount: 0,
+        allLogCount: 0,
+        userLogCount: 0,
+        systemLogCount: 0,
       };
     }
   },

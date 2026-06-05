@@ -130,6 +130,26 @@ void WebSocketServer::gracefulShutdown()
         }
     }
 
+    {
+        std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
+        auto connections_copy = admin_home_connections;
+        for (auto *conn : connections_copy)
+        {
+            if (conn)
+            {
+                try
+                {
+                    conn->close("server_shutdown");
+                }
+                catch (...)
+                {
+                    // 忽略关闭连接时的异常
+                }
+            }
+        }
+        admin_home_connections.clear();
+    }
+
     // 等待连接关闭（仅检测active_connections为空）
     std::unique_lock<std::mutex> lk(conn_mutex);
     shutdown_cv.wait(lk, [this]
@@ -245,6 +265,78 @@ void WebSocketServer::setupRoutes()
         } })
         .onerror([this](crow::websocket::connection &conn, const std::string &reason)
                  { std::cerr << "WebSocket error: " << reason << std::endl; });
+
+    // 超级管理员首页实时数据通道。
+    CROW_WEBSOCKET_ROUTE(app_ref, "/ws/admin/homeData")
+        .onaccept([](const crow::request &req, void **)
+                  {
+            const char *tokenParam = req.url_params.get("token");
+            if (tokenParam == nullptr || std::string(tokenParam).empty())
+            {
+                return false;
+            }
+
+            auto dbManager = DatabaseManager::getInstance();
+            auto claims = JwtUtils::getTokenClaims(tokenParam);
+            if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            std::string identifier = claims->identifier;
+            return JwtUtils::isUserAuthorizedForAdminForm(
+                claims->userId,
+                identifier,
+                claims->isEmailLogin,
+                dbManager); })
+        .onopen([this](crow::websocket::connection &conn)
+                {
+            {
+                std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
+                admin_home_connections.insert(&conn);
+            }
+
+            std::thread([this, &conn]()
+                        {
+                while (!shutdown_requested)
+                {
+                    {
+                        std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
+                        if (admin_home_connections.find(&conn) == admin_home_connections.end())
+                        {
+                            break;
+                        }
+                    }
+
+                    try
+                    {
+                        adminHandler handler(DatabaseManager::getInstance());
+                        nlohmann::json message = {
+                            {"event", "homeData"},
+                            {"data", handler.buildHomeData()}};
+                        conn.send_text(message.dump());
+                    }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "Admin homeData WebSocket push failed: " << e.what() << std::endl;
+                        break;
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::seconds(5));
+                }
+
+                std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
+                admin_home_connections.erase(&conn); })
+                .detach(); })
+        .onclose([this](crow::websocket::connection &conn, const std::string &, uint16_t)
+                 {
+            std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
+            admin_home_connections.erase(&conn); })
+        .onerror([this](crow::websocket::connection &conn, const std::string &reason)
+                 {
+            std::cerr << "Admin homeData WebSocket error: " << reason << std::endl;
+            std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
+            admin_home_connections.erase(&conn); });
 }
 
 // 设置信号处理函数
