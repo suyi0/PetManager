@@ -8,6 +8,7 @@
 #include <csignal>
 #include <future>
 #include <regex>
+#include <random>
 #include <curl/curl.h>
 #include <fstream>
 #include <map>
@@ -23,16 +24,6 @@
 class Verify
 {
 private:
-    std::string Emailaddress;
-    std::string Code;
-
-    // SMTP配置
-    std::string smtp_host;
-    int smtp_port;
-    std::string smtp_user;
-    std::string smtp_password;
-    std::string smtp_sender;
-
     // 验证码过期时间（秒）
     static int expiration_seconds;
 
@@ -48,47 +39,25 @@ private:
     static std::mutex storage_mutex;
 
 public:
-    Verify(std::string emailaddress);
 
     // Base64编码函数
-    std::string base64_encode(const std::string &input);
+    static std::string base64_encode(const std::string &input);
 
-    // 判断验证邮箱条件
-    bool VerifyEmailAddress(std::string emailaddress);
+    // 创建邮箱验证码
+    static std::string CreateEmailVerify(const std::string &email);
 
-    // 判断验证密码条件
-    bool VerifyPassword(std::string password);
-
-    // 创建验证码
-    std::string CreateVerify();
-
-    // 获得邮箱地址
-    std::string GetEmailAddress()
-    {
-        return Emailaddress;
-    }
-
-    // 获得验证码
-    std::string GetVerifyCode()
-    {
-        return Code;
-    }
+    // 创建手机验证码
+    static std::string CreatePhoneVerify(const std::string &phone);
 
     // 获取当前日期
-    std::string getCurrentDate();
+    static std::string getCurrentDate();
 
     // 发送验证码
-    void SendVerify(std::string emailaddress, const std::string code = "", std::promise<bool> *promise = nullptr);
-
-    // 设置SMTP配置
-    void SetSMTPConfig(std::string server, int port, std::string username, std::string password, std::string sender);
-
-    // 从环境变量加载配置
-    bool LoadConfigFromEnv();
+    static void SendEmailVerify(const std::string &emailaddress, const std::string &code = "", std::promise<bool> *promise = nullptr);
 
     // 验证码存储和管理相关静态方法
     static void StoreCode(const std::string &email, const std::string &code);
-    static bool ValidateCode(const std::string &email, const std::string &code);
+    static bool ValidateCode(const std::string &email, const std::string &input_code);
     static void CleanupExpiredCodes();
     static void SetExpirationTime(int seconds);
 

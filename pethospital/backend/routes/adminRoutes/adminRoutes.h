@@ -3,6 +3,7 @@
 
 #include "../../controllers/modules/admin/adminHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../middleware/authMiddleware/authMiddleware.h"
 
 class adminRoutes : public BaseHandler
 {

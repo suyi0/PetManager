@@ -1,4 +1,4 @@
-#include "RoleTypeUtils.h"
+#include "roleTypeUtils.h"
 #include <algorithm>
 #include <array>
 

@@ -1,7 +1,7 @@
 #include "adminHandler.h"
-#include "../../../database/UserPhoneSync.h"
-#include "../../OperationLogger/OperationLogger.h"
-#include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
+#include "../user/userPhoneSync/userPhoneSync.h"
+#include "../../../services/logger/operationLogger.h"
+#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 int adminHandler::calculateUserCount()
 {

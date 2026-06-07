@@ -1,5 +1,5 @@
 #include "financeRoutes.h"
-#include "../../controllers/OperationLogger/OperationLogger.h"
+#include "../../services/logger/operationLogger.h"
 
 void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {

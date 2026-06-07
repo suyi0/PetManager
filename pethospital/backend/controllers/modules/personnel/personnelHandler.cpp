@@ -1,6 +1,6 @@
 #include "personnelHandler.h"
-#include "../../../database/UserPhoneSync.h"
-#include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
+#include "../user/userPhoneSync/userPhoneSync.h"
+#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 crow::response personnelHandler::createUser(const crow::request &req)
 {
@@ -382,4 +382,3 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
         return ResponseHelper::system_error(req, e.what());
     }
 }
-

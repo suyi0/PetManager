@@ -1,5 +1,5 @@
-#include "ScheduledTaskManager.h"
-#include "../RoleTypeUtils/RoleTypeUtils.h"
+#include "scheduledTaskManager.h"
+#include "../roleTypeUtils/roleTypeUtils.h"
 #include <iostream>
 #include <sstream>
 #ifdef __linux__

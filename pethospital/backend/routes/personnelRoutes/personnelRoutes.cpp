@@ -1,6 +1,6 @@
 #include "personnelRoutes.h"
 #include "../../controllers/modules/personnel/personnelHandler.h"
-#include "../../controllers/OperationLogger/OperationLogger.h"
+#include "../../services/logger/operationLogger.h"
 
 void personnelRoutes::setupPersonnelRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {

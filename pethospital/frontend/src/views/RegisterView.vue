@@ -600,8 +600,9 @@ function getVerificationCode() {
     count.value = 60;
     startCountdown();
     store
-      .dispatch("auth/sendVerificationCode", {
+      .dispatch("auth/sendVerificationCodeRegister", {
         email: Email.value,
+        scene: "register",
       })
       .then((response) => {
         if (response.status === 200) {
@@ -655,6 +656,7 @@ function Verify() {
     .dispatch("auth/verify", {
       email: Email.value,
       verificationCode: VerificationCode.value,
+      scene: "register",
     })
     .then((registerResponse) => {
       if (registerResponse.status === 200) {

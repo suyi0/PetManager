@@ -1,5 +1,5 @@
 #include "reservationCommonHandler.h"
-#include "RoleTypeUtils/RoleTypeUtils.h"
+#include "roleTypeUtils/roleTypeUtils.h"
 
 crow::response reservationCommonHandler::getReservationSummary(const crow::request &req, int userId)
 {

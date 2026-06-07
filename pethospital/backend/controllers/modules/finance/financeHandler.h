@@ -2,9 +2,8 @@
 #define FINANCEHANDLER_H
 
 #include "../../../utils/Utils.h"
-#include "../../../controllers/OperationLogger/OperationLogger.h"
-#include "../admin/adminHandler.h"
-#include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
+#include "../../../services/logger/operationLogger.h"
+#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 class financeHandler : public BaseHandler
 {

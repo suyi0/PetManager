@@ -3,6 +3,7 @@
 
 #include "../../controllers/modules/user/userHandler/userHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../middleware/authMiddleware/authMiddleware.h"
 #include "../../controllers/common/orderCommon/orderCommonHandler.h"
 #include "../../controllers/common/reservationCommon/reservationCommonHandler.h"
 #include "../../controllers/common/petCommon/petCommonHandler.h"

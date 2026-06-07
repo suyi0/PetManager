@@ -16,7 +16,7 @@ const createWebSocketUrl = (path: string) => {
  * 返回 close 函数，页面卸载时调用以关闭连接。
  */
 export const subscribeSuperAdminHomeData = (
-  onHomeData: (summary: HomePageSummary) => void
+  onHomeData: (_summary: HomePageSummary) => void
 ) => {
   const token = authStorage.getToken();
 
@@ -30,7 +30,9 @@ export const subscribeSuperAdminHomeData = (
 
   const connect = () => {
     socket = new WebSocket(
-      createWebSocketUrl(`/ws/admin/homeData?token=${encodeURIComponent(token)}`)
+      createWebSocketUrl(
+        `/ws/admin/homeData?token=${encodeURIComponent(token)}`
+      )
     );
 
     socket.onmessage = (event) => {

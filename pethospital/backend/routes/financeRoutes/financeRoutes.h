@@ -3,6 +3,7 @@
 
 #include "../../controllers/modules/finance/financeHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../middleware/authMiddleware/authMiddleware.h"
 
 class financeRoutes : public BaseHandler
 {

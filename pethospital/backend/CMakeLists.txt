@@ -242,10 +242,12 @@ endif()
 # 添加必要的包含目录（现代项目结构）
 include_directories(database)
 include_directories(models)
+include_directories(modules)
 include_directories(routes)
 include_directories(controllers)
 include_directories(utils)
 include_directories(middleware)
+include_directories(services)
 include_directories(websocket)
 
 # 收集所有源文件（自动递归查找）

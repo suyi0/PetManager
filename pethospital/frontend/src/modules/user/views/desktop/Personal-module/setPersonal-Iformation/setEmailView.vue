@@ -200,6 +200,7 @@ function getVerificationCode() {
     store
       .dispatch("auth/sendVerificationCode", {
         email: newUserEmail.value,
+        scene: "change",
       })
       .then((response) => {
         if (response.status === 200) {
@@ -252,6 +253,7 @@ function changeEmail() {
         .dispatch("auth/verify", {
           email: newUserEmail.value,
           verificationCode: VerificationCode.value,
+          scene: "change",
         })
         .then((response) => {
           if (response.status === 200) {

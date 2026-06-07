@@ -2,6 +2,7 @@
 #define AUTHROUTES_H 
 
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../middleware/authMiddleware/authMiddleware.h"
 
 
 class authRoutes

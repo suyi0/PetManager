@@ -21,7 +21,7 @@ namespace JwtUtils {
         bool isEmailLogin;
     };
 
-    std::string createToken(int userId, const std::string &username, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail);
+    std::string createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail);
 
     // JWT Token解析和权限验证函数
     std::optional<TokenClaims> getTokenClaims(const std::string &token);

@@ -1,5 +1,5 @@
 #include "bossRoutes.h"
-#include "../../controllers/OperationLogger/OperationLogger.h"
+#include "../../services/logger/operationLogger.h"
 
 void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {

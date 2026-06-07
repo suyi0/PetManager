@@ -1,192 +1,4 @@
 #include "authHandler.h"
-#include "RoleTypeUtils/RoleTypeUtils.h"
-
-namespace
-{
-    enum class TokenValidationScope
-    {
-        User,
-        Management,
-        Personnel,
-        MedicalStaff,
-        WarehouseStaff
-    };
-
-    template <typename Authorizer>
-    int validateToken(const crow::request &req,
-                      crow::response &res,
-                      std::shared_ptr<DatabaseManagerInterface> dbManager,
-                      Authorizer authorizer)
-    {
-        // 从请求头取 Bearer token
-        std::string authHeader = req.get_header_value("Authorization");
-        if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
-        {
-            res = ResponseHelper::unauthorized(req, "Missing or invalid token");
-            return -1;
-        }
-
-        // 判断 token 是否为空
-        std::string token = authHeader.substr(7);
-        if (token.empty())
-        {
-            res = ResponseHelper::unauthorized(req, "Empty token provided");
-            return -1;
-        }
-
-        // 解析 JWT claims
-        auto claims = JwtUtils::getTokenClaims(token);
-        if (!claims || claims->userId <= 0)
-        {
-            res = ResponseHelper::unauthorized(req, "Invalid or expired token");
-            return -1;
-        }
-
-        // 检查数据库连接
-        if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
-        {
-            res = ResponseHelper::system_error(req, "Database connection unavailable");
-            return -1;
-        }
-
-        // 最后调用外部传进来的 authorizer(...) 做“权限判断”
-        std::string identifier = claims->identifier;
-        const bool isAuthorized = authorizer(*claims, identifier);
-        if (!isAuthorized)
-        {
-            res = ResponseHelper::unauthorized(req, "用户无权限进行此操作");
-            return -1;
-        }
-
-        return claims->userId;
-    }
-
-    // 统一的Token验证函数，根据不同的权限范围进行验证
-    int validateTokenWithScope(const crow::request &req,
-                               crow::response &res,
-                               std::shared_ptr<DatabaseManagerInterface> dbManager,
-                               TokenValidationScope scope)
-    {
-        return validateToken(req, res, dbManager, [&](const JwtUtils::TokenClaims &claims, std::string &identifier)
-                             {
-            if (scope != TokenValidationScope::Management && RoleTypeUtils::isBossRole(claims.typeName))
-            {
-                return true;
-            }
-
-            if (scope == TokenValidationScope::Management)
-            {
-                return JwtUtils::isUserAuthorizedForAdminForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
-            }
-            if (scope == TokenValidationScope::Personnel)
-            {
-                return JwtUtils::isUserAuthorizedForPersonnelForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
-            }
-            if (scope == TokenValidationScope::MedicalStaff)
-            {
-                return JwtUtils::isUserAuthorizedForMedicalStaffForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
-            }
-            if (scope == TokenValidationScope::WarehouseStaff)
-            {
-                return JwtUtils::isUserAuthorizedForWarehouseStaffForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
-            }
-            return JwtUtils::isUserAuthorizedForUserForm(claims.userId, identifier, claims.isEmailLogin, dbManager); });
-    }
-}
-
-// 验证用户token
-int isValidUserToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
-{
-    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::User);
-}
-
-// 验证用户的订单token
-int isValidUserorderToken(const crow::request &req, crow::response &res, int &orderId, std::shared_ptr<DatabaseManagerInterface> dbManager)
-{
-    // 1. 验证JWT token
-    std::string authHeader = req.get_header_value("Authorization");
-    if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
-    {
-        res = ResponseHelper::unauthorized(req, "Missing or invalid token");
-        return -1;
-    }
-
-    std::string token = authHeader.substr(7); // 移除 "Bearer " 前缀
-
-    // 2. 基本token验证
-    if (token.empty())
-    {
-        res = ResponseHelper::unauthorized(req, "Empty token provided");
-        return -1;
-    }
-
-    // 3. 解析token获取用户信息
-    int userId = JwtUtils::getUserIdFromToken(token);
-    if (userId <= 0)
-    {
-        std::string errorMsg;
-        switch (userId)
-        {
-        case -1:
-            errorMsg = "Invalid token format";
-            break;
-        case -2:
-            errorMsg = "Token signature invalid";
-            break;
-        case -3:
-            errorMsg = "Token expired";
-            break;
-        case -4:
-            errorMsg = "User not found";
-            break;
-        default:
-            errorMsg = "Token parsing error";
-            break;
-        }
-        res = ResponseHelper::unauthorized(req, errorMsg);
-        return -1;
-    }
-
-    // 4. 验证数据库连接
-    if (!dbManager || !dbManager->getSession() || !dbManager->getSchema())
-    {
-        res = ResponseHelper::system_error(req, "Database connection unavailable");
-        return -1;
-    }
-
-    // 5. 验证用户权限
-    if (!JwtUtils::isUserAuthorizedForOrder(userId, orderId, dbManager))
-    {
-        res = ResponseHelper::unauthorized(req, "Access denied to this order");
-        return -1;
-    }
-
-    return userId;
-}
-
-// 验证管理端 token。
-int isValidManagementToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
-{
-    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::Management);
-}
-
-// 验证人事部门token
-int isValidPersonnelToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
-{
-    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::Personnel);
-}
-
-// 验证医疗端 token。
-int isValidMedicalStaffToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
-{
-    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::MedicalStaff);
-}
-
-// 验证仓储端 token。
-int isValidWarehouseStaffToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
-{
-    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::WarehouseStaff);
-}
 
 crow::response authHandler::authCheckName(const crow::request &req)
 {
@@ -369,8 +181,8 @@ crow::response authHandler::authCheckPhone(const crow::request &req)
     }
 }
 
-// 准备验证码函数
-crow::response authHandler::authReadyVerification(const crow::request &req)
+// 发送邮件验证码函数
+crow::response authHandler::getEmailVerification(const crow::request &req, int userId)
 {
     try
     {
@@ -380,89 +192,126 @@ crow::response authHandler::authReadyVerification(const crow::request &req)
             return res;
         auto &request_body = request_body_opt.value();
 
-        if (request_body.find("email") == request_body.end())
+        std::string email = getRequestString(request_body, "email", "");
+
+        if (email.empty())
         {
-            return ResponseHelper::error(req, "Missing email parameter");
+            return ResponseHelper::error(req, "邮箱不能为空");
         }
 
-        std::string email = request_body["email"].is_string() ? request_body["email"].get<std::string>() : request_body["email"].dump();
-
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT * FROM users WHERE email = ?")
-                                       .bind(email)
-                                       .execute();
-
-        if (result.begin() == result.end()) // 没有匹配的用户才创建验证码并发送邮件
+        if (!isValidEmailFormat(email)) // 邮箱格式验证
         {
-            Verify verify(email); // 栈上的对象
+            return ResponseHelper::error(req, "邮箱格式错误");
+        }
 
-            // 检查邮箱地址
-            if (verify.VerifyEmailAddress(email) == false)
+        if (userId <= 0) // 注册时获取验证码
+        {
+            mysqlx::SqlResult emailResult = dbManager->getSession()
+                                                ->sql("SELECT id "
+                                                      "FROM users "
+                                                      "WHERE email = ? AND is_deleted = 0 "
+                                                      "LIMIT 1")
+                                                .bind(email)
+                                                .execute();
+
+            if (emailResult.fetchOne())
             {
-                return ResponseHelper::error(req, "emailAddress is in wrong format");
+                return ResponseHelper::error(req, "该邮箱已被注册");
+            }
+        }
+        else // 修改邮箱时获取验证码
+        {
+            mysqlx::SqlResult currentUserResult = dbManager->getSession()
+                                                      ->sql("SELECT email "
+                                                            "FROM users "
+                                                            "WHERE id = ? AND is_deleted = 0 "
+                                                            "LIMIT 1")
+                                                      .bind(userId)
+                                                      .execute();
+
+            auto currentUserRow = currentUserResult.fetchOne();
+            if (!currentUserRow) // 正常不会到这
+            {
+                return ResponseHelper::notFound(req, "用户不存在");
             }
 
-            // 创建验证码
-            verify.CreateVerify();
+            const std::string DBEmail = currentUserRow[0].isNull() ? "" : currentUserRow[0].get<std::string>();
+            if (email == DBEmail)
+            {
+                return ResponseHelper::error(req, "新邮箱不能与当前邮箱相同");
+            }
 
-            // 使用智能指针的主要原因是：
-            // 资源共享 - 多个线程或作用域需要访问同一个对象
-            // 自动内存管理 - 避免内存泄漏和手动内存管理的复杂性
-            // 线程安全 - 确保对象在需要时不会被提前销毁
-            // 异常安全 - 即使发生异常也能正确释放资源
-            auto email_ptr = std::make_shared<std::string>(email);
-            auto verify_ptr = std::make_shared<Verify>(verify); // 创建Verify对象，通过拷贝构造创建堆上的对象
+            mysqlx::SqlResult emailOwnerResult = dbManager->getSession()
+                                                     ->sql("SELECT id "
+                                                           "FROM users "
+                                                           "WHERE email = ? AND id <> ? AND is_deleted = 0 "
+                                                           "LIMIT 1")
+                                                     .bind(email, userId)
+                                                     .execute();
 
-            // 异步编程和承诺/未来模式 (Promise/Future)
-            auto promise_ptr = std::make_shared<std::promise<bool>>();
-            auto future = promise_ptr->get_future(); // 从promise获取future
+            if (emailOwnerResult.fetchOne())
+            {
+                return ResponseHelper::error(req, "该邮箱已被其他用户使用");
+            }
+        }
 
-            // 发送邮件验证码
-            std::thread sender([email_ptr, verify_ptr, promise_ptr]()
-                               {
-                        try {
-                            verify_ptr->SendVerify(*email_ptr, verify_ptr->GetVerifyCode(), promise_ptr.get());
-                        } catch (...) {
-                            promise_ptr->set_value(false); // 确保在异常情况下也设置结果
-                        } });
-            sender.detach();
+        std::string code = Verify::CreateEmailVerify(email);
 
-            // 等待邮件发送步骤完成，判断发送结果
-            nlohmann::json response;
+        // 使用智能指针的主要原因是：
+        // 资源共享 - 多个线程或作用域需要访问同一个对象
+        // 自动内存管理 - 避免内存泄漏和手动内存管理的复杂性
+        // 线程安全 - 确保对象在需要时不会被提前销毁
+        // 异常安全 - 即使发生异常也能正确释放资源
+        auto email_ptr = std::make_shared<std::string>(email);
+        auto code_ptr = std::make_shared<std::string>(code);
+
+        // 异步编程和承诺/未来模式 (Promise/Future)
+        auto promise_ptr = std::make_shared<std::promise<bool>>();
+        auto future = promise_ptr->get_future(); // 从promise获取future
+
+        // 发送邮件验证码(异步)
+        std::thread sender([email_ptr, code_ptr, promise_ptr]()
+                           {
             try
             {
-                bool sendSuccess = future.get(); // 使用之前获取的future对象
-                if (sendSuccess)                 // 使用之前获取的future对象
-                {
-                    response["sent"] = true;
-                    response["channel"] = "email";
-                    return ResponseHelper::success(req, response);
-                }
-                else
-                {
-                    return ResponseHelper::error(req, "failed to send verification code email");
-                }
+                Verify::SendEmailVerify(*email_ptr, *code_ptr, promise_ptr.get());
             }
-            catch (const std::exception &e)
+            catch (...) {
+                promise_ptr->set_value(false); // 确保在异常情况下也设置结果
+            } });
+
+        sender.detach(); // 将线程与主线程分离，使其在后台独立运行
+
+        // 等待邮件发送步骤完成，判断发送结果
+        nlohmann::json response;
+        try
+        {
+            bool sendSuccess = future.get(); // 使用之前获取的future对象,获取异步操作的结果
+            if (sendSuccess)
             {
-                // 这个catch块会捕获所有继承自std::exception的异常类型，包括：
-                // std::runtime_error（运行时错误）
-                // std::logic_error（逻辑错误）
-                // std::invalid_argument（无效参数）
-                // std::out_of_range（超出范围）
-                // 其他标准库抛出的异常
-                return ResponseHelper::system_error(
-                    req,
-                    "exception occurred while sending email: " + std::string(e.what()));
+                response["sent"] = true;
+                response["channel"] = "email";
+                response["scene"] = userId <= 0 ? "register" : "change";
+                return ResponseHelper::success(req, response);
             }
-            catch (...)
+            else
             {
-                return ResponseHelper::system_error(req);
+                return ResponseHelper::error(req, "failed to send verification code email");
             }
         }
-        else
+        catch (const std::exception &e)
         {
-            return ResponseHelper::error(req, "emailAddress is already in use");
+            // 这个catch块会捕获所有继承自std::exception的异常类型，包括：
+            // std::runtime_error（运行时错误）
+            // std::logic_error（逻辑错误）
+            // std::invalid_argument（无效参数）
+            // std::out_of_range（超出范围）
+            // 其他标准库抛出的异常
+            return ResponseHelper::system_error(req, "exception occurred while sending email: " + std::string(e.what()));
+        }
+        catch (...)
+        {
+            return ResponseHelper::system_error(req);
         }
     }
     catch (const std::exception &e)
@@ -471,75 +320,79 @@ crow::response authHandler::authReadyVerification(const crow::request &req)
     }
 }
 
-// 邮箱验证码验证函数
-crow::response authHandler::checkVerifyEmailCode(const crow::request &req)
+// 验证邮箱验证码函数
+crow::response authHandler::checkVerifyEmailCode(const crow::request &req, int userId)
 {
     try
     {
         crow::response res;
-        auto jsonOpt = parseJson(req, res);
-        nlohmann::json &request_body = jsonOpt.value();
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
 
         // 检查必要字段是否存在
-        if (request_body.find("email") == request_body.end() ||
-            request_body.find("code") == request_body.end())
+        if (!request_body.contains("email") || !request_body.contains("code"))
         {
-            return ResponseHelper::error(req, "verify : false , message : Missing email or code");
+            return ResponseHelper::error(req, "缺少邮箱或验证码");
         }
 
-        std::string email = request_body["email"];
-        std::string code = request_body["code"];
-        int userID = 0;
-        std::string userName = "";
+        if(!isValidEmailFormat(request_body["email"]))
+        {
+            return ResponseHelper::error(req, "邮箱格式错误");
+        }
 
-        // 创建验证码对象
-        Verify verify(email);
-
+        int userTypeId = -1;
+        std::string userType = "普通用户";
+        std::string email = getRequestString(request_body, "email", "");
+        std::string code = getRequestString(request_body, "code", "");
         // 验证码验证
         bool isValid = Verify::ValidateCode(email, code);
 
-        // 验证码验证
+        // 验证码验证成功
         if (isValid)
         {
-            mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT id, name, type_id FROM users WHERE email = ? AND is_deleted = 0")
-                                           .bind(email)
-                                           .execute();
-
-            int userTypeId = RoleTypeUtils::getRoleId(dbManager, "普通用户");
-            for (const auto &row : result)
-            {
-                userID = row[0].get<int>();
-                userName = clean_string(row[1].get<std::string>());
-                userTypeId = row[2].isNull() ? userTypeId : row[2].get<int>();
-            }
-
             nlohmann::json response;
 
             // 注册场景下邮箱尚未入库，只需返回校验通过。
-            if (userID <= 0)
+            if (userId <= 0)
             {
-                response["verified"] = true;
+                response["success"] = true;
                 return ResponseHelper::success(req, response);
             }
 
-            // 已存在用户时，兼容原有邮箱验证登录场景，返回 token。
+            // 修改邮箱场景下，新邮箱还未写入 users 表，应按当前登录用户 ID 取会话信息。
+            mysqlx::SqlResult result = dbManager->getSession()
+                                           ->sql("SELECT u.type_id, t.type "
+                                                 "FROM users AS u "
+                                                 "JOIN types AS t ON t.id = u.type_id "
+                                                 "WHERE u.id = ? AND u.is_deleted = 0 "
+                                                 "LIMIT 1")
+                                           .bind(userId)
+                                           .execute();
+
+            auto row = result.fetchOne();
+            if (!row)
+            {
+                return ResponseHelper::notFound(req, "用户不存在");
+            }
+
+            userTypeId = row[0].isNull() ? -1 : row[0].get<int>();
+            userType = row[1].isNull() ? "普通用户" : row[1].get<std::string>();
+
             std::string token = JwtUtils::createToken(
-                userID,
-                userName,
+                userId,
                 userTypeId,
-                "普通用户",
+                userType,
                 email,
                 true);
+            response["success"] = true;
             response["token"] = token;
             return ResponseHelper::success(req, response);
         }
         else
         {
-            return ResponseHelper::verification_failed(
-                req,
-                "Invalid Verification Code",
-                "Verification code validation failed");
+            return ResponseHelper::verification_failed(req, "Invalid Verification Code", "Verification code validation failed");
         }
     }
     catch (const std::exception &e)
@@ -570,7 +423,7 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         const std::string &identifier = claims->identifier;
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.type_id, t.type, u.name, u.email, u.phone "
+                                       ->sql("SELECT u.type_id, t.type, u.email, u.phone "
                                              "FROM users AS u "
                                              "JOIN types AS t ON u.type_id = t.id "
                                              "WHERE u.id = ? AND u.is_deleted = 0")
@@ -590,9 +443,8 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
             return ResponseHelper::unauthorized(req, "Only management roles can refresh this token");
         }
 
-        std::string userName = clean_string(row[2].get<std::string>());
-        std::string email = row[3].isNull() ? "" : row[3].get<std::string>();
-        std::string phone = row[4].isNull() ? "" : normalizePhoneIdentifier(row[4].get<std::string>());
+        std::string email = row[2].isNull() ? "" : row[2].get<std::string>();
+        std::string phone = row[3].isNull() ? "" : normalizePhoneIdentifier(row[3].get<std::string>());
 
         bool isEmailLogin = !email.empty() && identifier == email;
         bool isPhoneLogin = !phone.empty() && normalizePhoneIdentifier(identifier) == phone;
@@ -605,7 +457,6 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         nlohmann::json response;
         response["token"] = JwtUtils::createToken(
             userId,
-            userName,
             typeId,
             typeName,
             isEmailLogin ? email : phone,
@@ -624,7 +475,7 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
 std::pair<bool, std::string> executePythonScript(const std::string &phone, const std::string &code)
 {
     // 获取Python脚本路径
-    std::string script_path = "/Users/yanghang/Code/PetManager/pethospital/backend/controllers/auth/Verification/SendSmsVerifyCode.py";
+    std::string script_path = "/Users/yanghang/Code/PetManager/pethospital/backend/services/verification/sendSmsVerifyCode.py";
 
     // 构建命令
     std::string command = "python3 \"" + script_path + "\" \"" + phone + "\" \"" + code + "\" --json 2>&1";
@@ -713,10 +564,7 @@ crow::response authHandler::sendSmsVerification(const crow::request &req)
         }
 
         // 生成验证码
-        Verify verify(phone);
-        std::string code = verify.CreateVerify();
-
-        std::cout << "[INFO] Generated verification code for phone: " + phone + ", code: " + code << std::endl;
+        std::string code = Verify::CreatePhoneVerify(phone);
 
         // 异步发送短信
         auto phone_ptr = std::make_shared<std::string>(phone);
@@ -785,6 +633,8 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
     {
         crow::response res;
         auto jsonOpt = parseJson(req, res);
+        if (!jsonOpt)
+            return res;
         nlohmann::json &request_body = jsonOpt.value();
 
         // 检查必要字段
@@ -797,7 +647,6 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
         std::string phone = request_body["phone"];
         std::string code = request_body["code"];
         int userID = 0;
-        std::string userName = "";
 
         // 验证验证码
         bool isValid = Verify::ValidateCode(phone, code);
@@ -805,13 +654,12 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
         if (isValid)
         {
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT id, name FROM users WHERE phone = ? AND is_deleted = 0")
+                                           ->sql("SELECT id FROM users WHERE phone = ? AND is_deleted = 0")
                                            .bind(phone)
                                            .execute();
             for (const auto &row : result)
             {
                 userID = row[0].get<int>();
-                userName = clean_string(row[1].get<std::string>());
             }
             // 验证成功，返回token
             nlohmann::json response;
@@ -819,7 +667,6 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
                 RoleTypeUtils::getRoleId(dbManager, "普通用户");
             std::string token = JwtUtils::createToken(
                 userID,
-                userName,
                 defaultUserRoleId,
                 "普通用户",
                 phone,

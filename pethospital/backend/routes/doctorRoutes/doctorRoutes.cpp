@@ -1,5 +1,5 @@
 #include "doctorRoutes.h"
-#include "../../controllers/OperationLogger/OperationLogger.h"
+#include "../../services/logger/operationLogger.h"
 
 void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {

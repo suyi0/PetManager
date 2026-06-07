@@ -107,7 +107,6 @@ crow::response financeHandler::getHomeData(const crow::request &req)
         mysqlx::SqlResult dailyExpensesResult = dbManager->getSession()
                                                     ->sql("SELECT COALESCE(ROUND(SUM(total_salary / 31)), 0)  "
                                                           "FROM salary ")
-                                                    .bind()
                                                     .execute();
 
         auto dailyRow = dailyExpensesResult.fetchOne();
@@ -326,7 +325,6 @@ crow::response financeHandler::getSalarySummary(const crow::request &req, int pa
                                                   "FROM salary AS s "
                                                   "JOIN users AS u ON u.id = s.user_id "
                                                   "WHERE u.is_deleted = 0")
-                                            .bind()
                                             .execute();
 
         nlohmann::json list = nlohmann::json::array();

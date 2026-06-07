@@ -1,5 +1,5 @@
 #include "orderCommonHandler.h"
-#include "RoleTypeUtils/RoleTypeUtils.h"
+#include "roleTypeUtils/roleTypeUtils.h"
 
 crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int &userId)
 {

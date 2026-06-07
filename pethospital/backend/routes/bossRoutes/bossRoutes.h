@@ -3,6 +3,7 @@
 
 #include "../../controllers/modules/boss/bossHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../middleware/authMiddleware/authMiddleware.h"
 
 class bossRoutes : public BaseHandler
 {

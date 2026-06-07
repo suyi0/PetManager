@@ -1,5 +1,5 @@
 #include "UserRoutes.h"
-#include "../../controllers/OperationLogger/OperationLogger.h"
+#include "../../services/logger/operationLogger.h"
 
 std::unordered_map<std::string, std::chrono::steady_clock::time_point> email_check_last_access;
 
@@ -46,7 +46,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
     // 添加用户资料更新路由
     CROW_ROUTE(app, "/api/user/profile")
-        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
             try
@@ -55,7 +55,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
                 if(res.code != 200 || userId == -1)
                 {
-                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新资料");
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新个人资料");
                     return;
                 }
                 userHandler handler(dbManager);
@@ -64,15 +64,15 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 ProcessHandlerResponse(req, res, handlerResponse);
             } catch (const std::exception& e)
             {
-                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新资料", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新个人资料", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
 
-            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新资料", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新个人资料", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 更新用户密码路由
     CROW_ROUTE(app, "/api/user/security/password")
-        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
             try
@@ -85,6 +85,9 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                     return;
                 }
                 userHandler handler(dbManager);
+                crow::response handlerResponse = handler.updatePassword(req, userId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
             }
             catch (const std::exception &e)
             {
@@ -96,7 +99,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
     // 更新用户邮箱地址路由
     CROW_ROUTE(app, "/api/user/security/email")
-        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
             try
@@ -105,22 +108,25 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
                 if(res.code != 200 || userId == -1)
                 {
-                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新邮箱地址");
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "更新邮箱");
                     return;
                 }
                 userHandler handler(dbManager);
+                crow::response handlerResponse = handler.updateEmail(req, userId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
             }
             catch (const std::exception &e)
             {
-                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新邮箱地址", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新邮箱", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
 
-            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新邮箱地址", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新邮箱", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 更新用户手机号路由
     CROW_ROUTE(app, "/api/user/security/phone")
-        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
             try
@@ -133,6 +139,9 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                     return;
                 }
                 userHandler handler(dbManager);
+                crow::response handlerResponse = handler.updatePhone(req, userId);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
             }
             catch (const std::exception &e)
             {
@@ -171,7 +180,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
     // 添加地址更新路由
     CROW_ROUTE(app, "/api/user/address/update/<int>")
-        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int addressId)
+        .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int addressId)
                                                                    {
             int userId = -1;
             try

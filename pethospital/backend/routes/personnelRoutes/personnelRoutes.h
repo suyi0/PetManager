@@ -3,6 +3,7 @@
 
 #include "../../controllers/modules/personnel/personnelHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../middleware/authMiddleware/authMiddleware.h"
 
 class personnelRoutes : public BaseHandler
 {

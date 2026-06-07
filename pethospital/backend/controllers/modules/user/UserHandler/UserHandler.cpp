@@ -1,7 +1,7 @@
-#include "UserHandler.h"
+#include "userHandler.h"
 #include "../../../../utils/AuthIdentifierUtils.h"
-#include "../../../../database/UserPhoneSync.h"
-#include "RoleTypeUtils/RoleTypeUtils.h"
+#include "../userPhoneSync/userPhoneSync.h"
+#include "roleTypeUtils/roleTypeUtils.h"
 #include <vector>
 
 // 在文件顶部添加常量定义
@@ -40,6 +40,7 @@ namespace
             }
         }
     }
+
     nlohmann::json splitUserName(const std::string &rawName)
     {
         const std::string delimiter = "·";
@@ -73,6 +74,7 @@ namespace
         target["middleName"] = nameParts["middleName"];
         target["firstName"] = nameParts["firstName"];
     }
+
 }
 
 // 添加获取文件MIME类型的函数
@@ -299,36 +301,17 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
             return res;
         auto &request_body = request_body_opt.value();
 
-        // 检查是否有更新字段
-        const auto hasUpdateField = [&request_body]() -> bool
-        {
-            for (const char *key : {"name", "password", "phone", "email", "birthday", "headImage"})
-            {
-                if (request_body.contains(key))
-                {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        // 获取更新字段(字符串类型)
-        const auto getOptionalString = [&request_body](const std::string &key) -> std::string
-        {
-            auto item = request_body.find(key);
-            if (item == request_body.end() || item->is_null())
-            {
-                return "";
-            }
-
-            return item->is_string() ? item->get<std::string>() : item->dump();
-        };
-
         // 获取更新字段(整数类型)
         const auto getOptionalInt = [&request_body](const std::string &key, int defaultValue) -> int
         {
             auto item = request_body.find(key);
             return item == request_body.end() || item->is_null() ? defaultValue : item->get<int>();
+        };
+
+        // 获取更新字段(浮点类型)
+        const auto getOptionalDouble = [&request_body](const std::string &key, double defaultValue) -> double
+        {
+            return getRequestDouble(request_body, key, defaultValue);
         };
 
         // 规范生日字段格式
@@ -381,104 +364,24 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
             return rawBirthday;
         };
 
-        boost::gregorian::date DBbirthday = boost::gregorian::date(1970, 1, 1);
-
-        // 从数据库中获取用户信息
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT name, password, phone, email, CAST(birthday AS CHAR), head_image "
-                                             "FROM users WHERE id = ? "
-                                             "LIMIT 1")
-                                       .bind(userId)
-                                       .execute();
-
-        auto row = result.fetchOne();
-        if (result.count() == 0)
-        {
-            return ResponseHelper::notFound(req, "User not found");
-        }
-
-        // 即使email变量包含恶意代码，也会被当作普通字符串值处理
-        // 处理结果,把数据库数据放入user对象中
-
-        const std::string DBname = row[0].isNull() ? "" : row[0].get<std::string>();
-        const std::string DBpassword = row[1].isNull() ? "" : row[1]get<std::string>();
-        const std::string DBphone = row[2].isNull() ? "" : row[2]get<std::string>();
-        const std::string DBemail = row[3].isNull() ? "" : row[3]get<std::string>();
-        if (!row[4].isNull())
-        {
-            const std::string date_str = row[4].get<std::string>();
-
-#ifdef DEBUG
-            std::cout << "Debug: Raw date string from database: '" << date_str << "'" << std::endl;
-#endif
-
-            std::regex date_pattern(R"(^(\d{4})-(\d{1,2})-(\d{1,2})$)"); // 匹配格式为 YYYY-MM-DD
-            std::smatch match;
-            if (std::regex_match(date_str,      // 待匹配的字符串（这里是 std::string 类型）
-                                 match,         // 匹配结果（类型通常是 std::smatch ）
-                                 date_pattern)) // 正则表达式对象（这里是 std::regex 类型）
-            {
-                try
-                {
-                    // boost::gregorian::date(year, month, day)
-                    DBbirthday = boost::gregorian::date(
-                        std::stoi(match[1].str()),
-                        std::stoi(match[2].str()),
-                        std::stoi(match[3].str()));
-#ifdef DEBUG
-                    std::cout << "Debug: Parsed valid date: " << boost::gregorian::to_iso_extended_string(DBbirthday) << std::endl;
-#endif
-                }
-                catch (const std::exception &e)
-                {
-#ifdef DEBUG
-                    std::cout << "Debug: Failed to parse birthday, using default: " << e.what() << std::endl;
-#endif
-                }
-            }
-            else
-            {
-#ifdef DEBUG
-                std::cout << "Debug: Invalid birthday format, using default" << std::endl;
-#endif
-            }
-        }
-        else
-        {
-#ifdef DEBUG
-            std::cout << "Debug: Null birthday value, using default" << std::endl;
-#endif
-        }
-        const std::string DBheadImage = row[5].isNull() ? "" : row[5].get<std::string>();
-
-        int type_id = RoleTypeUtils::getRoleId(dbManager, "普通用户");
-        std::string name = getRequestStringWithFallback(request_body, "name", "name", DBname);
-        std::string phone = getRequestStringWithFallback(request_body, "phone", "phone", DBphone);
-        std::string email = getRequestStringWithFallback(request_body, "email", "email", DBemail);
-        if (name.empty())
-        {
-            name = !email.empty() ? email : (!phone.empty() ? phone : "未命名");
-        }
-        std::string password = getRequestStringWithFallback(request_body, "password", "password", DBpassword);
-        std::string birthday = getRequestStringWithFallback(request_body, "birthday", "birthday", DBbirthday);
-        if (birthday.empty())
-        {
-            birthday = "1970-01-01";
-        }
-
-        std::string headImage = getRequestStringWithFallback(request_body, "head_image", "head_image", DBheadImage);
-        std::string user_specialty = getRequestStringWithFallback(request_body, "user_specialty", "user_specialty", "");
-        std::string user_introduction = getRequestStringWithFallback(request_body, "user_introduction", "user_introduction", "");
-        int user_level = getOptionalInt("user_level", 0);
-        int is_deleted = getOptionalInt("is_deleted", 0);
-        int deleted_by = getOptionalInt("deleted_by", 0);
-        std::string deleted_at = getRequestStringWithFallback(request_body, "deleted_at", "deleted_at", "");
-
-        std::string hashed_password = password.empty() ? "" : hash_password(password);
-
         // 注册时存储的数据
         if (userId <= 0)
         {
+            int type_id = RoleTypeUtils::getRoleId(dbManager, "普通用户");
+            std::string name = getRequestString(request_body, "name", "");
+            std::string password = getRequestString(request_body, "password", "");
+            std::string phone = getRequestString(request_body, "phone", "");
+            std::string email = getRequestString(request_body, "email", "");
+            std::string birthday = normalizeBirthday(getRequestString(request_body, "birthday", "1970-01-01"));
+            std::string head_image = getRequestStringWithFallback(request_body, "head_image", "headImage", "");
+            std::string user_specialty = getRequestString(request_body, "user_specialty", "");
+            std::string user_introduction = getRequestString(request_body, "user_introduction", "");
+            int user_level = getOptionalInt("user_level", 0);
+            double funds = getOptionalDouble("funds", 0.0);
+            int is_deleted = getOptionalInt("is_deleted", 0);
+            int deleted_by = getOptionalInt("deleted_by", 0);
+            std::string deleted_at = getRequestString(request_body, "deleted_at", "");
+
             if (password.empty())
             {
                 return ResponseHelper::validation(req, "注册用户必须提供密码");
@@ -487,6 +390,16 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
             {
                 return ResponseHelper::validation(req, "注册用户必须提供邮箱或手机号");
             }
+            if (name.empty())
+            {
+                name = !email.empty() ? email : (!phone.empty() ? phone : "未命名");
+            }
+            if (birthday.empty())
+            {
+                birthday = "1970-01-01";
+            }
+
+            const std::string hashed_password = hash_password(password);
 
             auto session = dbManager->getSession();
             session->sql("START TRANSACTION").execute();
@@ -495,7 +408,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
             {
                 mysqlx::SqlResult result = session->sql("INSERT INTO users(type_id, name, phone, email, password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at) "
                                                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                                               .bind(type_id, name, phone, email, hashed_password, birthday, headImage, user_specialty, user_introduction, user_level, 0.0, is_deleted, deleted_by, deleted_at)
+                                               .bind(type_id, name, phone, email, hashed_password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at)
                                                .execute();
 
                 // 用户注册过程中，若手机号同步失败，则回滚整个事务，确保数据一致性
@@ -515,117 +428,94 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
 
             return ResponseHelper::success(req, "用户注册成功");
         }
-        // 更新用户数据
-        else if (hasUpdateField() && userId > 0)
+
+        // 用户资料更新只处理普通资料，邮箱、手机号、密码交给 security 下的独立接口。
+        bool hasUpdateField = request_body.contains("name") ||
+                              request_body.contains("birthday") ||
+                              request_body.contains("head_image") ||
+                              request_body.contains("headImage");
+
+        if (!hasUpdateField)
         {
-            bool password_changed = false;
-            if (!password.empty())
+            return ResponseHelper::error(req, "请求中没有可更新的用户资料字段");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT name, CAST(birthday AS CHAR), head_image "
+                                             "FROM users WHERE id = ? "
+                                             "LIMIT 1")
+                                       .bind(userId)
+                                       .execute();
+
+        auto row = result.fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::notFound(req, "User not found");
+        }
+
+        const std::string DBname = row[0].isNull() ? "" : row[0].get<std::string>();
+        const std::string DBbirthday = row[1].isNull() ? "1970-01-01" : row[1].get<std::string>();
+        const std::string DBhead_image = row[2].isNull() ? "" : row[2].get<std::string>();
+
+        std::string name = getRequestStringWithFallback(request_body, "name", "name", DBname);
+        std::string birthday = normalizeBirthday(getRequestStringWithFallback(request_body, "birthday", "birthady", DBbirthday));
+        std::string head_image = getRequestStringWithFallback(request_body, "head_image", "headImage", DBhead_image);
+        if (birthday.empty())
+        {
+            birthday = "1970-01-01";
+        }
+
+        bool has_changes = (!name.empty() && DBname != name) ||
+                           (!birthday.empty() && birthday != DBbirthday) ||
+                           (!head_image.empty() && DBhead_image != head_image);
+
+        if (!has_changes)
+        {
+            return ResponseHelper::success(req, "No changes to update");
+        }
+
+        if (!head_image.empty() && DBhead_image != head_image)
+        {
+            // 删除原来的图片，如果文件不存在也不会报错
+            const std::string lastFileName = getLastFileName(DBhead_image);
+            std::string oldFilePath = std::string(UPLOADS_DIR) + "/" + lastFileName;
+
+            // 检查文件是否存在后再删除，避免删除目录
+            if (std::filesystem::exists(oldFilePath) && !std::filesystem::is_directory(oldFilePath))
             {
-                bool password_matches = false;
                 try
                 {
-                    password_matches = verify_password_hash(password, DBpassword);
+                    std::filesystem::remove(oldFilePath);
                 }
-                catch (...)
+                catch (const std::exception &e)
                 {
-                    password_matches = false;
+                    std::cerr << "Error removing old avatar file: " << e.what() << std::endl;
+                    OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新头像", "Failed to remove old avatar file: " + std::string(e.what()));
                 }
-
-                bool password_needs_upgrade = false;
-                if (password_matches)
-                {
-                    try
-                    {
-                        password_needs_upgrade = password_hash_needs_upgrade(DBpassword);
-                    }
-                    catch (...)
-                    {
-                        password_needs_upgrade = true;
-                    }
-                }
-
-                password_changed = !password_matches || password_needs_upgrade;
-            }
-
-            bool has_changes = false; // 添加一个标志来跟踪是否有字段需要更新
-            if ((!name.empty() && DBname != name) ||
-                password_changed ||
-                (!email.empty() && DBemail != email) ||
-                (!phone.empty() && DBphone != phone) ||
-                (!birthday.empty() && birthday != "\t" && birthday != "1970-01-01" && DBbirthday != boost::gregorian::from_simple_string(birthday)))
-            {
-                has_changes = true;
-            }
-            if (!headImage.empty() && DBheadImage != headImage)
-            {
-                // 删除原来的图片，如果文件不存在也不会报错
-                const std::string lastFileName = getLastFileName(DBheadImage);
-                std::string oldFilePath = std::string(UPLOADS_DIR) + "/" + lastFileName;
-
-                // 检查文件是否存在后再删除，避免删除目录
-                if (std::filesystem::exists(oldFilePath) && !std::filesystem::is_directory(oldFilePath))
-                {
-                    try
-                    {
-                        std::filesystem::remove(oldFilePath);
-                    }
-                    catch (const std::exception &e)
-                    {
-                        std::cerr << "Error removing old avatar file: " << e.what() << std::endl;
-                        // 不中断更新过程，仅记录错误
-                        OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新头像", "Failed to remove old avatar file: " + std::string(e.what()));
-                    }
-                }
-
-                has_changes = true;
-            }
-
-            // 执行更新操作
-            if (has_changes)
-            {
-                auto session = dbManager->getSession();
-                session->sql("START TRANSACTION").execute();
-
-                try
-                {
-                    if (userId != 0)
-                    {
-                        mysqlx::SqlResult result = session->sql("UPDATE users SET name = ?, phone = ?, email = ?, birthday = ?, head_image = ? "
-                                                                "WHERE id = ?")
-                                                       .bind(name, phone, email, birthday, headImage, userId)
-                                                       .execute();
-
-                        if (!phone.empty() && DBphone != phone &&
-                            !UserPhoneSync::upsertUserPhone(*session, userId, phone))
-                        {
-                            session->sql("ROLLBACK").execute();
-                            return ResponseHelper::system_error(req, "用户信息更新失败，手机号同步未完成");
-                        }
-                    }
-                    session->sql("COMMIT").execute();
-                }
-                catch (const mysqlx::Error &e)
-                {
-                    session->sql("ROLLBACK").execute();
-                    return ResponseHelper::database_error(req, "Failed to update user data", e.what());
-                }
-                // 返回成功响应
-                nlohmann::json response;
-                response["message"] = "Form data saved successfully";
-                response["user"] = getUserData(userId);
-
-                return ResponseHelper::success(req, response);
-            }
-            else
-            {
-                return ResponseHelper::success(req, "No changes to update");
             }
         }
-        else
+
+        auto session = dbManager->getSession();
+        session->sql("START TRANSACTION").execute();
+
+        try
         {
-            // 请求不符合注册或更新条件
-            return ResponseHelper::error(req, "responNo valid action performed - request does not contain required fields for registration or update");
+            session->sql("UPDATE users SET name = ?, birthday = ?, head_image = ? "
+                         "WHERE id = ? AND is_deleted = 0")
+                .bind(name, birthday, head_image, userId)
+                .execute();
+            session->sql("COMMIT").execute();
         }
+        catch (const mysqlx::Error &e)
+        {
+            session->sql("ROLLBACK").execute();
+            return ResponseHelper::database_error(req, "Failed to update user data", e.what());
+        }
+
+        nlohmann::json response;
+        response["user"] = getUserData(userId);
+
+        return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)
     {
@@ -635,6 +525,226 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
     {
         OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新用户数据", "Exception occurred: " + std::string(e.what()));
         return ResponseHelper::operation_failed(req, "Failed to update user data", e.what());
+    }
+}
+
+crow::response userHandler::updatePassword(const crow::request &req, int userId)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        std::string password = getRequestStringWithFallback(request_body, "password", "newPassword", "");
+        if (userId <= 0)
+        {
+            return ResponseHelper::error(req, "无效的用户ID");
+        }
+        if (password.empty())
+        {
+            return ResponseHelper::validation(req, "新密码不能为空");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT password FROM users "
+                                             "WHERE id = ? AND is_deleted = 0 "
+                                             "LIMIT 1")
+                                       .bind(userId)
+                                       .execute();
+        auto row = result.fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::notFound(req, "User not found");
+        }
+
+        const std::string DBpassword = row[0].isNull() ? "" : row[0].get<std::string>();
+        bool password_matches = false;  // 密码匹配标志
+        try
+        {
+            password_matches = verify_password_hash(password, DBpassword);
+        }
+        catch (...)
+        {
+            password_matches = false;
+        }
+
+        bool password_needs_upgrade = false;    // 密码需要升级标志
+        if (password_matches)
+        {
+            try
+            {
+                password_needs_upgrade = password_hash_needs_upgrade(DBpassword);
+            }
+            catch (...)
+            {
+                password_needs_upgrade = true;
+            }
+        }
+
+        if (password_matches && !password_needs_upgrade)
+        {
+            return ResponseHelper::success(req, "No changes to update");
+        }
+
+        dbManager->getSession()
+            ->sql("UPDATE users SET password = ? WHERE id = ?")
+            .bind(hash_password(password), userId)
+            .execute();
+
+        return ResponseHelper::success(req, "密码更新成功");
+    }
+    catch (const mysqlx::Error &e)
+    {
+        return ResponseHelper::database_error(req, "Failed to update password", e.what());
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新密码", "Exception occurred: " + std::string(e.what()));
+        return ResponseHelper::operation_failed(req, "Failed to update password", e.what());
+    }
+}
+
+crow::response userHandler::updateEmail(const crow::request &req, int userId)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        std::string email = getRequestString(request_body, "email", "");
+        std::string code = getRequestString(request_body, "code", "");
+        if (userId <= 0)
+        {
+            return ResponseHelper::error(req, "无效的用户ID");
+        }
+        if (email.empty())
+        {
+            return ResponseHelper::validation(req, "邮箱不能为空");
+        }
+        if (code.empty())
+        {
+            return ResponseHelper::validation(req, "邮箱验证码不能为空");
+        }
+        if (!Verify::ValidateCode(email, code))
+        {
+            return ResponseHelper::verification_failed(req, "邮箱验证码错误或已过期");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT email FROM users WHERE id = ? LIMIT 1")
+                                       .bind(userId)
+                                       .execute();
+        auto row = result.fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::notFound(req, "User not found");
+        }
+
+        const std::string DBemail = row[0].isNull() ? "" : row[0].get<std::string>();
+        if (DBemail == email)
+        {
+            return ResponseHelper::success(req, "No changes to update");
+        }
+
+        dbManager->getSession()
+            ->sql("UPDATE users SET email = ? WHERE id = ?")
+            .bind(email, userId)
+            .execute();
+
+        nlohmann::json response;
+        response["message"] = "邮箱更新成功";
+        response["user"] = getUserData(userId);
+        return ResponseHelper::success(req, response);
+    }
+    catch (const mysqlx::Error &e)
+    {
+        return ResponseHelper::database_error(req, "Failed to update email", e.what());
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新邮箱", "Exception occurred: " + std::string(e.what()));
+        return ResponseHelper::operation_failed(req, "Failed to update email", e.what());
+    }
+}
+
+crow::response userHandler::updatePhone(const crow::request &req, int userId)
+{
+    try
+    {
+        crow::response res;
+        auto request_body_opt = validateRequest(req, res);
+        if (!request_body_opt)
+            return res;
+        auto &request_body = request_body_opt.value();
+
+        std::string phone = normalizePhoneIdentifier(getRequestString(request_body, "phone", ""));
+        if (userId <= 0)
+        {
+            return ResponseHelper::error(req, "无效的用户ID");
+        }
+        if (phone.empty())
+        {
+            return ResponseHelper::validation(req, "手机号不能为空");
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT phone FROM users WHERE id = ? LIMIT 1")
+                                       .bind(userId)
+                                       .execute();
+        auto row = result.fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::notFound(req, "User not found");
+        }
+
+        const std::string DBphone = row[0].isNull() ? "" : normalizePhoneIdentifier(row[0].get<std::string>());
+        if (DBphone == phone)
+        {
+            return ResponseHelper::success(req, "No changes to update");
+        }
+
+        auto session = dbManager->getSession();
+        session->sql("START TRANSACTION").execute();
+
+        try
+        {
+            session->sql("UPDATE users SET phone = ? WHERE id = ?")
+                .bind(phone, userId)
+                .execute();
+
+            if (!UserPhoneSync::upsertUserPhone(*session, userId, phone))   // 同步手机号
+            {
+                session->sql("ROLLBACK").execute();
+                return ResponseHelper::system_error(req, "手机号更新失败，手机号同步未完成");
+            }
+
+            session->sql("COMMIT").execute();
+        }
+        catch (...)
+        {
+            session->sql("ROLLBACK").execute();
+            throw;
+        }
+
+        nlohmann::json response;
+        response["message"] = "手机号更新成功";
+        response["user"] = getUserData(userId);
+        return ResponseHelper::success(req, response);
+    }
+    catch (const mysqlx::Error &e)
+    {
+        return ResponseHelper::database_error(req, "Failed to update phone", e.what());
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "用户", "更新手机号", "Exception occurred: " + std::string(e.what()));
+        return ResponseHelper::operation_failed(req, "Failed to update phone", e.what());
     }
 }
 
@@ -902,7 +1012,6 @@ crow::response userHandler::userLogin(const crow::request &req)
                 RoleTypeUtils::getRoleName(dbManager, user->getTypeID());
             std::string token = JwtUtils::createToken(
                 user->getID(),
-                user->getName(),
                 user->getTypeID(),
                 role_name,
                 loginIdentifier,

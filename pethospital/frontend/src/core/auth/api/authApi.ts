@@ -1,4 +1,38 @@
 import http from "@/api/http";
+import type { AxiosResponse } from "axios";
+
+type ApiResponse<T> = {
+  success: boolean;
+  code: number;
+  message: string;
+  data: T;
+  error: null | {
+    type?: string;
+    details?: string;
+  };
+};
+
+export type EmailVerificationScene = "register" | "change";
+
+export type SendVerificationCodeResponseData = {
+  sent: boolean;
+  channel: "email" | "sms";
+  scene?: EmailVerificationScene;
+  phone?: string;
+};
+
+export type VerifyEmailCodeResponseData = {
+  success: boolean;
+  token?: string;
+};
+
+export type VerifySmsCodeResponseData = {
+  token: string;
+};
+
+export type VerifyCodeResponseData =
+  | VerifyEmailCodeResponseData
+  | VerifySmsCodeResponseData;
 
 type LoginStatusPayload = {
   username?: string;
@@ -49,11 +83,13 @@ export const authApi = {
     phone?: string;
     verificationCode?: string;
     code?: string;
-  }) {
+    scene?: EmailVerificationScene;
+  }): Promise<AxiosResponse<ApiResponse<VerifyCodeResponseData>>> {
     const code = payload.verificationCode ?? payload.code;
 
     if (payload.email) {
-      return http.post("/api/verification/email/verify", {
+      const scene = payload.scene ?? "register";
+      return http.post(`/api/verification/email/verify/${scene}`, {
         email: payload.email,
         code,
       });
@@ -111,9 +147,14 @@ export const authApi = {
   /**
    * 发送邮箱或手机号验证码。
    */
-  sendVerificationCode(payload: { email?: string; phone?: string }) {
+  sendVerificationCodeRegister(payload: {
+    email?: string;
+    phone?: string;
+    scene?: EmailVerificationScene;
+  }): Promise<AxiosResponse<ApiResponse<SendVerificationCodeResponseData>>> {
     if (payload.email) {
-      return http.post("/api/verification/ready", {
+      const scene = payload.scene ?? "register";
+      return http.post(`/api/verification/email/${scene}`, {
         email: payload.email,
       });
     }
@@ -130,7 +171,7 @@ export const authApi = {
     email: string;
     phone: string;
     code: string;
-  }) {
+  }): Promise<AxiosResponse<ApiResponse<VerifySmsCodeResponseData>>> {
     return http.post("/api/verification/sms/verify", {
       phone: payload.phone,
       code: payload.code,

@@ -8,7 +8,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include "../../controllers/OperationLogger/OperationLogger.h"
+#include "../../services/logger/operationLogger.h"
 #include "../../controllers/update/update.h"
 
 class ScheduledTaskManager

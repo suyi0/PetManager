@@ -1,4 +1,4 @@
-#include "GetSchedule.h"
+#include "getSchedule.h"
 void Reservate::date()
 {
     std::time_t t = std::time(nullptr);

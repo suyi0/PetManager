@@ -20,7 +20,8 @@ const shouldAttachAuthHeader = (url?: string) => {
   return ![
     "/api/user/login",
     "/api/auth/checkEmail",
-    "/api/verification/email/verify",
+    "/api/verification/email/register",
+    "/api/verification/email/verify/register",
     "/api/auth/checkPhone",
     "/api/verification/sms/send",
     "/api/verification/sms/verify",

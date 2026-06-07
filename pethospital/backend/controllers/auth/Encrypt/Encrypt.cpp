@@ -1,4 +1,4 @@
-#include "Encrypt.h"
+#include "encrypt.h"
 
 namespace
 {
@@ -142,7 +142,7 @@ std::string hash_password(const std::string &password)
     return kPasswordScheme + "$" + std::to_string(kPbkdf2Iterations) + "$" +
            bytes_to_hex(salt) + "$" + bytes_to_hex(derived_key);
 }
-// 校验密码哈希
+// 校验密码哈希(一致：true, 不一致：false)
 bool verify_password_hash(const std::string &password, const std::string &stored_hash)
 {
     if (stored_hash.rfind(kPasswordScheme + "$", 0) == 0)

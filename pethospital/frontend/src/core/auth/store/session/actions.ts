@@ -67,6 +67,7 @@ export const authActions: ActionTree<AuthState, State> = {
       email?: string;
       phone?: string;
       verificationCode: string;
+      scene?: "register" | "change";
     }
   ) {
     return authApi
@@ -190,9 +191,9 @@ export const authActions: ActionTree<AuthState, State> = {
 
   sendVerificationCode: debounce(async function (
     _: AuthActionContext,
-    payload: { email?: string; phone?: string }
+    payload: { email?: string; phone?: string; scene?: "register" | "change" }
   ) {
-    return authApi.sendVerificationCode(payload).catch((error) => {
+    return authApi.sendVerificationCodeRegister(payload).catch((error) => {
       throw error;
     });
   },

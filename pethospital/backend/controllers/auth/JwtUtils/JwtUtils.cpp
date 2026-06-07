@@ -1,9 +1,12 @@
-#include "JwtUtils.h"
-#include "../../../utils/RoleTypeUtils/RoleTypeUtils.h"
+#include "jwtUtils.h"
+#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 #include <cstring>
 
 namespace
 {
+    constexpr time_t kManagementTokenTtlSeconds = 1800;    // 管理门户 30 分钟
+    constexpr time_t kDefaultTokenTtlSeconds = 604800;     // 普通门户 7 天
+
     struct UserAuthTarget
     {
         int userId;
@@ -228,10 +231,11 @@ std::string get_jwt_secret()
 }
 
 // 生成JWT
-std::string JwtUtils::createToken(int userId, const std::string &username, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail)
+std::string JwtUtils::createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail)
 {
     try
     {
+
         // JWT由三部分组成: header.payload.signature
 
         // 1. Header
@@ -241,31 +245,15 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         // 2. Payload
         time_t now = time(nullptr);
         nlohmann::json payload_json;
-        payload_json["id"] = userId;
-        payload_json["username"] = username;
+        payload_json["sub"] = userId; // JWT 标准主体字段
         payload_json["type_id"] = type_id;
         payload_json["type_name"] = type_name;
         payload_json["identifier"] = identifier;
-
-        if (isEmail)
-        {
-            payload_json["login_type"] = "email";
-            payload_json["email"] = identifier;
-        }
-        else
-        {
-            payload_json["login_type"] = "phone";
-            payload_json["phone"] = identifier;
-        }
+        payload_json["login_type"] = isEmail ? "email" : "phone";
         payload_json["iat"] = now; // 签发时间
-        if (RoleTypeUtils::isManagementRole(type_name))
-        {
-            payload_json["exp"] = now + 1800; // 管理门户角色的JWT三十分钟后过期
-        }
-        else
-        {
-            payload_json["exp"] = now + 604800; // 一周有效
-        }
+        payload_json["exp"] = now + (RoleTypeUtils::isManagementRole(type_name)
+                                         ? kManagementTokenTtlSeconds
+                                         : kDefaultTokenTtlSeconds);
 
         std::string payload = payload_json.dump();
         std::string encoded_payload = url_safe_base64_encode(payload); // 对负载进行URL安全的Base64编码
@@ -294,7 +282,7 @@ std::string JwtUtils::createToken(int userId, const std::string &username, const
         }
 
         // 对签名进行URL安全的Base64编码
-        std::string signature_str(reinterpret_cast<char *>(signature), 32); // SHA256 produces 32 bytes
+        std::string signature_str(reinterpret_cast<char *>(signature), signature_len);
         std::string encoded_signature = url_safe_base64_encode(signature_str);
 
         return encoded_header + "." + encoded_payload + "." + encoded_signature;
@@ -315,14 +303,17 @@ bool verify_jwt_signature(const std::string &header, const std::string &payload,
     unsigned char expected_signature[EVP_MAX_MD_SIZE];
     unsigned int signature_len;
 
-    HMAC(EVP_sha256(), secret.c_str(), secret.length(),
-         reinterpret_cast<const unsigned char *>(signature_data.c_str()),
-         signature_data.length(), expected_signature, &signature_len);
+    if (HMAC(EVP_sha256(), secret.c_str(), secret.length(),
+             reinterpret_cast<const unsigned char *>(signature_data.c_str()),
+             signature_data.length(), expected_signature, &signature_len) == nullptr)
+    {
+        return false;
+    }
 
     std::string expected_signature_str(reinterpret_cast<char *>(expected_signature), signature_len);
     std::string actual_signature = url_safe_base64_decode(signature);
 
-    return expected_signature_str == actual_signature;
+    return constantTimeEquals(expected_signature_str, actual_signature);
 }
 
 // 解析Token并提取Claims信息
@@ -337,13 +328,16 @@ std::optional<JwtUtils::TokenClaims> JwtUtils::getTokenClaims(const std::string 
         }
 
         const auto &payload_json = payload_opt.value();
-        if (!payload_json.contains("id") || !payload_json["id"].is_number_integer())
+        const bool hasStandardSubject = payload_json.contains("sub") && payload_json["sub"].is_number_integer();
+        if (!hasStandardSubject)
         {
             return std::nullopt;
         }
 
+        const int userId = payload_json["sub"].get<int>();
+
         TokenClaims claims{
-            payload_json["id"].get<int>(),
+            userId,
             payload_json.contains("type_id") && payload_json["type_id"].is_number_integer() ? payload_json["type_id"].get<int>() : 0,
             payload_json.contains("type_name") && payload_json["type_name"].is_string() ? payload_json["type_name"].get<std::string>() : "",
             "",

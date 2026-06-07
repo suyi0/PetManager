@@ -1,9 +1,10 @@
-#include "UserPhoneSync.h"
+#include "userPhoneSync.h"
 
 #include <iostream>
 
 namespace UserPhoneSync
 {
+    // 实行手机号同步操作函数
     bool upsertUserPhone(mysqlx::Session &session, int userId, const std::string &phone)
     {
         if (userId <= 0 || phone.empty())
@@ -38,16 +39,5 @@ namespace UserPhoneSync
             std::cerr << "Failed to sync users.phone into phones: " << e.what() << std::endl;
             return false;
         }
-    }
-
-    bool upsertUserPhone(DatabaseManagerInterface &dbManager, int userId, const std::string &phone)
-    {
-        auto *session = dbManager.getSession();
-        if (!session)
-        {
-            return false;
-        }
-
-        return upsertUserPhone(*session, userId, phone);
     }
 }

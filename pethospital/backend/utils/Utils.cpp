@@ -31,7 +31,44 @@ void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow:
     res = std::move(handlerResponse);
 }
 
+// 固定时间字符串比较，适合验证码、签名、Token 摘要等敏感值比较。
+bool constantTimeEquals(const std::string &left, const std::string &right)
+{
+    if (left.size() != right.size())
+    {
+        return false;
+    }
 
+    unsigned char diff = 0; // 存储比较结果
+    // 1（ & ）按位与：两个位都为 1 时结果为 1，否则为 0。
+    // 2（ | ）按位或：两个位中至少一个为 1 时结果为 1，否则为 0。
+    // 3（ ^ ）按位异或：两个位不同时结果为 1，相同时为 0。
+    // 4（ ~ ）按位取反：将每个位取反（0 变 1，1 变 0）。
+    // 5（ << ）左移：所有位向左移动，右侧补 0。相当于乘以 2 的幂。
+    // 6（ >> ）右移：所有位向右移动，符号位扩展（有符号数）或补 0（无符号数）。相当于除以 2 的幂。
+    for (size_t i = 0; i < left.size(); ++i)
+    {
+        // 当left和right相等时，最终diff = 0
+        // 当left和right不相等时，最终diff != 0
+        diff |= static_cast<unsigned char>(left[i] ^ right[i]);
+
+        // 在异或运算中：
+        // 有符号扩展：0xFFFFFFFF ^ 0x00000000 = 0xFFFFFFFF
+        // 无符号扩展：0x000000FF ^ 0x00000000 = 0x000000FF
+
+        // 有符号情况
+        // char类型字符面量的二进制为8位，当使用进行运算时，自动转换为int类型字符面量的32位，
+        // 符号扩展规则：用符号位（最高位）填充所有新增的高位
+        // 如：char 值 255 (11111111) → 提升为 int 后是 0xFFFFFFFF
+
+        // 无符号情况
+        // char类型字符面量的二进制为8位，当使用进行运算时，自动转换为int类型字符面量的32位，
+        // 符号扩展规则：扩展时高位补 0
+        // 如：unsigned char 值 255 (11111111) → 提升为 int 后是 0x000000FF
+    }
+
+    return diff == 0;
+}
 
 // 从请求 JSON 中读取字符串字段；字段不存在或为 null 时返回默认值。
 std::string getRequestString(const nlohmann::json &request_body, const std::string &key, const std::string &defaultValue)
@@ -96,8 +133,6 @@ double getRequestDoubleWithFallback(
 
     return getRequestDouble(request_body, fallbackKey, DBValue);
 }
-
-
 
 // 添加一个更严格的UTF-8字符串清理函数
 std::string clean_string(const std::string &input)

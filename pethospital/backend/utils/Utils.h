@@ -1,6 +1,7 @@
 #pragma once
 #include <crow.h>
 #include <optional>
+#include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
@@ -10,11 +11,11 @@
 #include <algorithm>
 #include <stdexcept>
 #include <mysqlx/xdevapi.h>
-#include "../middleware/CorsMiddleware/CorsMiddleware.h"
-#include "../middleware/RateLimitMiddleware/RateLimitMiddleware.h"
+#include "../middleware/corsMiddleware/corsMiddleware.h"
+#include "../middleware/rateLimitMiddleware/rateLimitMiddleware.h"
 #include "../database/DatabaseManager.h"
-#include "../controllers/auth/Encrypt/Encrypt.h"
-#include "../controllers/auth/JwtUtils/JwtUtils.h"
+#include "../controllers/auth/encrypt/encrypt.h"
+#include "../controllers/auth/jwtUtils/jwtUtils.h"
 #include "../database/DatabaseManager.h"
 #include "ResponseCodes.h"
 
@@ -24,8 +25,11 @@ std::string getCreateTime();
 std::string clean_string(const std::string &input);
 std::string format_date(const std::tm &tm);
 std::string normalizeDate(const std::string &date_str);
+std::string getRequestString(const nlohmann::json &request_body, const std::string &key, const std::string &defaultValue = "");
+std::string getRequestStringWithFallback(const nlohmann::json &request_body, const std::string &primaryKey, const std::string &fallbackKey, const std::string &DBValue = "");
 double getRequestDouble(const nlohmann::json &request_body, const std::string &key, double defaultValue = 0.0);
 double getRequestDoubleWithFallback(const nlohmann::json &request_body, const std::string &primaryKey, const std::string &fallbackKey, double defaultValue = 0.0);
+bool constantTimeEquals(const std::string &left, const std::string &right);
 
 std::string formatDateTime(const boost::posix_time::ptime &pt);
 std::string formatDateOnly(const boost::posix_time::ptime &pt); // 只提取日期部分
@@ -161,7 +165,7 @@ public:
 private:
     // 构造最终响应对象，并补齐统一的协议字段。
     static crow::response buildResponse(
-        int httpStatus, 
+        int httpStatus,
         int businessCode,
         const std::string &message,
         const nlohmann::json &data,
@@ -194,10 +198,14 @@ public:
 
     // 公共 JSON 解析方法：
     // 当请求体不是合法 JSON 时，直接返回统一的参数校验失败响应。
-    std::optional<nlohmann::json> parseJson(const crow::request& req, crow::response& res) {
-        try {
+    std::optional<nlohmann::json> parseJson(const crow::request &req, crow::response &res)
+    {
+        try
+        {
             return nlohmann::json::parse(req.body);
-        } catch (...) {
+        }
+        catch (...)
+        {
             res = ResponseHelper::fail(
                 req,
                 400,
@@ -221,15 +229,18 @@ public:
 
     // 一键验证请求：
     // 同时完成 JSON 解析和数据库连接检查，失败时返回统一错误响应。
-    std::optional<nlohmann::json> validateRequest(const crow::request& req, crow::response& res) {
+    std::optional<nlohmann::json> validateRequest(const crow::request &req, crow::response &res)
+    {
         auto json_opt = parseJson(req, res);
-        if (!json_opt) return std::nullopt;
-        
-        if (!checkDbConnection()) {
+        if (!json_opt)
+            return std::nullopt;
+
+        if (!checkDbConnection())
+        {
             res = ResponseHelper::system_error(req);
             return std::nullopt;
         }
-        
+
         return json_opt;
     }
 };

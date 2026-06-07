@@ -3,6 +3,7 @@
 
 #include "../controllers/modules/warehouseManager/warehouseManagerHandler.h"
 #include "../../controllers/auth/authHandler/authHandler.h"
+#include "../../middleware/authMiddleware/authMiddleware.h"
 
 class warehouseManagerRoutes {
 public:

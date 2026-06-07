@@ -1,5 +1,5 @@
 #include "./routes/setRoutes/setRoutes.h"
-#include "../utils/ScheduledTaskManager/ScheduledTaskManager.h"
+#include "../utils/scheduledTaskManager/scheduledTaskManager.h"
 #ifndef _WIN32
 #include <csignal>
 #include <pthread.h>

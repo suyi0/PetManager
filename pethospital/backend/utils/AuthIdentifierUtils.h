@@ -23,6 +23,13 @@ inline bool isValidPhoneFormat(const std::string &phone)
     return std::regex_match(phone, phone_pattern);
 }
 
+// 验证密码格式：至少 6 位，且同时包含字母和数字。
+inline bool isValidPasswordFormat(const std::string &password)
+{
+    static const std::regex password_pattern(R"(^(?=.*[A-Za-z])(?=.*\d).{6,}$)");
+    return std::regex_match(password, password_pattern);
+}
+
 // 标准化手机号（去除空格，添加国家码）
 inline std::string normalizePhoneIdentifier(std::string phoneValue)
 {

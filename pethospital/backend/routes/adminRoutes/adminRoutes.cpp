@@ -2,7 +2,7 @@
 #include "../../controllers/modules/doctor/doctorHandler.h"
 #include "../../controllers/modules/finance/financeHandler.h"
 #include "../../controllers/modules/personnel/personnelHandler.h"
-#include "../../controllers/OperationLogger/OperationLogger.h"
+#include "../../services/logger/operationLogger.h"
 
 void adminRoutes::setupAdminRoutes(
     CrowApp &app,

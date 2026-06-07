@@ -1,9 +1,9 @@
 #ifndef DOCTORHANDLER_H
 #define DOCTORHANDLER_H 
 
-#include "RoleTypeUtils/RoleTypeUtils.h"
+#include "roleTypeUtils/roleTypeUtils.h"
 #include "../../../utils/Utils.h"
-#include "../../OperationLogger/OperationLogger.h"
+#include "../../../services/logger/operationLogger.h"
 
 class doctorHandler : public BaseHandler
 {
