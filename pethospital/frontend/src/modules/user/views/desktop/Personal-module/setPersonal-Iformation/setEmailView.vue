@@ -118,6 +118,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { isEmail } from "@/utils/authValidators";
+import { profileApi } from "@/modules/user/api/userApi";
 
 const store = useStore(storeKey);
 const emit = defineEmits(["close", "submit"]);
@@ -256,21 +257,31 @@ function changeEmail() {
           scene: "change",
         })
         .then((response) => {
-          if (response.status === 200) {
-            if (newUserEmail.value) {
-              emit("submit", {
-                field: "userEmail",
-                value: newUserEmail.value,
-              });
-
-              return store.dispatch("currentUser/updateUserData");
-            }
+          const ticket = response.data?.data?.ticket;
+          if (response.status === 200 && ticket && newUserEmail.value) {
+            return profileApi.updateEmail({
+              email: newUserEmail.value,
+              ticket,
+            });
           }
+
+          throw new Error("邮箱验证凭证无效");
         })
         .then((updateResponse) => {
           if (updateResponse?.status === 200) {
+            const token = updateResponse.data?.data?.token;
+            if (token) {
+              store.commit("auth/refreshToken", token);
+            }
+            store.commit("currentUser/updateUserField", {
+              field: "userEmail",
+              value: newUserEmail.value,
+              userType: store.state.auth.userType,
+              userRole: store.state.auth.userRole,
+            });
             alert("修改成功");
             resetForm();
+            emit("close");
           }
         })
         .catch((error) => {

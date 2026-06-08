@@ -216,6 +216,13 @@ export const profileApi = {
   },
 
   /**
+   * 使用邮箱验证码校验通过后的短期凭证更新登录邮箱。
+   */
+  updateEmail(payload: { email: string; ticket: string }) {
+    return http.patch("/api/user/security/email", payload);
+  },
+
+  /**
    * 上传用户头像文件。
    */
   uploadAvatar(formData: FormData) {

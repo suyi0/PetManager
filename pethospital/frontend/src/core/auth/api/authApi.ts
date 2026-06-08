@@ -23,6 +23,7 @@ export type SendVerificationCodeResponseData = {
 
 export type VerifyEmailCodeResponseData = {
   success: boolean;
+  ticket?: string;
   token?: string;
 };
 

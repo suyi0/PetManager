@@ -342,52 +342,20 @@ crow::response authHandler::checkVerifyEmailCode(const crow::request &req, int u
             return ResponseHelper::error(req, "邮箱格式错误");
         }
 
-        int userTypeId = -1;
-        std::string userType = "普通用户";
         std::string email = getRequestString(request_body, "email", "");
         std::string code = getRequestString(request_body, "code", "");
-        // 验证码验证
-        bool isValid = Verify::ValidateCode(email, code);
+        
+        bool isValid = Verify::ValidateCode(email, code);   // 验证码验证
 
         // 验证码验证成功
         if (isValid)
         {
             nlohmann::json response;
-
-            // 注册场景下邮箱尚未入库，只需返回校验通过。
-            if (userId <= 0)
-            {
-                response["success"] = true;
-                return ResponseHelper::success(req, response);
-            }
-
-            // 修改邮箱场景下，新邮箱还未写入 users 表，应按当前登录用户 ID 取会话信息。
-            mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT u.type_id, t.type "
-                                                 "FROM users AS u "
-                                                 "JOIN types AS t ON t.id = u.type_id "
-                                                 "WHERE u.id = ? AND u.is_deleted = 0 "
-                                                 "LIMIT 1")
-                                           .bind(userId)
-                                           .execute();
-
-            auto row = result.fetchOne();
-            if (!row)
-            {
-                return ResponseHelper::notFound(req, "用户不存在");
-            }
-
-            userTypeId = row[0].isNull() ? -1 : row[0].get<int>();
-            userType = row[1].isNull() ? "普通用户" : row[1].get<std::string>();
-
-            std::string token = JwtUtils::createToken(
-                userId,
-                userTypeId,
-                userType,
-                email,
-                true);
             response["success"] = true;
-            response["token"] = token;
+            if (userId > 0)
+            {
+                response["ticket"] = JwtUtils::createUpdateTicket(userId, email, "email");
+            }
             return ResponseHelper::success(req, response);
         }
         else
@@ -653,25 +621,9 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
 
         if (isValid)
         {
-            mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("SELECT id FROM users WHERE phone = ? AND is_deleted = 0")
-                                           .bind(phone)
-                                           .execute();
-            for (const auto &row : result)
-            {
-                userID = row[0].get<int>();
-            }
             // 验证成功，返回token
             nlohmann::json response;
-            const int defaultUserRoleId =
-                RoleTypeUtils::getRoleId(dbManager, "普通用户");
-            std::string token = JwtUtils::createToken(
-                userID,
-                defaultUserRoleId,
-                "普通用户",
-                phone,
-                false);
-            response["token"] = token;
+            response["success"] = true;
             return ResponseHelper::success(req, response);
         }
         else

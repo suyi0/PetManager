@@ -21,7 +21,14 @@ namespace JwtUtils {
         bool isEmailLogin;
     };
 
+    struct EmailChangeTicketClaims {
+        int userId;
+        std::string email;
+    };
+
     std::string createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail);
+    std::string createUpdateTicket(int userId, const std::string &date, const std::string &identifier);
+    std::optional<EmailChangeTicketClaims> getUpdateTicketClaims(const std::string &ticket, const std::string &date, const std::string &identifier);
 
     // JWT Token解析和权限验证函数
     std::optional<TokenClaims> getTokenClaims(const std::string &token);

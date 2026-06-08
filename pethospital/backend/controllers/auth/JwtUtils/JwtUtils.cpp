@@ -4,8 +4,9 @@
 
 namespace
 {
-    constexpr time_t kManagementTokenTtlSeconds = 1800;    // 管理门户 30 分钟
-    constexpr time_t kDefaultTokenTtlSeconds = 604800;     // 普通门户 7 天
+    constexpr time_t kManagementTokenTtlSeconds = 1800;  // 管理门户 30 分钟
+    constexpr time_t kDefaultTokenTtlSeconds = 604800;   // 普通门户 7 天
+    constexpr time_t kEmailChangeTicketTtlSeconds = 300; // 修改邮箱凭证 5 分钟
 
     struct UserAuthTarget
     {
@@ -108,6 +109,33 @@ namespace
         return UserAuthTarget{
             row[0].get<int>(),
             row[1].get<std::string>()};
+    }
+
+    // 创建JWT凭证
+    std::string createSignedJwt(const nlohmann::json &payload_json)
+    {
+        std::string header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
+        std::string encoded_header = url_safe_base64_encode(header);
+        std::string encoded_payload = url_safe_base64_encode(payload_json.dump());
+        std::string signature_data = encoded_header + "." + encoded_payload;
+        std::string secret_key = get_jwt_secret();
+
+        unsigned char signature[EVP_MAX_MD_SIZE];
+        unsigned int signature_len;
+
+        if (HMAC(EVP_sha256(),
+                 secret_key.c_str(), secret_key.length(),
+                 reinterpret_cast<const unsigned char *>(signature_data.c_str()),
+                 signature_data.length(),
+                 signature, &signature_len) == nullptr)
+        {
+            throw std::runtime_error("HMAC signature generation failed");
+        }
+
+        std::string signature_str(reinterpret_cast<char *>(signature), signature_len);
+        std::string encoded_signature = url_safe_base64_encode(signature_str);
+
+        return encoded_header + "." + encoded_payload + "." + encoded_signature;
     }
 }
 
@@ -236,13 +264,6 @@ std::string JwtUtils::createToken(int userId, const int type_id, const std::stri
     try
     {
 
-        // JWT由三部分组成: header.payload.signature
-
-        // 1. Header
-        std::string header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
-        std::string encoded_header = url_safe_base64_encode(header);
-
-        // 2. Payload
         time_t now = time(nullptr);
         nlohmann::json payload_json;
         payload_json["sub"] = userId; // JWT 标准主体字段
@@ -255,42 +276,82 @@ std::string JwtUtils::createToken(int userId, const int type_id, const std::stri
                                          ? kManagementTokenTtlSeconds
                                          : kDefaultTokenTtlSeconds);
 
-        std::string payload = payload_json.dump();
-        std::string encoded_payload = url_safe_base64_encode(payload); // 对负载进行URL安全的Base64编码
-
-        // 3. Signature (使用HMAC-SHA256算法)
-        std::string signature_data = encoded_header + "." + encoded_payload;
-
-        // 获取JWT密钥
-        std::string secret_key = get_jwt_secret();
-
-        // 使用HMAC-SHA256生成签名
-        unsigned char signature[EVP_MAX_MD_SIZE]; // 定义签名长度为EVP_MAX_MD_SIZE = 64 的缓冲区
-        unsigned int signature_len;
-
-        // HMAC(EVP_sha256(), key, key_len, data, data_len, md, md_len)
-        // key - 密钥, key_len - 密钥长度
-        // data - 待签名的数据, data_len - 待签名的数据长度
-        // md - 签名结果, md_len - 签名结果长度
-        if (HMAC(EVP_sha256(),
-                 secret_key.c_str(), secret_key.length(),
-                 reinterpret_cast<const unsigned char *>(signature_data.c_str()),
-                 signature_data.length(),
-                 signature, &signature_len) == nullptr)
-        {
-            throw std::runtime_error("HMAC signature generation failed");
-        }
-
-        // 对签名进行URL安全的Base64编码
-        std::string signature_str(reinterpret_cast<char *>(signature), signature_len);
-        std::string encoded_signature = url_safe_base64_encode(signature_str);
-
-        return encoded_header + "." + encoded_payload + "." + encoded_signature;
+        return createSignedJwt(payload_json);
     }
     catch (const std::exception &e)
     {
         std::cerr << "Token生成错误: " << e.what() << std::endl;
         throw; // 重新抛出异常
+    }
+}
+
+// 创建修改安全信息操作凭证JWT
+std::string JwtUtils::createUpdateTicket(int userId, const std::string &date, const std::string &identifier)
+{
+    time_t now = time(nullptr);
+    nlohmann::json payload_json;
+    payload_json["sub"] = userId;
+
+    if (identifier == "email")
+    {
+        payload_json["email"] = date;
+        payload_json["purpose"] = "change_email";
+    }
+    else if (identifier == "phone")
+    {
+        payload_json["phone"] = date;
+        payload_json["purpose"] = "change_phone";
+    }
+    payload_json["iat"] = now;
+    payload_json["exp"] = now + kEmailChangeTicketTtlSeconds;
+
+    return createSignedJwt(payload_json);
+}
+
+// 解析并验证修改邮箱凭证JWT
+std::optional<JwtUtils::EmailChangeTicketClaims> JwtUtils::getUpdateTicketClaims(const std::string &ticket, const std::string &date, const std::string &identifier)
+{
+
+    if (identifier != "email" && identifier != "phone")
+    {
+        return std::nullopt;
+    }
+
+    try
+    {
+        auto payload_opt = parseValidatedTokenPayload(ticket);
+        if (!payload_opt)
+        {
+            return std::nullopt;
+        }
+
+        const auto &payload_json = payload_opt.value();
+
+        // 检查凭证用途
+        if (!payload_json.contains("purpose") ||
+            !payload_json["purpose"].is_string() ||
+            payload_json["purpose"].get<std::string>() != (identifier == "email" ? "change_email" : "change_phone"))
+        {
+            return std::nullopt;
+        }
+
+        // 检查用户ID和邮箱字段
+        if (!payload_json.contains("sub") ||
+            !payload_json["sub"].is_number_integer() ||
+            !payload_json.contains(identifier == "email" ? "email" : "phone") ||
+            !payload_json[identifier == "email" ? "email" : "phone"].is_string())
+        {
+            return std::nullopt;
+        }
+
+        return EmailChangeTicketClaims{
+            payload_json["sub"].get<int>(),
+            payload_json[identifier == "email" ? "email" : "phone"].get<std::string>()};
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Update ticket解析错误: " << e.what() << std::endl;
+        return std::nullopt;
     }
 }
 
@@ -328,8 +389,8 @@ std::optional<JwtUtils::TokenClaims> JwtUtils::getTokenClaims(const std::string 
         }
 
         const auto &payload_json = payload_opt.value();
-        const bool hasStandardSubject = payload_json.contains("sub") && payload_json["sub"].is_number_integer();
-        if (!hasStandardSubject)
+        if (!(payload_json.contains("sub") &&
+              payload_json["sub"].is_number_integer()))
         {
             return std::nullopt;
         }
