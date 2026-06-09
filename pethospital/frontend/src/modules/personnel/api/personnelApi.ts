@@ -5,12 +5,12 @@ import { superAdminUserRowsMock } from "@/modules/super-admin/api/superAdminMock
 
 export const personnelApi = {
   refreshSession() {
-    return http.post("/api/auth/admin/refresh");
+    return http.post("/api/admins/session-renewals");
   },
 
   async getUsers(): Promise<UserRow[]> {
     try {
-      const { data } = await http.get("/api/admin/getUsers");
+      const { data } = await http.get("/api/admins/users");
       const rows = unwrapList<UserRow>(data);
       return rows;
     } catch {
@@ -19,21 +19,21 @@ export const personnelApi = {
   },
 
   async createDoctor(userID: number): Promise<void> {
-    await http.post("/api/personnel/createDoctor", { user_id: userID });
+    await http.post("/api/personnel/doctor-assignments", { user_id: userID });
   },
 
   async deleteDoctor(userID: number): Promise<void> {
-    await http.post("/api/personnel/deleteDoctor", { user_id: userID });
+    await http.post("/api/personnel/doctor-removals", { user_id: userID });
   },
 
   async createWarehouserManager(userID: number): Promise<void> {
-    await http.post("/api/personnel/createWarehouserManager", {
+    await http.post("/api/personnel/warehouse-manager-assignments", {
       user_id: userID,
     });
   },
 
   async deleteWarehouserManager(userID: number): Promise<void> {
-    await http.post("/api/personnel/deleteWarehouserManager", {
+    await http.post("/api/personnel/warehouse-manager-removals", {
       user_id: userID,
     });
   },

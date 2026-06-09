@@ -12,7 +12,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     routes_setup = true;
 
     // 添加控制用户名验证的路由
-    CROW_ROUTE(app, "/api/auth/checkName")
+    CROW_ROUTE(app, "/api/auth/name-availability")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try
@@ -29,7 +29,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "检查用户名", std::nullopt, false); });
 
     // 添加控制邮箱验证的路由
-    CROW_ROUTE(app, "/api/auth/checkEmail")
+    CROW_ROUTE(app, "/api/auth/email-availability")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try
@@ -46,7 +46,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "检查邮箱", std::nullopt, false); });
 
     // 添加控制手机号验证的路由
-    CROW_ROUTE(app, "/api/auth/checkPhone")
+    CROW_ROUTE(app, "/api/auth/phone-availability")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try
@@ -63,7 +63,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "检查手机号", std::nullopt, false); });
 
     // 添加控制注册邮箱验证码发送路由
-    CROW_ROUTE(app, "/api/verification/email/register")
+    CROW_ROUTE(app, "/api/email-verification-codes/registrations")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try {
@@ -78,7 +78,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "准备验证码（注册）", std::nullopt, false); });
 
     // 添加控制更改邮箱验证码发送路由
-    CROW_ROUTE(app, "/api/verification/email/change")
+    CROW_ROUTE(app, "/api/email-verification-codes/email-changes")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             int userId = -1;
@@ -102,7 +102,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "准备验证码（修改邮箱）", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 添加控制邮箱验证码验证路由
-    CROW_ROUTE(app, "/api/verification/email/verify/register")
+    CROW_ROUTE(app, "/api/email-verification-tickets/registrations")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
                 try
@@ -117,7 +117,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "验证邮箱验证码（注册）", std::nullopt, false); });
 
-    CROW_ROUTE(app, "/api/verification/email/verify/change")
+    CROW_ROUTE(app, "/api/email-verification-tickets/email-changes")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
                 int userId = -1;
@@ -142,7 +142,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "验证邮箱验证码（修改邮箱）", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 添加控制用户重新令牌路由
-    CROW_ROUTE(app, "/api/auth/admin/refresh")
+    CROW_ROUTE(app, "/api/admins/session-renewals")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
                 int userId = -1;
@@ -165,7 +165,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "刷新管理员令牌", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 添加控制手机号验证码发送路由
-    CROW_ROUTE(app, "/api/verification/sms/send")
+    CROW_ROUTE(app, "/api/sms-verification-codes")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try {
@@ -180,7 +180,7 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "发送短信验证码", std::nullopt, false); });
 
     // 添加控制手机号验证路由
-    CROW_ROUTE(app, "/api/verification/sms/verify")
+    CROW_ROUTE(app, "/api/sms-verification-tickets")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try {

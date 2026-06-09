@@ -18,13 +18,13 @@ const shouldAttachAuthHeader = (url?: string) => {
   }
 
   return ![
-    "/api/user/login",
-    "/api/auth/checkEmail",
-    "/api/verification/email/register",
-    "/api/verification/email/verify/register",
-    "/api/auth/checkPhone",
-    "/api/verification/sms/send",
-    "/api/verification/sms/verify",
+    "/api/users/sessions",
+    "/api/auth/email-availability",
+    "/api/email-verification-codes/registrations",
+    "/api/email-verification-tickets/registrations",
+    "/api/auth/phone-availability",
+    "/api/sms-verification-codes",
+    "/api/sms-verification-tickets",
   ].some((path) => url.startsWith(path)); // some(...)：数组里只要有一个满足条件，就返回 true
   // startsWith(...)：判断字符串是不是以某段内容开头
 };

@@ -11,7 +11,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
         return;
 
     // 添加注册路由
-    CROW_ROUTE(app, "/api/user/register")
+    CROW_ROUTE(app, "/api/users/registrations")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try
@@ -29,7 +29,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "注册账号", std::nullopt, false); });
 
     // 添加登录路由
-    CROW_ROUTE(app, "/api/user/login")
+    CROW_ROUTE(app, "/api/users/sessions")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             try {
@@ -45,7 +45,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "账号登录"); });
 
     // 添加用户资料更新路由
-    CROW_ROUTE(app, "/api/user/profile")
+    CROW_ROUTE(app, "/api/users/me/profile")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
@@ -71,7 +71,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新个人资料", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 更新用户密码路由
-    CROW_ROUTE(app, "/api/user/security/password")
+    CROW_ROUTE(app, "/api/users/me/password")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
@@ -98,7 +98,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新密码", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 更新用户邮箱地址路由
-    CROW_ROUTE(app, "/api/user/security/email")
+    CROW_ROUTE(app, "/api/users/me/email")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
@@ -125,7 +125,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新邮箱", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 更新用户手机号路由
-    CROW_ROUTE(app, "/api/user/security/phone")
+    CROW_ROUTE(app, "/api/users/me/phone")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
@@ -152,7 +152,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "更新手机号", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 添加新地址路由
-    CROW_ROUTE(app, "/api/user/address/add")
+    CROW_ROUTE(app, "/api/users/me/addresses")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             int userId = -1;
@@ -179,7 +179,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "添加新地址", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 添加地址更新路由
-    CROW_ROUTE(app, "/api/user/address/update/<int>")
+    CROW_ROUTE(app, "/api/users/me/addresses/<int>")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int addressId)
                                                                    {
             int userId = -1;
@@ -205,7 +205,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
     // 上传头像
     // 文件上传请求,客户端发送的是 multipart/form-data 格式，不是 JSON 格式
-    CROW_ROUTE(app, "/api/user/avatar")
+    CROW_ROUTE(app, "/api/users/me/avatar")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
             int userId = -1;
@@ -247,7 +247,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取上传文件", std::nullopt, false); });
 
     // 添加宠物档案管理路由
-    CROW_ROUTE(app, "/api/user/petProfiles")
+    CROW_ROUTE(app, "/api/users/me/pet-profiles")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                                            {
             int userId = -1;
@@ -276,7 +276,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "管理宠物档案", userId > 0 ? std::optional<int>(userId) : std::nullopt, req.method != crow::HTTPMethod::Get); });
 
     // 更新/删除宠物档案管理路由
-    CROW_ROUTE(app, "/api/user/petProfiles/<int>")
+    CROW_ROUTE(app, "/api/users/me/pet-profiles/<int>")
         .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int petId)
                                                                                              {
             int userId = -1;
@@ -305,7 +305,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "管理宠物档案", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 用户预约摘要与创建预约路由.
-    CROW_ROUTE(app, "/api/user/reservations")
+    CROW_ROUTE(app, "/api/users/me/reservations")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                                            {
             int userId = -1;
@@ -413,7 +413,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "创建预约", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 用户预约详情与删除预约记录路由.
-    CROW_ROUTE(app, "/api/user/reservations/<int>")
+    CROW_ROUTE(app, "/api/users/me/reservations/<int>")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int reservationId)
                                                                                              {
             int userId = -1;
@@ -448,7 +448,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", req.method == crow::HTTPMethod::Delete ? "删除预约记录" : "获取预约记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, req.method == crow::HTTPMethod::Delete); });
 
     //  获取预约日期路由.
-    CROW_ROUTE(app, "/api/user/reservations/dates")
+    CROW_ROUTE(app, "/api/users/me/reservation-dates")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             try {
@@ -463,7 +463,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取预约日期", std::nullopt, false); });
 
     // 获取可预约的医生列表路由.
-    CROW_ROUTE(app, "/api/user/reservations/doctors")
+    CROW_ROUTE(app, "/api/users/me/reservation-doctors")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             try {
@@ -480,7 +480,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取医生列表", std::nullopt, false); });
 
     // 取消预约记录路由.
-    CROW_ROUTE(app, "/api/user/reservations/<int>/cancel")
+    CROW_ROUTE(app, "/api/users/me/reservations/<int>/cancellation")
         .methods(crow::HTTPMethod::Patch, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int reservationId)
                                                                      {
             int userId = -1;
@@ -506,7 +506,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "取消预约", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 获得订单列表
-    CROW_ROUTE(app, "/api/user/orders")
+    CROW_ROUTE(app, "/api/users/me/orders")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;
@@ -530,7 +530,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取订单列表", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 获得订单信息
-    CROW_ROUTE(app, "/api/user/orders/<int>")
+    CROW_ROUTE(app, "/api/users/me/orders/<int>")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId)
                                                                    {
             int userId = -1;

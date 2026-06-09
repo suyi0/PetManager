@@ -10,7 +10,7 @@ void personnelRoutes::setupPersonnelRoutes(CrowApp &app, std::shared_ptr<Databas
         return;
     }
 
-    CROW_ROUTE(app, "/api/personnel/createDoctor")
+    CROW_ROUTE(app, "/api/personnel/doctor-assignments")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -36,7 +36,7 @@ void personnelRoutes::setupPersonnelRoutes(CrowApp &app, std::shared_ptr<Databas
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "人事", "创建医生", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/personnel/deleteDoctor")
+    CROW_ROUTE(app, "/api/personnel/doctor-removals")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -62,7 +62,7 @@ void personnelRoutes::setupPersonnelRoutes(CrowApp &app, std::shared_ptr<Databas
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "人事", "删除医生", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/personnel/createWarehouserManager")
+    CROW_ROUTE(app, "/api/personnel/warehouse-manager-assignments")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -88,7 +88,7 @@ void personnelRoutes::setupPersonnelRoutes(CrowApp &app, std::shared_ptr<Databas
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "人事", "创建仓库管理员", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/personnel/deleteWarehouserManager")
+    CROW_ROUTE(app, "/api/personnel/warehouse-manager-removals")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {

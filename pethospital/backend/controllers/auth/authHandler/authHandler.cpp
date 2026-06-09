@@ -337,15 +337,15 @@ crow::response authHandler::checkVerifyEmailCode(const crow::request &req, int u
             return ResponseHelper::error(req, "缺少邮箱或验证码");
         }
 
-        if(!isValidEmailFormat(request_body["email"]))
+        if (!isValidEmailFormat(request_body["email"]))
         {
             return ResponseHelper::error(req, "邮箱格式错误");
         }
 
         std::string email = getRequestString(request_body, "email", "");
         std::string code = getRequestString(request_body, "code", "");
-        
-        bool isValid = Verify::ValidateCode(email, code);   // 验证码验证
+
+        bool isValid = Verify::ValidateCode(email, code); // 验证码验证
 
         // 验证码验证成功
         if (isValid)
@@ -595,7 +595,7 @@ crow::response authHandler::sendSmsVerification(const crow::request &req)
 }
 
 // 手机号验证码验证函数
-crow::response authHandler::checkVerifySmsCode(const crow::request &req)
+crow::response authHandler::checkVerifySmsCode(const crow::request &req, int userId)
 {
     try
     {
@@ -624,14 +624,15 @@ crow::response authHandler::checkVerifySmsCode(const crow::request &req)
             // 验证成功，返回token
             nlohmann::json response;
             response["success"] = true;
+            if (userId > 0)
+            {
+                response["ticket"] = JwtUtils::createUpdateTicket(userId, phone, "phone");
+            }
             return ResponseHelper::success(req, response);
         }
         else
         {
-            return ResponseHelper::verification_failed(
-                req,
-                "Invalid Verification Code",
-                "Verification code validation failed");
+            return ResponseHelper::verification_failed(req, "Invalid Verification Code", "Verification code validation failed");
         }
     }
     catch (const std::exception &e)

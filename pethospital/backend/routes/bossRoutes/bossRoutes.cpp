@@ -9,7 +9,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
         return;
     }
 
-    CROW_ROUTE(app, "/api/boss/allocateTotalStock")
+    CROW_ROUTE(app, "/api/bosses/total-stock-allocations")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -35,7 +35,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "boss", "分配股份总额", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/boss/allocateStock")
+    CROW_ROUTE(app, "/api/bosses/stock-allocations")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -61,7 +61,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "boss", "分配个人股份份额", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/boss/changeStock")
+    CROW_ROUTE(app, "/api/bosses/stock-changes")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -87,7 +87,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "boss", "修改个人股份份额", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/boss/getStock")
+    CROW_ROUTE(app, "/api/bosses/stocks")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {

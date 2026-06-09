@@ -119,10 +119,17 @@ export default defineComponent({
       // 页面首次进入时优先复用首页摘要缓存，只有过期或脏数据时才会重拉。
       void store.dispatch("superAdmin/ensureOverviewData");
 
-      closeHomeDataStream = subscribeSuperAdminHomeData((homeData) => {
-        store.commit("superAdmin/setHomePageData", homeData);
-        saveSuperAdminHomePageDataCache(homeData);
-      });
+      closeHomeDataStream = subscribeSuperAdminHomeData(
+        (homeData) => {
+          store.commit("superAdmin/setHomePageData", homeData);
+          saveSuperAdminHomePageDataCache(homeData);
+        },
+        {
+          onFallbackRefresh: () => {
+            void loadAll();
+          },
+        }
+      );
     });
 
     onBeforeUnmount(() => {

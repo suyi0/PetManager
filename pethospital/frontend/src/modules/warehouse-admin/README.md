@@ -25,9 +25,9 @@
 
 接口默认对接后端仓库管理模块：
 
-- `GET /warehouseManager/select`
-- `GET /warehouseManager/select/dataID/:id`
-- `GET /warehouseManager/select/item_name/:name`
-- `POST /warehouseManager/upload`
-- `PATCH /warehouseManager/updata/:id`
-- `DELETE /warehouseManager/delete/:id`
+- `GET /api/warehouse-managers/items`
+- `GET /api/warehouse-managers/items/data-id/:id`
+- `GET /api/warehouse-managers/items/item-name/:name`
+- `POST /api/warehouse-managers/items`
+- `PATCH /api/warehouse-managers/items/:id`
+- `DELETE /api/warehouse-managers/item-deletions`

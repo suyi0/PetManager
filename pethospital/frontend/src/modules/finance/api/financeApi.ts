@@ -40,11 +40,11 @@ const createEmptyFinanceHomeData = (): FinanceHomeData => ({
 export const financeApi = {
   /**
    * 获取财务端首页总览数据。
-   * 接口路径对应后端 /api/finance/getHomeData。
+   * 接口路径对应后端 /api/finance/home-data。
    */
   async getHomeData(): Promise<FinanceHomeData> {
     try {
-      const { data } = await http.get("/api/finance/getHomeData");
+      const { data } = await http.get("/api/finance/home-data");
       const payload = data?.data ?? data;
 
       return {
@@ -65,7 +65,7 @@ export const financeApi = {
    */
   async getSalaryManagementData(): Promise<SalaryManagementPayload> {
     try {
-      const { data } = await http.get("/api/finance/getSalaryManagementData");
+      const { data } = await http.get("/api/finance/expenses");
       const payload = data?.data ?? data;
 
       return {
@@ -90,7 +90,7 @@ export const financeApi = {
    */
   async getSalarySummary(page = 1): Promise<SalarySummaryCache> {
     try {
-      const { data } = await http.get(`/api/finance/getSalarySummary/${page}`);
+      const { data } = await http.get(`/api/finance/salary-summaries/${page}`);
       const payload = data?.data ?? data;
       const list = unwrapList<SalarySummaryItem>(payload?.list).map((item) => ({
         salary_id: Number(item.salary_id ?? 0),
@@ -119,7 +119,7 @@ export const financeApi = {
   ): Promise<SalaryInformationCache | null> {
     try {
       const { data } = await http.get(
-        `/api/finance/getSalaryInformation/${salaryId}`
+        `/api/finance/salary-records/${salaryId}`
       );
       const payload = data?.data ?? data;
 
@@ -143,6 +143,10 @@ export const financeApi = {
    * 修改员工工资结构。
    */
   async changeSalary(payload: ChangeSalaryPayload): Promise<void> {
-    await http.post("/api/finance/changeSalary", payload);
+    await http.post(`/api/finance/employee-salaries/${payload.userId}`, {
+      baseSalary: payload.baseSalary,
+      PA_Award: payload.paAward,
+      PB_Award: payload.pbAward,
+    });
   },
 };

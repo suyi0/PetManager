@@ -29,7 +29,7 @@ public:
 
     // 新增：手机号验证码相关函数
     crow::response sendSmsVerification(const crow::request& req);           // 对应 "/api/verification/sms/send"
-    crow::response checkVerifySmsCode(const crow::request& req);                 // 对应 "/api/verification/sms/verify"
+    crow::response checkVerifySmsCode(const crow::request& req, int userId = -1);                 // 对应 "/api/verification/sms/verify"
 };
 
 #endif

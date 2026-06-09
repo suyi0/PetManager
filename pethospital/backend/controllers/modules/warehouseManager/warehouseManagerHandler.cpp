@@ -117,7 +117,7 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
 
         mysqlx::SqlResult result;
 
-        if(identifier == "dataID")
+        if(identifier == "data-id")
         {
             int dataID = 0;
             try
@@ -141,7 +141,7 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
                 .bind(dataID)
                 .execute();
         }
-        else if(identifier == "item_name")
+        else if(identifier == "item-name")
         {
             if(value.empty())
             {
@@ -157,7 +157,7 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
         }
         else
         {
-            return ResponseHelper::validation(req, "identifier 仅支持 dataID 或 item_name");
+            return ResponseHelper::validation(req, "identifier 仅支持 data-id 或 item-name");
         }
 
         nlohmann::json response_data = nlohmann::json::array();
@@ -183,7 +183,7 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
             return ResponseHelper::notFound(req, "未找到对应的仓库数据");
         }
 
-        if(identifier == "dataID")
+        if(identifier == "data-id")
         {
             return ResponseHelper::success(req, response_data[0]);
         }

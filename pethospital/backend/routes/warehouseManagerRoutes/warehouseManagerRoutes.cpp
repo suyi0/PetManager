@@ -10,7 +10,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
         return;
     }
 
-    CROW_ROUTE(app, "/api/warehouseManager/upload")
+    CROW_ROUTE(app, "/api/warehouse-managers/items")
         .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)(
             [dbManager](const crow::request &req, crow::response &res) {
                 int userId = -1;
@@ -35,7 +35,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             }
         );
 
-    CROW_ROUTE(app, "/api/warehouseManager/select")
+    CROW_ROUTE(app, "/api/warehouse-managers/items")
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)(
             [dbManager](const crow::request &req, crow::response &res) {
                 int userId = -1;
@@ -60,7 +60,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             }
         );
 
-    CROW_ROUTE(app, "/api/warehouseManager/select/<string>/<string>")
+    CROW_ROUTE(app, "/api/warehouse-managers/items/<string>/<string>")
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)(
             [dbManager](
                 const crow::request &req,
@@ -90,7 +90,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             }
         );
 
-    CROW_ROUTE(app, "/api/warehouseManager/updata/<int>")
+    CROW_ROUTE(app, "/api/warehouse-managers/items/<int>")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::OPTIONS)(
             [dbManager](
                 const crow::request &req,
@@ -119,7 +119,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             }
         );
 
-    CROW_ROUTE(app, "/api/warehouseManager/delete")
+    CROW_ROUTE(app, "/api/warehouse-managers/item-deletions")
         .methods(crow::HTTPMethod::DELETE, crow::HTTPMethod::OPTIONS)(
             [dbManager](
                 const crow::request &req,

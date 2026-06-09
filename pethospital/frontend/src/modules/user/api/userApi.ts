@@ -95,13 +95,13 @@ const normalizeReservationSummaries = (
  * @returns 返回订单摘要列表；接口为空或失败时返回空列表。
  */
 const fetchGetOrderSummaryResponse = () =>
-  http.get("/api/user/orders").catch(() => createSuccessResponse([]));
+  http.get("/api/users/me/orders").catch(() => createSuccessResponse([]));
 
 /**
  * 订单完整信息接口请求函数。
  */
 const fetchGetOrderInformationResponse = (orderId: number) =>
-  http.get(`/api/user/orders/${orderId}`);
+  http.get(`/api/users/me/orders/${orderId}`);
 
 /**
  * 将后端预约时间表结构转换成预约页面可直接使用的拆分字段。
@@ -137,7 +137,7 @@ const normalizeScheduleData = (
  */
 const fetchGetDateResponse = () =>
   http
-    .get("/api/user/reservations/dates")
+    .get("/api/users/me/reservation-dates")
     .then((response) => {
       const rows = Array.isArray(response?.data?.data)
         ? response.data.data
@@ -161,7 +161,7 @@ const fetchGetDateResponse = () =>
  */
 const fetchGetDoctorResponse = () =>
   http
-    .get("/api/user/reservations/doctors")
+    .get("/api/users/me/reservation-doctors")
     .then((response) => {
       const rows = Array.isArray(response?.data?.data)
         ? response.data.data
@@ -184,7 +184,7 @@ const fetchGetDoctorResponse = () =>
  * 请求当前登录用户的预约记录，具体用户范围由后端登录态判断。
  */
 const fetchReservationsSummaryResponse = () =>
-  http.get("/api/user/reservations").catch(() =>
+  http.get("/api/users/me/reservations").catch(() =>
     createSuccessResponse({
       success: true,
       data: [],
@@ -195,7 +195,7 @@ const fetchReservationsSummaryResponse = () =>
  * 请求当前选中的完整预约记录。
  */
 const fetchReservationInformationResponse = (reservationId: number) =>
-  http.get(`/api/user/reservations/${reservationId}`);
+  http.get(`/api/users/me/reservations/${reservationId}`);
 
 /**
  * 用户档案相关接口函数集合，包含保存用户基础资料和上传用户头像等功能。
@@ -212,21 +212,21 @@ export const profileApi = {
     address?: string | null;
     headImage?: string | null | undefined;
   }) {
-    return http.put("/api/user/profile", payload);
+    return http.put("/api/users/me/profile", payload);
   },
 
   /**
    * 使用邮箱验证码校验通过后的短期凭证更新登录邮箱。
    */
   updateEmail(payload: { email: string; ticket: string }) {
-    return http.patch("/api/user/security/email", payload);
+    return http.patch("/api/users/me/email", payload);
   },
 
   /**
    * 上传用户头像文件。
    */
   uploadAvatar(formData: FormData) {
-    return http.post("/api/user/avatar", formData, {
+    return http.post("/api/users/me/avatar", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
   },
@@ -288,7 +288,7 @@ export const reservationApi = {
     date: string;
     slot: string;
   }) {
-    return http.post("/api/user/reservations", payload);
+    return http.post("/api/users/me/reservations", payload);
   },
 
   /**
@@ -329,30 +329,32 @@ export const reservationApi = {
    * 删除当前用户的一条预约记录。
    */
   async deleterecord(reservationId: number): Promise<void> {
-    await http.delete(`/api/user/reservations/${reservationId}`);
+    await http.delete(
+      `/api/users/me/reservations/${reservationId}/cancellation`
+    );
   },
 };
 
 export const petApi = {
   async getPetProfiles(): Promise<PetProfile[]> {
-    const response = await http.get("/api/user/petProfiles");
+    const response = await http.get("/api/users/me/pet-profiles");
     return unwrapListData<PetProfile>(response);
   },
 
   async createPetProfile(payload: Omit<PetProfile, "id">): Promise<PetProfile> {
-    const response = await http.post("/api/user/petProfiles", payload);
+    const response = await http.post("/api/users/me/pet-profiles", payload);
     return (response.data?.data || response.data) as PetProfile;
   },
 
   async updatePetProfile(payload: PetProfile): Promise<PetProfile> {
     const response = await http.put(
-      `/api/user/petProfiles/${payload.id}`,
+      `/api/users/me/pet-profiles/${payload.id}`,
       payload
     );
     return (response.data?.data || response.data) as PetProfile;
   },
 
   async deletePetProfile(petId: string): Promise<void> {
-    await http.delete(`/api/user/petProfiles/${petId}`);
+    await http.delete(`/api/users/me/pet-profiles/${petId}`);
   },
 };

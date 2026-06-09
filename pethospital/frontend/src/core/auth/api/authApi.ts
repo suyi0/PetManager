@@ -35,6 +35,16 @@ export type VerifyCodeResponseData =
   | VerifyEmailCodeResponseData
   | VerifySmsCodeResponseData;
 
+const emailVerificationCodePaths: Record<EmailVerificationScene, string> = {
+  register: "/api/email-verification-codes/registrations",
+  change: "/api/email-verification-codes/email-changes",
+};
+
+const emailVerificationTicketPaths: Record<EmailVerificationScene, string> = {
+  register: "/api/email-verification-tickets/registrations",
+  change: "/api/email-verification-tickets/email-changes",
+};
+
 type LoginStatusPayload = {
   username?: string;
   user?: string;
@@ -90,13 +100,13 @@ export const authApi = {
 
     if (payload.email) {
       const scene = payload.scene ?? "register";
-      return http.post(`/api/verification/email/verify/${scene}`, {
+      return http.post(emailVerificationTicketPaths[scene], {
         email: payload.email,
         code,
       });
     }
 
-    return http.post("/api/verification/sms/verify", {
+    return http.post("/api/sms-verification-tickets", {
       phone: payload.phone,
       code,
     });
@@ -106,7 +116,7 @@ export const authApi = {
    * 注册阶段提交用户账号基础信息。
    */
   registerSetUser(payload: { email: string; password: string }) {
-    return http.post("/api/user/register", {
+    return http.post("/api/users/registrations", {
       password: payload.password,
       email: payload.email,
     });
@@ -124,14 +134,14 @@ export const authApi = {
       identifier: payload.identifier,
     };
 
-    return http.post("/api/user/login", requestData);
+    return http.post("/api/users/sessions", requestData);
   },
 
   /**
    * 检查邮箱是否已被注册。
    */
   checkEmail(payload: { email: string }) {
-    return http.post("/api/auth/checkEmail", {
+    return http.post("/api/auth/email-availability", {
       email: payload.email,
     });
   },
@@ -140,7 +150,7 @@ export const authApi = {
    * 检查手机号是否已被注册。
    */
   checkPhone(payload: { phone: string }) {
-    return http.post("/api/auth/checkPhone", {
+    return http.post("/api/auth/phone-availability", {
       phone: payload.phone,
     });
   },
@@ -155,12 +165,12 @@ export const authApi = {
   }): Promise<AxiosResponse<ApiResponse<SendVerificationCodeResponseData>>> {
     if (payload.email) {
       const scene = payload.scene ?? "register";
-      return http.post(`/api/verification/email/${scene}`, {
+      return http.post(emailVerificationCodePaths[scene], {
         email: payload.email,
       });
     }
 
-    return http.post("/api/verification/sms/send", {
+    return http.post("/api/sms-verification-codes", {
       phone: payload.phone,
     });
   },
@@ -173,7 +183,7 @@ export const authApi = {
     phone: string;
     code: string;
   }): Promise<AxiosResponse<ApiResponse<VerifySmsCodeResponseData>>> {
-    return http.post("/api/verification/sms/verify", {
+    return http.post("/api/sms-verification-tickets", {
       phone: payload.phone,
       code: payload.code,
     });

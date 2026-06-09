@@ -10,7 +10,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
     }
 
     // 获取首页数据路由
-    CROW_ROUTE(app, "/api/finance/getHomeData")
+    CROW_ROUTE(app, "/api/finance/home-data")
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -37,7 +37,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
             });
 
     // 添加或更新员工工资路由
-    CROW_ROUTE(app, "/api/finance/updateEmployeeSalary/<int>")
+    CROW_ROUTE(app, "/api/finance/employee-salaries/<int>")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res, int goalUserId)
             {
@@ -64,7 +64,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
             });
 
     // 获取员工工资列表摘要路由
-    CROW_ROUTE(app, "/api/finance/getSalarySummary/<int>")
+    CROW_ROUTE(app, "/api/finance/salary-summaries/<int>")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res, int page)
             {
@@ -91,7 +91,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
             });
 
     // 获取员工工资详情路由
-    CROW_ROUTE(app, "/api/finance/getSalaryInformation/<int>")
+    CROW_ROUTE(app, "/api/finance/salary-records/<int>")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res, int salaryId)
             {
@@ -118,7 +118,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取工资详情", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/finance/getExpenseData")
+    CROW_ROUTE(app, "/api/finance/expenses")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {

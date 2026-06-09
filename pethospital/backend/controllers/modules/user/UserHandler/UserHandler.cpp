@@ -632,8 +632,8 @@ crow::response userHandler::updateEmail(const crow::request &req, int userId)
             return ResponseHelper::validation(req, "邮箱验证凭证输入错误");
         }
 
-        auto ticketClaims = JwtUtils::getEmailChangeTicketClaims(ticket);
-        if (!ticketClaims || ticketClaims->userId != userId || ticketClaims->email != email)
+        auto ticketClaims = JwtUtils::getUpdateTicketClaims(ticket, email, "email");
+        if (!ticketClaims || ticketClaims->userId != userId || ticketClaims->data != email || ticketClaims->identifier != "email")
         {
             return ResponseHelper::permission_denied(req, "邮箱验证凭证无效或已过期");
         }
@@ -697,17 +697,15 @@ crow::response userHandler::updateEmail(const crow::request &req, int userId)
             throw;
         }
 
-        std::string token = JwtUtils::createToken(
+        nlohmann::json response;
+        response["message"] = "邮箱更新成功";
+        response["user"] = getUserData(userId);
+        response["token"] = JwtUtils::createToken(
             userId,
             type_id,
             type,
             email,
             true);
-
-        nlohmann::json response;
-        response["message"] = "邮箱更新成功";
-        response["user"] = getUserData(userId);
-        response["token"] = token;
         return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)
@@ -732,6 +730,7 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         auto &request_body = request_body_opt.value();
 
         std::string phone = normalizePhoneIdentifier(getRequestString(request_body, "phone", ""));
+        std::string ticket = getRequestString(request_body, "ticket", "");
         if (userId <= 0)
         {
             return ResponseHelper::error(req, "无效的用户ID");
@@ -740,18 +739,49 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         {
             return ResponseHelper::validation(req, "手机号不能为空");
         }
+        if (ticket.empty())
+        {
+            return ResponseHelper::validation(req, "手机验证凭证输入错误");
+        }
 
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT phone FROM users WHERE id = ? LIMIT 1")
-                                       .bind(userId)
-                                       .execute();
-        auto row = result.fetchOne();
+        auto ticketClaims = JwtUtils::getUpdateTicketClaims(ticket, phone, "phone");
+        if (!ticketClaims || ticketClaims->userId != userId || ticketClaims->data != phone || ticketClaims->identifier != "phone")
+        {
+            return ResponseHelper::permission_denied(req, "手机验证凭证无效或已过期");
+        }
+
+        mysqlx::SqlResult result1 = dbManager->getSession()
+                                        ->sql("SELECT id "
+                                              "FROM users "
+                                              "WHERE phone = ? AND id <> ? AND is_deleted = 0 "
+                                              "LIMIT 1")
+                                        .bind(phone, userId)
+                                        .execute();
+
+        if (result1.fetchOne())
+        {
+            return ResponseHelper::validation(req, "手机号已被其他用户使用");
+        }
+
+        mysqlx::SqlResult result2 = dbManager->getSession()
+                                        ->sql("SELECT u.phone, u.type_id, t.type "
+                                              "FROM users AS u "
+                                              "JOIN types AS t ON t.id = u.type_id "
+                                              "WHERE u.id = ? AND u.is_deleted = 0 "
+                                              "LIMIT 1")
+                                        .bind(userId)
+                                        .execute();
+
+        auto row = result2.fetchOne();
         if (!row)
         {
             return ResponseHelper::notFound(req, "User not found");
         }
 
         const std::string DBphone = row[0].isNull() ? "" : normalizePhoneIdentifier(row[0].get<std::string>());
+        const int type_id = row[1].isNull() ? 0 : row[1].get<int>();
+        const std::string type = row[2].isNull() ? "" : row[2].get<std::string>();
+
         if (constantTimeEquals(DBphone, phone))
         {
             return ResponseHelper::success(req, "No changes to update");
@@ -762,9 +792,15 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
 
         try
         {
-            session->sql("UPDATE users SET phone = ? WHERE id = ?")
-                .bind(phone, userId)
-                .execute();
+            mysqlx::SqlResult result3 = session->sql("UPDATE users SET phone = ? "
+                                             "WHERE id = ? AND is_deleted = 0")
+                                    .bind(phone, userId)
+                                    .execute();
+
+            if(result3.getAffectedItemsCount() == 0)
+            {
+                return ResponseHelper::database_error(req, "更新手机号失败");
+            }
 
             if (!UserPhoneSync::upsertUserPhone(*session, userId, phone)) // 同步手机号
             {
@@ -783,6 +819,12 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         nlohmann::json response;
         response["message"] = "手机号更新成功";
         response["user"] = getUserData(userId);
+        response["token"] = JwtUtils::createToken(
+            userId,
+            type_id,
+            type,
+            phone,
+            false);
         return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)

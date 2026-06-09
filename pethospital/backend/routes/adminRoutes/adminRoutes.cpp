@@ -3,6 +3,9 @@
 #include "../../controllers/modules/finance/financeHandler.h"
 #include "../../controllers/modules/personnel/personnelHandler.h"
 #include "../../services/logger/operationLogger.h"
+#include "../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+
+#include <iostream>
 
 void adminRoutes::setupAdminRoutes(
     CrowApp &app,
@@ -15,7 +18,7 @@ void adminRoutes::setupAdminRoutes(
     }
 
     // 用于页面首次加载、手动刷新、SSE 断线后的兜底请求。
-    CROW_ROUTE(app, "/api/admin/getHomeData")
+    CROW_ROUTE(app, "/api/admins/home-data")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -41,7 +44,40 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取首页数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
 
-    CROW_ROUTE(app, "/api/admin/getUsers")
+    // 超级管理员首页实时数据通道。
+    CROW_WEBSOCKET_ROUTE(app, "/ws/admins/home-data")
+        .onaccept([dbManager](const crow::request &req, void **)
+                  {
+            const char *tokenParam = req.url_params.get("token");
+            if (tokenParam == nullptr || std::string(tokenParam).empty())
+            {
+                return false;
+            }
+
+            auto claims = JwtUtils::getTokenClaims(tokenParam);
+            if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            std::string identifier = claims->identifier;
+            return JwtUtils::isUserAuthorizedForAdminForm(
+                claims->userId,
+                identifier,
+                claims->isEmailLogin,
+                dbManager); })
+        .onopen([](crow::websocket::connection &conn)
+                {
+            AdminHomeDataBroadcaster::instance().addConnection(&conn); })
+        .onclose([](crow::websocket::connection &conn, const std::string &, uint16_t)
+                 {
+            AdminHomeDataBroadcaster::instance().removeConnection(&conn); })
+        .onerror([](crow::websocket::connection &conn, const std::string &reason)
+                 {
+            std::cerr << "Admin homeData WebSocket error: " << reason << std::endl;
+            AdminHomeDataBroadcaster::instance().removeConnection(&conn); });
+
+    CROW_ROUTE(app, "/api/admins/users")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -67,7 +103,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取用户列表", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
 
-    CROW_ROUTE(app, "/api/admin/getWorkTimeRecord")
+    CROW_ROUTE(app, "/api/admins/work-time-records")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -93,7 +129,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取工时记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
 
-    CROW_ROUTE(app, "/api/admin/createUser")
+    CROW_ROUTE(app, "/api/admins/users")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -119,7 +155,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "创建用户", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/admin/deleteUser")
+    CROW_ROUTE(app, "/api/admins/user-deletions")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -145,7 +181,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "删除用户", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/admin/changeDoctorWorkTime")
+    CROW_ROUTE(app, "/api/admins/doctor-work-time-changes")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -188,7 +224,7 @@ void adminRoutes::setupAdminRoutes(
             });
 
     // 修改医生工作状态接口
-    CROW_ROUTE(app, "/api/admin/changeDoctorWorkStatus")
+    CROW_ROUTE(app, "/api/admins/doctor-work-status-changes")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -214,7 +250,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "修改医生工作状态", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
-    CROW_ROUTE(app, "/api/admin/getLogs")
+    CROW_ROUTE(app, "/api/admins/logs")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
@@ -240,7 +276,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "查询操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
 
-    CROW_ROUTE(app, "/api/admin/order/getAllRecord")
+    CROW_ROUTE(app, "/api/admins/order-records")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
             int userId = -1;

@@ -237,7 +237,7 @@ export const doctorApi = {
     };
 
     try {
-      const { data } = await http.get("/api/doctor/dutyStatus");
+      const { data } = await http.get("/api/doctors/duty-status");
 
       if (data && typeof data === "object" && !Array.isArray(data)) {
         return data as DoctorDutyStatus;
@@ -255,7 +255,7 @@ export const doctorApi = {
    */
   async getUserProfiles(userId: number): Promise<DoctorUserProfile | null> {
     try {
-      const { data } = await http.get(`/api/doctor/userProfiles/${userId}`);
+      const { data } = await http.get(`/api/doctors/user-profiles/${userId}`);
       const profile = unwrapList<Record<string, unknown>>(data)[0];
 
       return profile ? normalizeDoctorUserProfile(profile) : null;
@@ -271,7 +271,7 @@ export const doctorApi = {
   async getUserPetProfiles(userId: number): Promise<DoctorManagedPetProfile[]> {
     try {
       const { data } = await http.get(
-        `/api/doctor/userProfiles/${userId}/petsProfile`
+        `/api/doctors/user-profiles/${userId}/pet-profiles`
       );
 
       return unwrapDoctorPetProfiles(data);
@@ -290,7 +290,7 @@ export const doctorApi = {
   ): Promise<DoctorManagedPetProfile | null> {
     try {
       const { data } = await http.post(
-        `/api/doctor/userProfiles/${userId}/petsProfile`,
+        `/api/doctors/user-profiles/${userId}/pet-profiles`,
         payload
       );
 
@@ -310,7 +310,7 @@ export const doctorApi = {
   ): Promise<DoctorManagedPetProfile | null> {
     try {
       const { data } = await http.put(
-        `/api/doctor/userProfiles/${userId}/petsProfile/${payload.id}`,
+        `/api/doctors/user-profiles/${userId}/pet-profiles/${payload.id}`,
         payload
       );
 
@@ -326,7 +326,7 @@ export const doctorApi = {
    */
   async deleteUserPetProfile(userId: number, petId: string): Promise<void> {
     await http.delete(
-      `/api/doctor/userProfiles/${userId}/petsProfile/${petId}`
+      `/api/doctors/user-profiles/${userId}/pet-profiles/${petId}`
     );
   },
 
@@ -338,7 +338,7 @@ export const doctorApi = {
     identifier: "name" | "phone";
   }): Promise<DoctorUserSummary[]> {
     try {
-      const { data } = await http.post("/api/doctor/getUserList", payload);
+      const { data } = await http.post("/api/doctors/user-summaries", payload);
 
       return normalizeDoctorUserSummaries(
         unwrapList<Record<string, unknown>>(data)
@@ -355,7 +355,7 @@ export const doctorApi = {
    */
   async getReservationsSummary(): Promise<ReservationSummaryItem[]> {
     try {
-      const { data } = await http.get("/api/doctor/reservations/summary");
+      const { data } = await http.get("/api/doctors/reservation-summaries");
       const reservationItems = normalizeReservationSummaries(
         unwrapList<Record<string, unknown>>(data)
       );
@@ -375,7 +375,7 @@ export const doctorApi = {
   ): Promise<ReservationItem | null> {
     try {
       const { data } = await http.get(
-        `/api/doctor/reservations/reservationInformation/${reservationId}`
+        `/api/doctors/reservations/${reservationId}/information`
       );
       return normalizeReservationDetail(unwrapData<ReservationItem>(data));
     } catch (error) {
@@ -391,7 +391,7 @@ export const doctorApi = {
     reservationId: number,
     status: string
   ): Promise<void> {
-    await http.post(`/api/doctor/reservations/${reservationId}/status`, {
+    await http.post(`/api/doctors/reservations/${reservationId}/statuses`, {
       status,
     });
   },
@@ -404,10 +404,7 @@ export const doctorApi = {
     payload: CreateOrderRecordPayload
   ): Promise<OrderSummaryItem> {
     try {
-      const { data } = await http.post(
-        "/api/doctor/createOrderRecord",
-        payload
-      );
+      const { data } = await http.post("/api/doctors/order-records", payload);
       const createdRecord = unwrapData<OrderSummaryItem>(data);
 
       if (!createdRecord) {
@@ -429,7 +426,7 @@ export const doctorApi = {
    */
   async getOrderSummary(): Promise<OrderSummaryItem[]> {
     try {
-      const { data } = await http.get("/api/doctor/order/getOrderSummary");
+      const { data } = await http.get("/api/doctors/order-summaries");
       const orderRecordItems = normalizeOrderSummaryItems(
         unwrapList<Record<string, unknown>>(data)
       );
@@ -447,7 +444,7 @@ export const doctorApi = {
   async getOrderInformation(orderId: number): Promise<OrderDetailItem | null> {
     try {
       const { data } = await http.get(
-        `/api/doctor/order/getOrderInformation/${orderId}`
+        `/api/doctors/orders/${orderId}/information`
       );
       return unwrapOrderDetail(data);
     } catch (error) {
@@ -462,7 +459,7 @@ export const doctorApi = {
    */
   async queue(): Promise<QueueItem[]> {
     try {
-      const { data } = await http.get("/api/doctor/queue");
+      const { data } = await http.get("/api/doctors/queues");
       const queueItems = normalizeQueueItems(unwrapList<QueueItem>(data));
 
       return queueItems.length > 0 ? queueItems : queueItemsMock;
@@ -476,7 +473,7 @@ export const doctorApi = {
    * 更新医生值班状态
    */
   async updateDutyStatus(status: DoctorDutyStatus["status"]): Promise<string> {
-    const { data } = await http.post("/api/doctor/dutyStatus/action", {
+    const { data } = await http.post("/api/doctors/duty-status-changes", {
       status,
     });
     return unwrapMessage(data, status === "online" ? "签到成功!" : "签退成功!");

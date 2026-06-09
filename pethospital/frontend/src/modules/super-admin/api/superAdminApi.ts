@@ -21,7 +21,7 @@ export const superAdminApi = {
    * @returns 新的访问令牌字符串，或者在请求失败或原令牌无效时抛出错误。
    */
   refreshAdminSession() {
-    return http.post("/api/auth/admin/refresh");
+    return http.post("/api/admins/session-renewals");
   },
 
   /**
@@ -30,7 +30,7 @@ export const superAdminApi = {
    */
   async getWorkTimeRecord(): Promise<WorkTimeRecord[]> {
     try {
-      const { data } = await http.get("/api/admin/getWorkTimeRecord");
+      const { data } = await http.get("/api/admins/work-time-records");
       const rows = unwrapList<WorkTimeRecord>(data);
       return rows.length ? rows : superAdminWorkTimeRecordsMock;
     } catch {
@@ -43,14 +43,14 @@ export const superAdminApi = {
     date: string;
     identifier: "check_in_time" | "check_out_time";
   }): Promise<void> {
-    await http.post("/api/admin/changeDoctorWorkTime", params);
+    await http.post("/api/admins/doctor-work-time-changes", params);
   },
 
   async changeDoctorWorkStatus(params: {
     doctorId: number;
     status: "online" | "offline";
   }): Promise<void> {
-    await http.post("/api/admin/changeDoctorWorkStatus", params);
+    await http.post("/api/admins/doctor-work-status-changes", params);
   },
 
   /**
@@ -59,7 +59,7 @@ export const superAdminApi = {
    */
   async getUsers(): Promise<UserRow[]> {
     try {
-      const { data } = await http.get("/api/admin/getUsers");
+      const { data } = await http.get("/api/admins/users");
       const rows = unwrapList<UserRow>(data);
       return rows;
     } catch {
@@ -68,11 +68,11 @@ export const superAdminApi = {
   },
 
   async createUser(payload: CreateUserPayload): Promise<void> {
-    await http.post("/api/admin/createUser", payload);
+    await http.post("/api/admins/users", payload);
   },
 
   async deleteUser(userID: number): Promise<void> {
-    await http.post("/api/admin/deleteUser", { user_id: userID });
+    await http.post("/api/admins/user-deletions", { user_id: userID });
   },
 
   /**
@@ -81,7 +81,7 @@ export const superAdminApi = {
    */
   async getLogs(): Promise<{ userLogs: UserLogs[]; systemLogs: SystemLogs[] }> {
     try {
-      const { data } = await http.get("/api/admin/getLogs");
+      const { data } = await http.get("/api/admins/logs");
       const logsPayload = data?.data ?? data;
       const userLogs = unwrapList<UserLogs>(logsPayload?.userLogs);
       const systemLogs = unwrapList<SystemLogs>(logsPayload?.systemLogs);
@@ -104,7 +104,7 @@ export const superAdminApi = {
    */
   async homePageGetData(): Promise<HomePageSummary> {
     try {
-      const { data } = await http.get("/api/admin/getHomeData");
+      const { data } = await http.get("/api/admins/home-data");
       const summary = data?.data ?? data;
       const dailyExpense = Number(summary?.dailyExpense ?? 0);
       const dailyCost = Number(summary?.dailyCost ?? 0);

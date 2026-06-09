@@ -11,7 +11,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
     }
     
     // 获取医生本人信息路由.
-    CROW_ROUTE(app,"/api/doctor/getDoctor")
+    CROW_ROUTE(app,"/api/doctors/profile")
             .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
                 int userId = -1;
                 try
@@ -35,7 +35,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 获取用户列表路由.
-    CROW_ROUTE(app,"/api/doctor/getUserList")
+    CROW_ROUTE(app,"/api/doctors/user-summaries")
             .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
                 int userId = -1;
                 try
@@ -70,7 +70,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 获取用户档案信息路由.
-    CROW_ROUTE(app, "/api/doctor/userProfiles/<int>")
+    CROW_ROUTE(app, "/api/doctors/user-profiles/<int>")
             .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int goalUserId) {
                 int userId = -1;
                 try
@@ -95,7 +95,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 获取值班状态路由.
-    CROW_ROUTE(app,"/api/doctor/dutyStatus")
+    CROW_ROUTE(app,"/api/doctors/duty-status")
             .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
                 int userId = -1;
                 try
@@ -119,7 +119,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 获取预约摘要路由.
-    CROW_ROUTE(app, "/api/doctor/reservations/summary")
+    CROW_ROUTE(app, "/api/doctors/reservation-summaries")
             .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
                 int userId = -1;
@@ -146,7 +146,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
     
     // 获取预约订单信息路由.
-    CROW_ROUTE(app, "/api/doctor/reservations/reservationInformation/<int>")
+    CROW_ROUTE(app, "/api/doctors/reservations/<int>/information")
             .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int reservationId)
                                                                        {
                 int userId = -1;
@@ -172,7 +172,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 更新预约状态路由.
-    CROW_ROUTE(app, "/api/doctor/reservations/<int>/status")
+    CROW_ROUTE(app, "/api/doctors/reservations/<int>/statuses")
             .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int reservationId) {
                 int userId = -1;
                 try
@@ -197,7 +197,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 创建诊单记录路由.
-    CROW_ROUTE(app, "/api/doctor/createOrderRecord")
+    CROW_ROUTE(app, "/api/doctors/order-records")
             .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res) {
                 int userId = -1;
                 try
@@ -222,7 +222,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 获取诊单摘要路由.
-    CROW_ROUTE(app, "/api/doctor/order/getOrderSummary")
+    CROW_ROUTE(app, "/api/doctors/order-summaries")
             .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res) {
                 int userId = -1;
                 try
@@ -247,7 +247,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 获取诊单详情路由.
-    CROW_ROUTE(app, "/api/doctor/order/getOrderInformation/<int>")
+    CROW_ROUTE(app, "/api/doctors/orders/<int>/information")
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int orderId) {
             int userId = -1;
             try
@@ -272,7 +272,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 医生端管理指定用户的宠物档案路由
-    CROW_ROUTE(app, "/api/doctor/userProfiles/<int>/petsProfile")
+    CROW_ROUTE(app, "/api/doctors/user-profiles/<int>/pet-profiles")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int targetUserId)
                                                                                            {
             int doctorId = -1;
@@ -301,7 +301,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "管理宠物档案", doctorId > 0 ? std::optional<int>(doctorId) : std::nullopt, req.method != crow::HTTPMethod::Get); });
 
     // 医生端更新/删除指定用户的宠物档案路由
-    CROW_ROUTE(app, "/api/doctor/userProfiles/<int>/petsProfile/<int>")
+    CROW_ROUTE(app, "/api/doctors/user-profiles/<int>/pet-profiles/<int>")
         .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int targetUserId, int petId)
                                                                                              {
             int doctorId = -1;
@@ -330,7 +330,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "管理宠物档案", doctorId > 0 ? std::optional<int>(doctorId) : std::nullopt); });
 
     // 医生打卡接口
-    CROW_ROUTE(app, "/api/doctor/dutyStatus/action")
+    CROW_ROUTE(app, "/api/doctors/duty-status-changes")
             .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager] (const crow::request& req, crow::response& res) {
                 int userId = -1;
                 try{
@@ -353,7 +353,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             });
 
     // 修改订单
-    CROW_ROUTE(app, "/api/doctor/order/changeOrder/<int>")
+    CROW_ROUTE(app, "/api/doctors/orders/<int>/changes")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId)
                                                                    {
             int userId = -1;

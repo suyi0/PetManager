@@ -118,7 +118,6 @@ nlohmann::json adminHandler::buildHomeData()
         {"userLogCount", calculateUserLogsCount()},
         {"systemLogCount", calculateSystemLogsCount()}};
 }
-
 crow::response adminHandler::getHomeData(const crow::request &req)
 {
     try

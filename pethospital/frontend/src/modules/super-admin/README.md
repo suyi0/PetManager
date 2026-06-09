@@ -13,9 +13,9 @@
 
 ## Backend routes mapped
 
-- `GET /admin/getWorkTimeRecord`
-- `POST /admin/changeDoctorWorkTime`
-- `GET /api/admin/getUsers`
+- `GET /api/admins/work-time-records`
+- `POST /api/admins/doctor-work-time-changes`
+- `GET /api/admins/users`
 
 ## Moved Out
 

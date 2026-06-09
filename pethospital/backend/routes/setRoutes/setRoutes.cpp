@@ -1,4 +1,5 @@
 #include "setRoutes.h"
+#include "../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -63,6 +64,7 @@ void WebSocketServer::start()
     setupRoutes();          // 设置路由
     setupSignalHandlers();  // 设置信号处理
     startCodeCleanupTask(); // 启动定时任务
+    AdminHomeDataBroadcaster::instance().start(DatabaseManager::getInstance()); // 启动超级管理员首页实时广播任务
     shutdown_requested = false;
     server_stopped = false;
 
@@ -108,54 +110,9 @@ void WebSocketServer::gracefulShutdown()
 {
     shutdown_requested = true;
     std::cout << "Initiating graceful shutdown..." << std::endl;
+    AdminHomeDataBroadcaster::instance().stop();
+    AdminHomeDataBroadcaster::instance().closeAllConnections("server_shutdown");
 
-    // 关闭所有活跃连接 [1,5](@ref)
-    {
-        std::lock_guard<std::mutex> lock(conn_mutex);
-        // 创建连接副本以避免在迭代时修改集合
-        auto connections_copy = active_connections;
-        for (auto *conn : connections_copy)
-        {
-            if (conn)
-            {
-                try
-                {
-                    conn->close("server_shutdown");
-                }
-                catch (...)
-                {
-                    // 忽略关闭连接时的异常
-                }
-            }
-        }
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
-        auto connections_copy = admin_home_connections;
-        for (auto *conn : connections_copy)
-        {
-            if (conn)
-            {
-                try
-                {
-                    conn->close("server_shutdown");
-                }
-                catch (...)
-                {
-                    // 忽略关闭连接时的异常
-                }
-            }
-        }
-        admin_home_connections.clear();
-    }
-
-    // 等待连接关闭（仅检测active_connections为空）
-    std::unique_lock<std::mutex> lk(conn_mutex);
-    shutdown_cv.wait(lk, [this]
-                     {
-                         return active_connections.empty(); // 仅等待连接清空
-                     });
     // 停止服务器
     app_ptr_->stop();
     if (server_thread.joinable())
@@ -212,131 +169,6 @@ void WebSocketServer::setupRoutes()
 
     // 注册总裁端路由
     bossRoutes::setupBossRoutes(*app_ptr_, DatabaseManager::getInstance());
-
-    // 使用解引用后的对象注册WebSocket路由
-    auto& app_ref = *app_ptr_;
-    CROW_WEBSOCKET_ROUTE(app_ref, "/websocket")
-        // 连接开启时的onOpen回调
-        .onopen([this](crow::websocket::connection &conn)
-                {
-        std::lock_guard<std::mutex> lock(conn_mutex);
-        active_connections.insert(&conn);
-        std::cout << "New WebSocket connection opened. Total connections: " << active_connections.size() << std::endl;
-
-        // 发送欢迎消息
-        nlohmann::json json_msg = {{"message", "Connected to C++ WebSocket!"}};
-        try
-        {
-            conn.send_text(json_msg.dump());
-        }
-        catch (const std::exception &e)
-        {
-            std::cerr << "Error sending welcome message: " << e.what() << std::endl;
-        } })
-        .onclose([this](crow::websocket::connection &conn, const std::string &reason, uint16_t value)
-                 {
-                     std::lock_guard<std::mutex> lock(conn_mutex);
-                     active_connections.erase(&conn);
-                     std::cout << "Connection closed: Code: " << value << ", Reason: " << reason
-                               << ", Remaining connections: " << active_connections.size() << std::endl;
-                     // 检查关闭代码
-                     if (value != 1000)
-                     { // 1000是正常关闭代码
-                         std::cout << "Abnormal closure detected" << std::endl;
-                     }
-
-                     shutdown_cv.notify_all(); // 通知等待的线程
-                 })
-        .onmessage([this](crow::websocket::connection &conn, const std::string &data, bool is_binary)
-                   {
-        std::cout << "Message received: " << data << std::endl;
-        // 回显消息
-        if (!is_binary)
-        {
-            try
-            {
-                nlohmann::json response = {{"echo", data}};
-                conn.send_text(response.dump());
-            }
-            catch (const std::exception &e)
-            {
-                std::cerr << "Error echoing message: " << e.what() << std::endl;
-            }
-        } })
-        .onerror([this](crow::websocket::connection &conn, const std::string &reason)
-                 { std::cerr << "WebSocket error: " << reason << std::endl; });
-
-    // 超级管理员首页实时数据通道。
-    CROW_WEBSOCKET_ROUTE(app_ref, "/ws/admin/homeData")
-        .onaccept([](const crow::request &req, void **)
-                  {
-            const char *tokenParam = req.url_params.get("token");
-            if (tokenParam == nullptr || std::string(tokenParam).empty())
-            {
-                return false;
-            }
-
-            auto dbManager = DatabaseManager::getInstance();
-            auto claims = JwtUtils::getTokenClaims(tokenParam);
-            if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
-            {
-                return false;
-            }
-
-            std::string identifier = claims->identifier;
-            return JwtUtils::isUserAuthorizedForAdminForm(
-                claims->userId,
-                identifier,
-                claims->isEmailLogin,
-                dbManager); })
-        .onopen([this](crow::websocket::connection &conn)
-                {
-            {
-                std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
-                admin_home_connections.insert(&conn);
-            }
-
-            std::thread([this, &conn]()
-                        {
-                while (!shutdown_requested)
-                {
-                    {
-                        std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
-                        if (admin_home_connections.find(&conn) == admin_home_connections.end())
-                        {
-                            break;
-                        }
-                    }
-
-                    try
-                    {
-                        adminHandler handler(DatabaseManager::getInstance());
-                        nlohmann::json message = {
-                            {"event", "homeData"},
-                            {"data", handler.buildHomeData()}};
-                        conn.send_text(message.dump());
-                    }
-                    catch (const std::exception &e)
-                    {
-                        std::cerr << "Admin homeData WebSocket push failed: " << e.what() << std::endl;
-                        break;
-                    }
-
-                    std::this_thread::sleep_for(std::chrono::seconds(5));
-                }
-
-                std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
-                admin_home_connections.erase(&conn); })
-                .detach(); })
-        .onclose([this](crow::websocket::connection &conn, const std::string &, uint16_t)
-                 {
-            std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
-            admin_home_connections.erase(&conn); })
-        .onerror([this](crow::websocket::connection &conn, const std::string &reason)
-                 {
-            std::cerr << "Admin homeData WebSocket error: " << reason << std::endl;
-            std::lock_guard<std::mutex> lock(admin_home_conn_mutex);
-            admin_home_connections.erase(&conn); });
 }
 
 // 设置信号处理函数

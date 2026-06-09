@@ -25,35 +25,35 @@ public:
     // 添加一个方法来检查数据库管理器是否可用
     bool isDbManagerValid() const { return dbManager != nullptr; }
 
-    crow::response userUpdate(const crow::request &req, int userId = -1); // 对应注册 "/api/user/register" 与更新资料 "/api/user/profile"
+    crow::response userUpdate(const crow::request &req, int userId = -1); // 对应注册 "/api/users/registrations" 与更新资料 "/api/users/me/profile"
 
-    crow::response updatePassword(const crow::request &req, int userId);    // 对应 修改密码 "/api/user/security/password"
+    crow::response updatePassword(const crow::request &req, int userId);    // 对应 修改密码 "/api/users/me/password"
 
-    crow::response updateEmail(const crow::request &req, int userId);   // 对应 修改邮箱 "/api/user/security/email"
+    crow::response updateEmail(const crow::request &req, int userId);   // 对应 修改邮箱 "/api/users/me/email"
 
-    crow::response updatePhone(const crow::request &req, int userId);   // 对应 修改手机 "/api/user/security/phone"
+    crow::response updatePhone(const crow::request &req, int userId);   // 对应 修改手机 "/api/users/me/phone"
 
-    crow::response userLogin(const crow::request &req); //  对应 登录 "/api/user/login"
+    crow::response userLogin(const crow::request &req); //  对应 登录 "/api/users/sessions"
 
-    crow::response addNewAddress(const crow::request &req, int userId); // 添加新地址 "/api/user/address"
+    crow::response addNewAddress(const crow::request &req, int userId); // 添加新地址 "/api/users/me/addresses"
 
-    crow::response addressUpdate(const crow::request &req, int userId, int addressId); // 对应地址更新 "/api/user/address/<int>"
+    crow::response addressUpdate(const crow::request &req, int userId, int addressId); // 对应地址更新 "/api/users/me/addresses/<int>"
 
-    crow::response userUploadAvatar(const crow::request &req); // 对应 上传头像 "/api/user/avatar"
+    crow::response userUploadAvatar(const crow::request &req); // 对应 上传头像 "/api/users/me/avatar"
 
     crow::response upload(const crow::request &req, const std::string &filename); // 对应 上传 "/uploads/<string>"
 
     nlohmann::json getUserData(const int &id); // 获取用户基础数据内部组装函数
 
-    crow::response createReservation(const crow::request &req, int user_id, int pet_id, int doctor_id, std::string reservation_type, std::string date, std::string time_slot, std::string status); // 对应 /api/user/reservations
+    crow::response createReservation(const crow::request &req, int user_id, int pet_id, int doctor_id, std::string reservation_type, std::string date, std::string time_slot, std::string status); // 对应 /api/users/me/reservations
 
-    nlohmann::json getReservationDate(); // 对应 /api/user/reservations/dates
+    nlohmann::json getReservationDate(); // 对应 /api/users/me/reservation-dates
 
-    crow::response getDoctorList(const crow::request &req); // 对应 /api/user/reservations/doctors
+    crow::response getDoctorList(const crow::request &req); // 对应 /api/users/me/reservation-doctors
 
-    crow::response cancelReservation(const crow::request &req, int userId, int reservationId); // 对应 /api/user/reservations/<id>/cancel
+    crow::response cancelReservation(const crow::request &req, int userId, int reservationId); // 对应 /api/users/me/reservations/<id>/cancellation
 
-    crow::response deleteReservation(const crow::request &req, int userId, int reservationId); // 对应 DELETE /api/user/reservations/<int>
+    crow::response deleteReservation(const crow::request &req, int userId, int reservationId); // 对应 DELETE /api/users/me/reservations/<int>
 };
 
 #endif

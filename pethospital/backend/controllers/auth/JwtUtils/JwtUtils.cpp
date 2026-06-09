@@ -17,6 +17,7 @@ namespace
     // 解析并验证JWT Token的有效性，返回解析后的payload数据
     std::optional<nlohmann::json> parseValidatedTokenPayload(const std::string &token)
     {
+        // 分割 JWT 结构：找到两个分隔点，提取出三部分
         size_t first_dot = token.find('.');
         size_t second_dot = token.find('.', first_dot + 1);
 
@@ -26,9 +27,10 @@ namespace
         }
 
         std::string header_encoded = token.substr(0, first_dot);
-        std::string payload_encoded = token.substr(first_dot + 1, second_dot - first_dot - 1);
+        std::string payload_encoded = token.substr(first_dot + 1, second_dot - (first_dot + 1));
         std::string signature_encoded = token.substr(second_dot + 1);
 
+        // 验证签名有效性：对 header 和 payload 的 Base64Url 编码值进行 HMAC-SHA256 签名比对。若签名无效，直接拒绝
         std::string secret_key = get_jwt_secret();
         if (!verify_jwt_signature(header_encoded, payload_encoded, signature_encoded, secret_key))
         {
@@ -39,12 +41,14 @@ namespace
         std::string payload_decoded = url_safe_base64_decode(payload_encoded);
         nlohmann::json payload_json = nlohmann::json::parse(payload_decoded);
 
+        // 检查过期时间（exp）
         time_t now = time(nullptr);
         if (payload_json.contains("exp") && payload_json["exp"].get<time_t>() < now)
         {
             return std::nullopt;
         }
 
+        // 返回有效 payload
         return payload_json;
     }
 
@@ -309,7 +313,7 @@ std::string JwtUtils::createUpdateTicket(int userId, const std::string &date, co
 }
 
 // 解析并验证修改邮箱凭证JWT
-std::optional<JwtUtils::EmailChangeTicketClaims> JwtUtils::getUpdateTicketClaims(const std::string &ticket, const std::string &date, const std::string &identifier)
+std::optional<JwtUtils::UpdateTicketClaims> JwtUtils::getUpdateTicketClaims(const std::string &ticket, const std::string &data, const std::string &identifier)
 {
 
     if (identifier != "email" && identifier != "phone")
@@ -338,15 +342,16 @@ std::optional<JwtUtils::EmailChangeTicketClaims> JwtUtils::getUpdateTicketClaims
         // 检查用户ID和邮箱字段
         if (!payload_json.contains("sub") ||
             !payload_json["sub"].is_number_integer() ||
-            !payload_json.contains(identifier == "email" ? "email" : "phone") ||
-            !payload_json[identifier == "email" ? "email" : "phone"].is_string())
+            !payload_json.contains(identifier) ||
+            !payload_json[identifier].is_string())
         {
             return std::nullopt;
         }
 
-        return EmailChangeTicketClaims{
+        return UpdateTicketClaims{
             payload_json["sub"].get<int>(),
-            payload_json[identifier == "email" ? "email" : "phone"].get<std::string>()};
+            data,
+            identifier};
     }
     catch (const std::exception &e)
     {
