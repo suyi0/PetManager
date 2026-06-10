@@ -17,6 +17,8 @@ public:
 
     double calculateCostCount();
 
+    nlohmann::json buildHomeData(); // 构建财务端首页实时统计数据
+
     crow::response getHomeData(const crow::request &req); // 获取总览数据 对应 /api/finance/home-data
 
     crow::response updateEmployeeSalary(const crow::request &req, int goalUserId); // 添加或修改员工工资并返回工资摘要 对应 /api/finance/employee-salaries/<int>

@@ -1,6 +1,9 @@
 import { authStorage } from "@/core/auth/utils/authStorage";
 import type { HomePageSummary } from "../api/types";
 
+/**
+ * 订阅超级管理员首页实时数据
+ */
 type HomeDataMessage = {
   event?: string;
   version?: number;
@@ -12,9 +15,20 @@ type HomeDataStreamOptions = {
   onFallbackRefresh?: () => void;
 };
 
+/**
+ * WebSocket 重试策略，3秒、5秒、10秒、30秒
+ */
 const RETRY_DELAYS = [3000, 5000, 10000, 30000];
+/**
+ * 超过 3 次重试后，将触发 fallbackRefresh 回调。
+ */
 const FALLBACK_RETRY_THRESHOLD = 3;
 
+/**
+ * 创建WebSocket连接
+ * @param path 后端API路径
+ * @returns WebSocket连接
+ */
 const createWebSocketUrl = (path: string) => {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}${path}`;
@@ -34,15 +48,20 @@ export const subscribeSuperAdminHomeData = (
     return () => undefined;
   }
 
-  let socket: WebSocket | null = null;
-  let retryTimer: number | null = null;
-  let retryCount = 0;
+  let socket: WebSocket | null = null;  // 创建WebSocket连接
+  let retryTimer: number | null = null; // 重试定时器
+  let retryCount = 0; // 重试次数
+
+  /**
+   * 是否由客户端关闭
+   */
   let closedByClient = false;
 
   const connect = () => {
     socket = new WebSocket(
       createWebSocketUrl(
         `/ws/admins/home-data?token=${encodeURIComponent(token)}`
+        // encodeURIComponent() 确保 token 中的特殊字符（如 +, /, = 等）被正确编码，避免破坏 URL 结构
       )
     );
 
@@ -59,10 +78,12 @@ export const subscribeSuperAdminHomeData = (
       }
     };
 
+    // WebSocket 错误处理
     socket.onerror = () => {
       socket?.close();
     };
 
+    // WebSocket 关闭处理
     socket.onclose = () => {
       socket = null;
 
@@ -73,8 +94,7 @@ export const subscribeSuperAdminHomeData = (
           options.onFallbackRefresh?.();
         }
 
-        const retryDelay =
-          RETRY_DELAYS[Math.min(retryCount - 1, RETRY_DELAYS.length - 1)];
+        const retryDelay = RETRY_DELAYS[Math.min(retryCount - 1, RETRY_DELAYS.length - 1)];
         retryTimer = window.setTimeout(connect, retryDelay);
       }
     };

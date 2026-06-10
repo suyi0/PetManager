@@ -94,33 +94,36 @@ double financeHandler::calculateCostCount()
     }
 }
 
+nlohmann::json financeHandler::buildHomeData()
+{
+    if (!checkDbConnection())
+    {
+        throw std::runtime_error("Database connection failed");
+    }
+
+    // 获取每日员工工资开销记录
+    mysqlx::SqlResult dailyExpensesResult = dbManager->getSession()
+                                                ->sql("SELECT COALESCE(ROUND(SUM(total_salary / 31)), 0)  "
+                                                      "FROM salary ")
+                                                .execute();
+
+    auto dailyRow = dailyExpensesResult.fetchOne();
+
+    double salesCount = calculateSalesCount();
+    double costCount = calculateCostCount();
+
+    return {
+        {"dailyExpense", dailyRow[0].isNull() ? 0.0 : dailyRow[0].get<double>()},
+        {"dailyCost", costCount},
+        {"dailySales", salesCount},
+        {"dailyProfit", salesCount - costCount}};
+}
+
 crow::response financeHandler::getHomeData(const crow::request &req)
 {
     try
     {
-        if (!checkDbConnection())
-        {
-            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
-        }
-
-        // 获取每日员工工资开销记录
-        mysqlx::SqlResult dailyExpensesResult = dbManager->getSession()
-                                                    ->sql("SELECT COALESCE(ROUND(SUM(total_salary / 31)), 0)  "
-                                                          "FROM salary ")
-                                                    .execute();
-
-        auto dailyRow = dailyExpensesResult.fetchOne();
-
-        double salesCount = calculateSalesCount();
-        double costCount = calculateCostCount();
-
-        nlohmann::json data = {
-            {"dailyExpense", dailyRow[0].isNull() ? 0.0 : dailyRow[0].get<double>()},
-            {"dailyCost", costCount},
-            {"dailySales", salesCount},
-            {"dailyProfit", salesCount - costCount}};
-
-        return ResponseHelper::success(req, data);
+        return ResponseHelper::success(req, buildHomeData());
     }
     catch (const std::exception &e)
     {

@@ -34,7 +34,10 @@ const AUTH_STORAGE_KEYS = [
   STORAGE_KEYS.userHeadImage,
 ] as const;
 
-// 获取当前存储的认证信息
+/**
+ * 获取当前存储的认证信息
+ * @returns 存储对象
+ */
 const getActiveAuthStorage = (): Storage | null => {
   if (sessionStorage.getItem(STORAGE_KEYS.token)) {
     return sessionStorage;
@@ -47,7 +50,11 @@ const getActiveAuthStorage = (): Storage | null => {
   return null;
 };
 
-// 批量清除指定 key 的值
+/**
+ * 批量清除指定 key 的值
+ * @param storage 删除的存储对象
+ * @param keys 数组对应的 key
+ */
 const clearKeysFromStorage = (
   storage: Storage,
   keys: readonly string[]
@@ -135,7 +142,10 @@ const parseTokenPayload = (token: string): Record<string, unknown> | null => {
   }
 };
 
-// 判断 token 是否过期
+/**
+ * 判断 token 是否过期
+ * @returns 过期：true，没过期：false
+ */
 const isTokenExpired = (token: string): boolean => {
   const payload = parseTokenPayload(token);
 
@@ -158,7 +168,10 @@ export const authStorage = {
     return parseTokenPayload(targetToken);
   },
 
-  // 获取 token 剩余时间
+  /**
+   * 获取 token 剩余时间
+   * @returns 剩余时间，单位毫秒
+   */
   getTokenRemainingMs() {
     const payload = this.getTokenPayload();
 
@@ -169,7 +182,10 @@ export const authStorage = {
     return Math.max(0, payload.exp * 1000 - Date.now());
   },
 
-  // 获取 token
+  /**
+   * 获取 token
+   * @returns token
+   */
   getToken() {
     const activeStorage = getActiveAuthStorage();
     const token = activeStorage?.getItem(STORAGE_KEYS.token) ?? null;
@@ -179,7 +195,7 @@ export const authStorage = {
     }
 
     if (isTokenExpired(token)) {
-      this.clearAuth();
+      this.clearAuth(); // this->authStorage对象本身
       return null;
     }
 
@@ -192,7 +208,9 @@ export const authStorage = {
     sessionStorage.removeItem(STORAGE_KEYS.token);
   },
 
-  // 清除持久化信息
+  /**
+   * 清除持久化信息
+   */
   clearAuth() {
     clearKeysFromStorage(localStorage, AUTH_STORAGE_KEYS);
     clearKeysFromStorage(sessionStorage, AUTH_STORAGE_KEYS);

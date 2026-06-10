@@ -48,6 +48,8 @@ void adminRoutes::setupAdminRoutes(
     CROW_WEBSOCKET_ROUTE(app, "/ws/admins/home-data")
         .onaccept([dbManager](const crow::request &req, void **)
                   {
+            // 前端请求传递的Token值会通过Crow框架自动解析存入req.url_params字典中。
+            // req.url_params.get() 返回的是一个 C 风格字符串（const char*）
             const char *tokenParam = req.url_params.get("token");
             if (tokenParam == nullptr || std::string(tokenParam).empty())
             {

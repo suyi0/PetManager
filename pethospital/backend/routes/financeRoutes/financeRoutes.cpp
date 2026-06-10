@@ -1,5 +1,8 @@
 #include "financeRoutes.h"
 #include "../../services/logger/operationLogger.h"
+#include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+
+#include <iostream>
 
 void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
@@ -35,6 +38,39 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取首页数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
+
+    // 财务端首页实时数据通道。
+    CROW_WEBSOCKET_ROUTE(app, "/ws/finance/home-data")
+        .onaccept([dbManager](const crow::request &req, void **)
+                  {
+            const char *tokenParam = req.url_params.get("token");
+            if (tokenParam == nullptr || std::string(tokenParam).empty())
+            {
+                return false;
+            }
+
+            auto claims = JwtUtils::getTokenClaims(tokenParam);
+            if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            std::string identifier = claims->identifier;
+            return JwtUtils::isUserAuthorizedForAdminForm(
+                claims->userId,
+                identifier,
+                claims->isEmailLogin,
+                dbManager); })
+        .onopen([](crow::websocket::connection &conn)
+                {
+            FinanceHomeDataBroadcaster::instance().addConnection(&conn); })
+        .onclose([](crow::websocket::connection &conn, const std::string &, uint16_t)
+                 {
+            FinanceHomeDataBroadcaster::instance().removeConnection(&conn); })
+        .onerror([](crow::websocket::connection &conn, const std::string &reason)
+                 {
+            std::cerr << "Finance homeData WebSocket error: " << reason << std::endl;
+            FinanceHomeDataBroadcaster::instance().removeConnection(&conn); });
 
     // 添加或更新员工工资路由
     CROW_ROUTE(app, "/api/finance/employee-salaries/<int>")
@@ -143,4 +179,6 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取开支数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
+
+    routes_setup = true;
 }
