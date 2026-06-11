@@ -20,13 +20,7 @@ module.exports = defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      "/websocket": {
-        target: "http://localhost:8081",
-        ws: true,
-        changeOrigin: true,
-        secure: false,
-      },
-      "/ws": {
+      "/realtime": {
         target: "http://localhost:8081",
         ws: true,
         changeOrigin: true,

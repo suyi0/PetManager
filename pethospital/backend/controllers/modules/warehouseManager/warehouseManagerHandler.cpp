@@ -237,9 +237,9 @@ crow::response warehouseManagerHandler::updata(const crow::request &req, const i
             return ResponseHelper::validation(req, "更新数据不完整");
         }
 
-        if(item_price <= 0.0 || item_number <= 0)
+        if(item_price <= 0.0 || item_number < 0)
         {
-            return ResponseHelper::validation(req, "价格和数量必须大于0");
+            return ResponseHelper::validation(req, "价格必须大于0，数量不能小于0");
         }
 
         if(item_productiondate > item_expirationdate)

@@ -25,8 +25,7 @@ void AdminHomeDataBroadcaster::start(std::shared_ptr<DatabaseManagerInterface> d
         return;
     }
 
-    broadcast_thread_ = std::thread([this]()
-                                    { run(); });
+    broadcast_thread_ = std::thread([this]() { run(); });
 }
 
 // 停止广播线程；唤醒等待中的线程后等待其安全退出。
@@ -52,6 +51,7 @@ void AdminHomeDataBroadcaster::addConnection(crow::websocket::connection *conn)
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);
         connections_.insert(conn);
+        pending_update_ = true;
     }
 
     broadcast_cv_.notify_all(); // 唤醒广播线程
@@ -92,24 +92,47 @@ void AdminHomeDataBroadcaster::closeAllConnections(const std::string &reason)
     }
 }
 
-// 后台广播循环：有连接时每 5 秒推送一次首页数据，也会在新连接加入时被唤醒。
+// 业务数据发生变化时调用，只唤醒广播线程，不在请求线程里同步查询和推送。
+void AdminHomeDataBroadcaster::notifyHomeDataChanged()
+{
+    {
+        std::lock_guard<std::mutex> lock(connections_mutex_);
+        pending_update_ = true;
+    }
+    broadcast_cv_.notify_all();
+}
+
+// 后台监管循环：没有变化时休眠；多个并发通知会在短暂合并窗口内压缩成一次推送。
 void AdminHomeDataBroadcaster::run()
 {
     while (running_)
     {
         std::unique_lock<std::mutex> waitLock(connections_mutex_);
-        broadcast_cv_.wait_for(waitLock, std::chrono::seconds(5));
+        // 线程在这里进入休眠等待状态
+        // 这个调用会让线程释放锁并进入休眠，直到被其他线程通过 notify_all() 唤醒，
+        // 并且等待的条件（!running_ || pending_update_）为真时才会继续执行。
+        broadcast_cv_.wait(waitLock, [this]() { return !running_ || pending_update_; });
+        // 当被唤醒后，继续执行推送逻辑
         if (!running_)
         {
-            break;
+            break;  // 退出循环
         }
 
-        // 没有订阅者时不查询数据库，减少无意义的后台开销。
+        pending_update_ = false;
+
+        // 没有订阅者时不查询数据库，减少无意义的后台开销；下一次打开首页会触发首帧推送。
         if (connections_.empty())
         {
             continue;
         }
-        waitLock.unlock();
+        waitLock.unlock();  // 释放锁
+
+        // 合并短时间内连续发生的多个业务更新，避免一个接口批量操作触发多次查库推送。
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        {
+            std::lock_guard<std::mutex> lock(connections_mutex_);
+            pending_update_ = false;
+        }
 
         pushHomeData();
     }
@@ -121,6 +144,7 @@ void AdminHomeDataBroadcaster::pushHomeData()
     std::vector<crow::websocket::connection *> connections;
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);
+        // connections.assign() 会创建一个新数组，并把 connections_ 中的元素复制到新数组中。
         connections.assign(connections_.begin(), connections_.end());
     }
 
@@ -145,9 +169,10 @@ void AdminHomeDataBroadcaster::pushHomeData()
         {
             if (!conn)
             {
-                continue;
+                continue;   // 忽略无效连接
             }
 
+            // 有效连接，尝试发送数据
             try
             {
                 conn->send_text(payload);
@@ -155,7 +180,7 @@ void AdminHomeDataBroadcaster::pushHomeData()
             catch (const std::exception &e)
             {
                 std::cerr << "Admin homeData WebSocket send failed: " << e.what() << std::endl;
-                failedConnections.insert(conn);
+                failedConnections.insert(conn); // 记录发送失败的连接
             }
         }
 
@@ -164,7 +189,7 @@ void AdminHomeDataBroadcaster::pushHomeData()
             std::lock_guard<std::mutex> lock(connections_mutex_);
             for (auto *conn : failedConnections)
             {
-                connections_.erase(conn);
+                connections_.erase(conn);   // 从连接池中移除发送失败的连接
             }
         }
     }

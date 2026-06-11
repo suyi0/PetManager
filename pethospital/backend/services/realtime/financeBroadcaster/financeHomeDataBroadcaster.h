@@ -22,6 +22,7 @@ public:
     void addConnection(crow::websocket::connection *conn);
     void removeConnection(crow::websocket::connection *conn);
     void closeAllConnections(const std::string &reason);
+    void notifyHomeDataChanged();
 
 private:
     FinanceHomeDataBroadcaster() = default;
@@ -32,6 +33,7 @@ private:
     std::shared_ptr<DatabaseManagerInterface> dbManager_;
     std::thread broadcast_thread_;
     std::atomic<bool> running_{false};
+    bool pending_update_{false};
     std::mutex connections_mutex_;
     std::condition_variable broadcast_cv_;
     std::unordered_set<crow::websocket::connection *> connections_;

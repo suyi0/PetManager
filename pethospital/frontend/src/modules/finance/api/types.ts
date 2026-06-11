@@ -1,10 +1,8 @@
 export interface FinanceHomeData {
-  userCount: number;
-  onlineDoctorCount: number;
-  logCount: number;
-  salesCount: number;
-  costCount: number;
-  profitCount: number;
+  dailyExpense: number;
+  dailyCost: number;
+  dailySales: number;
+  dailyProfit: number;
 }
 
 export interface SalaryEmployeeRow {

@@ -40,7 +40,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
             });
 
     // 财务端首页实时数据通道。
-    CROW_WEBSOCKET_ROUTE(app, "/ws/finance/home-data")
+    CROW_WEBSOCKET_ROUTE(app, "/realtime/finance/home-data")
         .onaccept([dbManager](const crow::request &req, void **)
                   {
             const char *tokenParam = req.url_params.get("token");

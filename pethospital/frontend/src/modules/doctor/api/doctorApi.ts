@@ -1,6 +1,5 @@
 import http from "@/api/http";
 import { unwrapMessage, unwrapList } from "@/api/response";
-import { queueItemsMock } from "./doctorMock";
 import {
   CreateOrderRecordPayload,
   DoctorManagedPetProfile,
@@ -228,57 +227,42 @@ export const doctorApi = {
    * @returns 直接返回医生值班状态对象，包含是否在线和当前日期等信息
    */
   async getDutyStatus(): Promise<DoctorDutyStatus> {
-    const fallbackStatus: DoctorDutyStatus = {
-      is_online: false,
-      date: "",
-      check_in_time: "",
-      check_out_time: "",
-      status: "offline",
-    };
+    const { data } = await http.get("/api/doctors/duty-status");
 
-    try {
-      const { data } = await http.get("/api/doctors/duty-status");
-
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        return data as DoctorDutyStatus;
-      }
-
-      return unwrapList<DoctorDutyStatus>(data)[0] ?? fallbackStatus;
-    } catch (error) {
-      console.warn("getDutyStatus fallback to default status", error);
-      return fallbackStatus;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      return data as DoctorDutyStatus;
     }
+
+    return (
+      unwrapList<DoctorDutyStatus>(data)[0] ?? {
+        is_online: false,
+        date: "",
+        check_in_time: "",
+        check_out_time: "",
+        status: "offline",
+      }
+    );
   },
 
   /**
    * 按用户编号获取医生端用户详情。
    */
   async getUserProfiles(userId: number): Promise<DoctorUserProfile | null> {
-    try {
-      const { data } = await http.get(`/api/doctors/user-profiles/${userId}`);
-      const profile = unwrapList<Record<string, unknown>>(data)[0];
+    const { data } = await http.get(`/api/doctors/user-profiles/${userId}`);
+    const profile = unwrapList<Record<string, unknown>>(data)[0];
 
-      return profile ? normalizeDoctorUserProfile(profile) : null;
-    } catch (error) {
-      console.warn("getUserProfiles fallback to empty data", error);
-      return null;
-    }
+    return profile ? normalizeDoctorUserProfile(profile) : null;
   },
 
   /**
    * 获取指定用户的完整宠物档案列表，供医生端用户档案管理页使用。
    */
   async getUserPetProfiles(userId: number): Promise<DoctorManagedPetProfile[]> {
-    try {
-      const { data } = await http.get(
-        `/api/doctors/user-profiles/${userId}/pet-profiles`
-      );
+    const { data } = await http.get(
+      `/api/doctors/user-profiles/${userId}/pet-profiles`
+    );
 
-      return unwrapDoctorPetProfiles(data);
-    } catch (error) {
-      console.warn("getUserPetProfiles fallback to empty data", error);
-      return [];
-    }
+    return unwrapDoctorPetProfiles(data);
   },
 
   /**
@@ -288,17 +272,12 @@ export const doctorApi = {
     userId: number,
     payload: Omit<DoctorManagedPetProfile, "id">
   ): Promise<DoctorManagedPetProfile | null> {
-    try {
-      const { data } = await http.post(
-        `/api/doctors/user-profiles/${userId}/pet-profiles`,
-        payload
-      );
+    const { data } = await http.post(
+      `/api/doctors/user-profiles/${userId}/pet-profiles`,
+      payload
+    );
 
-      return unwrapDoctorPetProfiles(data)[0] ?? null;
-    } catch (error) {
-      console.warn("createUserPetProfile failed", error);
-      throw error;
-    }
+    return unwrapDoctorPetProfiles(data)[0] ?? null;
   },
 
   /**
@@ -308,17 +287,12 @@ export const doctorApi = {
     userId: number,
     payload: DoctorManagedPetProfile
   ): Promise<DoctorManagedPetProfile | null> {
-    try {
-      const { data } = await http.put(
-        `/api/doctors/user-profiles/${userId}/pet-profiles/${payload.id}`,
-        payload
-      );
+    const { data } = await http.put(
+      `/api/doctors/user-profiles/${userId}/pet-profiles/${payload.id}`,
+      payload
+    );
 
-      return unwrapDoctorPetProfiles(data)[0] ?? null;
-    } catch (error) {
-      console.warn("updateUserPetProfile failed", error);
-      throw error;
-    }
+    return unwrapDoctorPetProfiles(data)[0] ?? null;
   },
 
   /**
@@ -337,34 +311,24 @@ export const doctorApi = {
     data: string;
     identifier: "name" | "phone";
   }): Promise<DoctorUserSummary[]> {
-    try {
-      const { data } = await http.post("/api/doctors/user-summaries", payload);
+    const { data } = await http.post("/api/doctors/user-summaries", payload);
 
-      return normalizeDoctorUserSummaries(
-        unwrapList<Record<string, unknown>>(data)
-      );
-    } catch (error) {
-      console.warn("getUserList fallback to empty data", error);
-      return [];
-    }
+    return normalizeDoctorUserSummaries(
+      unwrapList<Record<string, unknown>>(data)
+    );
   },
 
   /**
    * 获取待接诊队列信息
-   * @returns 返回待接诊队列列表，每个队列项包含宠物的基本信息、症状描述和到院时间等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
+   * @returns 返回待接诊队列列表；接口为空时返回空列表。
    */
   async getReservationsSummary(): Promise<ReservationSummaryItem[]> {
-    try {
-      const { data } = await http.get("/api/doctors/reservation-summaries");
-      const reservationItems = normalizeReservationSummaries(
-        unwrapList<Record<string, unknown>>(data)
-      );
+    const { data } = await http.get("/api/doctors/reservation-summaries");
+    const reservationItems = normalizeReservationSummaries(
+      unwrapList<Record<string, unknown>>(data)
+    );
 
-      return reservationItems;
-    } catch (error) {
-      console.warn("getReservationsSummary fallback to empty data", error);
-      return [];
-    }
+    return reservationItems;
   },
 
   /**
@@ -373,15 +337,10 @@ export const doctorApi = {
   async getReservationInformation(
     reservationId: number
   ): Promise<ReservationItem | null> {
-    try {
-      const { data } = await http.get(
-        `/api/doctors/reservations/${reservationId}/information`
-      );
-      return normalizeReservationDetail(unwrapData<ReservationItem>(data));
-    } catch (error) {
-      console.warn("getReservationInformation fallback to empty data", error);
-      return null;
-    }
+    const { data } = await http.get(
+      `/api/doctors/reservations/${reservationId}/information`
+    );
+    return normalizeReservationDetail(unwrapData<ReservationItem>(data));
   },
 
   /**
@@ -403,70 +362,48 @@ export const doctorApi = {
   async createOrderRecord(
     payload: CreateOrderRecordPayload
   ): Promise<OrderSummaryItem> {
-    try {
-      const { data } = await http.post("/api/doctors/order-records", payload);
-      const createdRecord = unwrapData<OrderSummaryItem>(data);
+    const { data } = await http.post("/api/doctors/order-records", payload);
+    const createdRecord = unwrapData<OrderSummaryItem>(data);
 
-      if (!createdRecord) {
-        throw new Error("创建订单接口未返回订单记录");
-      }
-
-      return normalizeOrderSummaryItem(
-        createdRecord as unknown as Record<string, unknown>
-      );
-    } catch (error) {
-      console.warn("createOrderRecord fallback to empty data", error);
-      throw error;
+    if (!createdRecord) {
+      throw new Error("创建订单接口未返回订单记录");
     }
+
+    return normalizeOrderSummaryItem(
+      createdRecord as unknown as Record<string, unknown>
+    );
   },
 
   /**
    * 获取订单记录信息
-   * @returns 返回订单记录列表，每个记录包含订单的基本信息和当前状态等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
+   * @returns 返回订单记录列表；接口为空时返回空列表。
    */
   async getOrderSummary(): Promise<OrderSummaryItem[]> {
-    try {
-      const { data } = await http.get("/api/doctors/order-summaries");
-      const orderRecordItems = normalizeOrderSummaryItems(
-        unwrapList<Record<string, unknown>>(data)
-      );
+    const { data } = await http.get("/api/doctors/order-summaries");
+    const orderRecordItems = normalizeOrderSummaryItems(
+      unwrapList<Record<string, unknown>>(data)
+    );
 
-      return orderRecordItems;
-    } catch (error) {
-      console.warn("getOrderSummary fallback to empty data", error);
-      return [];
-    }
+    return orderRecordItems;
   },
 
   /**
    * 按订单编号获取完整诊单详情。
    */
   async getOrderInformation(orderId: number): Promise<OrderDetailItem | null> {
-    try {
-      const { data } = await http.get(
-        `/api/doctors/orders/${orderId}/information`
-      );
-      return unwrapOrderDetail(data);
-    } catch (error) {
-      console.warn("getOrderInformation fallback to empty data", error);
-      return null;
-    }
+    const { data } = await http.get(
+      `/api/doctors/orders/${orderId}/information`
+    );
+    return unwrapOrderDetail(data);
   },
 
   /**
    * 获取待接诊队列信息
-   * @returns 返回待接诊队列列表，每个队列项包含宠物的基本信息、症状描述和到院时间等数据,如果接口请求失败或返回数据格式不正确，则返回预设的模拟数据列表
+   * @returns 返回待接诊队列列表，每个队列项包含宠物的基本信息、症状描述和到院时间等数据。
    */
   async queue(): Promise<QueueItem[]> {
-    try {
-      const { data } = await http.get("/api/doctors/queues");
-      const queueItems = normalizeQueueItems(unwrapList<QueueItem>(data));
-
-      return queueItems.length > 0 ? queueItems : queueItemsMock;
-    } catch (error) {
-      console.warn("getQueue fallback to mock data", error);
-      return queueItemsMock;
-    }
+    const { data } = await http.get("/api/doctors/queues");
+    return normalizeQueueItems(unwrapList<QueueItem>(data));
   },
 
   /**

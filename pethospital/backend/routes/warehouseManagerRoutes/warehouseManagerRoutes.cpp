@@ -11,52 +11,29 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
     }
 
     CROW_ROUTE(app, "/api/warehouse-managers/items")
-        .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)(
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)(
             [dbManager](const crow::request &req, crow::response &res) {
                 int userId = -1;
+                const bool isUpload = req.method == crow::HTTPMethod::POST;
+                const std::string action = isUpload ? "上传物资" : "查询全部物资";
                 try {
                     userId = isValidWarehouseStaffToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1) {
-                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "上传物资");
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", action);
                         return;
                     }
 
                     warehouseManagerHandler handler(dbManager);
-                    crow::response response = handler.upload(req);
+                    crow::response response = isUpload ? handler.upload(req) : handler.selectAllData(req);
                     ProcessHandlerResponse(req, res, response);
                 } catch (const std::exception &e) {
-                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "上传物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", action, e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(
                         req,
                         "Internal error: " + std::string(e.what())
                     );
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "上传物资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            }
-        );
-
-    CROW_ROUTE(app, "/api/warehouse-managers/items")
-        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)(
-            [dbManager](const crow::request &req, crow::response &res) {
-                int userId = -1;
-                try {
-                    userId = isValidWarehouseStaffToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1) {
-                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "查询全部物资");
-                        return;
-                    }
-
-                    warehouseManagerHandler handler(dbManager);
-                    crow::response response = handler.selectAllData(req);
-                    ProcessHandlerResponse(req, res, response);
-                } catch (const std::exception &e) {
-                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "查询全部物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-                    res = ResponseHelper::system_error(
-                        req,
-                        "Internal error: " + std::string(e.what())
-                    );
-                }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "查询全部物资", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, isUpload);
             }
         );
 

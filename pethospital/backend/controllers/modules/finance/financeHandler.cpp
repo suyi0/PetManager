@@ -1,4 +1,6 @@
 #include "financeHandler.h"
+#include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include <cmath>
 
 namespace
@@ -275,6 +277,8 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
             }
 
             session->sql("COMMIT").execute();
+            FinanceHomeDataBroadcaster::instance().notifyHomeDataChanged();
+            AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
             return isNewSalary ? ResponseHelper::created(req, data) : ResponseHelper::success(req, data);
         }
         catch (const std::invalid_argument &e)

@@ -7,6 +7,15 @@ import {
   ReservationItem,
   ReservationSummaryItem,
 } from "../api/types";
+import {
+  readVersionedLocalCache,
+  saveVersionedLocalCache,
+} from "@/shared/utils/versionedLocalCache";
+
+const DOCTOR_CACHE_OPTIONS = {
+  version: 1,
+  ttlMs: 1000 * 60 * 60 * 24 * 30,
+};
 
 const DOCTOR_CACHE_KEYS = {
   dutyStatus: "doctor:duty-status:cache",
@@ -18,33 +27,12 @@ const DOCTOR_CACHE_KEYS = {
   currentOrderDetail: "doctor:current-order-detail:cache",
 };
 
-/**
- * 读取JSON缓存，如果缓存不存在或格式异常则返回 null，并清理损坏的缓存数据。
- * @param key 缓存键
- * @returns 返回解析后的数据对象，如果缓存不存在或格式异常则返回 null
- */
 const readJsonCache = <T>(key: string): T | null => {
-  const rawValue = localStorage.getItem(key);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as T;
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
+  return readVersionedLocalCache<T>(key, DOCTOR_CACHE_OPTIONS);
 };
 
-/**
- * 处理缓存数据写入，确保数据以 JSON 格式存储，并且在读取时能正确解析。
- * @param key 缓存键
- * @param value 要存储的值
- */
 const saveJsonCache = <T>(key: string, value: T) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  saveVersionedLocalCache(key, value, DOCTOR_CACHE_OPTIONS);
 };
 
 /**

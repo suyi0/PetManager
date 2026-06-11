@@ -1,5 +1,22 @@
 <template>
   <section class="page">
+    <header class="command-head">
+      <div>
+        <p>Warehouse Console</p>
+        <h2>仓储调度台</h2>
+        <span>库存入库、出库、预警和基础档案统一处理</span>
+      </div>
+      <button type="button" @click="openCreatePreset">新增入库</button>
+    </header>
+
+    <p
+      v-if="statusMessage"
+      class="status-message"
+      :class="`status-message--${statusType}`"
+    >
+      {{ statusMessage }}
+    </p>
+
     <div class="stats-row">
       <WarehouseStatCard
         label="在库品项"
@@ -12,9 +29,15 @@
         hint="自动汇总"
       />
       <WarehouseStatCard
-        label="待处理预警"
-        :value="warningCount"
-        hint="临期与低库存"
+        label="低库存"
+        :value="lowStockCount"
+        hint="少于 10 件"
+        tone="danger"
+      />
+      <WarehouseStatCard
+        label="临期物品"
+        :value="expiringCount"
+        hint="7 天内到期"
         tone="warning"
       />
     </div>
@@ -22,8 +45,11 @@
     <div class="workbench">
       <section class="dashboard-panel">
         <div class="section-title">
-          <h3>库存列表</h3>
-          <span>可批量勾选</span>
+          <div>
+            <h3>库存列表</h3>
+            <span>共 {{ filteredItems.length }} 条记录</span>
+          </div>
+          <b>{{ selectedIds.length }} 项已选</b>
         </div>
 
         <div class="toolbar">
@@ -108,8 +134,13 @@
       <div class="side-stack">
         <section class="side-panel">
           <div class="section-title">
-            <h3>编辑抽屉</h3>
-            <span>自动计算总价</span>
+            <div>
+              <h3>快速操作</h3>
+              <span>{{
+                editingItem ? editingItem.item_name : "未选择库存记录"
+              }}</span>
+            </div>
+            <b>{{ editingItem ? "编辑中" : "新增模式" }}</b>
           </div>
 
           <div class="form-grid">
@@ -172,16 +203,70 @@
             <span>总价自动更新</span>
           </div>
 
-          <div class="panel-actions">
-            <button class="ghost" @click="openCreatePreset">填入示例</button>
-            <button @click="saveEdit">修改入库</button>
+          <div class="movement-box">
+            <input
+              v-model.number="movementQuantity"
+              type="number"
+              min="1"
+              placeholder="入库 / 出库数量"
+            />
+            <button
+              class="ghost"
+              :disabled="!editingItem || movementQuantity <= 0"
+              @click="submitStockIn"
+            >
+              入库
+            </button>
+            <button
+              class="ghost"
+              :disabled="!editingItem || movementQuantity <= 0"
+              @click="submitStockOut"
+            >
+              出库
+            </button>
           </div>
+
+          <div class="panel-actions">
+            <button class="ghost" @click="openCreatePreset">新增模式</button>
+            <button @click="saveEdit">
+              {{ editingItem ? "保存修改" : "新增入库" }}
+            </button>
+          </div>
+        </section>
+
+        <section class="warning-panel">
+          <div class="section-title">
+            <div>
+              <h3>预警队列</h3>
+              <span>低库存与临期优先处理</span>
+            </div>
+            <b>{{ warningCount }} 项</b>
+          </div>
+
+          <div v-if="warningItems.length" class="warning-list">
+            <button
+              v-for="item in warningItems"
+              :key="item.id"
+              type="button"
+              class="warning-row"
+              @click="openEdit(item)"
+            >
+              <span>
+                <strong>{{ item.item_name }}</strong>
+                <small>{{ warningReason(item) }}</small>
+              </span>
+              <em>{{ item.item_number }} 件</em>
+            </button>
+          </div>
+          <div v-else class="empty-warning">暂无需要处理的库存预警</div>
         </section>
 
         <section class="delete-panel">
           <div class="section-title">
-            <h3>删除确认</h3>
-            <span>危险操作</span>
+            <div>
+              <h3>删除确认</h3>
+              <span>危险操作</span>
+            </div>
           </div>
 
           <template v-if="deletingItem">
@@ -218,7 +303,6 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, reactive, ref } from "vue";
 import WarehouseStatCard from "@/modules/warehouse-admin/components/WarehouseStatCard.vue";
-import { warehouseAdminApi } from "@/modules/warehouse-admin/api/warehouseAdminApi";
 import {
   WarehouseCreatePayload,
   WarehouseItem,
@@ -254,6 +338,9 @@ export default defineComponent({
     const deletingItem = ref<WarehouseItem | null>(null);
     const selectedIds = ref<number[]>([]);
     const deleteConfirmText = ref("");
+    const movementQuantity = ref(1);
+    const statusMessage = ref("");
+    const statusType = ref<"info" | "error">("info");
     const editForm = reactive<WarehouseCreatePayload>(createEmptyForm());
 
     const typeFilters = ["全部", "药品", "耗材", "营养品"];
@@ -319,6 +406,33 @@ export default defineComponent({
         ).length
     );
 
+    const lowStockCount = computed(
+      () => items.value.filter((item) => item.item_number < 10).length
+    );
+
+    const expiringCount = computed(
+      () =>
+        items.value.filter(
+          (item) =>
+            item.days_until_expire !== null && item.days_until_expire <= 7
+        ).length
+    );
+
+    const warningItems = computed(() =>
+      items.value
+        .filter(
+          (item) =>
+            item.item_number < 10 ||
+            (item.days_until_expire !== null && item.days_until_expire <= 7)
+        )
+        .sort((a, b) => {
+          const aExpire = a.days_until_expire ?? Number.MAX_SAFE_INTEGER;
+          const bExpire = b.days_until_expire ?? Number.MAX_SAFE_INTEGER;
+          return aExpire - bExpire || a.item_number - b.item_number;
+        })
+        .slice(0, 6)
+    );
+
     const computedEditTotal = computed(
       () => Number(editForm.item_number) * Number(editForm.item_price)
     );
@@ -364,10 +478,18 @@ export default defineComponent({
       return "ok";
     };
 
+    const warningReason = (item: WarehouseItem) => {
+      if (item.days_until_expire !== null && item.days_until_expire <= 7) {
+        return `${item.days_until_expire} 天内到期`;
+      }
+      return "库存低于 10 件";
+    };
+
     const openEdit = (item: WarehouseItem) => {
       editingItem.value = item;
       deletingItem.value = item;
       deleteConfirmText.value = "";
+      movementQuantity.value = 1;
       Object.assign(editForm, {
         item_name: item.item_name,
         item_type: item.item_type,
@@ -381,6 +503,7 @@ export default defineComponent({
     const openCreatePreset = () => {
       editingItem.value = null;
       deletingItem.value = null;
+      movementQuantity.value = 1;
       Object.assign(editForm, {
         item_name: "宠物补液套装",
         item_type: "耗材",
@@ -416,33 +539,64 @@ export default defineComponent({
       selectedIds.value = [...merged];
     };
 
+    const showStatus = (message: string, type: "info" | "error" = "info") => {
+      statusMessage.value = message;
+      statusType.value = type;
+    };
+
     /**
      * 新增或修改库存后，刷新缓存并追加一条会话内操作流。
      */
     const saveEdit = async () => {
       try {
-        const isEditing = Boolean(editingItem.value);
         if (editingItem.value) {
-          await warehouseAdminApi.updata(editingItem.value.id, {
-            ...editForm,
+          await store.dispatch("warehouseAdmin/updateItem", {
+            itemId: editingItem.value.id,
+            patch: { ...editForm },
           });
         } else {
-          await warehouseAdminApi.upload({ ...editForm });
+          await store.dispatch("warehouseAdmin/createItem", { ...editForm });
         }
-        store.commit("warehouseAdmin/markItemsDirty");
-        store.commit("warehouseAdmin/appendOperationLog", {
-          time: new Date().toTimeString().slice(0, 5),
-          title: isEditing
-            ? `更新库存 · ${editForm.item_name}`
-            : `新增物品 · ${editForm.item_name}`,
-          description: `数量 ${editForm.item_number}，单价 ¥${Number(
-            editForm.item_price
-          ).toFixed(2)}。`,
-          tag: isEditing ? "Update" : "Create",
+        showStatus(editingItem.value ? "库存信息已更新" : "物品已新增入库");
+      } catch (error) {
+        showStatus(
+          `保存失败：${String((error as Error).message || error)}`,
+          "error"
+        );
+      }
+    };
+
+    const submitStockIn = async () => {
+      if (!editingItem.value) return;
+
+      try {
+        await store.dispatch("warehouseAdmin/stockIn", {
+          itemId: editingItem.value.id,
+          quantity: Number(movementQuantity.value),
         });
-        await store.dispatch("warehouseAdmin/refreshItems");
-      } catch {
-        // 设计预览场景允许静默失败。
+        showStatus("入库操作已完成");
+      } catch (error) {
+        showStatus(
+          `入库失败：${String((error as Error).message || error)}`,
+          "error"
+        );
+      }
+    };
+
+    const submitStockOut = async () => {
+      if (!editingItem.value) return;
+
+      try {
+        await store.dispatch("warehouseAdmin/stockOut", {
+          itemId: editingItem.value.id,
+          quantity: Number(movementQuantity.value),
+        });
+        showStatus("出库操作已完成");
+      } catch (error) {
+        showStatus(
+          `出库失败：${String((error as Error).message || error)}`,
+          "error"
+        );
       }
     };
 
@@ -453,17 +607,16 @@ export default defineComponent({
       if (!deletingItem.value) return;
 
       try {
-        await warehouseAdminApi.delete(deletingItem.value.id);
-        store.commit("warehouseAdmin/markItemsDirty");
-        store.commit("warehouseAdmin/appendOperationLog", {
-          time: new Date().toTimeString().slice(0, 5),
-          title: `删除物品 · ${deletingItem.value.item_name}`,
-          description: `ID ${deletingItem.value.id} 已从库存列表中移除。`,
-          tag: "Delete",
-        });
-        await store.dispatch("warehouseAdmin/refreshItems");
-      } catch {
-        // 设计预览场景允许静默失败。
+        await store.dispatch(
+          "warehouseAdmin/deleteItem",
+          deletingItem.value.id
+        );
+        showStatus("物品已删除");
+      } catch (error) {
+        showStatus(
+          `删除失败：${String((error as Error).message || error)}`,
+          "error"
+        );
       }
       selectedIds.value = selectedIds.value.filter(
         (id) => id !== deletingItem.value?.id
@@ -493,20 +646,29 @@ export default defineComponent({
       deletingItem,
       selectedIds,
       deleteConfirmText,
+      movementQuantity,
+      statusMessage,
+      statusType,
       editForm,
       computedEditTotal,
       editSummaryTotal,
       totalValue,
       warningCount,
+      lowStockCount,
+      expiringCount,
+      warningItems,
       isSelected,
       openEdit,
       openCreatePreset,
       saveEdit,
+      submitStockIn,
+      submitStockOut,
       confirmDelete,
       toggleSelected,
       toggleSelectAll,
       statusLabel,
       statusTone,
+      warningReason,
       currency,
     };
   },
@@ -520,19 +682,93 @@ export default defineComponent({
   width: 100%;
   min-height: 100%;
   box-sizing: border-box;
-  gap: 14px;
+  gap: 16px;
+  color: #173c45;
+}
+
+.command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(113, 166, 176, 0.2);
+  border-radius: 20px;
+  padding: 18px 20px;
+  background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.94),
+      rgba(238, 250, 248, 0.88)
+    ),
+    linear-gradient(180deg, #f8fbf8, #e5f4f3);
+  box-shadow: 0 18px 42px rgba(57, 102, 115, 0.1);
+}
+
+.command-head p,
+.command-head h2,
+.command-head span {
+  margin: 0;
+}
+
+.command-head p {
+  color: #6f8f92;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.command-head h2 {
+  margin: 4px 0;
+  font-size: 28px;
+  line-height: 1.15;
+  color: #12383d;
+}
+
+.command-head span {
+  color: #668288;
+  font-size: 13px;
+}
+
+.command-head button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #1f7077, #6d5348);
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(48, 93, 98, 0.22);
+}
+
+.status-message {
+  margin: 0;
+  border-radius: 14px;
+  padding: 11px 14px;
+  font-size: 13px;
+}
+
+.status-message--info {
+  color: #1f684b;
+  background: rgba(215, 242, 230, 0.9);
+  border: 1px solid rgba(74, 146, 105, 0.14);
+}
+
+.status-message--error {
+  color: #a23c4a;
+  background: rgba(255, 229, 234, 0.92);
+  border: 1px solid rgba(180, 65, 83, 0.16);
 }
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
 }
 
 .workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) 420px;
+  grid-template-columns: minmax(0, 1.7fr) 420px;
   gap: 14px;
   flex: 1;
   min-height: 0;
@@ -541,28 +777,28 @@ export default defineComponent({
 
 .dashboard-panel,
 .side-panel,
+.warning-panel,
 .delete-panel {
-  border-radius: 20px;
-  border: 1px solid rgba(108, 154, 255, 0.28);
-  background: linear-gradient(
-    180deg,
-    rgba(34, 60, 116, 0.96),
-    rgba(23, 45, 96, 0.98)
-  );
-  box-shadow: inset 0 0 0 1px rgba(141, 190, 255, 0.08),
-    0 18px 34px rgba(34, 72, 145, 0.16);
+  border-radius: 18px;
+  border: 1px solid rgba(108, 151, 156, 0.2);
+  background: rgba(250, 253, 250, 0.9);
+  box-shadow: 0 18px 36px rgba(45, 82, 92, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 .dashboard-panel {
-  padding: 16px 16px 18px;
+  min-width: 0;
+  padding: 18px;
 }
 
 .side-stack {
   display: grid;
+  align-content: start;
   gap: 14px;
 }
 
 .side-panel,
+.warning-panel,
 .delete-panel {
   padding: 16px;
 }
@@ -572,18 +808,33 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
+  gap: 12px;
 }
 
-.section-title h3,
+.section-title h3 {
+  margin: 0 0 4px;
+  color: #163d42;
+  font-size: 16px;
+}
+
+.section-title b {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(221, 241, 237, 0.9);
+  color: #2d6f70;
+  font-size: 12px;
+}
+
 .delete-title {
   margin: 0;
   font-size: 16px;
-  color: #edf4ff;
+  color: #163d42;
 }
 
 .section-title span,
 .delete-panel small {
-  color: #9fb4d4;
+  color: #6a8589;
   font-size: 12px;
 }
 
@@ -598,19 +849,20 @@ export default defineComponent({
 .side-panel input,
 .delete-panel input {
   min-width: 0;
-  width: 80%;
-  border: 1px solid rgba(120, 168, 255, 0.2);
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(91, 139, 143, 0.18);
   border-radius: 12px;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #d9e7fb;
+  background: rgba(255, 255, 255, 0.86);
+  color: #153f45;
   outline: none;
 }
 
 .toolbar input::placeholder,
 .side-panel input::placeholder,
 .delete-panel input::placeholder {
-  color: #8da4c8;
+  color: #90a7aa;
 }
 
 .chips,
@@ -624,16 +876,12 @@ export default defineComponent({
 .chips button,
 .sort-strip span {
   border-radius: 999px;
-  border: 1px solid rgba(104, 145, 255, 0.34);
-  background: linear-gradient(
-    180deg,
-    rgba(78, 116, 214, 0.46),
-    rgba(55, 87, 176, 0.46)
-  );
-  color: #c4d8fb;
+  border: 1px solid rgba(102, 150, 154, 0.22);
+  background: rgba(248, 252, 249, 0.86);
+  color: #526f75;
   font-size: 12px;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
 .chips button {
@@ -642,21 +890,17 @@ export default defineComponent({
 
 .chips button.active,
 .sort-strip span.active {
-  color: #f3f8ff;
-  border-color: rgba(113, 160, 255, 0.58);
-  background: linear-gradient(
-    180deg,
-    rgba(76, 122, 255, 0.96),
-    rgba(51, 95, 224, 0.98)
-  );
-  box-shadow: 0 10px 18px rgba(49, 91, 207, 0.36);
+  color: #ffffff;
+  border-color: rgba(31, 112, 119, 0.38);
+  background: linear-gradient(135deg, #1f7077, #426d69);
+  box-shadow: 0 10px 18px rgba(49, 99, 105, 0.22);
 }
 
 .sort-strip {
   margin-bottom: 12px;
   padding: 10px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(234, 247, 244, 0.74);
 }
 
 .sort-strip span {
@@ -664,10 +908,10 @@ export default defineComponent({
 }
 
 .grid-table {
-  border: 1px solid rgba(120, 168, 255, 0.16);
+  border: 1px solid rgba(101, 146, 150, 0.16);
   border-radius: 16px;
   overflow: hidden;
-  background: rgba(12, 27, 57, 0.34);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .grid-head,
@@ -680,15 +924,21 @@ export default defineComponent({
 }
 
 .grid-head {
-  color: #9ab0cf;
+  color: #668085;
   font-size: 12px;
-  border-bottom: 1px solid rgba(117, 184, 255, 0.08);
+  border-bottom: 1px solid rgba(107, 151, 154, 0.12);
+  background: rgba(237, 248, 245, 0.84);
 }
 
 .grid-row {
-  color: #e8f1ff;
+  color: #173f45;
   font-size: 13px;
-  border-top: 1px solid rgba(117, 184, 255, 0.05);
+  border-top: 1px solid rgba(107, 151, 154, 0.1);
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+.grid-row:hover {
+  background: rgba(238, 249, 246, 0.82);
 }
 
 .grid-row:first-of-type {
@@ -707,7 +957,7 @@ export default defineComponent({
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: #5d84ff;
+  accent-color: #1f7077;
   cursor: pointer;
 }
 
@@ -716,7 +966,7 @@ export default defineComponent({
 }
 
 .name-cell small {
-  color: #a4b8d5;
+  color: #789093;
 }
 
 .status {
@@ -731,18 +981,18 @@ export default defineComponent({
 }
 
 .status.ok {
-  color: #75dfbe;
-  background: rgba(56, 143, 117, 0.2);
+  color: #247b62;
+  background: rgba(214, 242, 232, 0.9);
 }
 
 .status.warn {
-  color: #edbb67;
-  background: rgba(124, 90, 32, 0.24);
+  color: #9b6817;
+  background: rgba(255, 236, 202, 0.9);
 }
 
 .status.danger {
-  color: #f07287;
-  background: rgba(111, 39, 56, 0.28);
+  color: #b04455;
+  background: rgba(255, 224, 229, 0.95);
 }
 
 .action-cell {
@@ -753,11 +1003,12 @@ export default defineComponent({
 .panel-actions button,
 .danger-btn {
   width: 100%;
-  border: 1px solid rgba(117, 166, 255, 0.24);
+  border: 1px solid rgba(91, 139, 143, 0.2);
   border-radius: 12px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #dbe8fb;
+  background: rgba(255, 255, 255, 0.86);
+  color: #24565c;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -768,12 +1019,13 @@ export default defineComponent({
 }
 
 .panel-actions .ghost {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(238, 249, 246, 0.88);
 }
 
 .panel-actions button:last-child {
-  background: linear-gradient(135deg, #6a86ff, #4169e1);
-  color: #f7fbff;
+  border-color: rgba(31, 112, 119, 0.24);
+  background: linear-gradient(135deg, #1f7077, #6d5348);
+  color: #ffffff;
   font-weight: 700;
 }
 
@@ -793,18 +1045,100 @@ export default defineComponent({
 .meta-strip span {
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #aac0de;
+  background: rgba(234, 247, 244, 0.8);
+  color: #5b777b;
   font-size: 12px;
+}
+
+.movement-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.movement-box button {
+  border: 1px solid rgba(91, 139, 143, 0.18);
+  border-radius: 12px;
+  padding: 0 14px;
+  background: #f8fcf9;
+  color: #1d6067;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.movement-box button:disabled {
+  color: #9dafb1;
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.warning-panel {
+  background: linear-gradient(
+      180deg,
+      rgba(255, 252, 245, 0.94),
+      rgba(250, 253, 250, 0.9)
+    ),
+    #ffffff;
+}
+
+.warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.warning-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid rgba(166, 122, 70, 0.16);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #173f45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.warning-row strong,
+.warning-row small {
+  display: block;
+}
+
+.warning-row small {
+  margin-top: 3px;
+  color: #8a7060;
+  font-size: 12px;
+}
+
+.warning-row em {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(255, 236, 202, 0.9);
+  color: #9b6817;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.empty-warning {
+  border: 1px dashed rgba(97, 142, 146, 0.22);
+  border-radius: 14px;
+  padding: 18px;
+  color: #789093;
+  text-align: center;
 }
 
 .delete-panel {
   background: linear-gradient(
       180deg,
-      rgba(8, 22, 37, 0.98),
-      rgba(7, 16, 31, 0.98)
+      rgba(255, 247, 249, 0.95),
+      rgba(250, 253, 250, 0.9)
     ),
-    linear-gradient(180deg, rgba(111, 32, 52, 0.18), rgba(111, 32, 52, 0));
+    #ffffff;
 }
 
 .delete-panel small {
@@ -814,12 +1148,12 @@ export default defineComponent({
 
 .danger-btn {
   margin-top: 12px;
-  color: #ff9dac;
-  border-color: rgba(194, 77, 102, 0.34);
+  color: #b04455;
+  border-color: rgba(194, 77, 102, 0.24);
   background: linear-gradient(
     180deg,
-    rgba(111, 42, 60, 0.38),
-    rgba(125, 43, 67, 0.46)
+    rgba(255, 236, 240, 0.86),
+    rgba(255, 225, 231, 0.92)
   );
 }
 
@@ -829,17 +1163,25 @@ export default defineComponent({
 }
 
 .danger-btn.muted {
-  color: #ba8793;
+  color: #b7969e;
 }
 
 @media (max-width: 1280px) {
   .workbench {
     grid-template-columns: 1fr;
   }
+
+  .side-stack {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1080px) {
   .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .side-stack {
     grid-template-columns: 1fr;
   }
 
@@ -929,7 +1271,7 @@ export default defineComponent({
 
   .grid-row > span::before {
     font-size: 11px;
-    color: #9ab0cf;
+    color: #789093;
   }
 
   .grid-row > span:nth-child(1) {
@@ -980,6 +1322,22 @@ export default defineComponent({
   }
 
   .panel-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .command-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .command-head button {
+    width: 100%;
+  }
+
+  .stats-row,
+  .movement-box {
     grid-template-columns: 1fr;
   }
 }

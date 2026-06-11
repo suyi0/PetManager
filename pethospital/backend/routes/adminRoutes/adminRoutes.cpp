@@ -45,7 +45,7 @@ void adminRoutes::setupAdminRoutes(
             });
 
     // 超级管理员首页实时数据通道。
-    CROW_WEBSOCKET_ROUTE(app, "/ws/admins/home-data")
+    CROW_WEBSOCKET_ROUTE(app, "/realtime/admins/home-data")
         .onaccept([dbManager](const crow::request &req, void **)
                   {
             // 前端请求传递的Token值会通过Crow框架自动解析存入req.url_params字典中。
@@ -80,29 +80,40 @@ void adminRoutes::setupAdminRoutes(
             AdminHomeDataBroadcaster::instance().removeConnection(&conn); });
 
     CROW_ROUTE(app, "/api/admins/users")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
             {
                 int userId = -1;
+                const bool isCreate = req.method == crow::HTTPMethod::Post;
+                const std::string action = isCreate ? "创建用户" : "获取用户列表";
                 try
                 {
                     userId = isValidManagementToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
-                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取用户列表");
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", action);
                         return;
                     }
 
-                    adminHandler handler(dbManager);
-                    crow::response response = handler.getUsers(req);
+                    crow::response response;
+                    if (isCreate)
+                    {
+                        personnelHandler handler(dbManager);
+                        response = handler.createUser(req);
+                    }
+                    else
+                    {
+                        adminHandler handler(dbManager);
+                        response = handler.getUsers(req);
+                    }
                     ProcessHandlerResponse(req, res, response);
                 }
                 catch (const std::exception &e)
                 {
-                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "获取用户列表", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", action, e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取用户列表", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, isCreate);
             });
 
     CROW_ROUTE(app, "/api/admins/work-time-records")
@@ -129,32 +140,6 @@ void adminRoutes::setupAdminRoutes(
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "获取工时记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
-
-    CROW_ROUTE(app, "/api/admins/users")
-        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
-            [dbManager](const crow::request &req, crow::response &res)
-            {
-                int userId = -1;
-                try
-                {
-                    userId = isValidManagementToken(req, res, dbManager);
-                    if (res.code != 200 || userId == -1)
-                    {
-                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "创建用户");
-                        return;
-                    }
-
-                    personnelHandler handler(dbManager);
-                    crow::response response = handler.createUser(req);
-                    ProcessHandlerResponse(req, res, response);
-                }
-                catch (const std::exception &e)
-                {
-                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "创建用户", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-                    res = ResponseHelper::system_error(req);
-                }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "创建用户", userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/admins/user-deletions")

@@ -7,6 +7,15 @@ import {
   ReservationSummary,
   ReservationScheduleState,
 } from "../api/types";
+import {
+  readVersionedLocalCache,
+  saveVersionedLocalCache,
+} from "@/shared/utils/versionedLocalCache";
+
+const USER_PORTAL_CACHE_OPTIONS = {
+  version: 1,
+  ttlMs: 1000 * 60 * 60 * 24 * 30,
+};
 
 const USER_PORTAL_CACHE_KEYS = {
   petProfiles: "user-portal:pet-profiles:cache",
@@ -19,22 +28,11 @@ const USER_PORTAL_CACHE_KEYS = {
 };
 
 const readJsonCache = <T>(key: string): T | null => {
-  const rawValue = localStorage.getItem(key);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as T;
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
+  return readVersionedLocalCache<T>(key, USER_PORTAL_CACHE_OPTIONS);
 };
 
 const saveJsonCache = <T>(key: string, value: T) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  saveVersionedLocalCache(key, value, USER_PORTAL_CACHE_OPTIONS);
 };
 
 const readArrayCache = <T>(key: string): T[] | null => {

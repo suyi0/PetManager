@@ -29,12 +29,10 @@ const createEmptySalarySummaryCache = (page = 1): SalarySummaryCache => ({
 });
 
 const createEmptyFinanceHomeData = (): FinanceHomeData => ({
-  userCount: 0,
-  onlineDoctorCount: 0,
-  logCount: 0,
-  salesCount: 0,
-  costCount: 0,
-  profitCount: 0,
+  dailyExpense: 0,
+  dailyCost: 0,
+  dailySales: 0,
+  dailyProfit: 0,
 });
 
 export const financeApi = {
@@ -48,12 +46,10 @@ export const financeApi = {
       const payload = data?.data ?? data;
 
       return {
-        userCount: Number(payload?.userCount ?? 0),
-        onlineDoctorCount: Number(payload?.onlineDoctorCount ?? 0),
-        logCount: Number(payload?.logCount ?? payload?.logsCount ?? 0),
-        salesCount: Number(payload?.salesCount ?? 0),
-        costCount: Number(payload?.costCount ?? 0),
-        profitCount: Number(payload?.profitCount ?? 0),
+        dailyExpense: Number(payload?.dailyExpense ?? 0),
+        dailyCost: Number(payload?.dailyCost ?? payload?.costCount ?? 0),
+        dailySales: Number(payload?.dailySales ?? payload?.salesCount ?? 0),
+        dailyProfit: Number(payload?.dailyProfit ?? payload?.profitCount ?? 0),
       };
     } catch {
       return createEmptyFinanceHomeData();

@@ -1,32 +1,46 @@
 import type {
+  FinanceHomeData,
   SalaryInformationCache,
   SalaryManagementPayload,
   SalarySummaryCache,
 } from "../api/types";
+import {
+  readVersionedLocalCache,
+  saveVersionedLocalCache,
+} from "@/shared/utils/versionedLocalCache";
+
+const FINANCE_CACHE_OPTIONS = {
+  version: 1,
+  ttlMs: 1000 * 60 * 60 * 24 * 30,
+};
 
 const FINANCE_CACHE_KEYS = {
+  homeData: "finance:home-data:cache",
   salaryManagement: "finance:salary-management:cache",
   salarySummaries: "finance:salary-summaries:cache",
   currentSalaryInformation: "finance:current-salary-information:cache",
 };
 
 const readJsonCache = <T>(key: string): T | null => {
-  const rawValue = localStorage.getItem(key);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as T;
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
+  return readVersionedLocalCache<T>(key, FINANCE_CACHE_OPTIONS);
 };
 
 const saveJsonCache = <T>(key: string, value: T) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  saveVersionedLocalCache(key, value, FINANCE_CACHE_OPTIONS);
+};
+
+/**
+ * 从本地缓存读取财务端首页统计数据。
+ * WebSocket 推送成功后会持续覆盖这份缓存。
+ */
+export const readFinanceHomeDataCache = () =>
+  readJsonCache<FinanceHomeData>(FINANCE_CACHE_KEYS.homeData);
+
+/**
+ * 写入财务端首页统计数据本地缓存。
+ */
+export const saveFinanceHomeDataCache = (payload: FinanceHomeData) => {
+  saveJsonCache(FINANCE_CACHE_KEYS.homeData, payload);
 };
 
 /**

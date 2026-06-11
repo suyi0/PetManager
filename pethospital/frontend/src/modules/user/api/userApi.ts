@@ -1,9 +1,5 @@
 import http from "@/api/http";
 import {
-  reservationDoctorsMock,
-  reservationScheduleMock,
-} from "@/modules/user/api/userMock";
-import {
   PetProfile,
   OrderDetail,
   ReservationOrderRecordItem,
@@ -13,15 +9,6 @@ import {
   ReservationScheduleResponseItem,
 } from "@/modules/user/api/types";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
-
-/**
- * 生成一个与 axios 成功响应结构兼容的 Promise。
- */
-const createSuccessResponse = <T>(data: T) =>
-  Promise.resolve({
-    status: 200,
-    data,
-  });
 
 /**
  * 从常见的 `{ data: { data: [] } }` 响应结构中提取数组数据。
@@ -94,8 +81,7 @@ const normalizeReservationSummaries = (
  * 订单列表摘要接口请求函数。
  * @returns 返回订单摘要列表；接口为空或失败时返回空列表。
  */
-const fetchGetOrderSummaryResponse = () =>
-  http.get("/api/users/me/orders").catch(() => createSuccessResponse([]));
+const fetchGetOrderSummaryResponse = () => http.get("/api/users/me/orders");
 
 /**
  * 订单完整信息接口请求函数。
@@ -133,63 +119,21 @@ const normalizeScheduleData = (
 };
 
 /**
- * 请求预约时间表，并在接口为空或失败时回退到预约时间 mock 数据。
+ * 请求预约时间表。
  */
-const fetchGetDateResponse = () =>
-  http
-    .get("/api/users/me/reservation-dates")
-    .then((response) => {
-      const rows = Array.isArray(response?.data?.data)
-        ? response.data.data
-        : [];
-      return rows.length
-        ? response
-        : createSuccessResponse({
-            success: true,
-            data: reservationScheduleMock,
-          });
-    })
-    .catch(() =>
-      createSuccessResponse({
-        success: true,
-        data: reservationScheduleMock,
-      })
-    );
+const fetchGetDateResponse = () => http.get("/api/users/me/reservation-dates");
 
 /**
- * 请求预约医生列表，并在接口为空或失败时回退到医生 mock 数据。
+ * 请求预约医生列表。
  */
 const fetchGetDoctorResponse = () =>
-  http
-    .get("/api/users/me/reservation-doctors")
-    .then((response) => {
-      const rows = Array.isArray(response?.data?.data)
-        ? response.data.data
-        : [];
-      return rows.length
-        ? response
-        : createSuccessResponse({
-            success: true,
-            data: reservationDoctorsMock,
-          });
-    })
-    .catch(() =>
-      createSuccessResponse({
-        success: true,
-        data: reservationDoctorsMock,
-      })
-    );
+  http.get("/api/users/me/reservation-doctors");
 
 /**
  * 请求当前登录用户的预约记录，具体用户范围由后端登录态判断。
  */
 const fetchReservationsSummaryResponse = () =>
-  http.get("/api/users/me/reservations").catch(() =>
-    createSuccessResponse({
-      success: true,
-      data: [],
-    })
-  );
+  http.get("/api/users/me/reservations");
 
 /**
  * 请求当前选中的完整预约记录。
@@ -263,16 +207,15 @@ export const reservationApi = {
   async getDate(): Promise<Omit<ReservationScheduleState, "doctorData">> {
     const response = await fetchGetDateResponse();
     const rows = unwrapListData<ReservationScheduleResponseItem>(response);
-    return normalizeScheduleData(rows.length ? rows : reservationScheduleMock);
+    return normalizeScheduleData(rows);
   },
 
   /**
-   * 获取预约医生列表，并在接口不可用时回退到 mock 数据。
+   * 获取预约医生列表。
    */
   async getDoctor(): Promise<DoctorDataItem[]> {
     const response = await fetchGetDoctorResponse();
-    const rows = unwrapListData<DoctorDataItem>(response);
-    return rows.length ? rows : reservationDoctorsMock;
+    return unwrapListData<DoctorDataItem>(response);
   },
 
   /**

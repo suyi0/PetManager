@@ -60,6 +60,24 @@ function debounce<TArgs extends unknown[], TResult>(
 
 type AuthActionContext = ActionContext<AuthState, State>;
 
+const clearAllPortalSessionState = (commit: AuthActionContext["commit"]) => {
+  clearBossDataCache();
+  clearDoctorDataCache();
+  clearFinanceDataCache();
+  clearPersonnelDataCache();
+  clearSuperAdminDataCache();
+  clearUserPortalDataCache();
+  clearWarehouseAdminDataCache();
+  commit("currentUser/clearCurrentUser", undefined, { root: true });
+  commit("boss/resetState", undefined, { root: true });
+  commit("doctor/resetState", undefined, { root: true });
+  commit("finance/resetState", undefined, { root: true });
+  commit("personnel/resetState", undefined, { root: true });
+  commit("superAdmin/resetState", undefined, { root: true });
+  commit("userPortal/resetState", undefined, { root: true });
+  commit("warehouseAdmin/resetState", undefined, { root: true });
+};
+
 export const authActions: ActionTree<AuthState, State> = {
   verify: debounce(async function (
     _context: AuthActionContext,
@@ -151,22 +169,13 @@ export const authActions: ActionTree<AuthState, State> = {
   }, 300),
 
   logout({ commit }: AuthActionContext) {
-    clearBossDataCache();
-    clearDoctorDataCache();
-    clearFinanceDataCache();
-    clearPersonnelDataCache();
-    clearSuperAdminDataCache();
-    clearUserPortalDataCache();
-    clearWarehouseAdminDataCache();
-    commit("currentUser/clearCurrentUser", undefined, { root: true });
-    commit("boss/resetState", undefined, { root: true });
-    commit("doctor/resetState", undefined, { root: true });
-    commit("finance/resetState", undefined, { root: true });
-    commit("personnel/resetState", undefined, { root: true });
-    commit("superAdmin/resetState", undefined, { root: true });
-    commit("userPortal/resetState", undefined, { root: true });
-    commit("warehouseAdmin/resetState", undefined, { root: true });
+    clearAllPortalSessionState(commit);
     commit("logout");
+  },
+
+  expireSession({ commit }: AuthActionContext) {
+    clearAllPortalSessionState(commit);
+    commit("clearSession");
   },
 
   checkEmail: debounce(async function (

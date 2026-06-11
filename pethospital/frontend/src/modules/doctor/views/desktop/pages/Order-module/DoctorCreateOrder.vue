@@ -445,8 +445,7 @@ export default defineComponent({
         removeDoctorOrderDraft(draftStorageKey.value);
         window.alert(`诊单 ${normalizedRecord.id} 已打印并加入诊单记录`);
         void router.push("/doctor/order-records");
-      } catch (error) {
-        console.warn("create order record failed", error);
+      } catch {
         window.alert("订单创建失败，请检查宠物、主人和药品信息后重试");
       }
     };

@@ -1,6 +1,5 @@
 import http from "@/api/http";
 import { unwrapList } from "@/api/response";
-import { bossStockDistributionMock } from "./bossMock";
 import { BossStockDistribution, BossStockItem } from "./types";
 
 const normalizeBossStockItem = (
@@ -19,30 +18,18 @@ const normalizeBossStockItem = (
 
 export const bossApi = {
   async getStock(): Promise<BossStockDistribution> {
-    try {
-      const { data } = await http.get("/api/bosses/stocks");
-      const payload = data?.data ?? data;
-      const decisionStocks = unwrapList<BossStockItem>(
-        payload?.decisionStocks ?? payload?.decision_stocks
-      ).map(normalizeBossStockItem);
-      const dividendStocks = unwrapList<BossStockItem>(
-        payload?.dividendStocks ?? payload?.dividend_stocks
-      ).map(normalizeBossStockItem);
+    const { data } = await http.get("/api/bosses/stocks");
+    const payload = data?.data ?? data;
+    const decisionStocks = unwrapList<BossStockItem>(
+      payload?.decisionStocks ?? payload?.decision_stocks
+    ).map(normalizeBossStockItem);
+    const dividendStocks = unwrapList<BossStockItem>(
+      payload?.dividendStocks ?? payload?.dividend_stocks
+    ).map(normalizeBossStockItem);
 
-      if (decisionStocks.length || dividendStocks.length) {
-        return {
-          decisionStocks: decisionStocks.length
-            ? decisionStocks
-            : bossStockDistributionMock.decisionStocks,
-          dividendStocks: dividendStocks.length
-            ? dividendStocks
-            : bossStockDistributionMock.dividendStocks,
-        };
-      }
-
-      return bossStockDistributionMock;
-    } catch {
-      return bossStockDistributionMock;
-    }
+    return {
+      decisionStocks,
+      dividendStocks,
+    };
   },
 };

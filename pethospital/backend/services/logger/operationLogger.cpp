@@ -1,4 +1,5 @@
 #include "operationLogger.h"
+#include "../realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 
 namespace
 {
@@ -207,6 +208,7 @@ void OperationLogger::logSystemOperation(std::shared_ptr<DatabaseManagerInterfac
             .bind(module, action, result, fallbackSummary(summary, action), details, fallbackSource(source))
             .execute();
         std::cout << "系统操作日志记录成功" << std::endl;
+        AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
     }
     catch (const std::exception &e)
     {
@@ -267,10 +269,12 @@ void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface>
                 .bind(module, action, result, fallbackSummary(summary, action), details, fallbackSource(source), userId)
                 .execute();
             std::cout << "用户操作日志记录成功，角色字段已降级为空: " << roleError.what() << std::endl;
+            AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
             return;
         }
 
         std::cout << "用户操作日志记录成功" << std::endl;
+        AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
     }
     catch (const std::exception &e)
     {

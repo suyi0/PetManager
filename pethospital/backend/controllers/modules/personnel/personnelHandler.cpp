@@ -1,5 +1,6 @@
 #include "personnelHandler.h"
 #include "../user/userPhoneSync/userPhoneSync.h"
+#include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 crow::response personnelHandler::createUser(const crow::request &req)
@@ -93,6 +94,7 @@ crow::response personnelHandler::createUser(const crow::request &req)
             }
 
             session->sql("COMMIT").execute();
+            AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
         }
         catch (...)
         {
@@ -174,6 +176,7 @@ crow::response personnelHandler::deleteUser(const crow::request &req, int &userI
             return ResponseHelper::notFound(req, "用户不存在");
         }
 
+        AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
         return ResponseHelper::success(req, "删除成功");
     }
     catch (const std::exception &e)

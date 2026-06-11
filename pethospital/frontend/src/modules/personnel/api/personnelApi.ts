@@ -1,7 +1,6 @@
 import http from "@/api/http";
 import { unwrapList } from "@/api/response";
 import { UserRow } from "@/modules/super-admin/api/types";
-import { superAdminUserRowsMock } from "@/modules/super-admin/api/superAdminMock";
 
 export const personnelApi = {
   refreshSession() {
@@ -9,13 +8,8 @@ export const personnelApi = {
   },
 
   async getUsers(): Promise<UserRow[]> {
-    try {
-      const { data } = await http.get("/api/admins/users");
-      const rows = unwrapList<UserRow>(data);
-      return rows;
-    } catch {
-      return superAdminUserRowsMock;
-    }
+    const { data } = await http.get("/api/admins/users");
+    return unwrapList<UserRow>(data);
   },
 
   async createDoctor(userID: number): Promise<void> {

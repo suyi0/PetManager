@@ -10,6 +10,14 @@
           <button @click="submitForm">发布入库</button>
         </div>
 
+        <p
+          v-if="statusMessage"
+          class="status-message"
+          :class="`status-message--${statusType}`"
+        >
+          {{ statusMessage }}
+        </p>
+
         <div class="form-grid">
           <input v-model="form.item_name" type="text" placeholder="物品名称" />
           <input v-model="form.item_type" type="text" placeholder="物品类型" />
@@ -45,16 +53,17 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, reactive } from "vue";
+import { computed, defineComponent, reactive, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { warehouseAdminApi } from "@/modules/warehouse-admin/api/warehouseAdminApi";
 import { WarehouseCreatePayload } from "@/modules/warehouse-admin/api/types";
 
 export default defineComponent({
   name: "WarehouseAdminCreate",
   setup() {
     const store = useStore(storeKey);
+    const statusMessage = ref("");
+    const statusType = ref<"info" | "error">("info");
     const today = new Date().toISOString().slice(0, 10);
     const nextYear = new Date();
     nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -74,26 +83,22 @@ export default defineComponent({
 
     const submitForm = async () => {
       try {
-        await warehouseAdminApi.upload({ ...form });
-        // 创建成功后，库存列表缓存需要失效，操作流也追加一条本地记录。
-        store.commit("warehouseAdmin/markItemsDirty");
-        store.commit("warehouseAdmin/appendOperationLog", {
-          time: new Date().toTimeString().slice(0, 5),
-          title: `新增物品 · ${form.item_name || "未命名物品"}`,
-          description: `数量 ${form.item_number}，单价 ¥${Number(
-            form.item_price
-          ).toFixed(2)}。`,
-          tag: "Create",
-        });
-        await store.dispatch("warehouseAdmin/refreshItems");
-      } catch {
-        // 设计预览场景允许静默失败。
+        await store.dispatch("warehouseAdmin/createItem", { ...form });
+        statusMessage.value = "物品已成功入库";
+        statusType.value = "info";
+      } catch (error) {
+        statusMessage.value = `入库失败：${String(
+          (error as Error).message || error
+        )}`;
+        statusType.value = "error";
       }
     };
 
     return {
       form,
       totalPrice,
+      statusMessage,
+      statusType,
       submitForm,
     };
   },
@@ -180,6 +185,23 @@ input {
   background: rgba(150, 194, 245, 0.42);
   color: #2c5b8c;
   font-size: 12px;
+}
+
+.status-message {
+  margin: 0 0 14px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.status-message--info {
+  color: #1f684b;
+  background: rgba(215, 242, 230, 0.86);
+}
+
+.status-message--error {
+  color: #a23c4a;
+  background: rgba(255, 229, 234, 0.9);
 }
 
 @media (max-width: 960px) {

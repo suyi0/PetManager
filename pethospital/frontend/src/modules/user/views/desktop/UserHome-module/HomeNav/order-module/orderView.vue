@@ -111,7 +111,15 @@
           }}</span>
         </div>
 
-        <div v-if="visibleItems.length > 0" class="order-list">
+        <AsyncViewState
+          v-if="pageLoading || pageErrorMessage"
+          :loading="pageLoading"
+          :error="pageErrorMessage"
+          loading-text="正在同步订单与预约记录"
+          @retry="loadOrderPageData"
+        />
+
+        <div v-else-if="visibleItems.length > 0" class="order-list">
           <article
             v-for="item in visibleItems"
             :key="item.id"
@@ -173,7 +181,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
+import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
+import AsyncViewState from "@/shared/components/AsyncViewState.vue";
 import { useRoute, useRouter } from "vue-router";
 
 type SearchableOrderItem = {
@@ -214,6 +224,7 @@ const choiceActive = ref<Record<number, boolean>>({});
 const historyOrders = ref<SearchableOrderItem[]>([]);
 const sortKey = ref<SortKey>("time");
 const sortDirection = ref<SortDirection>("desc");
+const pageErrorMessage = ref("");
 
 const MAX_HISTORY_COUNT = 15;
 
@@ -231,6 +242,13 @@ const reservationOrder = computed<SearchableOrderItem[]>(
 
 const currentSource = computed(() =>
   activeTab.value === "order" ? orders.value : reservationOrder.value
+);
+
+const pageLoading = computed(() =>
+  Boolean(
+    store.state.userPortal.orderSummariesMeta.loading ||
+      store.state.userPortal.reservationRecordsMeta.loading
+  )
 );
 
 const visibleItems = computed(() => {
@@ -400,6 +418,18 @@ const deleteSelected = async () => {
   editTab.value = false;
 };
 
+const loadOrderPageData = async () => {
+  pageErrorMessage.value = "";
+  try {
+    await store.dispatch("userPortal/ensureOrderPageData");
+  } catch (error) {
+    pageErrorMessage.value = getHttpErrorMessage(
+      error,
+      "订单与预约记录加载失败，请稍后重试"
+    );
+  }
+};
+
 const goToDetail = (item: SearchableOrderItem) => {
   if (editTab.value) {
     ordersButton(item.id);
@@ -488,7 +518,7 @@ onMounted(() => {
   /**
    * 订单页预热两类记录与详情摘要，后续详情页也可以直接复用。
    */
-  void store.dispatch("userPortal/ensureOrderPageData");
+  void loadOrderPageData();
 });
 
 onBeforeUnmount(() => {

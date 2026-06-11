@@ -1,43 +1,38 @@
 import http from "@/api/http";
 import { unwrapList } from "@/api/response";
-import { warehouseItemsMock } from "./warehouseAdminMock";
 import { WarehouseCreatePayload, WarehouseItem } from "./types";
+
+const unwrapData = <T>(payload: unknown): T | null => {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data?: T }).data ?? null;
+  }
+
+  return (payload as T) ?? null;
+};
 
 export const warehouseAdminApi = {
   async select(): Promise<WarehouseItem[]> {
-    try {
-      const { data } = await http.get("/api/warehouse-managers/items");
-      const rows = unwrapList<WarehouseItem>(data);
-      return rows;
-    } catch {
-      return warehouseItemsMock;
-    }
+    const { data } = await http.get("/api/warehouse-managers/items");
+    return unwrapList<WarehouseItem>(data);
   },
 
   async selectDataID(id: number): Promise<WarehouseItem | null> {
-    try {
-      const { data } = await http.get(
-        `/api/warehouse-managers/items/data-id/${id}`
-      );
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        return data as WarehouseItem;
-      }
-    } catch {
-      return warehouseItemsMock.find((item) => item.id === id) || null;
+    const { data } = await http.get(
+      `/api/warehouse-managers/items/data-id/${id}`
+    );
+    const item = unwrapData<WarehouseItem>(data);
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      return item;
     }
-    return warehouseItemsMock.find((item) => item.id === id) || null;
+
+    return null;
   },
 
   async selectItemName(name: string): Promise<WarehouseItem[]> {
-    try {
-      const { data } = await http.get(
-        `/api/warehouse-managers/items/item-name/${encodeURIComponent(name)}`
-      );
-      const rows = unwrapList<WarehouseItem>(data);
-      return rows;
-    } catch {
-      return warehouseItemsMock.filter((item) => item.item_name.includes(name));
-    }
+    const { data } = await http.get(
+      `/api/warehouse-managers/items/item-name/${encodeURIComponent(name)}`
+    );
+    return unwrapList<WarehouseItem>(data);
   },
 
   async upload(payload: WarehouseCreatePayload): Promise<void> {

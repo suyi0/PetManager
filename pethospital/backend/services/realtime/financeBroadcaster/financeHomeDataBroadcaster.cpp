@@ -52,6 +52,7 @@ void FinanceHomeDataBroadcaster::addConnection(crow::websocket::connection *conn
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);
         connections_.insert(conn);
+        pending_update_ = true;
     }
 
     broadcast_cv_.notify_all();
@@ -92,24 +93,44 @@ void FinanceHomeDataBroadcaster::closeAllConnections(const std::string &reason)
     }
 }
 
-// 后台广播循环：有连接时每 5 秒推送一次财务首页数据，也会在新连接加入时被唤醒。
+// 业务数据发生变化时调用，只唤醒广播线程，不在请求线程里同步查询和推送。
+void FinanceHomeDataBroadcaster::notifyHomeDataChanged()
+{
+    {
+        std::lock_guard<std::mutex> lock(connections_mutex_);
+        pending_update_ = true;
+    }
+    broadcast_cv_.notify_all();
+}
+
+// 后台监管循环：没有变化时休眠；多个并发通知会在短暂合并窗口内压缩成一次推送。
 void FinanceHomeDataBroadcaster::run()
 {
     while (running_)
     {
         std::unique_lock<std::mutex> waitLock(connections_mutex_);
-        broadcast_cv_.wait_for(waitLock, std::chrono::seconds(5));
+        broadcast_cv_.wait(waitLock, [this]()
+                           { return !running_ || pending_update_; });
         if (!running_)
         {
             break;
         }
 
-        // 没有订阅者时不查询数据库，减少无意义的后台开销。
+        pending_update_ = false;
+
+        // 没有订阅者时不查询数据库，减少无意义的后台开销；下一次打开首页会触发首帧推送。
         if (connections_.empty())
         {
             continue;
         }
         waitLock.unlock();
+
+        // 合并短时间内连续发生的多个业务更新，避免一个接口批量操作触发多次查库推送。
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        {
+            std::lock_guard<std::mutex> lock(connections_mutex_);
+            pending_update_ = false;
+        }
 
         pushHomeData();
     }

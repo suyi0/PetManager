@@ -1,26 +1,24 @@
 import { UserRow } from "@/modules/super-admin/api/types";
+import {
+  readVersionedLocalCache,
+  saveVersionedLocalCache,
+} from "@/shared/utils/versionedLocalCache";
+
+const PERSONNEL_CACHE_OPTIONS = {
+  version: 1,
+  ttlMs: 1000 * 60 * 60 * 24 * 30,
+};
 
 const PERSONNEL_CACHE_KEYS = {
   users: "personnel:users:cache",
 };
 
 const readJsonCache = <T>(key: string): T | null => {
-  const rawValue = localStorage.getItem(key);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as T;
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
+  return readVersionedLocalCache<T>(key, PERSONNEL_CACHE_OPTIONS);
 };
 
 const saveJsonCache = <T>(key: string, value: T) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  saveVersionedLocalCache(key, value, PERSONNEL_CACHE_OPTIONS);
 };
 
 /**

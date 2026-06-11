@@ -2,6 +2,15 @@ import {
   WarehouseItem,
   WarehouseLogItem,
 } from "@/modules/warehouse-admin/api/types";
+import {
+  readVersionedLocalCache,
+  saveVersionedLocalCache,
+} from "@/shared/utils/versionedLocalCache";
+
+const WAREHOUSE_ADMIN_CACHE_OPTIONS = {
+  version: 1,
+  ttlMs: 1000 * 60 * 60 * 24 * 30,
+};
 
 const WAREHOUSE_ADMIN_CACHE_KEYS = {
   items: "warehouse-admin:items:cache",
@@ -9,22 +18,11 @@ const WAREHOUSE_ADMIN_CACHE_KEYS = {
 };
 
 const readJsonCache = <T>(key: string): T | null => {
-  const rawValue = localStorage.getItem(key);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as T;
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
+  return readVersionedLocalCache<T>(key, WAREHOUSE_ADMIN_CACHE_OPTIONS);
 };
 
 const saveJsonCache = <T>(key: string, value: T) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  saveVersionedLocalCache(key, value, WAREHOUSE_ADMIN_CACHE_OPTIONS);
 };
 
 const readArrayCache = <T>(key: string): T[] | null => {

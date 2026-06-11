@@ -8,7 +8,7 @@
 - `views/WarehouseAdminLayout.vue`: 仓库管理员布局
 - `views/pages/*`: 页面级视图
 - `components/*`: 仓库模块专用组件
-- `api/*`: 后端接口封装、类型与 mock 数据
+- `api/*`: 后端接口封装与类型定义
 - `store/*`: 仓库管理员 Vuex 状态、mutations 与 actions
 - `utils/*`: 会话守卫等模块工具
 

@@ -1,5 +1,14 @@
 import type { HomePageSummary, UserRow, WorkTimeRecord } from "../api/types";
 import type { LogsPayload } from "../store/types";
+import {
+  readVersionedLocalCache,
+  saveVersionedLocalCache,
+} from "@/shared/utils/versionedLocalCache";
+
+const SUPER_ADMIN_CACHE_OPTIONS = {
+  version: 1,
+  ttlMs: 1000 * 60 * 60 * 24 * 30,
+};
 
 const SUPER_ADMIN_CACHE_KEYS = {
   users: "super-admin:users:cache",
@@ -9,22 +18,11 @@ const SUPER_ADMIN_CACHE_KEYS = {
 };
 
 const readJsonCache = <T>(key: string): T | null => {
-  const rawValue = localStorage.getItem(key);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as T;
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
+  return readVersionedLocalCache<T>(key, SUPER_ADMIN_CACHE_OPTIONS);
 };
 
 const saveJsonCache = <T>(key: string, value: T) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  saveVersionedLocalCache(key, value, SUPER_ADMIN_CACHE_OPTIONS);
 };
 
 const readArrayCache = <T>(key: string): T[] | null => {

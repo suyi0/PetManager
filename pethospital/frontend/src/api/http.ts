@@ -1,4 +1,5 @@
 import axios from "axios";
+import { dispatchAuthExpiredEvent, normalizeHttpError } from "@/api/httpError";
 import { authStorage } from "@/core/auth/utils/authStorage";
 
 /**
@@ -29,6 +30,19 @@ const shouldAttachAuthHeader = (url?: string) => {
   // startsWith(...)：判断字符串是不是以某段内容开头
 };
 
+let lastAuthExpiredEventAt = 0;
+
+const notifyAuthExpired = () => {
+  const now = Date.now();
+
+  if (now - lastAuthExpiredEventAt < 1500) {
+    return;
+  }
+
+  lastAuthExpiredEventAt = now;
+  dispatchAuthExpiredEvent();
+};
+
 /**
  * 创建 http 实例，并添加请求和响应拦截器：
  * - 请求拦截器：自动附带 Bearer token（如果存在且接口需要鉴权）。
@@ -51,20 +65,16 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message =
-      error.response?.data?.message ||
-      error.response?.data?.error?.details ||
-      "";
-    const shouldClearAuth =
-      typeof message === "string" &&
-      /token|expired|invalid|signature|Missing or invalid/i.test(message);
+    const normalizedError = normalizeHttpError(error);
+    const requestNeedsAuth = shouldAttachAuthHeader(error.config?.url);
 
-    // 只有明确的 token 失效才清理会话；普通权限拒绝不能把总裁跨端会话清掉。
-    if (error.response?.status === 401 && shouldClearAuth) {
+    // 登录、注册、验证码等公开接口的 401 不应清理已有会话。
+    if (normalizedError.status === 401 && requestNeedsAuth) {
       authStorage.clearAuth();
+      notifyAuthExpired();
     }
 
-    return Promise.reject(error); // 把错误继续抛出去，让调用方自己决定怎么提示用户
+    return Promise.reject(normalizedError);
   }
 );
 

@@ -56,7 +56,15 @@
         </div>
       </div>
 
-      <div class="cards">
+      <AsyncViewState
+        v-if="listLoading || listErrorMessage"
+        :loading="listLoading"
+        :error="listErrorMessage"
+        loading-text="正在同步医生端预约记录"
+        @retry="loadReservations"
+      />
+
+      <div v-else class="cards">
         <article
           v-for="item in visibleItems"
           :key="item.id"
@@ -180,14 +188,23 @@
         </div>
       </section>
     </div>
+    <AsyncViewState
+      v-else
+      :loading="detailLoading"
+      :error="detailErrorMessage"
+      loading-text="正在读取预约详情"
+      @retry="retryReservationDetail"
+    />
   </section>
 </template>
 
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
+import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
+import AsyncViewState from "@/shared/components/AsyncViewState.vue";
 import {
   ReservationItem,
   ReservationSummaryItem,
@@ -195,7 +212,7 @@ import {
 
 export default defineComponent({
   name: "DoctorReservations",
-  components: { AppPager },
+  components: { AppPager, AsyncViewState },
   setup() {
     const store = useStore(storeKey);
     const page = ref(1);
@@ -204,8 +221,16 @@ export default defineComponent({
     const openReservationDetail = ref(false);
     const selectedReservationId = ref<number | null>(null);
     const checkInLoading = ref(false);
+    const listErrorMessage = ref("");
+    const detailErrorMessage = ref("");
     const items = computed<ReservationSummaryItem[]>(
       () => store.state.doctor.reservations
+    );
+    const listLoading = computed(() =>
+      Boolean(store.state.doctor.reservationsMeta.loading)
+    );
+    const detailLoading = computed(() =>
+      Boolean(store.state.doctor.currentReservationDetailMeta.loading)
     );
 
     const selectedReservation = computed<ReservationItem | null>(() =>
@@ -293,15 +318,46 @@ export default defineComponent({
       return "status--active";
     }
 
+    async function loadReservations() {
+      listErrorMessage.value = "";
+      try {
+        await store.dispatch("doctor/ensureReservations");
+      } catch (error) {
+        listErrorMessage.value = getHttpErrorMessage(
+          error,
+          "预约记录加载失败，请稍后重试"
+        );
+      }
+    }
+
+    async function loadReservationDetail(reservationId: number) {
+      detailErrorMessage.value = "";
+      try {
+        await store.dispatch("doctor/ensureReservationDetail", reservationId);
+      } catch (error) {
+        detailErrorMessage.value = getHttpErrorMessage(
+          error,
+          "预约详情加载失败，请稍后重试"
+        );
+      }
+    }
+
     async function selectReservation(item: ReservationSummaryItem) {
       selectedReservationId.value = item.id;
       openReservationDetail.value = true;
-      await store.dispatch("doctor/ensureReservationDetail", item.id);
+      await loadReservationDetail(item.id);
+    }
+
+    function retryReservationDetail() {
+      if (selectedReservationId.value) {
+        void loadReservationDetail(selectedReservationId.value);
+      }
     }
 
     function closeReservation() {
       openReservationDetail.value = false;
       selectedReservationId.value = null;
+      detailErrorMessage.value = "";
     }
 
     async function checkInReservation() {
@@ -335,13 +391,17 @@ export default defineComponent({
     });
 
     onMounted(() => {
-      void store.dispatch("doctor/ensureReservations");
+      void loadReservations();
     });
 
     return {
       page,
       searchKeyword,
       totalPages,
+      listLoading,
+      detailLoading,
+      listErrorMessage,
+      detailErrorMessage,
       visibleItems,
       placeholderCards,
       searchSummary,
@@ -350,6 +410,8 @@ export default defineComponent({
       selectedReservation,
       checkInDisabled,
       checkInButtonText,
+      loadReservations,
+      retryReservationDetail,
       selectReservation,
       closeReservation,
       checkInReservation,

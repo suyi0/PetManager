@@ -1,5 +1,5 @@
 import { MutationTree } from "vuex";
-import { SalaryManagementPayload } from "../api/types";
+import { FinanceHomeData, SalaryManagementPayload } from "../api/types";
 import { createFinanceState } from "./state";
 import { FinanceState } from "./types";
 
@@ -15,6 +15,19 @@ const applyDirtyMeta = (meta: FinanceState["salaryManagementMeta"]) => {
 };
 
 export const financeMutations: MutationTree<FinanceState> = {
+  setHomeDataLoading(state, loading: boolean) {
+    state.homeDataMeta.loading = loading;
+  },
+
+  setHomeData(state, payload: FinanceHomeData) {
+    state.homeData = payload;
+    applyLoadedMeta(state.homeDataMeta);
+  },
+
+  markHomeDataDirty(state) {
+    applyDirtyMeta(state.homeDataMeta);
+  },
+
   setSalaryManagementLoading(state, loading: boolean) {
     state.salaryManagementMeta.loading = loading;
   },

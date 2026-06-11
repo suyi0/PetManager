@@ -29,7 +29,15 @@
       </button>
     </div>
 
-    <div class="table-shell">
+    <AsyncViewState
+      v-if="isLoading || errorMessage"
+      :loading="isLoading"
+      :error="errorMessage"
+      loading-text="正在同步医生端订单记录"
+      @retry="loadOrderRecords"
+    />
+
+    <div v-else class="table-shell">
       <table>
         <thead>
           <tr>
@@ -82,18 +90,21 @@
 import { computed, defineComponent, ref, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "vuex";
+import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
+import AsyncViewState from "@/shared/components/AsyncViewState.vue";
 import { OrderSummaryItem } from "@/modules/doctor/api/types";
 
 export default defineComponent({
   name: "DoctorOrderRecords",
-  components: { AppPager },
+  components: { AppPager, AsyncViewState },
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
     const activeStatus = ref<"全部" | OrderSummaryItem["order_status"]>("全部");
     const page = ref(1);
+    const errorMessage = ref("");
     const pageSize = 10;
     const orderRecords = computed<OrderSummaryItem[]>(
       () => store.state.doctor.orderRecords
@@ -105,8 +116,20 @@ export default defineComponent({
      * 优先复用订单记录缓存。
      */
     const loadOrderRecords = async () => {
-      await store.dispatch("doctor/ensureOrderRecords");
+      errorMessage.value = "";
+      try {
+        await store.dispatch("doctor/ensureOrderRecords");
+      } catch (error) {
+        errorMessage.value = getHttpErrorMessage(
+          error,
+          "订单记录加载失败，请稍后重试"
+        );
+      }
     };
+
+    const isLoading = computed(() =>
+      Boolean(store.state.doctor.orderRecordsMeta.loading)
+    );
 
     /**
      * 按订单编号降序展示，确保新创建的订单摘要排在前面。
@@ -199,6 +222,8 @@ export default defineComponent({
       activeStatus,
       page,
       totalPages,
+      isLoading,
+      errorMessage,
       statusTabs,
       visibleItems,
       pagedItems,

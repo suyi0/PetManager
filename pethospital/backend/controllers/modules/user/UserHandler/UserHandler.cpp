@@ -1,6 +1,7 @@
 #include "userHandler.h"
 #include "../../../../utils/AuthIdentifierUtils.h"
 #include "../userPhoneSync/userPhoneSync.h"
+#include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include <vector>
 
@@ -419,6 +420,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
                 }
 
                 session->sql("COMMIT").execute();
+                AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
             }
             catch (...)
             {

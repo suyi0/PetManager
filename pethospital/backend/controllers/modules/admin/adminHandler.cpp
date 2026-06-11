@@ -1,6 +1,7 @@
 #include "adminHandler.h"
 #include "../user/userPhoneSync/userPhoneSync.h"
 #include "../../../services/logger/operationLogger.h"
+#include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 int adminHandler::calculateUserCount()
@@ -453,6 +454,7 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
                     .execute();
             }
 
+            AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
             return ResponseHelper::success(req, "更新成功");
         }
 
@@ -467,6 +469,7 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
                     .bind(todayDate)
                     .execute();
 
+                AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
                 return ResponseHelper::success(req, "更新成功");
             }
 
@@ -490,6 +493,7 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
                 return ResponseHelper::notFound(req, "未找到可更新的值班记录");
             }
 
+            AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
             return ResponseHelper::success(req, "更新成功");
         }
 

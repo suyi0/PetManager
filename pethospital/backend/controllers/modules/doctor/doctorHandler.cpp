@@ -1,4 +1,6 @@
 #include "doctorHandler.h"
+#include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 
 #include <unordered_map>
 #include <vector>
@@ -246,6 +248,8 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         orderRecord["status"] = createdOrderRow[6].isNull() ? "待付款" : createdOrderRow[6].get<std::string>();
         orderRecord["orderMedicines"] = medicines;
 
+        FinanceHomeDataBroadcaster::instance().notifyHomeDataChanged();
+        AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
         return ResponseHelper::success(req, orderRecord);
     }
     catch (const std::exception &e)
@@ -628,6 +632,7 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
                     .execute();
             }
 
+            AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
             return ResponseHelper::success(req, "签到成功!");
         }
     }
@@ -687,6 +692,7 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
             // 检查是否更新了记录
             if (result.getAffectedItemsCount() > 0)
             {
+                AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
                 return ResponseHelper::success(req, "签退成功!");
             }
             else
@@ -831,6 +837,8 @@ crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId
                     order_id)
                 .execute();
             std::cout << "Order updated successfully" << std::endl;
+            FinanceHomeDataBroadcaster::instance().notifyHomeDataChanged();
+            AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
             return ResponseHelper::success(req, getOrderData(order_id));
         }
         else

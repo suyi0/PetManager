@@ -1,5 +1,4 @@
 import { createCacheMeta } from "@/app/store/state";
-import { warehouseLogsMock } from "@/modules/warehouse-admin/api/warehouseAdminMock";
 import { WarehouseAdminState } from "./types";
 
 /**
@@ -7,7 +6,7 @@ import { WarehouseAdminState } from "./types";
  */
 export const createWarehouseAdminState = (): WarehouseAdminState => ({
   items: [],
-  operationLogs: warehouseLogsMock,
+  operationLogs: [],
   itemsMeta: createCacheMeta(),
   logsMeta: createCacheMeta(),
 });

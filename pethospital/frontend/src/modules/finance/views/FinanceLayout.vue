@@ -48,6 +48,7 @@ export default defineComponent({
 
     onMounted(() => {
       startFinanceSessionGuard(store, router);
+      void store.dispatch("finance/ensureHomeData");
       void store.dispatch("finance/ensureSalaryManagement");
     });
 

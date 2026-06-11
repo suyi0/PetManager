@@ -69,7 +69,7 @@ import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import StatCard from "../../components/StatCard.vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { saveSuperAdminHomePageDataCache } from "../../utils/superAdminDataCache";
 import { subscribeSuperAdminHomeData } from "../../utils/superAdminHomeDataStream";
 
@@ -79,8 +79,12 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
+    const route = useRoute();
     let closeHomeDataStream: (() => void) | null = null;
     const summary = computed(() => store.state.superAdmin.homePageData);
+    const isSuperAdminHomePage = computed(
+      () => route.name === "superAdminOverview"
+    );
     const userCount = computed(() => summary.value.userCount);
     const onlineDoctorCount = computed(() => summary.value.onlineDoctorCount);
     const allLogCount = computed(() => summary.value.allLogCount);
@@ -119,17 +123,19 @@ export default defineComponent({
       // 页面首次进入时优先复用首页摘要缓存，只有过期或脏数据时才会重拉。
       void store.dispatch("superAdmin/ensureOverviewData");
 
-      closeHomeDataStream = subscribeSuperAdminHomeData(
-        (homeData) => {
-          store.commit("superAdmin/setHomePageData", homeData);
-          saveSuperAdminHomePageDataCache(homeData);
-        },
-        {
-          onFallbackRefresh: () => {
-            void loadAll();
+      if (isSuperAdminHomePage.value) {
+        closeHomeDataStream = subscribeSuperAdminHomeData(
+          (homeData) => {
+            store.commit("superAdmin/setHomePageData", homeData);
+            saveSuperAdminHomePageDataCache(homeData);
           },
-        }
-      );
+          {
+            onFallbackRefresh: () => {
+              void loadAll();
+            },
+          }
+        );
+      }
     });
 
     onBeforeUnmount(() => {
@@ -143,6 +149,7 @@ export default defineComponent({
       allLogCount,
       userLogCount,
       systemLogCount,
+      isSuperAdminHomePage,
       expenseAmount,
       salesAmount,
       costAmount,

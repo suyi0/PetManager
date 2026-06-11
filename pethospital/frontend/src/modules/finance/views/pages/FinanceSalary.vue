@@ -259,6 +259,7 @@
 import {
   computed,
   defineComponent,
+  onBeforeUnmount,
   onMounted,
   reactive,
   ref,
@@ -266,14 +267,19 @@ import {
 } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
+import { useRoute } from "vue-router";
 import { financeApi } from "../../api/financeApi";
 import { SalaryEmployeeRow } from "../../api/types";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
+import { saveFinanceHomeDataCache } from "../../utils/financeDataCache";
+import { subscribeFinanceHomeData } from "../../utils/financeHomeDataStream";
 
 export default defineComponent({
   name: "FinanceSalary",
   setup() {
     const store = useStore(storeKey);
+    const route = useRoute();
+    let closeHomeDataStream: (() => void) | null = null;
     const keyword = ref("");
     const selectedEmployeeId = ref<number | null>(null);
     const saving = ref(false);
@@ -288,7 +294,14 @@ export default defineComponent({
     const salaryManagement = computed(
       () => store.state.finance.salaryManagement
     );
+    const homeData = computed(() => store.state.finance.homeData);
+    const isFinanceHomePage = computed(() => route.name === "financeSalary");
     const summary = computed(() => salaryManagement.value.summary);
+    const realtimeSummary = computed(() => ({
+      ...summary.value,
+      todayCost: homeData.value.dailyCost || summary.value.todayCost,
+      todayProfit: homeData.value.dailyProfit || summary.value.todayProfit,
+    }));
     const employees = computed(() => salaryManagement.value.employees);
 
     const filteredEmployees = computed(() => {
@@ -361,6 +374,7 @@ export default defineComponent({
     );
 
     const ensureSalaryData = async () => {
+      await store.dispatch("finance/ensureHomeData");
       await store.dispatch("finance/ensureSalaryManagement");
       if (!selectedEmployeeId.value && employees.value[0]) {
         selectedEmployeeId.value = employees.value[0].id;
@@ -419,11 +433,31 @@ export default defineComponent({
 
     onMounted(() => {
       void ensureSalaryData();
+
+      if (isFinanceHomePage.value) {
+        closeHomeDataStream = subscribeFinanceHomeData(
+          (nextHomeData) => {
+            store.commit("finance/setHomeData", nextHomeData);
+            saveFinanceHomeDataCache(nextHomeData);
+          },
+          {
+            onFallbackRefresh: () => {
+              void store.dispatch("finance/refreshHomeData");
+            },
+          }
+        );
+      }
+    });
+
+    onBeforeUnmount(() => {
+      closeHomeDataStream?.();
+      closeHomeDataStream = null;
     });
 
     return {
+      isFinanceHomePage,
       keyword,
-      summary,
+      summary: realtimeSummary,
       salaryManagement,
       filteredEmployees,
       selectedEmployee,
