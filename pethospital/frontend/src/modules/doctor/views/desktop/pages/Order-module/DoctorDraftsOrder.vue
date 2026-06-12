@@ -42,6 +42,7 @@
             <th>来源</th>
             <th>药品数</th>
             <th>预估费用</th>
+            <th>剩余有效期</th>
             <th>更新时间</th>
             <th class="action-column-th">操作</th>
           </tr>
@@ -67,6 +68,7 @@
             </td>
             <td>{{ item.medicineCount }}</td>
             <td>¥{{ item.estimatedTotal.toFixed(2) }}</td>
+            <td>{{ formatRemainingTime(item.remainingMs) }}</td>
             <td>{{ formatDate(item.updatedAt) }}</td>
             <td class="action-column-td">
               <button
@@ -94,10 +96,10 @@
             :key="`placeholder-${placeholder}`"
             class="placeholder-row"
           >
-            <td colspan="9"></td>
+            <td colspan="10"></td>
           </tr>
           <tr v-if="visibleItems.length === 0">
-            <td colspan="9" class="empty-cell">
+            <td colspan="10" class="empty-cell">
               当前暂无可继续编辑的诊单草稿。
             </td>
           </tr>
@@ -121,6 +123,7 @@ import AppPager from "@/shared/components/AppPager.vue";
 import {
   DoctorOrderDraftSummary,
   listDoctorOrderDrafts,
+  readDoctorOrderDraft,
   removeDoctorOrderDraft,
 } from "@/modules/doctor/utils/orderDrafts";
 
@@ -137,6 +140,7 @@ export default defineComponent({
     const pageSize = 10;
     const isManaging = ref(false);
     const pendingDeleteKeys = ref(new Set<string>());
+    let remainingTimer: number | undefined;
 
     const basePath = computed(() => "/doctor");
 
@@ -229,7 +233,31 @@ export default defineComponent({
       return `${year}-${month}-${day} ${hours}:${minutes}`;
     };
 
+    const formatRemainingTime = (remainingMs: number) => {
+      if (remainingMs <= 0) {
+        return "已过期";
+      }
+
+      const totalMinutes = Math.ceil(remainingMs / 60000);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+
+      if (hours <= 0) {
+        return `${minutes} 分钟`;
+      }
+
+      return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`;
+    };
+
     const openDraft = (item: DoctorOrderDraftSummary) => {
+      const draft = readDoctorOrderDraft(item.storageKey);
+
+      if (!draft) {
+        window.alert("该诊单草稿已超过 24 小时，系统已自动清理");
+        syncDrafts();
+        return;
+      }
+
       const path =
         item.queueId === "default"
           ? `${basePath.value}/create-order`
@@ -240,6 +268,7 @@ export default defineComponent({
         query: {
           ownerId: item.ownerId,
           petId: item.petId,
+          draftKey: item.storageKey,
         },
       });
     };
@@ -266,11 +295,15 @@ export default defineComponent({
 
     onMounted(() => {
       syncDrafts();
+      remainingTimer = window.setInterval(syncDrafts, 60000);
       window.addEventListener("focus", syncDrafts);
       window.addEventListener("storage", syncDrafts);
     });
 
     onBeforeUnmount(() => {
+      if (remainingTimer) {
+        window.clearInterval(remainingTimer);
+      }
       window.removeEventListener("focus", syncDrafts);
       window.removeEventListener("storage", syncDrafts);
     });
@@ -288,6 +321,7 @@ export default defineComponent({
       toggleManageMode,
       togglePendingDelete,
       formatDate,
+      formatRemainingTime,
       openDraft,
       sourceClassName,
     };

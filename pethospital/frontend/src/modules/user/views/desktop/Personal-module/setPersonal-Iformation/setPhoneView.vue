@@ -134,7 +134,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { isPhone } from "@/utils/authValidators";
+import { isPhone } from "@/core/auth/utils/authValidators";
 
 const emit = defineEmits(["close", "submit"]);
 const store = useStore(storeKey);

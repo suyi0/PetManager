@@ -56,7 +56,6 @@
 import { computed, defineComponent, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { superAdminApi } from "../../api/superAdminApi";
 
 export default defineComponent({
   name: "SuperAdminWorktime",
@@ -82,17 +81,12 @@ export default defineComponent({
       }
 
       try {
-        await superAdminApi.changeDoctorWorkTime({
+        await store.dispatch("superAdmin/changeDoctorWorkTime", {
           user_id: userId.value,
           date: date.value,
           identifier: identifier.value,
         });
-        // 手动修改考勤后，考勤列表和审计日志都需要失效。
-        store.commit("superAdmin/markWorkTimeRecordsDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
         message.value = "更新时间成功";
-        await store.dispatch("superAdmin/refreshWorkTimeRecords");
       } catch (err: unknown) {
         message.value = `更新时间失败: ${String(
           (err as Error).message || err

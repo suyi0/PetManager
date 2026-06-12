@@ -238,7 +238,6 @@
 import { computed, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { reservationApi } from "@/modules/user/api/userApi";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 import { ReservationScheduleState, PetProfile } from "@/modules/user/api/types";
 
@@ -537,23 +536,21 @@ async function submit() {
   upSlot.value = selectedSlot;
 
   try {
-    const response = await reservationApi.record({
-      name: store.state.currentUser.userName,
-      phone: store.state.currentUser.userPhone,
-      email: store.state.currentUser.userEmail,
-      doctorId: upDoctorId.value,
-      petId,
-      reservationType: selectedServiceType.value,
-      date: `${upYear.value}-${upMonth.value}-${upDay.value}`,
-      slot: upSlot.value,
-    });
+    const response = await store.dispatch(
+      "userPortal/createReservationRecord",
+      {
+        name: store.state.currentUser.userName,
+        phone: store.state.currentUser.userPhone,
+        email: store.state.currentUser.userEmail,
+        doctorId: upDoctorId.value,
+        petId,
+        reservationType: selectedServiceType.value,
+        date: `${upYear.value}-${upMonth.value}-${upDay.value}`,
+        slot: upSlot.value,
+      }
+    );
 
     if (response?.data?.success && response.status === 200) {
-      /**
-       * 预约成功后主动让记录类缓存失效，用户回到订单页时会拿到最新数据。
-       */
-      store.commit("userPortal/markReservationRecordsDirty");
-      store.commit("userPortal/markOrderSummariesDirty");
       openSelectPetModal.value = false;
       submitAfter.value = true;
       emit("submit-success", {
@@ -563,8 +560,8 @@ async function submit() {
         slot: upSlot.value,
       });
     }
-  } catch (error) {
-    console.error("预约提交失败:", error);
+  } catch {
+    window.alert("预约提交失败，请稍后重试");
   }
 }
 

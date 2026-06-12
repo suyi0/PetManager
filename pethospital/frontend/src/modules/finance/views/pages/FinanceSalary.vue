@@ -268,7 +268,6 @@ import {
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { useRoute } from "vue-router";
-import { financeApi } from "../../api/financeApi";
 import { SalaryEmployeeRow } from "../../api/types";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import { saveFinanceHomeDataCache } from "../../utils/financeDataCache";
@@ -411,16 +410,14 @@ export default defineComponent({
 
       saving.value = true;
       try {
-        await financeApi.changeSalary({
+        await store.dispatch("finance/changeSalary", {
           userId: selectedEmployee.value.id,
           baseSalary: Number(editor.baseSalary || 0),
           paAward: Number(editor.paAward || 0),
           pbAward: Number(editor.pbAward || 0),
         });
-        store.commit("finance/markSalaryManagementDirty");
         statusMessage.value = "工资结构保存成功";
         statusMessageType.value = "info";
-        await store.dispatch("finance/refreshSalaryManagement");
       } catch (error: unknown) {
         statusMessage.value = `工资保存失败: ${String(
           (error as Error).message || error
@@ -439,6 +436,7 @@ export default defineComponent({
           (nextHomeData) => {
             store.commit("finance/setHomeData", nextHomeData);
             saveFinanceHomeDataCache(nextHomeData);
+            void store.dispatch("finance/markSalaryManagementDirty");
           },
           {
             onFallbackRefresh: () => {

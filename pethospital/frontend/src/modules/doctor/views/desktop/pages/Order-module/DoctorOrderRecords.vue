@@ -230,6 +230,7 @@ export default defineComponent({
       placeholderRows,
       statusClassName,
       openOrderDetail,
+      loadOrderRecords,
     };
   },
 });

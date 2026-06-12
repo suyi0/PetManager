@@ -48,4 +48,44 @@ export const personnelActions: ActionTree<PersonnelState, State> = {
   async refreshUsers({ dispatch }: PersonnelActionContext) {
     return dispatch("ensureUsers", { force: true });
   },
+
+  async createDoctor(
+    { commit, dispatch }: PersonnelActionContext,
+    userId: number
+  ) {
+    await personnelApi.createDoctor(userId);
+    commit("markUsersDirty");
+    await dispatch("refreshUsers");
+  },
+
+  async deleteDoctor(
+    { commit, dispatch }: PersonnelActionContext,
+    userId: number
+  ) {
+    await personnelApi.deleteDoctor(userId);
+    commit("markUsersDirty");
+    await dispatch("refreshUsers");
+  },
+
+  async createWarehouseManager(
+    { commit, dispatch }: PersonnelActionContext,
+    userId: number
+  ) {
+    await personnelApi.createWarehouserManager(userId);
+    commit("markUsersDirty");
+    await dispatch("refreshUsers");
+  },
+
+  async deleteWarehouseManager(
+    { commit, dispatch }: PersonnelActionContext,
+    userId: number
+  ) {
+    await personnelApi.deleteWarehouserManager(userId);
+    commit("markUsersDirty");
+    await dispatch("refreshUsers");
+  },
+
+  markUsersDirty({ commit }: PersonnelActionContext) {
+    commit("markUsersDirty");
+  },
 };

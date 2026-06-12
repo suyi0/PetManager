@@ -162,7 +162,6 @@ import {
 } from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
-import { personnelApi } from "../../api/personnelApi";
 
 export default defineComponent({
   name: "PersonnelRoleAccess",
@@ -257,8 +256,7 @@ export default defineComponent({
 
     const grantDoctor = async () => {
       try {
-        await personnelApi.createDoctor(ensureUserID());
-        await store.dispatch("personnel/refreshUsers");
+        await store.dispatch("personnel/createDoctor", ensureUserID());
         message.value = "医生权限授予成功";
       } catch (error) {
         message.value =
@@ -268,8 +266,7 @@ export default defineComponent({
 
     const revokeDoctor = async () => {
       try {
-        await personnelApi.deleteDoctor(ensureUserID());
-        await store.dispatch("personnel/refreshUsers");
+        await store.dispatch("personnel/deleteDoctor", ensureUserID());
         message.value = "医生权限移除成功";
       } catch (error) {
         message.value =
@@ -279,8 +276,10 @@ export default defineComponent({
 
     const grantWarehouseAdmin = async () => {
       try {
-        await personnelApi.createWarehouserManager(ensureUserID());
-        await store.dispatch("personnel/refreshUsers");
+        await store.dispatch(
+          "personnel/createWarehouseManager",
+          ensureUserID()
+        );
         message.value = "仓库管理员授权成功";
       } catch (error) {
         message.value =
@@ -290,8 +289,10 @@ export default defineComponent({
 
     const revokeWarehouseAdmin = async () => {
       try {
-        await personnelApi.deleteWarehouserManager(ensureUserID());
-        await store.dispatch("personnel/refreshUsers");
+        await store.dispatch(
+          "personnel/deleteWarehouseManager",
+          ensureUserID()
+        );
         message.value = "仓库管理员权限移除成功";
       } catch (error) {
         message.value =

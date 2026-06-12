@@ -117,7 +117,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { isEmail } from "@/utils/authValidators";
+import { isEmail } from "@/core/auth/utils/authValidators";
 import { profileApi } from "@/modules/user/api/userApi";
 
 const store = useStore(storeKey);

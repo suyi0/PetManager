@@ -1,8 +1,5 @@
 import { BossStockDistribution } from "../api/types";
-import {
-  readVersionedLocalCache,
-  saveVersionedLocalCache,
-} from "@/shared/utils/versionedLocalCache";
+import { createVersionedLocalCacheAccessors } from "@/shared/utils/versionedLocalCache";
 
 const BOSS_CACHE_OPTIONS = {
   version: 1,
@@ -13,20 +10,14 @@ const BOSS_CACHE_KEYS = {
   stockDistribution: "boss:stock-distribution:cache",
 };
 
-const readJsonCache = <T>(key: string): T | null => {
-  return readVersionedLocalCache<T>(key, BOSS_CACHE_OPTIONS);
-};
-
-const saveJsonCache = <T>(key: string, value: T) => {
-  saveVersionedLocalCache(key, value, BOSS_CACHE_OPTIONS);
-};
+const bossCache = createVersionedLocalCacheAccessors(BOSS_CACHE_OPTIONS);
 
 /**
  * 从本地缓存读取总裁端股权分布数据。
  * 缓存不存在或格式异常时返回 null。
  */
 export const readBossStockDistributionCache = () =>
-  readJsonCache<BossStockDistribution>(BOSS_CACHE_KEYS.stockDistribution);
+  bossCache.read<BossStockDistribution>(BOSS_CACHE_KEYS.stockDistribution);
 
 /**
  * 写入总裁端股权分布数据本地缓存。
@@ -34,7 +25,7 @@ export const readBossStockDistributionCache = () =>
 export const saveBossStockDistributionCache = (
   distribution: BossStockDistribution
 ) => {
-  saveJsonCache(BOSS_CACHE_KEYS.stockDistribution, distribution);
+  bossCache.save(BOSS_CACHE_KEYS.stockDistribution, distribution);
 };
 
 /**
@@ -42,7 +33,5 @@ export const saveBossStockDistributionCache = (
  * 用户退出登录时调用，避免不同账号之间复用旧总裁端数据。
  */
 export const clearBossDataCache = () => {
-  Object.values(BOSS_CACHE_KEYS).forEach((key) => {
-    localStorage.removeItem(key);
-  });
+  bossCache.clearAll(Object.values(BOSS_CACHE_KEYS));
 };

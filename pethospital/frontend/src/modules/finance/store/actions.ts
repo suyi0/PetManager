@@ -1,6 +1,7 @@
 import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { financeApi } from "../api/financeApi";
+import { ChangeSalaryPayload } from "../api/types";
 import {
   readFinanceHomeDataCache,
   readFinanceSalaryManagementCache,
@@ -88,5 +89,31 @@ export const financeActions: ActionTree<FinanceState, State> = {
    */
   async refreshSalaryManagement({ dispatch }: FinanceActionContext) {
     return dispatch("ensureSalaryManagement", { force: true });
+  },
+
+  /**
+   * 修改员工工资结构。
+   * 工资变动会影响工资管理列表和首页财务摘要，因此成功后统一标脏并刷新。
+   */
+  async changeSalary(
+    { commit, dispatch }: FinanceActionContext,
+    payload: ChangeSalaryPayload
+  ) {
+    await financeApi.changeSalary(payload);
+    commit("markSalaryManagementDirty");
+    commit("markHomeDataDirty");
+
+    await Promise.all([
+      dispatch("refreshSalaryManagement"),
+      dispatch("refreshHomeData"),
+    ]);
+  },
+
+  markHomeDataDirty({ commit }: FinanceActionContext) {
+    commit("markHomeDataDirty");
+  },
+
+  markSalaryManagementDirty({ commit }: FinanceActionContext) {
+    commit("markSalaryManagementDirty");
   },
 };

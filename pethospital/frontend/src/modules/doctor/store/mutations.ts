@@ -10,24 +10,18 @@ import {
 } from "../api/types";
 import { createDoctorState } from "./state";
 import { DoctorState } from "./types";
-
-const applyLoadedMeta = (meta: DoctorState["dutyStatusMeta"]) => {
-  meta.loaded = true;
-  meta.dirty = false;
-  meta.loading = false;
-  meta.lastFetchedAt = Date.now();
-};
-
-const applyDirtyMeta = (meta: DoctorState["dutyStatusMeta"]) => {
-  meta.dirty = true;
-};
+import {
+  markCacheDirty,
+  markCacheLoaded,
+  setCacheLoading,
+} from "@/app/store/cacheMeta";
 
 export const doctorMutations: MutationTree<DoctorState> = {
   /**
    * 值班状态加载中。
    */
   setDutyStatusLoading(state, loading: boolean) {
-    state.dutyStatusMeta.loading = loading;
+    setCacheLoading(state.dutyStatusMeta, loading);
   },
 
   /**
@@ -35,14 +29,14 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   setDutyStatus(state, dutyStatus: DoctorDutyStatus) {
     state.dutyStatus = dutyStatus;
-    applyLoadedMeta(state.dutyStatusMeta);
+    markCacheLoaded(state.dutyStatusMeta);
   },
 
   /**
    * 标记值班状态缓存过期。
    */
   markDutyStatusDirty(state) {
-    applyDirtyMeta(state.dutyStatusMeta);
+    markCacheDirty(state.dutyStatusMeta);
   },
 
   /**
@@ -51,7 +45,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param loading 是否正在加载用户档案
    */
   setCurrentUserProfileLoading(state, loading: boolean) {
-    state.currentUserProfileMeta.loading = loading;
+    setCacheLoading(state.currentUserProfileMeta, loading);
   },
 
   /**
@@ -61,7 +55,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   setCurrentUserProfile(state, profile: DoctorUserProfile | null) {
     state.currentUserProfile = profile;
-    applyLoadedMeta(state.currentUserProfileMeta);
+    markCacheLoaded(state.currentUserProfileMeta);
   },
 
   /**
@@ -69,7 +63,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param state 医生状态对象
    */
   markCurrentUserProfileDirty(state) {
-    applyDirtyMeta(state.currentUserProfileMeta);
+    markCacheDirty(state.currentUserProfileMeta);
   },
 
   /**
@@ -78,7 +72,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param loading 是否正在加载队列项目
    */
   setQueueItemsLoading(state, loading: boolean) {
-    state.queueItemsMeta.loading = loading;
+    setCacheLoading(state.queueItemsMeta, loading);
   },
 
   /**
@@ -88,7 +82,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   setQueueItems(state, queueItems: QueueItem[]) {
     state.queueItems = queueItems;
-    applyLoadedMeta(state.queueItemsMeta);
+    markCacheLoaded(state.queueItemsMeta);
   },
 
   /**
@@ -96,7 +90,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param state 医生状态对象
    */
   markQueueItemsDirty(state) {
-    applyDirtyMeta(state.queueItemsMeta);
+    markCacheDirty(state.queueItemsMeta);
   },
 
   /**
@@ -105,7 +99,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param loading 是否正在加载预约项目
    */
   setReservationsLoading(state, loading: boolean) {
-    state.reservationsMeta.loading = loading;
+    setCacheLoading(state.reservationsMeta, loading);
   },
 
   /**
@@ -115,7 +109,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   setReservations(state, reservations: ReservationSummaryItem[]) {
     state.reservations = reservations;
-    applyLoadedMeta(state.reservationsMeta);
+    markCacheLoaded(state.reservationsMeta);
   },
 
   /**
@@ -123,14 +117,14 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param state 医生状态对象
    */
   markReservationsDirty(state) {
-    applyDirtyMeta(state.reservationsMeta);
+    markCacheDirty(state.reservationsMeta);
   },
 
   /**
    * 预约详情加载中。
    */
   setCurrentReservationDetailLoading(state, loading: boolean) {
-    state.currentReservationDetailMeta.loading = loading;
+    setCacheLoading(state.currentReservationDetailMeta, loading);
   },
 
   /**
@@ -138,14 +132,14 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   setCurrentReservationDetail(state, detail: ReservationItem | null) {
     state.currentReservationDetail = detail;
-    applyLoadedMeta(state.currentReservationDetailMeta);
+    markCacheLoaded(state.currentReservationDetailMeta);
   },
 
   /**
    * 标记当前预约详情缓存过期。
    */
   markCurrentReservationDetailDirty(state) {
-    applyDirtyMeta(state.currentReservationDetailMeta);
+    markCacheDirty(state.currentReservationDetailMeta);
   },
 
   /**
@@ -154,7 +148,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param loading 是否正在加载订单记录
    */
   setOrderRecordsLoading(state, loading: boolean) {
-    state.orderRecordsMeta.loading = loading;
+    setCacheLoading(state.orderRecordsMeta, loading);
   },
 
   /**
@@ -164,7 +158,7 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   setOrderRecords(state, orderRecords: OrderSummaryItem[]) {
     state.orderRecords = orderRecords;
-    applyLoadedMeta(state.orderRecordsMeta);
+    markCacheLoaded(state.orderRecordsMeta);
   },
 
   /**
@@ -172,14 +166,14 @@ export const doctorMutations: MutationTree<DoctorState> = {
    * @param state 医生状态对象
    */
   markOrderRecordsDirty(state) {
-    applyDirtyMeta(state.orderRecordsMeta);
+    markCacheDirty(state.orderRecordsMeta);
   },
 
   /**
    * 订单详情加载中。
    */
   setCurrentOrderDetailLoading(state, loading: boolean) {
-    state.currentOrderDetailMeta.loading = loading;
+    setCacheLoading(state.currentOrderDetailMeta, loading);
   },
 
   /**
@@ -187,14 +181,14 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   setCurrentOrderDetail(state, detail: OrderDetailItem | null) {
     state.currentOrderDetail = detail;
-    applyLoadedMeta(state.currentOrderDetailMeta);
+    markCacheLoaded(state.currentOrderDetailMeta);
   },
 
   /**
    * 标记当前订单详情缓存过期。
    */
   markCurrentOrderDetailDirty(state) {
-    applyDirtyMeta(state.currentOrderDetailMeta);
+    markCacheDirty(state.currentOrderDetailMeta);
   },
 
   /**

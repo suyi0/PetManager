@@ -281,7 +281,7 @@ import { ref, computed, watch, onUnmounted } from "vue";
 import { useStore } from "vuex";
 import { useRouter, useRoute } from "vue-router";
 import { getHomeRouteByUserType } from "@/core/auth/utils/authRedirect";
-import { isEmail } from "@/utils/authValidators";
+import { isEmail } from "@/core/auth/utils/authValidators";
 import { defineComponent } from "vue";
 
 defineComponent({

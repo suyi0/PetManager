@@ -2,6 +2,7 @@ import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { superAdminApi } from "../api/superAdminApi";
 import { SuperAdminState } from "./types";
+import { CreateUserPayload } from "../api/types";
 import {
   readSuperAdminHomePageDataCache,
   readSuperAdminLogsCache,
@@ -218,5 +219,87 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
       dispatch("refreshUsers"),
       dispatch("refreshWorkTimeRecords"),
     ]);
+  },
+
+  async createUser(
+    { commit, dispatch }: SuperAdminActionContext,
+    payload: CreateUserPayload
+  ) {
+    await superAdminApi.createUser(payload);
+    commit("markUsersDirty");
+    commit("markLogsDirty");
+    commit("markHomePageDataDirty");
+
+    await Promise.all([dispatch("refreshUsers"), dispatch("refreshLogs")]);
+  },
+
+  async deleteUser(
+    { commit, dispatch }: SuperAdminActionContext,
+    userId: number
+  ) {
+    await superAdminApi.deleteUser(userId);
+    commit("markUsersDirty");
+    commit("markLogsDirty");
+    commit("markHomePageDataDirty");
+
+    await Promise.all([
+      dispatch("refreshUsers"),
+      dispatch("refreshLogs"),
+      dispatch("refreshHomePageData"),
+    ]);
+  },
+
+  async changeDoctorWorkTime(
+    { commit, dispatch }: SuperAdminActionContext,
+    payload: {
+      user_id: number;
+      date: string;
+      identifier: "check_in_time" | "check_out_time";
+    }
+  ) {
+    await superAdminApi.changeDoctorWorkTime(payload);
+    commit("markWorkTimeRecordsDirty");
+    commit("markLogsDirty");
+    commit("markHomePageDataDirty");
+
+    await Promise.all([
+      dispatch("refreshWorkTimeRecords"),
+      dispatch("refreshLogs"),
+      dispatch("refreshHomePageData"),
+    ]);
+  },
+
+  async changeDoctorWorkStatus(
+    { commit, dispatch }: SuperAdminActionContext,
+    payload: { doctorId: number; status: "online" | "offline" }
+  ) {
+    await superAdminApi.changeDoctorWorkStatus(payload);
+    commit("markUsersDirty");
+    commit("markWorkTimeRecordsDirty");
+    commit("markLogsDirty");
+    commit("markHomePageDataDirty");
+
+    await Promise.all([
+      dispatch("refreshUsers"),
+      dispatch("refreshWorkTimeRecords"),
+      dispatch("refreshLogs"),
+      dispatch("refreshHomePageData"),
+    ]);
+  },
+
+  markUsersDirty({ commit }: SuperAdminActionContext) {
+    commit("markUsersDirty");
+  },
+
+  markWorkTimeRecordsDirty({ commit }: SuperAdminActionContext) {
+    commit("markWorkTimeRecordsDirty");
+  },
+
+  markLogsDirty({ commit }: SuperAdminActionContext) {
+    commit("markLogsDirty");
+  },
+
+  markHomePageDataDirty({ commit }: SuperAdminActionContext) {
+    commit("markHomePageDataDirty");
   },
 };

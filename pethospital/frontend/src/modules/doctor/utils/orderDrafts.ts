@@ -36,19 +36,65 @@ export type DoctorOrderDraftSummary = {
   medicineCount: number;
   estimatedTotal: number;
   updatedAt: number;
+  remainingMs: number;
 };
 
 const ORDER_DRAFT_PREFIX = "doctor:create-order:draft:";
+const ORDER_DRAFT_TTL_MS = 1000 * 60 * 60 * 24;
+
+type BuildDoctorOrderDraftKeyOptions = {
+  queueId?: string;
+  doctorScope?: string | number | null;
+  ownerId?: string | number | null;
+  petId?: string | number | null;
+};
+
+const normalizeKeyPart = (value: string | number | null | undefined) => {
+  const normalizedValue = String(value ?? "").trim();
+  return normalizedValue
+    ? normalizedValue.replace(/[^a-zA-Z0-9_-]/g, "_")
+    : "unknown";
+};
+
+const isDraftExpired = (draft: DoctorOrderDraft) => {
+  const updatedAt = Number(draft.updatedAt || 0);
+  return !updatedAt || Date.now() - updatedAt > ORDER_DRAFT_TTL_MS;
+};
+
+const getDraftRemainingMs = (draft: DoctorOrderDraft) => {
+  const updatedAt = Number(draft.updatedAt || 0);
+  if (!updatedAt) {
+    return 0;
+  }
+
+  return Math.max(0, ORDER_DRAFT_TTL_MS - (Date.now() - updatedAt));
+};
 
 /**
- * 根据接诊队列 id 生成草稿本地存储 key。
- * 没有关联队列时使用 default，表示临时新建的诊单草稿。
+ * 生成诊单草稿本地存储 key。
+ * 新版本按医生 + 主人 + 宠物 + 队列维度隔离，避免不同医生或不同宠物复用同一草稿。
  */
-export const buildDoctorOrderDraftKey = (queueId?: string) => {
-  const normalizedQueueId = String(queueId || "").trim();
-  return normalizedQueueId
-    ? `${ORDER_DRAFT_PREFIX}${normalizedQueueId}`
-    : `${ORDER_DRAFT_PREFIX}default`;
+export const buildDoctorOrderDraftKey = (
+  options?: string | BuildDoctorOrderDraftKeyOptions
+) => {
+  if (typeof options === "string") {
+    const normalizedQueueId = String(options || "").trim();
+    return normalizedQueueId
+      ? `${ORDER_DRAFT_PREFIX}${normalizedQueueId}`
+      : `${ORDER_DRAFT_PREFIX}default`;
+  }
+
+  const normalizedQueueId = String(options?.queueId || "").trim() || "default";
+  const doctorScope = normalizeKeyPart(options?.doctorScope);
+  const ownerId = normalizeKeyPart(options?.ownerId);
+  const petId = normalizeKeyPart(options?.petId);
+
+  return `${ORDER_DRAFT_PREFIX}${[
+    `doctor-${doctorScope}`,
+    `owner-${ownerId}`,
+    `pet-${petId}`,
+    `queue-${normalizeKeyPart(normalizedQueueId)}`,
+  ].join(":")}`;
 };
 
 /**
@@ -63,7 +109,14 @@ export const readDoctorOrderDraft = (storageKey: string) => {
   }
 
   try {
-    return JSON.parse(rawDraft) as DoctorOrderDraft;
+    const draft = JSON.parse(rawDraft) as DoctorOrderDraft;
+
+    if (isDraftExpired(draft)) {
+      localStorage.removeItem(storageKey);
+      return null;
+    }
+
+    return draft;
   } catch {
     localStorage.removeItem(storageKey);
     return null;
@@ -93,22 +146,27 @@ export const removeDoctorOrderDraft = (storageKey: string) => {
  */
 export const listDoctorOrderDrafts = () => {
   const draftSummaries: DoctorOrderDraftSummary[] = [];
+  const draftStorageKeys = Array.from(
+    { length: localStorage.length },
+    (_, index) => localStorage.key(index)
+  ).filter(
+    (storageKey): storageKey is string =>
+      !!storageKey && storageKey.startsWith(ORDER_DRAFT_PREFIX)
+  );
 
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const storageKey = localStorage.key(index);
-
-    if (!storageKey || !storageKey.startsWith(ORDER_DRAFT_PREFIX)) {
-      continue;
-    }
-
+  for (const storageKey of draftStorageKeys) {
     const draft = readDoctorOrderDraft(storageKey);
 
     if (!draft) {
       continue;
     }
 
-    const queueId = storageKey.slice(ORDER_DRAFT_PREFIX.length) || "default";
-    const visitCode = queueId === "default" ? "临时草稿" : `Q-${queueId}`;
+    const rawKey = storageKey.slice(ORDER_DRAFT_PREFIX.length) || "default";
+    const queueIdMatch = rawKey.match(/(?:^|:)queue-([^:]+)/);
+    const queueId = queueIdMatch?.[1] || rawKey || "default";
+    const normalizedQueueId = queueId === "default" ? "default" : queueId;
+    const visitCode =
+      normalizedQueueId === "default" ? "临时草稿" : `Q-${normalizedQueueId}`;
     const medicineCount = draft.selected.reduce(
       (sum, item) => sum + Math.max(1, item.days),
       0
@@ -120,7 +178,7 @@ export const listDoctorOrderDrafts = () => {
 
     draftSummaries.push({
       storageKey,
-      queueId,
+      queueId: normalizedQueueId,
       ownerId: draft.ownerId,
       petId: draft.petId,
       visitCode,
@@ -131,6 +189,7 @@ export const listDoctorOrderDrafts = () => {
       medicineCount,
       estimatedTotal,
       updatedAt: Number.isFinite(draft.updatedAt) ? draft.updatedAt : 0,
+      remainingMs: getDraftRemainingMs(draft),
     });
   }
 

@@ -181,11 +181,9 @@ import {
 import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { doctorApi } from "@/modules/doctor/api/doctorApi";
 import { medicineSearchItemsMock } from "@/modules/doctor/api/doctorMock";
 import {
   MedicineSearchItem,
-  OrderSummaryItem,
   SelectedMedicineItem,
 } from "@/modules/doctor/api/types";
 import {
@@ -195,7 +193,6 @@ import {
   removeDoctorOrderDraft,
   saveDoctorOrderDraft,
 } from "@/modules/doctor/utils/orderDrafts";
-import { prependDoctorOrderRecordCache } from "@/modules/doctor/utils/doctorDataCache";
 
 export default defineComponent({
   name: "DoctorCreateOrder",
@@ -238,9 +235,27 @@ export default defineComponent({
       const queueId = String(route.params.queueId || "").trim();
       return queueId ? `Q-${queueId}` : "ZD-0310-08";
     });
+    const doctorDraftScope = computed(
+      () =>
+        store.state.currentUser.userPhone ||
+        store.state.currentUser.userEmail ||
+        store.state.currentUser.userName ||
+        store.getters["auth/formattedUserName"] ||
+        "doctor"
+    );
     const draftStorageKey = computed(() => {
+      const openedDraftKey = String(route.query.draftKey || "").trim();
+      if (openedDraftKey) {
+        return openedDraftKey;
+      }
+
       const queueId = String(route.params.queueId || "").trim();
-      return buildDoctorOrderDraftKey(queueId);
+      return buildDoctorOrderDraftKey({
+        queueId,
+        doctorScope: doctorDraftScope.value,
+        ownerId: ownerId.value,
+        petId: petId.value,
+      });
     });
 
     const total = computed(() =>
@@ -336,9 +351,15 @@ export default defineComponent({
      * 恢复草稿
      */
     const restoreDraft = () => {
+      const openedDraftKey = String(route.query.draftKey || "").trim();
       const draft = readDoctorOrderDraft(draftStorageKey.value);
 
       if (!draft) {
+        if (openedDraftKey) {
+          pauseDraftPersist.value = true;
+          window.alert("该诊单草稿已超过 24 小时，系统已自动清理");
+          void router.push("/doctor/drafts");
+        }
         return;
       }
 
@@ -398,48 +419,32 @@ export default defineComponent({
       }
 
       try {
-        /**
-         * 创建订单接口，成功后会返回完整的订单记录数据，包括订单 ID、宠物信息、主人信息、医生信息、创建时间、总费用和订单状态等。
-         */
-        const createdRecord = await doctorApi.createOrderRecord({
-          ownerId: ownerId.value,
-          petId: petId.value,
-          orderType: "诊疗",
-          orderData: patientForm.symptom,
-          orderTotalPrice: total.value,
-          orderMedicines: selected.value.map((item) => ({
-            medicineId: item.id,
-            medicineName: item.name,
-            quantity: Math.max(1, item.days),
-            price: item.unitPrice,
-            totalPrice: item.subtotal,
-          })),
-        });
-
-        /**
-         * 标准化后端返回的订单记录
-         */
-        const normalizedRecord: OrderSummaryItem = {
-          ...createdRecord,
-          pet_name:
-            createdRecord.pet_name || patientForm.petName || "未命名宠物",
-          order_type: createdRecord.order_type || "诊疗",
-          order_data: createdRecord.order_data || patientForm.symptom,
-          order_totalprice: createdRecord.order_totalprice ?? total.value,
-          order_status: createdRecord.order_status || "待付款",
-        };
-
-        /**
-         * 将新创建的订单记录保存到Vuex缓存中
-         */
-        store.commit("doctor/setOrderRecords", [
-          normalizedRecord,
-          ...store.state.doctor.orderRecords.filter(
-            (item) => Number(item.id) !== Number(normalizedRecord.id)
-          ),
-        ]);
-        prependDoctorOrderRecordCache(normalizedRecord);
-        store.commit("doctor/markOrderRecordsDirty");
+        const normalizedRecord = await store.dispatch(
+          "doctor/createOrderRecord",
+          {
+            order: {
+              ownerId: ownerId.value,
+              petId: petId.value,
+              orderType: "诊疗",
+              orderData: patientForm.symptom,
+              orderTotalPrice: total.value,
+              orderMedicines: selected.value.map((item) => ({
+                medicineId: item.id,
+                medicineName: item.name,
+                quantity: Math.max(1, item.days),
+                price: item.unitPrice,
+                totalPrice: item.subtotal,
+              })),
+            },
+            fallback: {
+              pet_name: patientForm.petName || "未命名宠物",
+              order_type: "诊疗",
+              order_data: patientForm.symptom,
+              order_totalprice: total.value,
+              order_status: "待付款",
+            },
+          }
+        );
 
         pauseDraftPersist.value = true;
         removeDoctorOrderDraft(draftStorageKey.value);

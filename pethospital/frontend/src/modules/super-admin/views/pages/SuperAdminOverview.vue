@@ -128,6 +128,9 @@ export default defineComponent({
           (homeData) => {
             store.commit("superAdmin/setHomePageData", homeData);
             saveSuperAdminHomePageDataCache(homeData);
+            void store.dispatch("superAdmin/markUsersDirty");
+            void store.dispatch("superAdmin/markWorkTimeRecordsDirty");
+            void store.dispatch("superAdmin/markLogsDirty");
           },
           {
             onFallbackRefresh: () => {

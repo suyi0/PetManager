@@ -19,8 +19,10 @@ import {
   saveDoctorReservationsCache,
 } from "../utils/doctorDataCache";
 import {
+  CreateOrderRecordPayload,
   DoctorUserProfile,
   OrderDetailItem,
+  OrderSummaryItem,
   ReservationItem,
 } from "../api/types";
 
@@ -242,6 +244,48 @@ export const doctorActions: ActionTree<DoctorState, State> = {
   },
 
   /**
+   * 创建诊单订单。
+   * 后端成功返回订单摘要后，立即写入 Vuex 和 localStorage 列表缓存。
+   */
+  async createOrderRecord(
+    { state, commit }: DoctorActionContext,
+    payload: {
+      order: CreateOrderRecordPayload;
+      fallback?: Partial<OrderSummaryItem>;
+    }
+  ) {
+    const createdRecord = await doctorApi.createOrderRecord(payload.order);
+    const normalizedRecord: OrderSummaryItem = {
+      ...createdRecord,
+      pet_name:
+        createdRecord.pet_name || payload.fallback?.pet_name || "未命名宠物",
+      order_type:
+        createdRecord.order_type || payload.fallback?.order_type || "诊疗",
+      order_data:
+        createdRecord.order_data || payload.fallback?.order_data || "",
+      order_totalprice:
+        createdRecord.order_totalprice ??
+        payload.fallback?.order_totalprice ??
+        0,
+      order_status:
+        createdRecord.order_status ||
+        payload.fallback?.order_status ||
+        "待付款",
+    };
+    const nextRecords = [
+      normalizedRecord,
+      ...state.orderRecords.filter(
+        (item) => Number(item.id) !== Number(normalizedRecord.id)
+      ),
+    ];
+
+    saveDoctorOrderRecordCache(nextRecords);
+    commit("setOrderRecords", nextRecords);
+    commit("markCurrentOrderDetailDirty");
+    return normalizedRecord;
+  },
+
+  /**
    * 确保订单记录可用。
    * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
    */
@@ -342,5 +386,33 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   async refreshOrderRecords({ dispatch }: DoctorActionContext) {
     return dispatch("ensureOrderRecords", { force: true });
+  },
+
+  markDutyStatusDirty({ commit }: DoctorActionContext) {
+    commit("markDutyStatusDirty");
+  },
+
+  markCurrentUserProfileDirty({ commit }: DoctorActionContext) {
+    commit("markCurrentUserProfileDirty");
+  },
+
+  markQueueItemsDirty({ commit }: DoctorActionContext) {
+    commit("markQueueItemsDirty");
+  },
+
+  markReservationsDirty({ commit }: DoctorActionContext) {
+    commit("markReservationsDirty");
+  },
+
+  markCurrentReservationDetailDirty({ commit }: DoctorActionContext) {
+    commit("markCurrentReservationDetailDirty");
+  },
+
+  markOrderRecordsDirty({ commit }: DoctorActionContext) {
+    commit("markOrderRecordsDirty");
+  },
+
+  markCurrentOrderDetailDirty({ commit }: DoctorActionContext) {
+    commit("markCurrentOrderDetailDirty");
   },
 };

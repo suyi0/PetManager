@@ -133,7 +133,6 @@ import { useStore } from "vuex";
 import { useRoute, useRouter } from "vue-router";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/app/store";
-import { superAdminApi } from "../../api/superAdminApi";
 
 export default defineComponent({
   name: "SuperAdminUserDetail",
@@ -198,22 +197,13 @@ export default defineComponent({
       statusUpdating.value = true;
       pendingStatus.value = status;
       try {
-        await superAdminApi.changeDoctorWorkStatus({
+        await store.dispatch("superAdmin/changeDoctorWorkStatus", {
           doctorId: user.value.id,
           status,
         });
-        // 医生状态会影响列表展示、考勤统计和审计日志。
-        store.commit("superAdmin/markUsersDirty");
-        store.commit("superAdmin/markWorkTimeRecordsDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
         statusMessage.value = `医生状态已更新为${
           status === "online" ? "在线" : "离线"
         }`;
-        await Promise.all([
-          store.dispatch("superAdmin/refreshUsers"),
-          store.dispatch("superAdmin/refreshWorkTimeRecords"),
-        ]);
       } catch (error: unknown) {
         statusMessage.value =
           getErrorDetails(error) || "状态修改失败，请稍后重试";
@@ -235,11 +225,7 @@ export default defineComponent({
 
       deleteLoading.value = true;
       try {
-        await superAdminApi.deleteUser(user.value.id);
-        store.commit("superAdmin/markUsersDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
-        await store.dispatch("superAdmin/refreshUsers");
+        await store.dispatch("superAdmin/deleteUser", user.value.id);
         deleteMessage.value = "账号已删除";
         goBack();
       } catch (error: unknown) {

@@ -7,10 +7,7 @@ import {
   ReservationSummary,
   ReservationScheduleState,
 } from "../api/types";
-import {
-  readVersionedLocalCache,
-  saveVersionedLocalCache,
-} from "@/shared/utils/versionedLocalCache";
+import { createVersionedLocalCacheAccessors } from "@/shared/utils/versionedLocalCache";
 
 const USER_PORTAL_CACHE_OPTIONS = {
   version: 1,
@@ -27,32 +24,22 @@ const USER_PORTAL_CACHE_KEYS = {
   currentOrderDetail: "user-portal:current-order-detail:cache",
 };
 
-const readJsonCache = <T>(key: string): T | null => {
-  return readVersionedLocalCache<T>(key, USER_PORTAL_CACHE_OPTIONS);
-};
-
-const saveJsonCache = <T>(key: string, value: T) => {
-  saveVersionedLocalCache(key, value, USER_PORTAL_CACHE_OPTIONS);
-};
-
-const readArrayCache = <T>(key: string): T[] | null => {
-  const cachedValue = readJsonCache<unknown>(key);
-
-  return Array.isArray(cachedValue) ? (cachedValue as T[]) : null;
-};
+const userPortalCache = createVersionedLocalCacheAccessors(
+  USER_PORTAL_CACHE_OPTIONS
+);
 
 /**
  * 从本地缓存读取用户端宠物档案。
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
 export const readUserPetProfilesCache = () =>
-  readArrayCache<PetProfile>(USER_PORTAL_CACHE_KEYS.petProfiles);
+  userPortalCache.readArray<PetProfile>(USER_PORTAL_CACHE_KEYS.petProfiles);
 
 /**
  * 写入用户端宠物档案本地缓存。
  */
 export const saveUserPetProfilesCache = (pets: PetProfile[]) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.petProfiles, pets);
+  userPortalCache.save(USER_PORTAL_CACHE_KEYS.petProfiles, pets);
 };
 
 /**
@@ -60,13 +47,15 @@ export const saveUserPetProfilesCache = (pets: PetProfile[]) => {
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
 export const readUserReservationDoctorsCache = () =>
-  readArrayCache<DoctorDataItem>(USER_PORTAL_CACHE_KEYS.reservationDoctors);
+  userPortalCache.readArray<DoctorDataItem>(
+    USER_PORTAL_CACHE_KEYS.reservationDoctors
+  );
 
 /**
  * 写入用户端预约医生列表本地缓存。
  */
 export const saveUserReservationDoctorsCache = (doctors: DoctorDataItem[]) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.reservationDoctors, doctors);
+  userPortalCache.save(USER_PORTAL_CACHE_KEYS.reservationDoctors, doctors);
 };
 
 /**
@@ -74,7 +63,7 @@ export const saveUserReservationDoctorsCache = (doctors: DoctorDataItem[]) => {
  * 缓存不存在或格式异常时返回 null。
  */
 export const readUserReservationScheduleCache = () =>
-  readJsonCache<Omit<ReservationScheduleState, "doctorData">>(
+  userPortalCache.read<Omit<ReservationScheduleState, "doctorData">>(
     USER_PORTAL_CACHE_KEYS.reservationSchedule
   );
 
@@ -84,7 +73,7 @@ export const readUserReservationScheduleCache = () =>
 export const saveUserReservationScheduleCache = (
   schedule: Omit<ReservationScheduleState, "doctorData">
 ) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.reservationSchedule, schedule);
+  userPortalCache.save(USER_PORTAL_CACHE_KEYS.reservationSchedule, schedule);
 };
 
 /**
@@ -92,13 +81,15 @@ export const saveUserReservationScheduleCache = (
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
 export const readUserOrderSummariesCache = () =>
-  readArrayCache<OrderSummary>(USER_PORTAL_CACHE_KEYS.orderSummaries);
+  userPortalCache.readArray<OrderSummary>(
+    USER_PORTAL_CACHE_KEYS.orderSummaries
+  );
 
 /**
  * 写入用户端订单摘要本地缓存。
  */
 export const saveUserOrderSummariesCache = (summaries: OrderSummary[]) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.orderSummaries, summaries);
+  userPortalCache.save(USER_PORTAL_CACHE_KEYS.orderSummaries, summaries);
 };
 
 /**
@@ -106,20 +97,20 @@ export const saveUserOrderSummariesCache = (summaries: OrderSummary[]) => {
  * 该缓存只保存一条记录，进入新订单详情时会覆盖旧记录。
  */
 export const readUserCurrentOrderDetailCache = () =>
-  readJsonCache<OrderDetail>(USER_PORTAL_CACHE_KEYS.currentOrderDetail);
+  userPortalCache.read<OrderDetail>(USER_PORTAL_CACHE_KEYS.currentOrderDetail);
 
 /**
  * 写入当前选中的完整订单信息，并覆盖上一条详情缓存。
  */
 export const saveUserCurrentOrderDetailCache = (detail: OrderDetail) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.currentOrderDetail, detail);
+  userPortalCache.save(USER_PORTAL_CACHE_KEYS.currentOrderDetail, detail);
 };
 
 /**
  * 清空当前选中的完整订单信息缓存。
  */
 export const clearUserCurrentOrderDetailCache = () => {
-  localStorage.removeItem(USER_PORTAL_CACHE_KEYS.currentOrderDetail);
+  userPortalCache.remove(USER_PORTAL_CACHE_KEYS.currentOrderDetail);
 };
 
 /**
@@ -127,7 +118,9 @@ export const clearUserCurrentOrderDetailCache = () => {
  * 缓存不存在或格式异常时返回 null；已缓存的空数组会原样返回。
  */
 export const readUserReservationRecordsCache = () =>
-  readArrayCache<ReservationSummary>(USER_PORTAL_CACHE_KEYS.reservationRecords);
+  userPortalCache.readArray<ReservationSummary>(
+    USER_PORTAL_CACHE_KEYS.reservationRecords
+  );
 
 /**
  * 写入用户端预约记录本地缓存。
@@ -135,7 +128,7 @@ export const readUserReservationRecordsCache = () =>
 export const saveUserReservationRecordsCache = (
   records: ReservationSummary[]
 ) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.reservationRecords, records);
+  userPortalCache.save(USER_PORTAL_CACHE_KEYS.reservationRecords, records);
 };
 
 /**
@@ -143,7 +136,7 @@ export const saveUserReservationRecordsCache = (
  * 该缓存只保存一条记录，进入新预约详情时会覆盖旧记录。
  */
 export const readUserCurrentReservationDetailCache = () =>
-  readJsonCache<ReservationOrderRecordItem>(
+  userPortalCache.read<ReservationOrderRecordItem>(
     USER_PORTAL_CACHE_KEYS.currentReservationDetail
   );
 
@@ -153,14 +146,14 @@ export const readUserCurrentReservationDetailCache = () =>
 export const saveUserCurrentReservationDetailCache = (
   detail: ReservationOrderRecordItem
 ) => {
-  saveJsonCache(USER_PORTAL_CACHE_KEYS.currentReservationDetail, detail);
+  userPortalCache.save(USER_PORTAL_CACHE_KEYS.currentReservationDetail, detail);
 };
 
 /**
  * 清空当前选中的完整预约信息缓存。
  */
 export const clearUserCurrentReservationDetailCache = () => {
-  localStorage.removeItem(USER_PORTAL_CACHE_KEYS.currentReservationDetail);
+  userPortalCache.remove(USER_PORTAL_CACHE_KEYS.currentReservationDetail);
 };
 
 /**
@@ -168,7 +161,5 @@ export const clearUserCurrentReservationDetailCache = () => {
  * 用户退出登录时调用，避免不同账号之间复用旧业务数据。
  */
 export const clearUserPortalDataCache = () => {
-  Object.values(USER_PORTAL_CACHE_KEYS).forEach((key) => {
-    localStorage.removeItem(key);
-  });
+  userPortalCache.clearAll(Object.values(USER_PORTAL_CACHE_KEYS));
 };

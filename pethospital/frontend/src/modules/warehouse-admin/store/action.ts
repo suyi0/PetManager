@@ -122,6 +122,14 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
     return dispatch("ensureLogs", { force: true });
   },
 
+  markItemsDirty({ commit }: WarehouseAdminActionContext) {
+    commit("markItemsDirty");
+  },
+
+  markLogsDirty({ commit }: WarehouseAdminActionContext) {
+    commit("markLogsDirty");
+  },
+
   /**
    * 新增物品入库；成功后刷新库存并写入本地缓存。
    */

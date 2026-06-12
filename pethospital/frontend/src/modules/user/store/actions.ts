@@ -29,6 +29,16 @@ import {
 } from "../utils/userPortalDataCache";
 
 type UserPortalActionContext = ActionContext<UserPortalState, State>;
+type CreateReservationPayload = {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  doctorId: number;
+  petId: number;
+  reservationType: string;
+  date: string;
+  slot: string;
+};
 
 export const userPortalActions: ActionTree<UserPortalState, State> = {
   /**
@@ -128,6 +138,7 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
     const pets = state.petProfiles.filter((item) => item.id !== petId);
     saveUserPetProfilesCache(pets);
     commit("setPetProfiles", pets);
+    commit("markReservationRecordsDirty");
     return pets;
   },
 
@@ -205,6 +216,20 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
       dispatch("refreshReservationDoctors"),
       dispatch("refreshReservationSchedule"),
     ]);
+  },
+
+  /**
+   * 创建预约记录。
+   * 当前接口不保证返回完整预约摘要，因此成功后统一标记预约和订单摘要过期。
+   */
+  async createReservationRecord(
+    { commit }: UserPortalActionContext,
+    payload: CreateReservationPayload
+  ) {
+    const response = await reservationApi.record(payload);
+    commit("markReservationRecordsDirty");
+    commit("markOrderSummariesDirty");
+    return response;
   },
 
   /**
@@ -411,5 +436,33 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
 
   async refreshPetProfiles({ dispatch }: UserPortalActionContext) {
     return dispatch("ensurePetProfiles", { force: true });
+  },
+
+  markPetProfilesDirty({ commit }: UserPortalActionContext) {
+    commit("markPetProfilesDirty");
+  },
+
+  markReservationDoctorsDirty({ commit }: UserPortalActionContext) {
+    commit("markReservationDoctorsDirty");
+  },
+
+  markReservationScheduleDirty({ commit }: UserPortalActionContext) {
+    commit("markReservationScheduleDirty");
+  },
+
+  markReservationRecordsDirty({ commit }: UserPortalActionContext) {
+    commit("markReservationRecordsDirty");
+  },
+
+  markOrderSummariesDirty({ commit }: UserPortalActionContext) {
+    commit("markOrderSummariesDirty");
+  },
+
+  markCurrentReservationDetailDirty({ commit }: UserPortalActionContext) {
+    commit("markCurrentReservationDetailDirty");
+  },
+
+  markCurrentOrderDetailDirty({ commit }: UserPortalActionContext) {
+    commit("markCurrentOrderDetailDirty");
   },
 };

@@ -261,7 +261,6 @@ import {
 } from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
-import { superAdminApi } from "../../api/superAdminApi";
 import { UserRow } from "../../api/types";
 import allUsersIllustration from "@/assets/photo/super-admin-users-all.svg";
 import normalUsersIllustration from "@/assets/photo/super-admin-users-normal.svg";
@@ -521,19 +520,14 @@ export default defineComponent({
       formError.value = "";
 
       try {
-        await superAdminApi.createUser({
+        await store.dispatch("superAdmin/createUser", {
           name: form.name,
           phone: form.phone || undefined,
           email: form.email || undefined,
           password: form.password || undefined,
           birthday: form.birthday || undefined,
         });
-        // 创建成功后，用户列表和日志都已经过期，后续页面会读到新数据。
-        store.commit("superAdmin/markUsersDirty");
-        store.commit("superAdmin/markLogsDirty");
-        store.commit("superAdmin/markHomePageDataDirty");
         closeCreateDialog();
-        await store.dispatch("superAdmin/refreshUsers");
       } catch (error: unknown) {
         formError.value = getErrorDetails(error) || "创建失败，请稍后重试";
       } finally {

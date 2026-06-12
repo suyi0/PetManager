@@ -282,7 +282,7 @@ import { ref, computed, onUnmounted } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import { getHomeRouteByUserType } from "@/core/auth/utils/authRedirect";
-import { isEmail, isPhone } from "@/utils/authValidators";
+import { isEmail, isPhone } from "@/core/auth/utils/authValidators";
 
 // 使用 store 和 router
 const store = useStore();

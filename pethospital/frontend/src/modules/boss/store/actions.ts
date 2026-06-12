@@ -51,4 +51,8 @@ export const bossActions: ActionTree<BossState, State> = {
   async refreshStockDistribution({ dispatch }: BossActionContext) {
     return dispatch("ensureStockDistribution", { force: true });
   },
+
+  markStockDistributionDirty({ commit }: BossActionContext) {
+    commit("markStockDistributionDirty");
+  },
 };
