@@ -185,6 +185,13 @@ import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AsyncViewState from "@/shared/components/AsyncViewState.vue";
 import { useRoute, useRouter } from "vue-router";
+import {
+  clearOrderSearchHistory as clearStoredOrderSearchHistory,
+  readOrderSearchHistory,
+  saveOrderDetailPreview,
+  saveOrderFavorites,
+  saveOrderSearchKeyword,
+} from "@/modules/user/utils/orderPagePreferences";
 
 type SearchableOrderItem = {
   id: number;
@@ -287,25 +294,16 @@ const switchTab = (tab: "order" | "reservation") => {
 const confirmSearch = () => {
   const keyword = searchQuery.value.trim();
   if (keyword) {
-    const existingIndex = historyOrders.value.findIndex(
-      (item) => getItemDisplayName(item) === keyword
-    );
-
-    if (existingIndex !== -1) {
-      const [item] = historyOrders.value.splice(existingIndex, 1);
-      historyOrders.value.unshift(item);
-    } else {
-      historyOrders.value.unshift({
+    historyOrders.value = saveOrderSearchKeyword(
+      historyOrders.value,
+      keyword,
+      (nextKeyword) => ({
         id: Date.now(),
-        pet_name: keyword,
-      });
-
-      if (historyOrders.value.length > MAX_HISTORY_COUNT) {
-        historyOrders.value.pop();
-      }
-    }
-
-    localStorage.setItem("searchHistory", JSON.stringify(historyOrders.value));
+        pet_name: nextKeyword,
+      }),
+      getItemDisplayName,
+      MAX_HISTORY_COUNT
+    );
   }
 
   openSearch.value = false;
@@ -313,18 +311,11 @@ const confirmSearch = () => {
 
 const clearSearchHistory = () => {
   historyOrders.value = [];
-  localStorage.removeItem("searchHistory");
+  clearStoredOrderSearchHistory();
 };
 
 const loadSearchHistory = () => {
-  const savedHistory = localStorage.getItem("searchHistory");
-  if (savedHistory) {
-    try {
-      historyOrders.value = JSON.parse(savedHistory);
-    } catch {
-      historyOrders.value = [];
-    }
-  }
+  historyOrders.value = readOrderSearchHistory<SearchableOrderItem>();
 };
 
 const handleClickOutside = (event: MouseEvent) => {
@@ -375,19 +366,7 @@ const toggleEditMode = () => {
 
 const moveSelectedToFavorites = () => {
   const selected = currentSource.value.filter((item) => isSelected(item.id));
-  const existing = localStorage.getItem("userOrderFavorites");
-  const favorites = existing
-    ? (JSON.parse(existing) as SearchableOrderItem[])
-    : [];
-  const merged = [...favorites];
-
-  selected.forEach((item) => {
-    if (!merged.some((favorite) => favorite.id === item.id)) {
-      merged.push(item);
-    }
-  });
-
-  localStorage.setItem("userOrderFavorites", JSON.stringify(merged));
+  saveOrderFavorites(selected);
   choiceActive.value = {};
   editTab.value = false;
 };
@@ -434,13 +413,7 @@ const goToDetail = (item: SearchableOrderItem) => {
   if (editTab.value) {
     ordersButton(item.id);
   } else {
-    sessionStorage.setItem(
-      "userOrderDetailPreview",
-      JSON.stringify({
-        ...item,
-        tab: activeTab.value,
-      })
-    );
+    saveOrderDetailPreview(item, activeTab.value);
 
     router.push({
       path: `${basePath.value}/orderDetail`,

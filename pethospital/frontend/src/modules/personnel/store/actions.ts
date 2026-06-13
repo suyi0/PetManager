@@ -42,20 +42,13 @@ export const personnelActions: ActionTree<PersonnelState, State> = {
     }
   },
 
-  /**
-   * 强制刷新人事端用户列表，并同步写入本地缓存。
-   */
-  async refreshUsers({ dispatch }: PersonnelActionContext) {
-    return dispatch("ensureUsers", { force: true });
-  },
-
   async createDoctor(
     { commit, dispatch }: PersonnelActionContext,
     userId: number
   ) {
     await personnelApi.createDoctor(userId);
     commit("markUsersDirty");
-    await dispatch("refreshUsers");
+    await dispatch("ensureUsers", { force: true });
   },
 
   async deleteDoctor(
@@ -64,7 +57,7 @@ export const personnelActions: ActionTree<PersonnelState, State> = {
   ) {
     await personnelApi.deleteDoctor(userId);
     commit("markUsersDirty");
-    await dispatch("refreshUsers");
+    await dispatch("ensureUsers", { force: true });
   },
 
   async createWarehouseManager(
@@ -73,7 +66,7 @@ export const personnelActions: ActionTree<PersonnelState, State> = {
   ) {
     await personnelApi.createWarehouserManager(userId);
     commit("markUsersDirty");
-    await dispatch("refreshUsers");
+    await dispatch("ensureUsers", { force: true });
   },
 
   async deleteWarehouseManager(
@@ -82,7 +75,7 @@ export const personnelActions: ActionTree<PersonnelState, State> = {
   ) {
     await personnelApi.deleteWarehouserManager(userId);
     commit("markUsersDirty");
-    await dispatch("refreshUsers");
+    await dispatch("ensureUsers", { force: true });
   },
 
   markUsersDirty({ commit }: PersonnelActionContext) {

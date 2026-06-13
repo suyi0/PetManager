@@ -41,7 +41,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /**
  * 判断本地缓存是否仍是当前系统认可的版本化缓存格式。
  * @param value JSON.parse 后得到的缓存内容
- * @returns true 表示数据具备版本号、保存时间和业务数据三个核心字段
+ * @returns true 表示数据具备版本号、保存时间和业务数据三个核心字段, false 表示数据结构有误
  */
 const isVersionedEnvelope = <T>(
   value: unknown
@@ -53,7 +53,9 @@ const isVersionedEnvelope = <T>(
   return (
     typeof value.version === "number" &&
     typeof value.savedAt === "number" &&
-    Object.prototype.hasOwnProperty.call(value, "data")
+    Object.prototype.hasOwnProperty.call(value, "data") 
+    // 这段代码用于安全地检测 value 对象自身是否具有名为 "data" 的属性，
+    // 避免因 value 自身或原型链上重写了 hasOwnProperty 方法而导致误判。
   );
 };
 

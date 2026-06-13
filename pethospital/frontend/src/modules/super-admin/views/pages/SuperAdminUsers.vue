@@ -465,7 +465,7 @@ export default defineComponent({
       doctorPage.value = 1;
       adminPage.value = 1;
       // 显式刷新时跳过缓存，直接请求最新数据。
-      await store.dispatch("superAdmin/refreshUsers");
+      await store.dispatch("superAdmin/ensureUsers", { force: true });
     };
 
     /**

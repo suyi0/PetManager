@@ -20,6 +20,7 @@ import {
 } from "../utils/doctorDataCache";
 import {
   CreateOrderRecordPayload,
+  DoctorDutyStatus,
   DoctorUserProfile,
   OrderDetailItem,
   OrderSummaryItem,
@@ -59,6 +60,24 @@ export const doctorActions: ActionTree<DoctorState, State> = {
     } finally {
       commit("setDutyStatusLoading", false);
     }
+  },
+
+  /**
+   * 修改医生值班状态。
+   * 接口成功后由 store 统一标记并刷新值班状态缓存，组件只负责展示返回结果。
+   */
+  async changeDutyStatus(
+    { commit, dispatch }: DoctorActionContext,
+    status: DoctorDutyStatus["status"]
+  ) {
+    const message = await doctorApi.updateDutyStatus(status);
+    commit("markDutyStatusDirty");
+    const dutyStatus = await dispatch("ensureDutyStatus", { force: true });
+
+    return {
+      message,
+      dutyStatus: dutyStatus as DoctorDutyStatus,
+    };
   },
 
   /**
@@ -365,27 +384,11 @@ export const doctorActions: ActionTree<DoctorState, State> = {
    */
   async ensureWorkbenchData({ dispatch }: DoctorActionContext) {
     await Promise.all([
-      dispatch("refreshDutyStatus"),
-      dispatch("refreshQueueItems"),
-      dispatch("refreshReservations"),
-      dispatch("refreshOrderRecords"),
+      dispatch("ensureDutyStatus", { force: true }),
+      dispatch("ensureQueueItems", { force: true }),
+      dispatch("ensureReservations", { force: true }),
+      dispatch("ensureOrderRecords", { force: true }),
     ]);
-  },
-
-  async refreshDutyStatus({ dispatch }: DoctorActionContext) {
-    return dispatch("ensureDutyStatus", { force: true });
-  },
-
-  async refreshQueueItems({ dispatch }: DoctorActionContext) {
-    return dispatch("ensureQueueItems", { force: true });
-  },
-
-  async refreshReservations({ dispatch }: DoctorActionContext) {
-    return dispatch("ensureReservations", { force: true });
-  },
-
-  async refreshOrderRecords({ dispatch }: DoctorActionContext) {
-    return dispatch("ensureOrderRecords", { force: true });
   },
 
   markDutyStatusDirty({ commit }: DoctorActionContext) {

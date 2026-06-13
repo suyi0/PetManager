@@ -98,29 +98,7 @@ export default defineComponent({
         return;
       }
 
-      store.commit("auth/setSession", {
-        token: bridge.token,
-        userType: bridge.userType,
-        userRole: bridge.userRole,
-      });
-      store.commit(
-        "currentUser/setCurrentUser",
-        {
-          userType: bridge.userType,
-          userRole: bridge.userRole,
-          userName: bridge.userName,
-          userLastName: bridge.userLastName,
-          userMiddleName: bridge.userMiddleName,
-          userFirstName: bridge.userFirstName,
-          userPhone: bridge.userPhone,
-          userEmail: bridge.userEmail,
-          userBirthday: bridge.userBirthday,
-          userAddress: bridge.userAddress || "",
-          userHeadImage: bridge.userHeadImage || "",
-        },
-        { root: true }
-      );
-      authStorage.clearAdminPortalBridge();
+      await store.dispatch("auth/restoreAdminPortalBridgeSession", bridge);
       await router.push(bridge.returnTo);
     };
 

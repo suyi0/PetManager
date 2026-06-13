@@ -1,6 +1,7 @@
 import { ActionContext, ActionTree } from "vuex";
 import { authApi } from "@/core/auth/api/authApi";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
+import { authStorage } from "@/core/auth/utils/authStorage";
 import { State } from "@/app/store/types";
 import { clearBossDataCache } from "@/modules/boss/utils/bossDataCache";
 import { clearDoctorDataCache } from "@/modules/doctor/utils/doctorDataCache";
@@ -59,6 +60,21 @@ function debounce<TArgs extends unknown[], TResult>(
 }
 
 type AuthActionContext = ActionContext<AuthState, State>;
+
+type PortalBridgeSessionPayload = {
+  token: string;
+  userType: number;
+  userRole?: string;
+  userName: string;
+  userLastName?: string;
+  userMiddleName?: string;
+  userFirstName?: string;
+  userBirthday: string;
+  userEmail: string;
+  userPhone: string;
+  userAddress?: string;
+  userHeadImage?: string;
+};
 
 const clearAllPortalSessionState = (commit: AuthActionContext["commit"]) => {
   clearBossDataCache();
@@ -171,6 +187,40 @@ export const authActions: ActionTree<AuthState, State> = {
   logout({ commit }: AuthActionContext) {
     clearAllPortalSessionState(commit);
     commit("logout");
+  },
+
+  /**
+   * 从超级管理员桥接信息恢复目标角色会话。
+   * Layout 只负责触发返回动作，会话持久化和 Vuex 状态同步统一放在这里。
+   */
+  restoreAdminPortalBridgeSession(
+    { commit }: AuthActionContext,
+    payload: PortalBridgeSessionPayload
+  ) {
+    authStorage.saveUser(payload);
+    commit("setSession", {
+      token: payload.token,
+      userType: payload.userType,
+      userRole: payload.userRole,
+    });
+    commit(
+      "currentUser/setCurrentUser",
+      {
+        userType: payload.userType,
+        userRole: payload.userRole,
+        userName: payload.userName,
+        userLastName: payload.userLastName,
+        userMiddleName: payload.userMiddleName,
+        userFirstName: payload.userFirstName,
+        userPhone: payload.userPhone,
+        userEmail: payload.userEmail,
+        userBirthday: payload.userBirthday,
+        userAddress: payload.userAddress || "",
+        userHeadImage: payload.userHeadImage || "",
+      },
+      { root: true }
+    );
+    authStorage.clearAdminPortalBridge();
   },
 
   expireSession({ commit }: AuthActionContext) {

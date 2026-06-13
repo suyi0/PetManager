@@ -270,7 +270,6 @@ import { storeKey } from "@/app/store";
 import { useRoute } from "vue-router";
 import { SalaryEmployeeRow } from "../../api/types";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
-import { saveFinanceHomeDataCache } from "../../utils/financeDataCache";
 import { subscribeFinanceHomeData } from "../../utils/financeHomeDataStream";
 
 export default defineComponent({
@@ -381,7 +380,7 @@ export default defineComponent({
     };
 
     const refreshSalaryData = async () => {
-      await store.dispatch("finance/refreshSalaryManagement");
+      await store.dispatch("finance/ensureSalaryManagement", { force: true });
       statusMessage.value = "工资数据已刷新";
       statusMessageType.value = "info";
       if (!selectedEmployeeId.value && employees.value[0]) {
@@ -434,13 +433,11 @@ export default defineComponent({
       if (isFinanceHomePage.value) {
         closeHomeDataStream = subscribeFinanceHomeData(
           (nextHomeData) => {
-            store.commit("finance/setHomeData", nextHomeData);
-            saveFinanceHomeDataCache(nextHomeData);
-            void store.dispatch("finance/markSalaryManagementDirty");
+            void store.dispatch("finance/applyRealtimeHomeData", nextHomeData);
           },
           {
             onFallbackRefresh: () => {
-              void store.dispatch("finance/refreshHomeData");
+              void store.dispatch("finance/ensureHomeData", { force: true });
             },
           }
         );

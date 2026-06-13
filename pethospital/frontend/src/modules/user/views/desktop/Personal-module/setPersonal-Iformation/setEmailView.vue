@@ -118,7 +118,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { isEmail } from "@/core/auth/utils/authValidators";
-import { profileApi } from "@/modules/user/api/userApi";
 
 const store = useStore(storeKey);
 const emit = defineEmits(["close", "submit"]);
@@ -259,7 +258,7 @@ function changeEmail() {
         .then((response) => {
           const ticket = response.data?.data?.ticket;
           if (response.status === 200 && ticket && newUserEmail.value) {
-            return profileApi.updateEmail({
+            return store.dispatch("currentUser/updateEmailWithTicket", {
               email: newUserEmail.value,
               ticket,
             });
@@ -269,16 +268,6 @@ function changeEmail() {
         })
         .then((updateResponse) => {
           if (updateResponse?.status === 200) {
-            const token = updateResponse.data?.data?.token;
-            if (token) {
-              store.commit("auth/refreshToken", token);
-            }
-            store.commit("currentUser/updateUserField", {
-              field: "userEmail",
-              value: newUserEmail.value,
-              userType: store.state.auth.userType,
-              userRole: store.state.auth.userRole,
-            });
             alert("修改成功");
             resetForm();
             emit("close");

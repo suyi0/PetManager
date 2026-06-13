@@ -45,13 +45,6 @@ export const bossActions: ActionTree<BossState, State> = {
     }
   },
 
-  /**
-   * 强制刷新总裁端股权分布数据，并同步写入本地缓存。
-   */
-  async refreshStockDistribution({ dispatch }: BossActionContext) {
-    return dispatch("ensureStockDistribution", { force: true });
-  },
-
   markStockDistributionDirty({ commit }: BossActionContext) {
     commit("markStockDistributionDirty");
   },

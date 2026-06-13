@@ -1,7 +1,7 @@
 import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { financeApi } from "../api/financeApi";
-import { ChangeSalaryPayload } from "../api/types";
+import { ChangeSalaryPayload, FinanceHomeData } from "../api/types";
 import {
   readFinanceHomeDataCache,
   readFinanceSalaryManagementCache,
@@ -46,10 +46,18 @@ export const financeActions: ActionTree<FinanceState, State> = {
   },
 
   /**
-   * 强制刷新财务首页实时统计数据。
+   * 应用财务首页实时推送数据。
+   * 首页摘要立即同步到 Vuex 和 localStorage，工资列表只标记为脏数据，
+   * 等进入列表或手动刷新时再请求完整工资数据。
    */
-  async refreshHomeData({ dispatch }: FinanceActionContext) {
-    return dispatch("ensureHomeData", { force: true });
+  applyRealtimeHomeData(
+    { commit }: FinanceActionContext,
+    homeData: FinanceHomeData
+  ) {
+    saveFinanceHomeDataCache(homeData);
+    commit("setHomeData", homeData);
+    commit("markSalaryManagementDirty");
+    return homeData;
   },
 
   /**
@@ -85,13 +93,6 @@ export const financeActions: ActionTree<FinanceState, State> = {
   },
 
   /**
-   * 强制刷新工资管理数据。
-   */
-  async refreshSalaryManagement({ dispatch }: FinanceActionContext) {
-    return dispatch("ensureSalaryManagement", { force: true });
-  },
-
-  /**
    * 修改员工工资结构。
    * 工资变动会影响工资管理列表和首页财务摘要，因此成功后统一标脏并刷新。
    */
@@ -104,8 +105,8 @@ export const financeActions: ActionTree<FinanceState, State> = {
     commit("markHomeDataDirty");
 
     await Promise.all([
-      dispatch("refreshSalaryManagement"),
-      dispatch("refreshHomeData"),
+      dispatch("ensureSalaryManagement", { force: true }),
+      dispatch("ensureHomeData", { force: true }),
     ]);
   },
 

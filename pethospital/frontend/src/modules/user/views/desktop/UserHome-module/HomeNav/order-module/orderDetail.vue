@@ -123,6 +123,10 @@ import {
   ReservationSummary,
   OrderSummary,
 } from "@/modules/user/api/types";
+import {
+  clearOrderDetailPreview,
+  readOrderDetailPreview,
+} from "@/modules/user/utils/orderPagePreferences";
 
 const store = useStore(storeKey);
 const route = useRoute();
@@ -242,7 +246,7 @@ const cancelReservation = async () => {
     await store.dispatch("userPortal/deleteReservationRecord", reservationId);
     reservationRecord.value = null;
     previewRecord.value = null;
-    sessionStorage.removeItem("userOrderDetailPreview");
+    clearOrderDetailPreview();
     await router.push({
       path: "/user/order",
       query: { tab: "reservation" },
@@ -257,14 +261,10 @@ const cancelReservation = async () => {
 onMounted(async () => {
   tabValue.value = (route.query.tab as string) || "order";
 
-  const cached = sessionStorage.getItem("userOrderDetailPreview");
-  if (cached) {
-    try {
-      previewRecord.value = JSON.parse(cached);
-    } catch {
-      previewRecord.value = null;
-    }
-  }
+  previewRecord.value = readOrderDetailPreview<
+    (ReservationSummary | OrderSummary) &
+      Partial<ReservationOrderRecordItem> & { tab?: string }
+  >();
 
   try {
     const currentId = Number(route.query.id || previewRecord.value?.id || 0);

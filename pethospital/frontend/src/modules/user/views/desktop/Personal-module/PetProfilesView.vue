@@ -411,7 +411,7 @@ watch(
     store.state.currentUser.userFirstName,
   ],
   () => {
-    void store.dispatch("userPortal/refreshPetProfiles");
+    void store.dispatch("userPortal/ensurePetProfiles", { force: true });
   }
 );
 

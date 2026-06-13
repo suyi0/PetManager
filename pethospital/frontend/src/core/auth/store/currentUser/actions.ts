@@ -47,10 +47,6 @@ export const currentUserActions: ActionTree<CurrentUserState, State> = {
     }
   },
 
-  refreshProfile({ dispatch }: CurrentUserActionContext) {
-    return dispatch("ensureProfile", { force: true });
-  },
-
   // 更新用户数据到后端 API
   updateUserData({ state }: CurrentUserActionContext) {
     const storageUserName = buildStorageUserName(state);
@@ -112,5 +108,30 @@ export const currentUserActions: ActionTree<CurrentUserState, State> = {
     });
 
     dispatch("debouncedUpdateUserData");
+  },
+
+  /**
+   * 使用邮箱验证码凭证更新当前用户邮箱。
+   * 后端返回新 token 后同步刷新登录态，并更新 currentUser 中的邮箱字段。
+   */
+  async updateEmailWithTicket(
+    { commit, rootState }: CurrentUserActionContext,
+    payload: { email: string; ticket: string }
+  ) {
+    const response = await profileApi.updateEmail(payload);
+    const token = response.data?.data?.token;
+
+    if (token) {
+      commit("auth/refreshToken", token, { root: true });
+    }
+
+    commit("updateUserField", {
+      field: "userEmail",
+      value: payload.email,
+      userType: rootState.auth.userType,
+      userRole: rootState.auth.userRole,
+    });
+
+    return response;
   },
 };

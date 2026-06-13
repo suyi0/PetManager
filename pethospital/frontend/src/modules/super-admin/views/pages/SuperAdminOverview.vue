@@ -70,7 +70,6 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import StatCard from "../../components/StatCard.vue";
 import { useRoute, useRouter } from "vue-router";
-import { saveSuperAdminHomePageDataCache } from "../../utils/superAdminDataCache";
 import { subscribeSuperAdminHomeData } from "../../utils/superAdminHomeDataStream";
 
 export default defineComponent({
@@ -116,21 +115,21 @@ export default defineComponent({
      * 手动刷新首页摘要卡片。
      */
     const loadAll = async () => {
-      await store.dispatch("superAdmin/refreshOverviewData");
+      await store.dispatch("superAdmin/ensureHomePageData", { force: true });
     };
 
     onMounted(() => {
       // 页面首次进入时优先复用首页摘要缓存，只有过期或脏数据时才会重拉。
-      void store.dispatch("superAdmin/ensureOverviewData");
+      void store.dispatch("superAdmin/ensureHomePageData");
 
+      // 监听是否处于超级管理员端首页
       if (isSuperAdminHomePage.value) {
         closeHomeDataStream = subscribeSuperAdminHomeData(
           (homeData) => {
-            store.commit("superAdmin/setHomePageData", homeData);
-            saveSuperAdminHomePageDataCache(homeData);
-            void store.dispatch("superAdmin/markUsersDirty");
-            void store.dispatch("superAdmin/markWorkTimeRecordsDirty");
-            void store.dispatch("superAdmin/markLogsDirty");
+            void store.dispatch(
+              "superAdmin/applyRealtimeHomePageData",
+              homeData
+            );
           },
           {
             onFallbackRefresh: () => {

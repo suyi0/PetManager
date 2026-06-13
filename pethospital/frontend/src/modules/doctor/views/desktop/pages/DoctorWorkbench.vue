@@ -173,7 +173,11 @@ import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { doctorApi } from "@/modules/doctor/api/doctorApi";
-import { DoctorUserSummary, QueueItem } from "@/modules/doctor/api/types";
+import {
+  DoctorDutyStatus,
+  DoctorUserSummary,
+  QueueItem,
+} from "@/modules/doctor/api/types";
 import { doctorWorkbenchStats } from "@/modules/doctor/api/doctorMock";
 import {
   DoctorOrderDraftSummary,
@@ -341,13 +345,16 @@ export default defineComponent({
 
       dutyActionLoading.value = true;
       try {
-        const message = await doctorApi.online();
-        store.commit("doctor/markDutyStatusDirty");
-        await store.dispatch("doctor/refreshDutyStatus");
-        isDoctorOnline.value = store.state.doctor.dutyStatus.is_online;
-        lastDutyActionAt.value =
-          store.state.doctor.dutyStatus.check_in_time?.slice(0, 5) ||
-          formatDutyTime(new Date());
+        const { message, dutyStatus } = (await store.dispatch(
+          "doctor/changeDutyStatus",
+          "online"
+        )) as {
+          message: string;
+          dutyStatus: DoctorDutyStatus;
+        };
+        isDoctorOnline.value = dutyStatus.is_online;
+        const checkInTime = dutyStatus.check_in_time?.slice(0, 5);
+        lastDutyActionAt.value = checkInTime || formatDutyTime(new Date());
         window.alert(message);
       } catch (error) {
         window.alert(resolveErrorMessage(error));
@@ -363,13 +370,16 @@ export default defineComponent({
 
       dutyActionLoading.value = true;
       try {
-        const message = await doctorApi.offline();
-        store.commit("doctor/markDutyStatusDirty");
-        await store.dispatch("doctor/refreshDutyStatus");
-        isDoctorOnline.value = store.state.doctor.dutyStatus.is_online;
-        lastDutyActionAt.value =
-          store.state.doctor.dutyStatus.check_out_time?.slice(0, 5) ||
-          formatDutyTime(new Date());
+        const { message, dutyStatus } = (await store.dispatch(
+          "doctor/changeDutyStatus",
+          "offline"
+        )) as {
+          message: string;
+          dutyStatus: DoctorDutyStatus;
+        };
+        isDoctorOnline.value = dutyStatus.is_online;
+        const checkOutTime = dutyStatus.check_out_time?.slice(0, 5);
+        lastDutyActionAt.value = checkOutTime || formatDutyTime(new Date());
         window.alert(message);
       } catch (error) {
         window.alert(resolveErrorMessage(error));

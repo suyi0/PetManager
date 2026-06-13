@@ -277,7 +277,7 @@ const submit = (data: SubmitData) => {
 
 onMounted(() => {
   if (store.state.ui.personal) {
-    store.commit("ui/closePersonal");
+    void store.dispatch("ui/closePersonal");
   }
   /**
    * 个人资料和宠物档案在进入个人中心时一起预热，页面切换时优先复用缓存。

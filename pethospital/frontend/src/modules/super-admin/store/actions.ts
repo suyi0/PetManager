@@ -2,7 +2,7 @@ import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { superAdminApi } from "../api/superAdminApi";
 import { SuperAdminState } from "./types";
-import { CreateUserPayload } from "../api/types";
+import { CreateUserPayload, HomePageSummary } from "../api/types";
 import {
   readSuperAdminHomePageDataCache,
   readSuperAdminLogsCache,
@@ -116,6 +116,10 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
   /**
    * 确保首页摘要数据可用。
    * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   *
+   * 当options?.force == false时，优先复用缓存数据。
+   *
+   * 当options?.force == true时，强制刷新缓存数据（不进入缓存逻辑）。
    */
   async ensureHomePageData(
     { state, commit }: SuperAdminActionContext,
@@ -146,10 +150,20 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
   },
 
   /**
-   * 确保总览页摘要数据可用。
+   * 应用首页实时推送数据。
+   * 首页摘要立即同步到 Vuex 和 localStorage，相关列表只标记为脏数据，
+   * 等进入对应页面或显式刷新时再重新请求完整列表。
    */
-  async ensureOverviewData({ dispatch }: SuperAdminActionContext) {
-    await dispatch("ensureHomePageData");
+  applyRealtimeHomePageData(
+    { commit }: SuperAdminActionContext,
+    homeData: HomePageSummary
+  ) {
+    saveSuperAdminHomePageDataCache(homeData);
+    commit("setHomePageData", homeData);
+    commit("markUsersDirty");
+    commit("markWorkTimeRecordsDirty");
+    commit("markLogsDirty");
+    return homeData;
   },
 
   /**
@@ -166,49 +180,15 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
   /**
    * 超级管理端入口数据预热。
    * 进入超级管理端时统一从后端刷新核心业务数据，并同步写入本地缓存。
+   * 如：用户列表、考勤记录、日志、首页摘要数据有缓存时，优先复用缓存数据。
    */
   async refreshSuperAdminData({ dispatch }: SuperAdminActionContext) {
     await Promise.all([
-      dispatch("refreshUsers"),
-      dispatch("refreshWorkTimeRecords"),
-      dispatch("refreshLogs"),
-      dispatch("refreshHomePageData"),
+      dispatch("ensureUsers", { force: true }),
+      dispatch("ensureWorkTimeRecords", { force: true }),
+      dispatch("ensureLogs", { force: true }),
+      dispatch("ensureHomePageData", { force: true }),
     ]);
-  },
-
-  /**
-   * 强制刷新用户列表。
-   */
-  async refreshUsers({ dispatch }: SuperAdminActionContext) {
-    return dispatch("ensureUsers", { force: true });
-  },
-
-  /**
-   * 强制刷新考勤列表。
-   */
-  async refreshWorkTimeRecords({ dispatch }: SuperAdminActionContext) {
-    return dispatch("ensureWorkTimeRecords", { force: true });
-  },
-
-  /**
-   * 强制刷新日志列表。
-   */
-  async refreshLogs({ dispatch }: SuperAdminActionContext) {
-    return dispatch("ensureLogs", { force: true });
-  },
-
-  /**
-   * 强制刷新首页摘要。
-   */
-  async refreshHomePageData({ dispatch }: SuperAdminActionContext) {
-    return dispatch("ensureHomePageData", { force: true });
-  },
-
-  /**
-   * 强制刷新首页摘要数据。
-   */
-  async refreshOverviewData({ dispatch }: SuperAdminActionContext) {
-    await dispatch("refreshHomePageData");
   },
 
   /**
@@ -216,8 +196,8 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
    */
   async refreshOnlineDoctorsData({ dispatch }: SuperAdminActionContext) {
     await Promise.all([
-      dispatch("refreshUsers"),
-      dispatch("refreshWorkTimeRecords"),
+      dispatch("ensureUsers", { force: true }),
+      dispatch("ensureWorkTimeRecords", { force: true }),
     ]);
   },
 
@@ -230,7 +210,10 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     commit("markLogsDirty");
     commit("markHomePageDataDirty");
 
-    await Promise.all([dispatch("refreshUsers"), dispatch("refreshLogs")]);
+    await Promise.all([
+      dispatch("ensureUsers", { force: true }),
+      dispatch("ensureLogs", { force: true }),
+    ]);
   },
 
   async deleteUser(
@@ -243,9 +226,9 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     commit("markHomePageDataDirty");
 
     await Promise.all([
-      dispatch("refreshUsers"),
-      dispatch("refreshLogs"),
-      dispatch("refreshHomePageData"),
+      dispatch("ensureUsers", { force: true }),
+      dispatch("ensureLogs", { force: true }),
+      dispatch("ensureHomePageData", { force: true }),
     ]);
   },
 
@@ -263,9 +246,9 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     commit("markHomePageDataDirty");
 
     await Promise.all([
-      dispatch("refreshWorkTimeRecords"),
-      dispatch("refreshLogs"),
-      dispatch("refreshHomePageData"),
+      dispatch("ensureWorkTimeRecords", { force: true }),
+      dispatch("ensureLogs", { force: true }),
+      dispatch("ensureHomePageData", { force: true }),
     ]);
   },
 
@@ -280,10 +263,10 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     commit("markHomePageDataDirty");
 
     await Promise.all([
-      dispatch("refreshUsers"),
-      dispatch("refreshWorkTimeRecords"),
-      dispatch("refreshLogs"),
-      dispatch("refreshHomePageData"),
+      dispatch("ensureUsers", { force: true }),
+      dispatch("ensureWorkTimeRecords", { force: true }),
+      dispatch("ensureLogs", { force: true }),
+      dispatch("ensureHomePageData", { force: true }),
     ]);
   },
 

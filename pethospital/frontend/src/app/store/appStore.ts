@@ -14,6 +14,7 @@ import { authMutations } from "@/core/auth/store/session/mutations";
 import { createAuthState } from "@/core/auth/store/session/state";
 import { AuthState } from "@/core/auth/store/session/types";
 import { State } from "@/app/store/types";
+import { uiActions } from "@/app/store/ui/actions";
 import { uiMutations } from "@/app/store/ui/mutations";
 import { createUiState } from "@/app/store/ui/state";
 import { UiState } from "@/app/store/ui/types";
@@ -110,6 +111,7 @@ export const appStore = createStore<State>({
       namespaced: true,
       state: createUiState() as UiState,
       mutations: uiMutations,
+      actions: uiActions,
     },
   },
 });

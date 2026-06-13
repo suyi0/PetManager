@@ -387,7 +387,7 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      void store.dispatch("boss/refreshStockDistribution");
+      void store.dispatch("boss/ensureStockDistribution", { force: true });
     });
 
     return {

@@ -212,9 +212,9 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
    */
   async ensureServiceData({ dispatch }: UserPortalActionContext) {
     await Promise.all([
-      dispatch("refreshPetProfiles"),
-      dispatch("refreshReservationDoctors"),
-      dispatch("refreshReservationSchedule"),
+      dispatch("ensurePetProfiles", { force: true }),
+      dispatch("ensureReservationDoctors", { force: true }),
+      dispatch("ensureReservationSchedule", { force: true }),
     ]);
   },
 
@@ -416,26 +416,6 @@ export const userPortalActions: ActionTree<UserPortalState, State> = {
       dispatch("ensureReservationRecords"),
       dispatch("ensureOrderSummaries"),
     ]);
-  },
-
-  async refreshReservationDoctors({ dispatch }: UserPortalActionContext) {
-    return dispatch("ensureReservationDoctors", { force: true });
-  },
-
-  async refreshReservationSchedule({ dispatch }: UserPortalActionContext) {
-    return dispatch("ensureReservationSchedule", { force: true });
-  },
-
-  async refreshReservationRecords({ dispatch }: UserPortalActionContext) {
-    return dispatch("ensureReservationRecords", { force: true });
-  },
-
-  async refreshOrderSummaries({ dispatch }: UserPortalActionContext) {
-    return dispatch("ensureOrderSummaries", { force: true });
-  },
-
-  async refreshPetProfiles({ dispatch }: UserPortalActionContext) {
-    return dispatch("ensurePetProfiles", { force: true });
   },
 
   markPetProfilesDirty({ commit }: UserPortalActionContext) {

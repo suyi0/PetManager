@@ -2,7 +2,6 @@ import type { HomePageSummary, UserRow, WorkTimeRecord } from "../api/types";
 import type { LogsPayload } from "../store/types";
 import { createVersionedLocalCacheAccessors } from "@/shared/utils/versionedLocalCache";
 
-
 const SUPER_ADMIN_CACHE_OPTIONS = {
   version: 1,
   ttlMs: 1000 * 60 * 60 * 24 * 30,

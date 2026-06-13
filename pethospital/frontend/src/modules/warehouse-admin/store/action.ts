@@ -105,21 +105,10 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
    * 进入仓库端时统一从后端刷新核心库存数据，并同步写入本地缓存。
    */
   async ensureDashboardData({ dispatch }: WarehouseAdminActionContext) {
-    await Promise.all([dispatch("refreshItems"), dispatch("refreshLogs")]);
-  },
-
-  /**
-   * 强制刷新库存列表。
-   */
-  async refreshItems({ dispatch }: WarehouseAdminActionContext) {
-    return dispatch("ensureItems", { force: true });
-  },
-
-  /**
-   * 强制刷新操作流。
-   */
-  async refreshLogs({ dispatch }: WarehouseAdminActionContext) {
-    return dispatch("ensureLogs", { force: true });
+    await Promise.all([
+      dispatch("ensureItems", { force: true }),
+      dispatch("ensureLogs", { force: true }),
+    ]);
   },
 
   markItemsDirty({ commit }: WarehouseAdminActionContext) {
@@ -150,7 +139,7 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
       )
     );
     saveWarehouseOperationLogsCache(state.operationLogs);
-    await dispatch("refreshItems");
+    await dispatch("ensureItems", { force: true });
   },
 
   /**
@@ -179,7 +168,7 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
       )
     );
     saveWarehouseOperationLogsCache(state.operationLogs);
-    await dispatch("refreshItems");
+    await dispatch("ensureItems", { force: true });
   },
 
   /**
@@ -245,6 +234,6 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
       )
     );
     saveWarehouseOperationLogsCache(state.operationLogs);
-    await dispatch("refreshItems");
+    await dispatch("ensureItems", { force: true });
   },
 };

@@ -36,7 +36,9 @@ const createWebSocketUrl = (path: string) => {
 
 /**
  * 订阅超级管理员首页实时数据。
- * 返回 close 函数，页面卸载时调用以关闭连接。
+ * @param onHomeData 首次数据推送
+ * @param options 配置项
+ * @returns 返回 close 函数，页面卸载时调用以关闭连接。
  */
 export const subscribeSuperAdminHomeData = (
   onHomeData: (_summary: HomePageSummary) => void,
