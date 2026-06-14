@@ -39,7 +39,7 @@ export const createCacheMeta = (): CacheMeta => ({
  * 统一决定当前缓存是否需要重新请求。
  * @param meta 当前数据块对应的缓存元信息
  * @param force 是否强制刷新，手动刷新或业务要求立即刷新时传 true
- * @returns true 表示应请求后端；false 表示可以继续复用 Vuex/localStorage 缓存
+ * @returns true 表示应请求后端；false 表示可以继续复用当前 Vuex 会话缓存
  * @remarks 判断优先级为 force > 未加载 > dirty > TTL 过期。
  */
 export const shouldFetch = (meta: CacheMeta, force?: boolean): boolean =>
@@ -51,7 +51,7 @@ export const shouldFetch = (meta: CacheMeta, force?: boolean): boolean =>
 /**
  * 标记缓存已经成功加载。
  * @param meta 当前数据块对应的缓存元信息
- * @remarks 在接口请求成功、或从 localStorage 成功恢复缓存后调用。
+ * @remarks 在接口请求成功、或当前会话缓存恢复后调用。
  * 会清除 dirty/loading，并刷新 lastFetchedAt。
  */
 export const markCacheLoaded = (meta: CacheMeta) => {

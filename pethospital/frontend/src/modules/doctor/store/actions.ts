@@ -3,22 +3,6 @@ import { State, shouldFetch } from "@/app/store/types";
 import { doctorApi } from "../api/doctorApi";
 import { DoctorState } from "./types";
 import {
-  readDoctorCurrentUserProfileCache,
-  readDoctorCurrentReservationDetailCache,
-  readDoctorCurrentOrderDetailCache,
-  readDoctorDutyStatusCache,
-  readDoctorOrderRecordCache,
-  readDoctorQueueItemsCache,
-  readDoctorReservationsCache,
-  saveDoctorCurrentUserProfileCache,
-  saveDoctorCurrentReservationDetailCache,
-  saveDoctorCurrentOrderDetailCache,
-  saveDoctorDutyStatusCache,
-  saveDoctorOrderRecordCache,
-  saveDoctorQueueItemsCache,
-  saveDoctorReservationsCache,
-} from "../utils/doctorDataCache";
-import {
   CreateOrderRecordPayload,
   DoctorDutyStatus,
   DoctorUserProfile,
@@ -26,13 +10,18 @@ import {
   OrderSummaryItem,
   ReservationItem,
 } from "../api/types";
+import {
+  DoctorOrderDraft,
+  isDoctorOrderDraftExpired,
+  listDoctorOrderDrafts,
+} from "../utils/orderDrafts";
 
 type DoctorActionContext = ActionContext<DoctorState, State>;
 
 export const doctorActions: ActionTree<DoctorState, State> = {
   /**
    * 确保医生值班状态可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 默认优先复用当前 Vuex 会话缓存，只有缓存为空或强制刷新时才请求后端。
    */
   async ensureDutyStatus(
     { state, commit }: DoctorActionContext,
@@ -44,17 +33,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
     commit("setDutyStatusLoading", true);
     try {
-      if (!options?.force) {
-        const cachedStatus = readDoctorDutyStatusCache();
-
-        if (cachedStatus) {
-          commit("setDutyStatus", cachedStatus);
-          return cachedStatus;
-        }
-      }
-
       const dutyStatus = await doctorApi.getDutyStatus();
-      saveDoctorDutyStatusCache(dutyStatus);
       commit("setDutyStatus", dutyStatus);
       return dutyStatus;
     } finally {
@@ -82,8 +61,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 按用户编号确保当前用户详情可用。
-   * 先判断 Vuex 与 localStorage 中缓存的用户编号是否命中；
-   * 不命中时从后端获取，并覆盖旧的完整用户详情缓存。
+   * 只复用当前 Vuex 内存中的详情；刷新页面或首次进入详情页时从后端获取。
    */
   async ensureUserProfile(
     { state, commit }: DoctorActionContext,
@@ -100,17 +78,8 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
     commit("setCurrentUserProfileLoading", true);
     try {
-      if (!options?.force) {
-        const cachedProfile = readDoctorCurrentUserProfileCache();
-        if (cachedProfile && Number(cachedProfile.id) === Number(userId)) {
-          commit("setCurrentUserProfile", cachedProfile);
-          return cachedProfile;
-        }
-      }
-
       const profile = await doctorApi.getUserProfiles(userId);
       if (profile) {
-        saveDoctorCurrentUserProfileCache(profile);
         commit("setCurrentUserProfile", profile);
         return profile;
       }
@@ -124,7 +93,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 确保待接诊队列可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureQueueItems(
     { state, commit }: DoctorActionContext,
@@ -136,17 +105,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
     commit("setQueueItemsLoading", true);
     try {
-      if (!options?.force) {
-        const cachedQueueItems = readDoctorQueueItemsCache();
-
-        if (cachedQueueItems) {
-          commit("setQueueItems", cachedQueueItems);
-          return cachedQueueItems;
-        }
-      }
-
       const queueItems = await doctorApi.queue();
-      saveDoctorQueueItemsCache(queueItems);
       commit("setQueueItems", queueItems);
       return queueItems;
     } finally {
@@ -156,7 +115,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 确保预约列表可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureReservations(
     { state, commit }: DoctorActionContext,
@@ -168,17 +127,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
     commit("setReservationsLoading", true);
     try {
-      if (!options?.force) {
-        const cachedReservations = readDoctorReservationsCache();
-
-        if (cachedReservations) {
-          commit("setReservations", cachedReservations);
-          return cachedReservations;
-        }
-      }
-
       const reservations = await doctorApi.getReservationsSummary();
-      saveDoctorReservationsCache(reservations);
       commit("setReservations", reservations);
       return reservations;
     } finally {
@@ -188,8 +137,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 按预约编号确保完整预约详情可用。
-   * 先判断 Vuex 与 localStorage 中缓存的预约编号是否命中；
-   * 不命中时从后端获取，并覆盖旧的完整预约详情缓存。
+   * 只复用当前 Vuex 内存中的详情；刷新页面或首次进入详情页时从后端获取。
    */
   async ensureReservationDetail(
     { state, commit }: DoctorActionContext,
@@ -206,17 +154,8 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
     commit("setCurrentReservationDetailLoading", true);
     try {
-      if (!options?.force) {
-        const cachedDetail = readDoctorCurrentReservationDetailCache();
-        if (cachedDetail && Number(cachedDetail.id) === Number(reservationId)) {
-          commit("setCurrentReservationDetail", cachedDetail);
-          return cachedDetail;
-        }
-      }
-
       const detail = await doctorApi.getReservationInformation(reservationId);
       if (detail) {
-        saveDoctorCurrentReservationDetailCache(detail);
         commit("setCurrentReservationDetail", detail);
         return detail;
       }
@@ -229,7 +168,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
   },
 
   /**
-   * 更新预约状态，并同步医生端 Vuex 与 localStorage 预约缓存。
+   * 更新预约状态，并同步医生端 Vuex 内存列表。
    */
   async updateReservationStatus(
     { state, commit }: DoctorActionContext,
@@ -245,7 +184,6 @@ export const doctorActions: ActionTree<DoctorState, State> = {
         ? { ...item, status: payload.status }
         : item
     );
-    saveDoctorReservationsCache(reservations);
     commit("setReservations", reservations);
     if (
       state.currentReservationDetail &&
@@ -256,7 +194,6 @@ export const doctorActions: ActionTree<DoctorState, State> = {
         ...state.currentReservationDetail,
         status: payload.status,
       };
-      saveDoctorCurrentReservationDetailCache(detail);
       commit("setCurrentReservationDetail", detail);
     }
     return reservations;
@@ -264,7 +201,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 创建诊单订单。
-   * 后端成功返回订单摘要后，立即写入 Vuex 和 localStorage 列表缓存。
+   * 后端成功返回订单摘要后，立即写入 Vuex 列表缓存。
    */
   async createOrderRecord(
     { state, commit }: DoctorActionContext,
@@ -298,7 +235,6 @@ export const doctorActions: ActionTree<DoctorState, State> = {
       ),
     ];
 
-    saveDoctorOrderRecordCache(nextRecords);
     commit("setOrderRecords", nextRecords);
     commit("markCurrentOrderDetailDirty");
     return normalizedRecord;
@@ -306,7 +242,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 确保订单记录可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureOrderRecords(
     { state, commit }: DoctorActionContext,
@@ -318,17 +254,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
     commit("setOrderRecordsLoading", true);
     try {
-      if (!options?.force) {
-        const cachedRecords = readDoctorOrderRecordCache();
-
-        if (cachedRecords) {
-          commit("setOrderRecords", cachedRecords);
-          return cachedRecords;
-        }
-      }
-
       const orderRecords = await doctorApi.getOrderSummary();
-      saveDoctorOrderRecordCache(orderRecords);
       commit("setOrderRecords", orderRecords);
       return orderRecords;
     } finally {
@@ -338,8 +264,7 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 按订单编号确保完整诊单详情可用。
-   * 先判断 Vuex 与 localStorage 中缓存的订单编号是否命中；
-   * 不命中时从后端获取，并覆盖旧的完整诊单详情缓存。
+   * 只复用当前 Vuex 内存中的详情；刷新页面或首次进入详情页时从后端获取。
    */
   async ensureOrderDetail(
     { state, commit }: DoctorActionContext,
@@ -356,17 +281,8 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
     commit("setCurrentOrderDetailLoading", true);
     try {
-      if (!options?.force) {
-        const cachedDetail = readDoctorCurrentOrderDetailCache();
-        if (cachedDetail && Number(cachedDetail.id) === Number(orderId)) {
-          commit("setCurrentOrderDetail", cachedDetail);
-          return cachedDetail;
-        }
-      }
-
       const detail = await doctorApi.getOrderInformation(orderId);
       if (detail) {
-        saveDoctorCurrentOrderDetailCache(detail);
         commit("setCurrentOrderDetail", detail);
         return detail;
       }
@@ -380,15 +296,10 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   /**
    * 医生端入口数据预热。
-   * 进入医生端时统一从后端刷新一次核心业务数据，并同步写入本地缓存。
+   * 进入医生端时只预热值班状态；列表数据由对应页面进入时通过 RESTful 获取。
    */
   async ensureWorkbenchData({ dispatch }: DoctorActionContext) {
-    await Promise.all([
-      dispatch("ensureDutyStatus", { force: true }),
-      dispatch("ensureQueueItems", { force: true }),
-      dispatch("ensureReservations", { force: true }),
-      dispatch("ensureOrderRecords", { force: true }),
-    ]);
+    await dispatch("ensureDutyStatus", { force: true });
   },
 
   markDutyStatusDirty({ commit }: DoctorActionContext) {
@@ -417,5 +328,59 @@ export const doctorActions: ActionTree<DoctorState, State> = {
 
   markCurrentOrderDetailDirty({ commit }: DoctorActionContext) {
     commit("markCurrentOrderDetailDirty");
+  },
+
+  /**
+   * 读取当前会话中的诊单草稿。
+   * 草稿超过 24 小时时会自动从 Vuex 内存缓存中移除。
+   */
+  readOrderDraft(
+    { state, commit }: DoctorActionContext,
+    draftKey: string
+  ): DoctorOrderDraft | null {
+    const draft = state.orderDrafts[draftKey];
+
+    if (!draft) {
+      return null;
+    }
+
+    if (isDoctorOrderDraftExpired(draft)) {
+      commit("removeOrderDraft", draftKey);
+      return null;
+    }
+
+    return draft;
+  },
+
+  /**
+   * 保存当前会话中的诊单草稿。
+   */
+  saveOrderDraft(
+    { commit }: DoctorActionContext,
+    payload: { draftKey: string; draft: DoctorOrderDraft }
+  ) {
+    commit("setOrderDraft", payload);
+    return payload.draft;
+  },
+
+  /**
+   * 删除当前会话中的指定诊单草稿。
+   */
+  removeOrderDraft({ commit }: DoctorActionContext, draftKey: string) {
+    commit("removeOrderDraft", draftKey);
+  },
+
+  /**
+   * 获取当前会话中的诊单草稿摘要列表。
+   * 过期草稿会在读取时自动清理。
+   */
+  listOrderDrafts({ state, commit }: DoctorActionContext) {
+    Object.entries(state.orderDrafts).forEach(([draftKey, draft]) => {
+      if (isDoctorOrderDraftExpired(draft)) {
+        commit("removeOrderDraft", draftKey);
+      }
+    });
+
+    return listDoctorOrderDrafts(state.orderDrafts);
   },
 };

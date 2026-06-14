@@ -2,12 +2,6 @@ import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { financeApi } from "../api/financeApi";
 import { ChangeSalaryPayload, FinanceHomeData } from "../api/types";
-import {
-  readFinanceHomeDataCache,
-  readFinanceSalaryManagementCache,
-  saveFinanceHomeDataCache,
-  saveFinanceSalaryManagementCache,
-} from "../utils/financeDataCache";
 import { FinanceState } from "./types";
 
 type FinanceActionContext = ActionContext<FinanceState, State>;
@@ -15,7 +9,7 @@ type FinanceActionContext = ActionContext<FinanceState, State>;
 export const financeActions: ActionTree<FinanceState, State> = {
   /**
    * 确保财务首页实时统计数据可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，WebSocket 推送会持续覆盖这份数据。
+   * 首次进入首页时通过 RESTful 获取，后续 WebSocket 推送只更新 Vuex。
    */
   async ensureHomeData(
     { state, commit }: FinanceActionContext,
@@ -27,17 +21,7 @@ export const financeActions: ActionTree<FinanceState, State> = {
 
     commit("setHomeDataLoading", true);
     try {
-      if (!options?.force) {
-        const cachedHomeData = readFinanceHomeDataCache();
-
-        if (cachedHomeData) {
-          commit("setHomeData", cachedHomeData);
-          return cachedHomeData;
-        }
-      }
-
       const homeData = await financeApi.getHomeData();
-      saveFinanceHomeDataCache(homeData);
       commit("setHomeData", homeData);
       return homeData;
     } finally {
@@ -47,14 +31,12 @@ export const financeActions: ActionTree<FinanceState, State> = {
 
   /**
    * 应用财务首页实时推送数据。
-   * 首页摘要立即同步到 Vuex 和 localStorage，工资列表只标记为脏数据，
-   * 等进入列表或手动刷新时再请求完整工资数据。
+   * 首页摘要只同步到 Vuex，工资列表只标记为脏数据，等进入列表或手动刷新时再请求完整工资数据。
    */
   applyRealtimeHomeData(
     { commit }: FinanceActionContext,
     homeData: FinanceHomeData
   ) {
-    saveFinanceHomeDataCache(homeData);
     commit("setHomeData", homeData);
     commit("markSalaryManagementDirty");
     return homeData;
@@ -62,7 +44,7 @@ export const financeActions: ActionTree<FinanceState, State> = {
 
   /**
    * 确保工资管理数据可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入工资管理页时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureSalaryManagement(
     { state, commit }: FinanceActionContext,
@@ -74,17 +56,7 @@ export const financeActions: ActionTree<FinanceState, State> = {
 
     commit("setSalaryManagementLoading", true);
     try {
-      if (!options?.force) {
-        const cachedPayload = readFinanceSalaryManagementCache();
-
-        if (cachedPayload) {
-          commit("setSalaryManagement", cachedPayload);
-          return cachedPayload;
-        }
-      }
-
       const payload = await financeApi.getSalaryManagementData();
-      saveFinanceSalaryManagementCache(payload);
       commit("setSalaryManagement", payload);
       return payload;
     } finally {

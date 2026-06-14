@@ -235,7 +235,7 @@ export default defineComponent({
     );
 
     const loadUsers = async () => {
-      await store.dispatch("personnel/ensureUsers");
+      await store.dispatch("personnel/ensureUsers", { force: true });
       if (page.value > totalPages.value) {
         page.value = totalPages.value;
       }

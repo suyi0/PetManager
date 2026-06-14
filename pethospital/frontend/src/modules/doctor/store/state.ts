@@ -21,6 +21,7 @@ export const createDoctorState = (): DoctorState => ({
   currentReservationDetail: null,
   orderRecords: [],
   currentOrderDetail: null,
+  orderDrafts: {},
   dutyStatusMeta: createCacheMeta(),
   currentUserProfileMeta: createCacheMeta(),
   queueItemsMeta: createCacheMeta(),

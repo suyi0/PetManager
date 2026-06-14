@@ -184,7 +184,7 @@ export default defineComponent({
      * 用户详情页依赖用户列表缓存定位当前用户。
      */
     const loadUser = async () => {
-      await store.dispatch("superAdmin/ensureUsers");
+      await store.dispatch("superAdmin/ensureUsers", { force: true });
     };
 
     const goBack = () => {

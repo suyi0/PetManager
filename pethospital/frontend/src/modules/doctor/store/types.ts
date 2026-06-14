@@ -8,6 +8,7 @@ import {
   ReservationItem,
   ReservationSummaryItem,
 } from "../api/types";
+import { DoctorOrderDraft } from "../utils/orderDrafts";
 
 /**
  * 医生端业务缓存状态。
@@ -21,6 +22,7 @@ export interface DoctorState {
   currentReservationDetail: ReservationItem | null;
   orderRecords: OrderSummaryItem[];
   currentOrderDetail: OrderDetailItem | null;
+  orderDrafts: Record<string, DoctorOrderDraft>;
   dutyStatusMeta: CacheMeta;
   currentUserProfileMeta: CacheMeta;
   queueItemsMeta: CacheMeta;

@@ -321,7 +321,7 @@ export default defineComponent({
     async function loadReservations() {
       listErrorMessage.value = "";
       try {
-        await store.dispatch("doctor/ensureReservations");
+        await store.dispatch("doctor/ensureReservations", { force: true });
       } catch (error) {
         listErrorMessage.value = getHttpErrorMessage(
           error,

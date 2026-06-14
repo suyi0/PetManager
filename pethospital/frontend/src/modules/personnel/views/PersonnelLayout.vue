@@ -48,7 +48,6 @@ export default defineComponent({
 
     onMounted(() => {
       startPersonnelSessionGuard(store, router);
-      void store.dispatch("personnel/ensureUsers", { force: true });
     });
 
     onBeforeUnmount(() => {

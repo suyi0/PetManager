@@ -89,10 +89,10 @@ export default defineComponent({
     const basePath = computed(() => "/doctor");
 
     /**
-     * 优先复用队列缓存。
+     * 进入队列页时通过 RESTful 获取一次最新队列。
      */
     const loadQueueItems = async () => {
-      await store.dispatch("doctor/ensureQueueItems");
+      await store.dispatch("doctor/ensureQueueItems", { force: true });
     };
 
     const goToCreateOrder = (item: QueueItem) => {

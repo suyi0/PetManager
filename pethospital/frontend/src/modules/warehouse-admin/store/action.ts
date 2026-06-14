@@ -6,12 +6,6 @@ import {
   WarehouseCreatePayload,
   WarehouseItem,
 } from "@/modules/warehouse-admin/api/types";
-import {
-  readWarehouseItemsCache,
-  readWarehouseOperationLogsCache,
-  saveWarehouseItemsCache,
-  saveWarehouseOperationLogsCache,
-} from "@/modules/warehouse-admin/utils/warehouseAdminDataCache";
 
 type WarehouseAdminActionContext = ActionContext<WarehouseAdminState, State>;
 
@@ -40,7 +34,7 @@ const createUpdatePayload = (
 export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
   /**
    * 确保库存列表可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureItems(
     { state, commit }: WarehouseAdminActionContext,
@@ -52,17 +46,7 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
 
     commit("setItemsLoading", true);
     try {
-      if (!options?.force) {
-        const cachedItems = readWarehouseItemsCache();
-
-        if (cachedItems) {
-          commit("setItems", cachedItems);
-          return cachedItems;
-        }
-      }
-
       const items = await warehouseAdminApi.select();
-      saveWarehouseItemsCache(items);
       commit("setItems", items);
       return items;
     } finally {
@@ -72,7 +56,7 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
 
   /**
    * 确保操作流可用。
-   * 操作流暂时没有后端接口，因此只复用 Vuex 和 localStorage 缓存。
+   * 操作流暂时没有后端接口，因此只保留当前 Vuex 内存数据。
    */
   async ensureLogs(
     { state, commit }: WarehouseAdminActionContext,
@@ -84,17 +68,7 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
 
     commit("setLogsLoading", true);
     try {
-      if (!options?.force) {
-        const cachedLogs = readWarehouseOperationLogsCache();
-
-        if (cachedLogs) {
-          commit("setOperationLogs", cachedLogs);
-          return cachedLogs;
-        }
-      }
-
-      commit("setOperationLogs", []);
-      return [];
+      return state.operationLogs;
     } finally {
       commit("setLogsLoading", false);
     }
@@ -102,13 +76,10 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
 
   /**
    * 仪表盘依赖的基础数据预热。
-   * 进入仓库端时统一从后端刷新核心库存数据，并同步写入本地缓存。
+   * 进入仓库端时不预热完整列表，列表由对应页面通过 RESTful 获取。
    */
-  async ensureDashboardData({ dispatch }: WarehouseAdminActionContext) {
-    await Promise.all([
-      dispatch("ensureItems", { force: true }),
-      dispatch("ensureLogs", { force: true }),
-    ]);
+  async ensureDashboardData() {
+    return undefined;
   },
 
   markItemsDirty({ commit }: WarehouseAdminActionContext) {
@@ -120,10 +91,10 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
   },
 
   /**
-   * 新增物品入库；成功后刷新库存并写入本地缓存。
+   * 新增物品入库；成功后刷新库存。
    */
   async createItem(
-    { commit, dispatch, state }: WarehouseAdminActionContext,
+    { commit, dispatch }: WarehouseAdminActionContext,
     payload: WarehouseCreatePayload
   ) {
     await warehouseAdminApi.upload(payload);
@@ -138,12 +109,11 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
         "IN"
       )
     );
-    saveWarehouseOperationLogsCache(state.operationLogs);
     await dispatch("ensureItems", { force: true });
   },
 
   /**
-   * 更新物品资料或库存数量；成功后刷新库存并写入本地缓存。
+   * 更新物品资料或库存数量；成功后刷新库存。
    */
   async updateItem(
     { state, commit, dispatch }: WarehouseAdminActionContext,
@@ -167,7 +137,6 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
         "EDIT"
       )
     );
-    saveWarehouseOperationLogsCache(state.operationLogs);
     await dispatch("ensureItems", { force: true });
   },
 
@@ -216,7 +185,7 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
   },
 
   /**
-   * 软删除库存物品；成功后刷新库存并写入本地缓存。
+   * 软删除库存物品；成功后刷新库存。
    */
   async deleteItem(
     { state, commit, dispatch }: WarehouseAdminActionContext,
@@ -233,7 +202,6 @@ export const warehouseAdminActions: ActionTree<WarehouseAdminState, State> = {
         "DEL"
       )
     );
-    saveWarehouseOperationLogsCache(state.operationLogs);
     await dispatch("ensureItems", { force: true });
   },
 };

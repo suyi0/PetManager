@@ -102,7 +102,7 @@ export default defineComponent({
     );
 
     onMounted(() => {
-      void store.dispatch("warehouseAdmin/ensureItems");
+      void store.dispatch("warehouseAdmin/ensureItems", { force: true });
     });
 
     return {

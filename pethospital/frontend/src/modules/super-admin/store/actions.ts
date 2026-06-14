@@ -3,23 +3,13 @@ import { State, shouldFetch } from "@/app/store/types";
 import { superAdminApi } from "../api/superAdminApi";
 import { SuperAdminState } from "./types";
 import { CreateUserPayload, HomePageSummary } from "../api/types";
-import {
-  readSuperAdminHomePageDataCache,
-  readSuperAdminLogsCache,
-  readSuperAdminUsersCache,
-  readSuperAdminWorkTimeRecordsCache,
-  saveSuperAdminHomePageDataCache,
-  saveSuperAdminLogsCache,
-  saveSuperAdminUsersCache,
-  saveSuperAdminWorkTimeRecordsCache,
-} from "../utils/superAdminDataCache";
 
 type SuperAdminActionContext = ActionContext<SuperAdminState, State>;
 
 export const superAdminActions: ActionTree<SuperAdminState, State> = {
   /**
    * 确保用户列表可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureUsers(
     { state, commit }: SuperAdminActionContext,
@@ -31,17 +21,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setUsersLoading", true);
     try {
-      if (!options?.force) {
-        const cachedUsers = readSuperAdminUsersCache();
-
-        if (cachedUsers) {
-          commit("setUsers", cachedUsers);
-          return cachedUsers;
-        }
-      }
-
       const users = await superAdminApi.getUsers();
-      saveSuperAdminUsersCache(users);
       commit("setUsers", users);
       return users;
     } finally {
@@ -51,7 +31,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   /**
    * 确保考勤列表可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureWorkTimeRecords(
     { state, commit }: SuperAdminActionContext,
@@ -63,17 +43,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setWorkTimeRecordsLoading", true);
     try {
-      if (!options?.force) {
-        const cachedRecords = readSuperAdminWorkTimeRecordsCache();
-
-        if (cachedRecords) {
-          commit("setWorkTimeRecords", cachedRecords);
-          return cachedRecords;
-        }
-      }
-
       const records = await superAdminApi.getWorkTimeRecord();
-      saveSuperAdminWorkTimeRecordsCache(records);
       commit("setWorkTimeRecords", records);
       return records;
     } finally {
@@ -83,7 +53,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   /**
    * 确保日志列表可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureLogs(
     { state, commit }: SuperAdminActionContext,
@@ -95,17 +65,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setLogsLoading", true);
     try {
-      if (!options?.force) {
-        const cachedLogs = readSuperAdminLogsCache();
-
-        if (cachedLogs) {
-          commit("setLogs", cachedLogs);
-          return cachedLogs;
-        }
-      }
-
       const logs = await superAdminApi.getLogs();
-      saveSuperAdminLogsCache(logs);
       commit("setLogs", logs);
       return logs;
     } finally {
@@ -115,7 +75,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   /**
    * 确保首页摘要数据可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 首次进入首页时通过 RESTful 获取，后续 WebSocket 推送只更新 Vuex。
    *
    * 当options?.force == false时，优先复用缓存数据。
    *
@@ -131,17 +91,7 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
     commit("setHomePageDataLoading", true);
     try {
-      if (!options?.force) {
-        const cachedHomePageData = readSuperAdminHomePageDataCache();
-
-        if (cachedHomePageData) {
-          commit("setHomePageData", cachedHomePageData);
-          return cachedHomePageData;
-        }
-      }
-
       const homePageData = await superAdminApi.homePageGetData();
-      saveSuperAdminHomePageDataCache(homePageData);
       commit("setHomePageData", homePageData);
       return homePageData;
     } finally {
@@ -151,14 +101,12 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   /**
    * 应用首页实时推送数据。
-   * 首页摘要立即同步到 Vuex 和 localStorage，相关列表只标记为脏数据，
-   * 等进入对应页面或显式刷新时再重新请求完整列表。
+   * 首页摘要只同步到 Vuex，相关列表只标记为脏数据，等进入对应页面或显式刷新时再重新请求完整列表。
    */
   applyRealtimeHomePageData(
     { commit }: SuperAdminActionContext,
     homeData: HomePageSummary
   ) {
-    saveSuperAdminHomePageDataCache(homeData);
     commit("setHomePageData", homeData);
     commit("markUsersDirty");
     commit("markWorkTimeRecordsDirty");
@@ -167,28 +115,21 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
   },
 
   /**
-   * 在线医生页复用用户列表和考勤记录两份缓存。
-   * 只有其中任一缓存首次进入、超时或被标脏时，才会真正重新请求。
+   * 在线医生页进入时刷新医生资料与值班记录两份列表。
    */
   async ensureOnlineDoctorsData({ dispatch }: SuperAdminActionContext) {
     await Promise.all([
-      dispatch("ensureUsers"),
-      dispatch("ensureWorkTimeRecords"),
+      dispatch("ensureUsers", { force: true }),
+      dispatch("ensureWorkTimeRecords", { force: true }),
     ]);
   },
 
   /**
    * 超级管理端入口数据预热。
-   * 进入超级管理端时统一从后端刷新核心业务数据，并同步写入本地缓存。
-   * 如：用户列表、考勤记录、日志、首页摘要数据有缓存时，优先复用缓存数据。
+   * 入口只预热首页摘要，完整列表由对应页面进入时通过 RESTful 获取。
    */
   async refreshSuperAdminData({ dispatch }: SuperAdminActionContext) {
-    await Promise.all([
-      dispatch("ensureUsers", { force: true }),
-      dispatch("ensureWorkTimeRecords", { force: true }),
-      dispatch("ensureLogs", { force: true }),
-      dispatch("ensureHomePageData", { force: true }),
-    ]);
+    await dispatch("ensureHomePageData", { force: true });
   },
 
   /**

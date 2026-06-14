@@ -212,10 +212,9 @@ const handleClickOutside = (event: MouseEvent) => {
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   /**
-   * 用户端首页进入后预热预约基础数据、预约记录与订单摘要列表。
+   * 用户端首页进入后预热预约基础数据；订单/预约记录列表由对应页面进入时实时获取。
    */
   void store.dispatch("userPortal/ensureServiceData");
-  void store.dispatch("userPortal/ensureOrderPageData");
 });
 
 onBeforeUnmount(() => {

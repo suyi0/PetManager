@@ -3,13 +3,6 @@ import { authApi } from "@/core/auth/api/authApi";
 import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { authStorage } from "@/core/auth/utils/authStorage";
 import { State } from "@/app/store/types";
-import { clearBossDataCache } from "@/modules/boss/utils/bossDataCache";
-import { clearDoctorDataCache } from "@/modules/doctor/utils/doctorDataCache";
-import { clearFinanceDataCache } from "@/modules/finance/utils/financeDataCache";
-import { clearPersonnelDataCache } from "@/modules/personnel/utils/personnelDataCache";
-import { clearSuperAdminDataCache } from "@/modules/super-admin/utils/superAdminDataCache";
-import { clearUserPortalDataCache } from "@/modules/user/utils/userPortalDataCache";
-import { clearWarehouseAdminDataCache } from "@/modules/warehouse-admin/utils/warehouseAdminDataCache";
 import { AuthState } from "./types";
 
 // 定义一个异步函数类型
@@ -77,13 +70,6 @@ type PortalBridgeSessionPayload = {
 };
 
 const clearAllPortalSessionState = (commit: AuthActionContext["commit"]) => {
-  clearBossDataCache();
-  clearDoctorDataCache();
-  clearFinanceDataCache();
-  clearPersonnelDataCache();
-  clearSuperAdminDataCache();
-  clearUserPortalDataCache();
-  clearWarehouseAdminDataCache();
   commit("currentUser/clearCurrentUser", undefined, { root: true });
   commit("boss/resetState", undefined, { root: true });
   commit("doctor/resetState", undefined, { root: true });

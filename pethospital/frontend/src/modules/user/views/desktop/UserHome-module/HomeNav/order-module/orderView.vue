@@ -188,10 +188,8 @@ import { useRoute, useRouter } from "vue-router";
 import {
   clearOrderSearchHistory as clearStoredOrderSearchHistory,
   readOrderSearchHistory,
-  saveOrderDetailPreview,
-  saveOrderFavorites,
   saveOrderSearchKeyword,
-} from "@/modules/user/utils/orderPagePreferences";
+} from "@/modules/user/utils/userPreferenceStorage";
 
 type SearchableOrderItem = {
   id: number;
@@ -229,6 +227,7 @@ const openSearch = ref(false);
 const homeOrderTopRef = ref<HTMLDivElement | null>(null);
 const choiceActive = ref<Record<number, boolean>>({});
 const historyOrders = ref<SearchableOrderItem[]>([]);
+const favoriteOrders = ref<SearchableOrderItem[]>([]);
 const sortKey = ref<SortKey>("time");
 const sortDirection = ref<SortDirection>("desc");
 const pageErrorMessage = ref("");
@@ -366,7 +365,15 @@ const toggleEditMode = () => {
 
 const moveSelectedToFavorites = () => {
   const selected = currentSource.value.filter((item) => isSelected(item.id));
-  saveOrderFavorites(selected);
+  const merged = [...favoriteOrders.value];
+
+  selected.forEach((item) => {
+    if (!merged.some((favorite) => favorite.id === item.id)) {
+      merged.push(item);
+    }
+  });
+
+  favoriteOrders.value = merged;
   choiceActive.value = {};
   editTab.value = false;
 };
@@ -400,7 +407,7 @@ const deleteSelected = async () => {
 const loadOrderPageData = async () => {
   pageErrorMessage.value = "";
   try {
-    await store.dispatch("userPortal/ensureOrderPageData");
+    await store.dispatch("userPortal/ensureOrderPageData", { force: true });
   } catch (error) {
     pageErrorMessage.value = getHttpErrorMessage(
       error,
@@ -413,8 +420,6 @@ const goToDetail = (item: SearchableOrderItem) => {
   if (editTab.value) {
     ordersButton(item.id);
   } else {
-    saveOrderDetailPreview(item, activeTab.value);
-
     router.push({
       path: `${basePath.value}/orderDetail`,
       query: {
@@ -489,7 +494,7 @@ onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   loadSearchHistory();
   /**
-   * 订单页预热两类记录与详情摘要，后续详情页也可以直接复用。
+   * 订单页进入时通过 RESTful 获取一次订单和预约摘要，不复用本地持久化缓存。
    */
   void loadOrderPageData();
 });

@@ -274,7 +274,7 @@ export default defineComponent({
      */
     const loadLogs = async () => {
       // 日志页也先读缓存，只有首次进入、过期或被标脏时才重新请求。
-      await store.dispatch("superAdmin/ensureLogs");
+      await store.dispatch("superAdmin/ensureLogs", { force: true });
       selectedLogId.value = filteredLogs.value[0]?.id ?? "";
     };
 

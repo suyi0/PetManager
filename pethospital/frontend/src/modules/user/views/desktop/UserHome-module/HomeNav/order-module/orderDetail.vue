@@ -120,13 +120,8 @@ import { useRoute, useRouter } from "vue-router";
 import {
   OrderDetail,
   ReservationOrderRecordItem,
-  ReservationSummary,
   OrderSummary,
 } from "@/modules/user/api/types";
-import {
-  clearOrderDetailPreview,
-  readOrderDetailPreview,
-} from "@/modules/user/utils/orderPagePreferences";
 
 const store = useStore(storeKey);
 const route = useRoute();
@@ -134,49 +129,33 @@ const router = useRouter();
 
 const tabValue = ref<string>("order");
 const orderImg = ref("reduce");
-const previewRecord = ref<
-  | ((ReservationSummary | OrderSummary) &
-      Partial<ReservationOrderRecordItem> & { tab?: string })
-  | null
->(null);
 const detailRecord = ref<OrderDetail | OrderSummary | null>(null);
 const reservationRecord = ref<ReservationOrderRecordItem | null>(null);
 const cancelLoading = ref(false);
 
 const currentReservationId = computed(() =>
-  Number(
-    reservationRecord.value?.id ||
-      previewRecord.value?.id ||
-      route.query.id ||
-      0
-  )
+  Number(reservationRecord.value?.id || route.query.id || 0)
 );
 
 const detail = computed(() => {
-  const preview = previewRecord.value;
   const summary = detailRecord.value;
   const reservation = reservationRecord.value;
 
-  const reservationDate = reservation?.date || preview?.date || "";
-  const reservationSlot = reservation?.time_slot || preview?.time_slot || "";
+  const reservationDate = reservation?.date || "";
+  const reservationSlot = reservation?.time_slot || "";
   const reservationTime =
     reservation?.schedule ||
-    preview?.schedule ||
     [reservationDate, reservationSlot].filter(Boolean).join(" ");
-  const reservationCreatedAt =
-    reservation?.created_at || preview?.created_at || "";
-  const reservationTypeText =
-    reservation?.reservation_type || preview?.reservation_type || "预约";
+  const reservationCreatedAt = reservation?.created_at || "";
+  const reservationTypeText = reservation?.reservation_type || "预约";
 
   const title =
     summary?.pet_name ||
     reservation?.pet_name ||
-    preview?.pet_name ||
     (tabValue.value === "reservation" ? "预约记录" : "订单记录");
 
   const dateText = summary?.order_data || "";
-  const reservationPrice =
-    typeof reservation?.price === "number" ? reservation.price : preview?.price;
+  const reservationPrice = reservation?.price;
   const priceText =
     typeof summary?.order_totalprice === "number"
       ? `¥ ${summary.order_totalprice.toFixed(2)}`
@@ -193,8 +172,8 @@ const detail = computed(() => {
     reference:
       summary?.id !== undefined
         ? `NO.${summary.id}`
-        : preview?.id !== undefined
-        ? `NO.${preview.id}`
+        : reservation?.id !== undefined
+        ? `NO.${reservation.id}`
         : "NO.--",
     createTime:
       tabValue.value === "reservation"
@@ -207,16 +186,11 @@ const detail = computed(() => {
     status:
       summary?.order_status ||
       reservation?.status ||
-      preview?.status ||
       (tabValue.value === "reservation" ? "预约处理中" : "处理中"),
     price: priceText,
-    ownerName: reservation?.user_name || preview?.user_name || "待同步",
-    phone: reservation?.phone || preview?.phone || "待同步",
-    doctorName:
-      summary?.doctor_name ||
-      reservation?.doctor_name ||
-      preview?.doctor_name ||
-      "待同步",
+    ownerName: reservation?.user_name || "待同步",
+    phone: reservation?.phone || "待同步",
+    doctorName: summary?.doctor_name || reservation?.doctor_name || "待同步",
     reservationTypeText,
   };
 });
@@ -245,8 +219,6 @@ const cancelReservation = async () => {
   try {
     await store.dispatch("userPortal/deleteReservationRecord", reservationId);
     reservationRecord.value = null;
-    previewRecord.value = null;
-    clearOrderDetailPreview();
     await router.push({
       path: "/user/order",
       query: { tab: "reservation" },
@@ -261,13 +233,8 @@ const cancelReservation = async () => {
 onMounted(async () => {
   tabValue.value = (route.query.tab as string) || "order";
 
-  previewRecord.value = readOrderDetailPreview<
-    (ReservationSummary | OrderSummary) &
-      Partial<ReservationOrderRecordItem> & { tab?: string }
-  >();
-
   try {
-    const currentId = Number(route.query.id || previewRecord.value?.id || 0);
+    const currentId = Number(route.query.id || 0);
 
     if (tabValue.value === "reservation") {
       if (currentId > 0) {
@@ -277,10 +244,6 @@ onMounted(async () => {
         )) as ReservationOrderRecordItem | null;
       }
     } else {
-      /**
-       * 订单详情页先判断本地完整详情缓存是否命中当前订单编号；
-       * 不命中时再按订单编号请求后端，并覆盖旧详情缓存。
-       */
       if (currentId > 0) {
         detailRecord.value = (await store.dispatch(
           "userPortal/ensureOrderDetail",
@@ -298,8 +261,7 @@ onMounted(async () => {
     }
   } catch {
     detailRecord.value = null;
-    reservationRecord.value =
-      previewRecord.value as ReservationOrderRecordItem | null;
+    reservationRecord.value = null;
   }
 
   if (!detailRecord.value) {

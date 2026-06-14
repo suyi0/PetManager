@@ -432,7 +432,7 @@ export default defineComponent({
      */
     const loadUsers = async () => {
       // 优先读全局缓存，只有脏数据、超时或首次进入时才会访问接口。
-      await store.dispatch("superAdmin/ensureUsers");
+      await store.dispatch("superAdmin/ensureUsers", { force: true });
       normalPage.value = Math.min(normalPage.value, normalTotalPages.value);
       doctorPage.value = Math.min(doctorPage.value, doctorTotalPages.value);
       adminPage.value = Math.min(adminPage.value, adminTotalPages.value);

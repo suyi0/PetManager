@@ -189,9 +189,6 @@ import {
 import {
   DoctorOrderDraft,
   buildDoctorOrderDraftKey,
-  readDoctorOrderDraft,
-  removeDoctorOrderDraft,
-  saveDoctorOrderDraft,
 } from "@/modules/doctor/utils/orderDrafts";
 
 export default defineComponent({
@@ -350,14 +347,17 @@ export default defineComponent({
     /**
      * 恢复草稿
      */
-    const restoreDraft = () => {
+    const restoreDraft = async () => {
       const openedDraftKey = String(route.query.draftKey || "").trim();
-      const draft = readDoctorOrderDraft(draftStorageKey.value);
+      const draft = (await store.dispatch(
+        "doctor/readOrderDraft",
+        draftStorageKey.value
+      )) as DoctorOrderDraft | null;
 
       if (!draft) {
         if (openedDraftKey) {
           pauseDraftPersist.value = true;
-          window.alert("该诊单草稿已超过 24 小时，系统已自动清理");
+          window.alert("该诊单草稿不存在或已超过 24 小时");
           void router.push("/doctor/drafts");
         }
         return;
@@ -392,7 +392,10 @@ export default defineComponent({
         updatedAt: Date.now(),
       };
 
-      saveDoctorOrderDraft(draftStorageKey.value, draft);
+      void store.dispatch("doctor/saveOrderDraft", {
+        draftKey: draftStorageKey.value,
+        draft,
+      });
     };
 
     /**
@@ -400,7 +403,7 @@ export default defineComponent({
      */
     const clearDraft = () => {
       pauseDraftPersist.value = true;
-      removeDoctorOrderDraft(draftStorageKey.value);
+      void store.dispatch("doctor/removeOrderDraft", draftStorageKey.value);
       Object.assign(patientForm, initialPatientForm);
       selected.value = [];
       searchQuery.value = "";
@@ -447,7 +450,7 @@ export default defineComponent({
         );
 
         pauseDraftPersist.value = true;
-        removeDoctorOrderDraft(draftStorageKey.value);
+        void store.dispatch("doctor/removeOrderDraft", draftStorageKey.value);
         window.alert(`诊单 ${normalizedRecord.id} 已打印并加入诊单记录`);
         void router.push("/doctor/order-records");
       } catch {
@@ -456,7 +459,7 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      restoreDraft();
+      void restoreDraft();
     });
 
     watch(

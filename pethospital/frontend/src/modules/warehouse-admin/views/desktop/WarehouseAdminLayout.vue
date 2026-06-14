@@ -72,8 +72,6 @@ export default defineComponent({
 
     onMounted(() => {
       startWarehouseAdminSessionGuard(store, router);
-      // 仓库管理员进入任意页面时，先预热仪表盘依赖的基础缓存。
-      void store.dispatch("warehouseAdmin/ensureDashboardData");
     });
 
     onBeforeUnmount(() => {

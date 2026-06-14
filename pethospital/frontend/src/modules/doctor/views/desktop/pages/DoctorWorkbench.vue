@@ -179,10 +179,7 @@ import {
   QueueItem,
 } from "@/modules/doctor/api/types";
 import { doctorWorkbenchStats } from "@/modules/doctor/api/doctorMock";
-import {
-  DoctorOrderDraftSummary,
-  listDoctorOrderDrafts,
-} from "@/modules/doctor/utils/orderDrafts";
+import { DoctorOrderDraftSummary } from "@/modules/doctor/utils/orderDrafts";
 
 export default defineComponent({
   name: "DoctorWorkbench",
@@ -221,21 +218,26 @@ export default defineComponent({
     const now = ref(new Date());
     let timer: number | undefined;
     let searchRequestId = 0;
-    const syncDrafts = () => {
-      draftSummaries.value = listDoctorOrderDrafts();
+    const syncDrafts = async () => {
+      draftSummaries.value = (await store.dispatch(
+        "doctor/listOrderDrafts"
+      )) as DoctorOrderDraftSummary[];
+    };
+
+    const handleFocus = () => {
+      void syncDrafts();
     };
 
     onMounted(() => {
-      syncDrafts();
+      void syncDrafts();
       timer = window.setInterval(() => {
         now.value = new Date();
       }, 1000);
-      window.addEventListener("focus", syncDrafts);
-      window.addEventListener("storage", syncDrafts);
+      window.addEventListener("focus", handleFocus);
 
       void Promise.all([
         store.dispatch("doctor/ensureDutyStatus"),
-        store.dispatch("doctor/ensureQueueItems"),
+        store.dispatch("doctor/ensureQueueItems", { force: true }),
       ])
         .then(() => {
           const status = store.state.doctor.dutyStatus;
@@ -258,8 +260,7 @@ export default defineComponent({
       if (timer) {
         window.clearInterval(timer);
       }
-      window.removeEventListener("focus", syncDrafts);
-      window.removeEventListener("storage", syncDrafts);
+      window.removeEventListener("focus", handleFocus);
     });
     const time = computed(() => {
       const current = now.value;

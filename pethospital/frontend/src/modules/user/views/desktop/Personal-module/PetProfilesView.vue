@@ -258,22 +258,15 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useStore } from "vuex";
-import { storeKey } from "@/app/store";
 import { PetProfile } from "@/modules/user/api/types";
+import { petApi } from "@/modules/user/api/userApi";
 
 const emit = defineEmits(["updateCount"]);
-
-const store = useStore(storeKey);
 
 const createPet = ref<boolean>(false);
 const selectedPetId = ref<string>("");
 const editingPetId = ref<string>("");
-
-/**
- * 宠物档案统一从 userPortal 读取，这样页面切换回来时不需要再次解析 localStorage。
- */
-const pets = computed<PetProfile[]>(() => store.state.userPortal.petProfiles);
+const pets = ref<PetProfile[]>([]);
 
 const form = reactive<Omit<PetProfile, "id">>({
   name: "",
@@ -379,12 +372,16 @@ const savePet = async () => {
 
   let savedPet: PetProfile;
   if (editingPetId.value) {
-    savedPet = await store.dispatch("userPortal/updatePetProfile", {
+    savedPet = await petApi.updatePetProfile({
       id: editingPetId.value,
       ...payload,
     });
+    pets.value = pets.value.map((pet) =>
+      pet.id === savedPet.id ? savedPet : pet
+    );
   } else {
-    savedPet = await store.dispatch("userPortal/createPetProfile", payload);
+    savedPet = await petApi.createPetProfile(payload);
+    pets.value = [savedPet, ...pets.value];
   }
 
   selectedPetId.value = savedPet.id;
@@ -393,27 +390,15 @@ const savePet = async () => {
 };
 
 const removePet = async (petId: string) => {
-  await store.dispatch("userPortal/deletePetProfile", petId);
-  const nextPets = pets.value.filter((pet) => pet.id !== petId);
+  await petApi.deletePetProfile(petId);
+  pets.value = pets.value.filter((pet) => pet.id !== petId);
+  const nextPets = pets.value;
   if (selectedPetId.value === petId) {
     selectedPetId.value = nextPets[0]?.id || "";
   }
   createPet.value = nextPets.length === 0;
   resetForm();
 };
-
-watch(
-  () => [
-    store.state.currentUser.userPhone,
-    store.state.currentUser.userEmail,
-    store.state.currentUser.userLastName,
-    store.state.currentUser.userMiddleName,
-    store.state.currentUser.userFirstName,
-  ],
-  () => {
-    void store.dispatch("userPortal/ensurePetProfiles", { force: true });
-  }
-);
 
 watch(
   pets,
@@ -423,11 +408,8 @@ watch(
   { immediate: true }
 );
 
-onMounted(() => {
-  /**
-   * 宠物档案首次进入时从数据库载入到 store。
-   */
-  void store.dispatch("userPortal/ensurePetProfiles", { force: true });
+onMounted(async () => {
+  pets.value = await petApi.getPetProfiles();
 });
 </script>
 

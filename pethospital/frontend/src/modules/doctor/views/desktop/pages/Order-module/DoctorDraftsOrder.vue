@@ -119,12 +119,12 @@ import {
   watch,
 } from "vue";
 import { useRouter } from "vue-router";
+import { useStore } from "vuex";
+import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
 import {
+  DoctorOrderDraft,
   DoctorOrderDraftSummary,
-  listDoctorOrderDrafts,
-  readDoctorOrderDraft,
-  removeDoctorOrderDraft,
 } from "@/modules/doctor/utils/orderDrafts";
 
 export default defineComponent({
@@ -132,6 +132,7 @@ export default defineComponent({
   components: { AppPager },
   setup() {
     const router = useRouter();
+    const store = useStore(storeKey);
     const activeSource = ref<"全部" | DoctorOrderDraftSummary["source"]>(
       "全部"
     );
@@ -144,8 +145,10 @@ export default defineComponent({
 
     const basePath = computed(() => "/doctor");
 
-    const loadDrafts = () => {
-      drafts.value = listDoctorOrderDrafts();
+    const loadDrafts = async () => {
+      drafts.value = (await store.dispatch(
+        "doctor/listOrderDrafts"
+      )) as DoctorOrderDraftSummary[];
     };
 
     const togglePendingDelete = (storageKey: string) => {
@@ -162,10 +165,10 @@ export default defineComponent({
 
     const applyPendingDeletes = () => {
       pendingDeleteKeys.value.forEach((storageKey) => {
-        removeDoctorOrderDraft(storageKey);
+        void store.dispatch("doctor/removeOrderDraft", storageKey);
       });
       pendingDeleteKeys.value = new Set<string>();
-      loadDrafts();
+      void loadDrafts();
     };
 
     const toggleManageMode = () => {
@@ -249,12 +252,15 @@ export default defineComponent({
       return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`;
     };
 
-    const openDraft = (item: DoctorOrderDraftSummary) => {
-      const draft = readDoctorOrderDraft(item.storageKey);
+    const openDraft = async (item: DoctorOrderDraftSummary) => {
+      const draft = (await store.dispatch(
+        "doctor/readOrderDraft",
+        item.storageKey
+      )) as DoctorOrderDraft | null;
 
       if (!draft) {
-        window.alert("该诊单草稿已超过 24 小时，系统已自动清理");
-        syncDrafts();
+        window.alert("该诊单草稿不存在或已超过 24 小时");
+        void syncDrafts();
         return;
       }
 
@@ -276,11 +282,15 @@ export default defineComponent({
     const sourceClassName = (source: DoctorOrderDraftSummary["source"]) =>
       source === "队列接诊" ? "source-pill--queue" : "source-pill--manual";
 
-    const syncDrafts = () => {
-      loadDrafts();
+    const syncDrafts = async () => {
+      await loadDrafts();
       if (!isManaging.value) {
         pendingDeleteKeys.value = new Set<string>();
       }
+    };
+
+    const handleFocus = () => {
+      void syncDrafts();
     };
 
     watch(activeSource, () => {
@@ -294,18 +304,18 @@ export default defineComponent({
     });
 
     onMounted(() => {
-      syncDrafts();
-      remainingTimer = window.setInterval(syncDrafts, 60000);
-      window.addEventListener("focus", syncDrafts);
-      window.addEventListener("storage", syncDrafts);
+      void syncDrafts();
+      remainingTimer = window.setInterval(() => {
+        void syncDrafts();
+      }, 60000);
+      window.addEventListener("focus", handleFocus);
     });
 
     onBeforeUnmount(() => {
       if (remainingTimer) {
         window.clearInterval(remainingTimer);
       }
-      window.removeEventListener("focus", syncDrafts);
-      window.removeEventListener("storage", syncDrafts);
+      window.removeEventListener("focus", handleFocus);
     });
 
     return {

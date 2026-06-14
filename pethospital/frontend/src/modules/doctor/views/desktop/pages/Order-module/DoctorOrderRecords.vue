@@ -113,12 +113,12 @@ export default defineComponent({
     const basePath = computed(() => "/doctor");
 
     /**
-     * 优先复用订单记录缓存。
+     * 进入订单记录页时通过 RESTful 获取一次最新摘要。
      */
     const loadOrderRecords = async () => {
       errorMessage.value = "";
       try {
-        await store.dispatch("doctor/ensureOrderRecords");
+        await store.dispatch("doctor/ensureOrderRecords", { force: true });
       } catch (error) {
         errorMessage.value = getHttpErrorMessage(
           error,

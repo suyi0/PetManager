@@ -71,7 +71,9 @@ export default defineComponent({
      * 优先复用考勤缓存。
      */
     const loadRecords = async () => {
-      await store.dispatch("superAdmin/ensureWorkTimeRecords");
+      await store.dispatch("superAdmin/ensureWorkTimeRecords", {
+        force: true,
+      });
     };
 
     const changeTime = async () => {

@@ -353,10 +353,10 @@ export default defineComponent({
     ] as const;
 
     /**
-     * 优先复用库存缓存，只有首次进入、过期或脏数据时才重拉。
+     * 进入仓库仪表盘时通过 RESTful 获取一次库存列表。
      */
     const loadItems = async () => {
-      await store.dispatch("warehouseAdmin/ensureItems");
+      await store.dispatch("warehouseAdmin/ensureItems", { force: true });
     };
 
     const filteredItems = computed(() => {

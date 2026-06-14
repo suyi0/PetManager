@@ -59,6 +59,7 @@ namespace DatabaseMigrations
         bool orders_exists = false;
         bool orderMedicines_exists = false;
         bool pets_exists = false;
+        bool userSearch_exists = false;
         bool warehouse_exists = false;
         bool workTimeRecords_exists = false;
         bool system_operations_exists = false;
@@ -122,6 +123,10 @@ namespace DatabaseMigrations
             else if (table_name == "pets")
             {
                 pets_exists = true;
+            }
+            else if (table_name == "userSearch")
+            {
+                userSearch_exists = true;
             }
             else if (table_name == "warehouse")
             {
@@ -327,13 +332,39 @@ namespace DatabaseMigrations
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
                          "deleted_at DATETIME NULL COMMENT '软删除时间', "
                          "deleted_by INT NULL COMMENT '执行删除的用户ID', "
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_pets_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "INDEX idx_pets_is_deleted (is_deleted) "
                          ")")
                 .execute();
             std::cout << "pets table created successfully" << std::endl;
         }
-        
+
+        if (userSearch_exists)
+        {
+            std::cout << "userSearch table is exists." << std::endl;
+        }
+        else
+        {
+            std::cout << "userSearch table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE userSearch ( "
+                         "id INT PRIMARY KEY AUTO_INCREMENT, "
+                         "user_id INT NOT NULL, "
+                         "search_text VARCHAR(255) NOT NULL, "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         "CONSTRAINT fk_userSearch_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "UNIQUE KEY uk_userSearch_user_text (user_id, search_text), "
+                         "INDEX idx_userSearch_recent (user_id, is_deleted, updated_at) "
+                         ")")
+                .execute();
+            std::cout << "userSearch table created successfully." << std::endl;
+        }
+
         if (monthlySalaryRecord_exists)
         {
             std::cout << "monthlySalaryRecord table is exists." << std::endl;

@@ -1,12 +1,9 @@
 import { MutationTree } from "vuex";
-import { DoctorDataItem } from "@/modules/doctor/api/types";
 import {
-  PetProfile,
   OrderDetail,
   OrderSummary,
   ReservationOrderRecordItem,
   ReservationSummary,
-  ReservationScheduleState,
 } from "../api/types";
 import { createUserPortalState } from "./state";
 import { UserPortalState } from "./types";
@@ -36,75 +33,6 @@ const applyDirtyMeta = (meta: UserPortalState["reservationRecordsMeta"]) => {
 };
 
 export const userPortalMutations: MutationTree<UserPortalState> = {
-  /**
-   * 宠物档案加载中。
-   */
-  setPetProfilesLoading(state, loading: boolean) {
-    state.petProfilesMeta.loading = loading;
-  },
-
-  /**
-   * 写入宠物档案列表。
-   */
-  setPetProfiles(state, pets: PetProfile[]) {
-    state.petProfiles = pets;
-    applyLoadedMeta(state.petProfilesMeta);
-  },
-
-  /**
-   * 标记宠物档案需要重新读取。
-   */
-  markPetProfilesDirty(state) {
-    applyDirtyMeta(state.petProfilesMeta);
-  },
-
-  /**
-   * 预约医生列表加载中。
-   */
-  setReservationDoctorsLoading(state, loading: boolean) {
-    state.reservationDoctorsMeta.loading = loading;
-  },
-
-  /**
-   * 写入预约医生列表。
-   */
-  setReservationDoctors(state, doctors: DoctorDataItem[]) {
-    state.reservationDoctors = doctors;
-    applyLoadedMeta(state.reservationDoctorsMeta);
-  },
-
-  /**
-   * 标记预约医生列表需要重新获取。
-   */
-  markReservationDoctorsDirty(state) {
-    applyDirtyMeta(state.reservationDoctorsMeta);
-  },
-
-  /**
-   * 预约时间表加载中。
-   */
-  setReservationScheduleLoading(state, loading: boolean) {
-    state.reservationScheduleMeta.loading = loading;
-  },
-
-  /**
-   * 写入预约时间表。
-   */
-  setReservationSchedule(
-    state,
-    schedule: Omit<ReservationScheduleState, "doctorData">
-  ) {
-    state.reservationSchedule = schedule;
-    applyLoadedMeta(state.reservationScheduleMeta);
-  },
-
-  /**
-   * 标记预约时间表需要重新获取。
-   */
-  markReservationScheduleDirty(state) {
-    applyDirtyMeta(state.reservationScheduleMeta);
-  },
-
   /**
    * 预约记录加载中。
    */

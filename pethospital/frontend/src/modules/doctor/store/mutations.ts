@@ -15,6 +15,7 @@ import {
   markCacheLoaded,
   setCacheLoading,
 } from "@/app/store/cacheMeta";
+import { DoctorOrderDraft } from "../utils/orderDrafts";
 
 export const doctorMutations: MutationTree<DoctorState> = {
   /**
@@ -189,6 +190,25 @@ export const doctorMutations: MutationTree<DoctorState> = {
    */
   markCurrentOrderDetailDirty(state) {
     markCacheDirty(state.currentOrderDetailMeta);
+  },
+
+  /**
+   * 写入或覆盖诊单草稿。
+   */
+  setOrderDraft(state, payload: { draftKey: string; draft: DoctorOrderDraft }) {
+    state.orderDrafts = {
+      ...state.orderDrafts,
+      [payload.draftKey]: payload.draft,
+    };
+  },
+
+  /**
+   * 删除指定诊单草稿。
+   */
+  removeOrderDraft(state, draftKey: string) {
+    const nextDrafts = { ...state.orderDrafts };
+    delete nextDrafts[draftKey];
+    state.orderDrafts = nextDrafts;
   },
 
   /**

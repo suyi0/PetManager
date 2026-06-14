@@ -2,17 +2,13 @@ import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { bossApi } from "../api/bossApi";
 import { BossState } from "./types";
-import {
-  readBossStockDistributionCache,
-  saveBossStockDistributionCache,
-} from "../utils/bossDataCache";
 
 type BossActionContext = ActionContext<BossState, State>;
 
 export const bossActions: ActionTree<BossState, State> = {
   /**
    * 确保总裁端股权分布数据可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureStockDistribution(
     { state, commit }: BossActionContext,
@@ -27,17 +23,7 @@ export const bossActions: ActionTree<BossState, State> = {
 
     commit("setStockDistributionLoading", true);
     try {
-      if (!options?.force) {
-        const cachedDistribution = readBossStockDistributionCache();
-
-        if (cachedDistribution) {
-          commit("setStockDistribution", cachedDistribution);
-          return cachedDistribution;
-        }
-      }
-
       const distribution = await bossApi.getStock();
-      saveBossStockDistributionCache(distribution);
       commit("setStockDistribution", distribution);
       return distribution;
     } finally {

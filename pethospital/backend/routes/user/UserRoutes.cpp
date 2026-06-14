@@ -47,7 +47,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     // 添加用户资料更新路由
     CROW_ROUTE(app, "/api/users/me/profile")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                   {
+                                                                     {
             int userId = -1;
             try
             {
@@ -73,7 +73,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     // 更新用户密码路由
     CROW_ROUTE(app, "/api/users/me/password")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                   {
+                                                                     {
             int userId = -1;
             try
             {
@@ -100,7 +100,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     // 更新用户邮箱地址路由
     CROW_ROUTE(app, "/api/users/me/email")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                   {
+                                                                     {
             int userId = -1;
             try
             {
@@ -127,7 +127,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     // 更新用户手机号路由
     CROW_ROUTE(app, "/api/users/me/phone")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                   {
+                                                                     {
             int userId = -1;
             try
             {
@@ -181,7 +181,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     // 添加地址更新路由
     CROW_ROUTE(app, "/api/users/me/addresses/<int>")
         .methods(crow::HTTPMethod::PATCH, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int addressId)
-                                                                   {
+                                                                     {
             int userId = -1;
             try
             {
@@ -554,6 +554,60 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取订单详情", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
+    // 更新搜索历史记录
+    CROW_ROUTE(app, "/api/users/me/search-history")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+        int userId = -1;
+        try
+        {
+            userId = isValidUserToken(req, res, dbManager);
+
+            if (res.code != 200 || userId == -1)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "获取搜索历史记录");
+                return;
+            }
+
+            searchCommonHandler handler(dbManager);
+            crow::response response = handler.searchDataUpdate(req, userId);
+            ProcessHandlerResponse(req, res, response);
+
+        }
+        catch (const std::exception& e)
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "用户", "获取搜索历史记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+        }
+        OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取搜索历史记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
+    // 获取搜索历史记录
+    CROW_ROUTE(app, "/api/users/me/search-history")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+        int userId = -1;
+        try
+        {
+            userId = isValidUserToken(req, res, dbManager);
+
+            if (res.code != 200 || userId == -1)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "获取搜索历史记录");
+                return;
+            }
+
+            searchCommonHandler handler(dbManager);
+            crow::response response = handler.getSearchData(req, userId);
+            ProcessHandlerResponse(req, res, response);
+
+        }
+        catch (const std::exception& e)
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "用户", "获取搜索历史记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+        }
+        OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取搜索历史记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     routes_setup = true;
 }

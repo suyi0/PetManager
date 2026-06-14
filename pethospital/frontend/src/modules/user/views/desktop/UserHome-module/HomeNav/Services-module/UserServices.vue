@@ -104,13 +104,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useStore } from "vuex";
-import { storeKey } from "@/app/store";
 import treatSlots from "@/modules/user/views/desktop/UserHome-module/HomeNav/Services-module/treatSlots.vue";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 import { ReservationScheduleState, PetProfile } from "@/modules/user/api/types";
+import { petApi, reservationApi } from "@/modules/user/api/userApi";
 
-const store = useStore(storeKey);
 const activeTab = ref("reservation");
 const submitAfter = ref(false);
 
@@ -125,18 +123,15 @@ type ServiceCard = {
   description: string;
 };
 
-/**
- * 服务预约页优先读取全局缓存，切页回来时不重复请求医生与时间表。
- */
-const doctorData = computed<DoctorDataItem[]>(
-  () => store.state.userPortal.reservationDoctors
-);
-const petProfiles = computed<PetProfile[]>(
-  () => store.state.userPortal.petProfiles
-);
-const scheduleData = computed<Omit<ReservationScheduleState, "doctorData">>(
-  () => store.state.userPortal.reservationSchedule
-);
+const doctorData = ref<DoctorDataItem[]>([]);
+const petProfiles = ref<PetProfile[]>([]);
+const scheduleData = ref<Omit<ReservationScheduleState, "doctorData">>({
+  year: [],
+  month: [],
+  day: [],
+  weekday: [],
+  slots: [],
+});
 
 const serviceCards: ServiceCard[] = [
   {
@@ -244,11 +239,16 @@ const close = () => {
   activeTab.value = "reservation";
 };
 
-onMounted(() => {
-  /**
-   * 首次进入预约页时预热基础数据，后续页面返回优先复用缓存。
-   */
-  void store.dispatch("userPortal/ensureServiceData");
+onMounted(async () => {
+  const [doctors, schedule, pets] = await Promise.all([
+    reservationApi.getDoctor(),
+    reservationApi.getDate(),
+    petApi.getPetProfiles(),
+  ]);
+
+  doctorData.value = doctors;
+  scheduleData.value = schedule;
+  petProfiles.value = pets;
 });
 </script>
 

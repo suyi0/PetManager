@@ -51,7 +51,10 @@
           v-if="activeTab === 'personal'"
           @switchTab="switchTab"
         />
-        <PetProfilesView v-else-if="activeTab === 'pet'" />
+        <PetProfilesView
+          v-else-if="activeTab === 'pet'"
+          @updateCount="petCount = $event"
+        />
         <SetAddressView
           v-else-if="activeTab === 'address'"
           @close="close"
@@ -123,7 +126,7 @@ const store = useStore(storeKey);
 const route = useRoute();
 const router = useRouter();
 const activeTab = ref<PersonalTab>("personal");
-const petCount = computed(() => store.state.userPortal.petProfiles.length);
+const petCount = ref(0);
 
 const navItems: Array<{
   key: Extract<PersonalTab, "personal" | "pet" | "address">;
@@ -279,13 +282,7 @@ onMounted(() => {
   if (store.state.ui.personal) {
     void store.dispatch("ui/closePersonal");
   }
-  /**
-   * 个人资料和宠物档案在进入个人中心时一起预热，页面切换时优先复用缓存。
-   */
-  void Promise.all([
-    store.dispatch("currentUser/ensureProfile"),
-    store.dispatch("userPortal/ensurePetProfiles"),
-  ]);
+  void store.dispatch("currentUser/ensureProfile");
 
   const tab = route.query.tab;
   if (typeof tab === "string") {

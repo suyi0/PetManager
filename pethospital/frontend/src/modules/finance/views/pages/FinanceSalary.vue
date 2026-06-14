@@ -373,7 +373,7 @@ export default defineComponent({
 
     const ensureSalaryData = async () => {
       await store.dispatch("finance/ensureHomeData");
-      await store.dispatch("finance/ensureSalaryManagement");
+      await store.dispatch("finance/ensureSalaryManagement", { force: true });
       if (!selectedEmployeeId.value && employees.value[0]) {
         selectedEmployeeId.value = employees.value[0].id;
       }

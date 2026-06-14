@@ -795,11 +795,11 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         try
         {
             mysqlx::SqlResult result3 = session->sql("UPDATE users SET phone = ? "
-                                             "WHERE id = ? AND is_deleted = 0")
-                                    .bind(phone, userId)
-                                    .execute();
+                                                     "WHERE id = ? AND is_deleted = 0")
+                                            .bind(phone, userId)
+                                            .execute();
 
-            if(result3.getAffectedItemsCount() == 0)
+            if (result3.getAffectedItemsCount() == 0)
             {
                 return ResponseHelper::database_error(req, "更新手机号失败");
             }

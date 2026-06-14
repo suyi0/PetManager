@@ -2,17 +2,13 @@ import { ActionContext, ActionTree } from "vuex";
 import { shouldFetch, State } from "@/app/store/types";
 import { personnelApi } from "../api/personnelApi";
 import { PersonnelState } from "./types";
-import {
-  readPersonnelUsersCache,
-  savePersonnelUsersCache,
-} from "../utils/personnelDataCache";
 
 type PersonnelActionContext = ActionContext<PersonnelState, State>;
 
 export const personnelActions: ActionTree<PersonnelState, State> = {
   /**
    * 确保人事端用户列表可用。
-   * 默认优先复用 Vuex 和 localStorage 缓存，只有缓存为空或强制刷新时才请求后端。
+   * 进入对应页面时通过 RESTful 获取一次数据，只复用当前 Vuex 内存缓存。
    */
   async ensureUsers(
     { state, commit }: PersonnelActionContext,
@@ -24,17 +20,7 @@ export const personnelActions: ActionTree<PersonnelState, State> = {
 
     commit("setUsersLoading", true);
     try {
-      if (!options?.force) {
-        const cachedUsers = readPersonnelUsersCache();
-
-        if (cachedUsers) {
-          commit("setUsers", cachedUsers);
-          return cachedUsers;
-        }
-      }
-
       const users = await personnelApi.getUsers();
-      savePersonnelUsersCache(users);
       commit("setUsers", users);
       return users;
     } finally {
