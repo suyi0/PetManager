@@ -16,7 +16,7 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
         const std::string filterSql = isBoss
                                           ? ""
                                       : isMedicalStaff ? "WHERE o.doctor_id = ? "
-                                                       : "WHERE o.owner_id = ? AND o.user_hidden = 0 ";
+                                                       : "WHERE o.owner_id = ? AND o.is_deleted = 0 ";
 
         const std::string sql = "SELECT o.id, p.pet_name, COALESCE(d.name, ''), o.order_type, "
                                 "o.order_data, o.order_status, o.order_totalprice "

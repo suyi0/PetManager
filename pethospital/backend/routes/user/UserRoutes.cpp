@@ -555,59 +555,66 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取订单详情", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
-    // 更新搜索历史记录
+    // 管理搜索历史记录
     CROW_ROUTE(app, "/api/users/me/search-history")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                                           {
+        if (req.method == crow::HTTPMethod::Options)
+        {
+            res.code = 204;
+            return;
+        }
+
+        int userId = -1;
+        const bool isUpdate = req.method == crow::HTTPMethod::Post;
+        const std::string actionName = isUpdate ? "更新搜索历史记录" : "获取搜索历史记录";
+        try
+        {
+            userId = isValidUserToken(req, res, dbManager);
+
+            if (res.code != 200 || userId == -1)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", actionName);
+                return;
+            }
+
+            searchCommonHandler handler(dbManager);
+            crow::response response = isUpdate ? handler.searchDataUpdate(req, userId) : handler.getSearchHistoryData(req, userId);
+            ProcessHandlerResponse(req, res, response);
+
+        }
+        catch (const std::exception& e)
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "用户", actionName, e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+        }
+        OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", actionName, userId > 0 ? std::optional<int>(userId) : std::nullopt, isUpdate); });
+
+    // 搜索关键字获取对应记录
+    CROW_ROUTE(app, "/api/users/me/search-keyword")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                   {
-        int userId = -1;
-        try
-        {
-            userId = isValidUserToken(req, res, dbManager);
-
-            if (res.code != 200 || userId == -1)
+                                                                    {
+            int userId = -1;
+            try
             {
-                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "获取搜索历史记录");
-                return;
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "搜索关键字获取对应记录");
+                    return;
+                }
+                
+                searchCommonHandler handler(dbManager);
+                crow::response response = handler.searchByKeyword(req, userId);
+                ProcessHandlerResponse(req, res, response);
             }
+            catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "搜索关键字获取对应记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
 
-            searchCommonHandler handler(dbManager);
-            crow::response response = handler.searchDataUpdate(req, userId);
-            ProcessHandlerResponse(req, res, response);
-
-        }
-        catch (const std::exception& e)
-        {
-            OperationLogger::LogExceptionOperation(dbManager, req, "用户", "获取搜索历史记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
-        }
-        OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取搜索历史记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
-
-    // 获取搜索历史记录
-    CROW_ROUTE(app, "/api/users/me/search-history")
-        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
-                                                                   {
-        int userId = -1;
-        try
-        {
-            userId = isValidUserToken(req, res, dbManager);
-
-            if (res.code != 200 || userId == -1)
-            {
-                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "获取搜索历史记录");
-                return;
             }
-
-            searchCommonHandler handler(dbManager);
-            crow::response response = handler.getSearchData(req, userId);
-            ProcessHandlerResponse(req, res, response);
-
-        }
-        catch (const std::exception& e)
-        {
-            OperationLogger::LogExceptionOperation(dbManager, req, "用户", "获取搜索历史记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
-        }
-        OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取搜索历史记录", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "搜索关键字获取对应记录", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     routes_setup = true;
 }

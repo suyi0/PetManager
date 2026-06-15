@@ -71,15 +71,17 @@ bool constantTimeEquals(const std::string &left, const std::string &right)
 }
 
 // 从请求 JSON 中读取字符串字段；字段不存在或为 null 时返回默认值。
+// 如果前端传入数字、布尔等 JSON 值，则转成字符串，方便表单字段统一落库。
 std::string getRequestString(const nlohmann::json &request_body, const std::string &key, const std::string &defaultValue)
 {
     if (!request_body.contains(key) || request_body[key].is_null())
     {
         return defaultValue;
     }
-    if (!request_body[key].is_string())
+
+    if (request_body[key].is_string())
     {
-        throw std::invalid_argument(key + " must be a string");
+        return request_body[key].get<std::string>();
     }
 
     return request_body[key].dump();

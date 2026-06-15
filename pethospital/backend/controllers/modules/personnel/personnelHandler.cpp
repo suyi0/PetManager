@@ -124,6 +124,7 @@ crow::response personnelHandler::createUser(const crow::request &req)
     }
 }
 
+
 crow::response personnelHandler::deleteUser(const crow::request &req, int &userId)
 {
     try
@@ -260,6 +261,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
     }
 }
 
+
 crow::response personnelHandler::deleteDoctor(const crow::request &req)
 {
     try
@@ -301,6 +303,7 @@ crow::response personnelHandler::deleteDoctor(const crow::request &req)
         return ResponseHelper::system_error(req, e.what());
     }
 }
+
 
 crow::response personnelHandler::createWarehouserManager(const crow::request &req)
 {
@@ -344,6 +347,7 @@ crow::response personnelHandler::createWarehouserManager(const crow::request &re
     }
 }
 
+
 crow::response personnelHandler::deleteWarehouserManager(const crow::request &req)
 {
     try
@@ -385,3 +389,5 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
         return ResponseHelper::system_error(req, e.what());
     }
 }
+
+

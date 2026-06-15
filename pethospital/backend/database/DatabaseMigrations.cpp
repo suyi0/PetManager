@@ -55,7 +55,7 @@ namespace DatabaseMigrations
         bool stock_exists = false;
         bool workTimes_exists = false;
         bool onlineDoctors_exists = false;
-        bool reservates_exists = false;
+        bool reservations_exists = false;
         bool orders_exists = false;
         bool orderMedicines_exists = false;
         bool pets_exists = false;
@@ -108,9 +108,9 @@ namespace DatabaseMigrations
             {
                 onlineDoctors_exists = true;
             }
-            else if (table_name == "reaservations")
+            else if (table_name == "reservations")
             {
-                reservates_exists = true;
+                reservations_exists = true;
             }
             else if (table_name == "orders")
             {
@@ -473,15 +473,15 @@ namespace DatabaseMigrations
             std::cout << "onlineDoctors table created successfully." << std::endl;
         }
 
-        if (reservates_exists)
+        if (reservations_exists)
         {
-            std::cout << "reaservations table is exists." << std::endl;
+            std::cout << "reservations table is exists." << std::endl;
             ForeignKeys::migrateReservations(dbManager);
         }
         else
         {
-            std::cout << "reaservations table does not exist. Creating..." << std::endl;
-            session->sql("CREATE TABLE reaservations ("
+            std::cout << "reservations table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE reservations ("
                          "id INT PRIMARY KEY AUTO_INCREMENT, "
                          "user_id INT NOT NULL, "
                          "doctor_id INT NOT NULL, "
@@ -490,20 +490,20 @@ namespace DatabaseMigrations
                          "date DATE, "
                          "time_slot VARCHAR(20), "
                          "status ENUM('预约成功', '预约失败', '已取消', '已到院') NOT NULL, "
-                         "user_hidden TINYINT NOT NULL DEFAULT 0 COMMENT '用户是否隐藏预约信息', "
-                         "user_hidden_at DATETIME NULL COMMENT '用户隐藏时间', "
-                         "hidden_by INT NULL COMMENT '执行隐藏的用户ID', "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
-                         "INDEX idx_user_hidden (user_id, user_hidden), "
+                         "INDEX idx_user_deleted (user_id, is_deleted), "
                          "INDEX idx_doctorId_date_slot (doctor_id, date, time_slot), "
                          "INDEX idx_petId_date (pet_id, date) "
                          ")")
                 .execute();
-            std::cout << "reaservations table created successfully." << std::endl;
+            std::cout << "reservations table created successfully." << std::endl;
         }
 
         if (orders_exists)
@@ -524,15 +524,15 @@ namespace DatabaseMigrations
                          "order_data VARCHAR(255), "
                          "order_status ENUM('待付款', '已付款', '已取消', '已退款', '部分退款') NOT NULL DEFAULT '待付款', "
                          "order_totalprice DECIMAL(18, 2), "
-                         "user_hidden TINYINT NOT NULL DEFAULT 0 COMMENT '用户是否隐藏订单信息', "
-                         "user_hidden_at DATETIME NULL COMMENT '用户隐藏时间', "
-                         "hidden_by INT NULL COMMENT '执行隐藏的用户ID', "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "deleted_at DATETIME NULL COMMENT '软删除时间', "
+                         "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
                          "CONSTRAINT fk_orders_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_orders_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_orders_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
-                         "INDEX idx_orders_owner_hidden (owner_id, user_hidden), "
+                         "INDEX idx_orders_owner_deleted (owner_id, is_deleted), "
                          "INDEX idx_orders_doctor_time (doctor_id, created_at), "
                          "INDEX idx_petId_time (pet_id, created_at) "
                          ")")

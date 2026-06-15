@@ -17,14 +17,14 @@ crow::response reservationCommonHandler::getReservationSummary(const crow::reque
         const std::string filterSql = isBoss
                                           ? ""
                                       : isMedicalStaff ? "WHERE r.doctor_id = ? "
-                                                       : "WHERE r.user_id = ? AND r.user_hidden = 0 ";
+                                                       : "WHERE r.user_id = ? AND r.is_deleted = 0 ";
 
         const std::string sql = "SELECT r.id, p.pet_name, d.name, "
                                 "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), "
                                 "COALESCE(r.reservation_type, ''), COALESCE(r.status, '') "
-                                "FROM reaservations AS r "
-                                "LEFT JOIN pets AS p ON r.pet_id = p.id "
-                                "LEFT JOIN users AS d ON r.doctor_id = d.id " +
+                                "FROM reservations AS r "
+                                "LEFT JOIN pets AS p ON p.id = r.pet_id "
+                                "LEFT JOIN users AS d ON d.id = r.doctor_id " +
                                 filterSql;
 
         auto query = dbManager->getSession()->sql(sql);
@@ -68,7 +68,7 @@ nlohmann::json reservationCommonHandler::getReservationData(const int &reservati
                                              "COALESCE(p.pet_name, ''), COALESCE(r.reservation_type, ''), "
                                              "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), "
                                              "COALESCE(r.status, ''), CAST(r.created_at AS CHAR) "
-                                             "FROM reaservations AS r "
+                                             "FROM reservations AS r "
                                              "LEFT JOIN users AS u ON r.user_id = u.id "
                                              "LEFT JOIN users AS d ON r.doctor_id = d.id "
                                              "LEFT JOIN pets AS p ON r.pet_id = p.id "

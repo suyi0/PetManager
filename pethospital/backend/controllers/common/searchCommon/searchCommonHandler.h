@@ -15,9 +15,9 @@ public:
     crow::response searchDataUpdate(const crow::request& req, const int userId);
 
     nlohmann::json getSearchHistory(const int userId);
-    crow::response getSearchData(const crow::request &req, const int userId);
+    crow::response getSearchHistoryData(const crow::request &req, const int userId);
 
-    crow::response searchByKeyword(const crow::request &req, const std::string &keyword);
+    crow::response searchByKeyword(const crow::request &req, const int userId);
 };
 
 #endif

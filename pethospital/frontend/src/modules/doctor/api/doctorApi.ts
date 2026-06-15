@@ -332,6 +332,22 @@ export const doctorApi = {
   },
 
   /**
+   * 使用后端搜索医生端预约摘要，searchType 固定为 reservations。
+   */
+  async searchReservationSummaries(
+    searchByKeyword: string
+  ): Promise<ReservationSummaryItem[]> {
+    const { data } = await http.post("/api/doctors/search-keyword", {
+      searchType: "reservations",
+      searchByKeyword,
+    });
+
+    return normalizeReservationSummaries(
+      unwrapList<Record<string, unknown>>(data)
+    );
+  },
+
+  /**
    * 按预约编号获取完整预约详情。
    */
   async getReservationInformation(
@@ -385,6 +401,29 @@ export const doctorApi = {
     );
 
     return orderRecordItems;
+  },
+
+  /**
+   * 使用后端搜索医生端订单摘要，searchType 固定为 orders。
+   */
+  async searchOrderSummaries(
+    searchByKeyword: string
+  ): Promise<OrderSummaryItem[]> {
+    const { data } = await http.post("/api/doctors/search-keyword", {
+      searchType: "orders",
+      searchByKeyword,
+    });
+
+    return normalizeOrderSummaryItems(
+      unwrapList<Record<string, unknown>>(data)
+    );
+  },
+
+  /**
+   * 更新医生端搜索历史记录。
+   */
+  async updateSearchHistory(searchText: string): Promise<void> {
+    await http.post("/api/doctors/search-history", { searchText });
   },
 
   /**

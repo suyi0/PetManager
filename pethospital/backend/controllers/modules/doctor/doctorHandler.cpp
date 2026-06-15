@@ -5,6 +5,14 @@
 #include <unordered_map>
 #include <vector>
 
+namespace
+{
+    bool isValidDoctorReservationStatus(const std::string &status)
+    {
+        return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
+    }
+}
+
 crow::response doctorHandler::getDoctor(const crow::request &req)
 {
     try
@@ -40,7 +48,6 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
 
 crow::response doctorHandler::getDutyStatus(const crow::request &req, int userId)
 {
@@ -87,15 +94,6 @@ crow::response doctorHandler::getDutyStatus(const crow::request &req, int userId
     }
 }
 
-
-namespace
-{
-bool isValidDoctorReservationStatus(const std::string &status)
-{
-    return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
-}
-}
-
 crow::response doctorHandler::updateReservationStatus(const crow::request &req, int doctorId, int reservationId)
 {
     try
@@ -126,9 +124,9 @@ crow::response doctorHandler::updateReservationStatus(const crow::request &req, 
 
         const bool isBoss = RoleTypeUtils::userHasBossRole(dbManager, doctorId);
         mysqlx::SqlResult reservationResult = dbManager->getSession()
-                                                   ->sql("SELECT doctor_id FROM reaservations WHERE id = ? LIMIT 1")
-                                                   .bind(reservationId)
-                                                   .execute();
+                                                  ->sql("SELECT doctor_id FROM reservations WHERE id = ? LIMIT 1")
+                                                  .bind(reservationId)
+                                                  .execute();
         auto reservationRow = reservationResult.fetchOne();
         if (!reservationRow)
         {
@@ -142,10 +140,10 @@ crow::response doctorHandler::updateReservationStatus(const crow::request &req, 
         }
 
         mysqlx::SqlResult updateResult = dbManager->getSession()
-                                            ->sql("UPDATE reaservations SET status = ? WHERE id = ?")
-                                            .bind(status)
-                                            .bind(reservationId)
-                                            .execute();
+                                             ->sql("UPDATE reservations SET status = ? WHERE id = ?")
+                                             .bind(status)
+                                             .bind(reservationId)
+                                             .execute();
 
         if (updateResult.getAffectedItemsCount() == 0)
         {
@@ -163,7 +161,6 @@ crow::response doctorHandler::updateReservationStatus(const crow::request &req, 
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
 
 crow::response doctorHandler::createOrderRecord(const crow::request &req, int doctorId)
 {
@@ -258,7 +255,6 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
     }
 }
 
-
 // 医生端获取用户列表，支持根据姓名或手机号搜索，并返回用户的基本信息和宠物信息
 crow::response doctorHandler::getUserList(const crow::request &req, const std::string data, const std::string &identifier)
 {
@@ -268,7 +264,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         {
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
- 
+
         if (data.empty())
         {
             return ResponseHelper::validation(req, "搜索关键词不能为空");
@@ -323,7 +319,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
 
         nlohmann::json response = nlohmann::json::array();
         std::unordered_map<int, std::size_t> userIndexById; // 无序哈希表，作用快速根据用户ID找到对应的用户在响应数组中的位置
-        std::vector<int> userIds;   // 存储用户ID列表，方便后续查询宠物信息
+        std::vector<int> userIds;                           // 存储用户ID列表，方便后续查询宠物信息
         for (auto row : result)
         {
             const int userId = row[0].get<int>();
@@ -338,14 +334,14 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
             user["pets"] = nlohmann::json::array();
 
             response.push_back(user);
-            userIndexById[userId] = response.size() - 1;    // 记录用户ID与响应数组索引的映射关系
-            userIds.push_back(userId);  // 搜集用户ID
+            userIndexById[userId] = response.size() - 1; // 记录用户ID与响应数组索引的映射关系
+            userIds.push_back(userId);                   // 搜集用户ID
         }
 
         // 根据用户ID列表批量查询宠物信息，避免在循环内对每个用户单独查询造成的性能问题
         if (!userIds.empty())
         {
-            std::string placeholders;   // 用于构建SQL查询中的占位符字符串，例如 "?, ?, ?" 以匹配用户ID列表的长度，以便一次性查询20个用户的全部相关宠物信息
+            std::string placeholders; // 用于构建SQL查询中的占位符字符串，例如 "?, ?, ?" 以匹配用户ID列表的长度，以便一次性查询20个用户的全部相关宠物信息
             for (std::size_t index = 0; index < userIds.size(); ++index)
             {
                 placeholders += index == 0 ? "?" : ", ?";
@@ -354,8 +350,9 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
             auto petQuery = dbManager->getSession()
                                 ->sql("SELECT id, user_id, COALESCE(pet_name, '') "
                                       "FROM pets "
-                                      "WHERE user_id IN (" + placeholders + ") AND is_deleted = 0 "
-                                      "ORDER BY user_id ASC, created_at ASC, id ASC");
+                                      "WHERE user_id IN (" +
+                                      placeholders + ") AND is_deleted = 0 "
+                                                     "ORDER BY user_id ASC, created_at ASC, id ASC");
 
             for (const int userId : userIds)
             {
@@ -389,7 +386,6 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
 
 // 医生端获取用户详细档案信息，包括基本信息、宠物信息和订单信息
 crow::response doctorHandler::getUserProfiles(const crow::request &req, int userId)
@@ -442,7 +438,7 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
 
         if (!userIds.empty())
         {
-            std::string placeholders;   // 用于构建SQL查询中的占位符字符串，例如 "?, ?, ?" 以匹配用户ID列表的长度，以便一次性查询20个用户的全部相关宠物信息
+            std::string placeholders; // 用于构建SQL查询中的占位符字符串，例如 "?, ?, ?" 以匹配用户ID列表的长度，以便一次性查询20个用户的全部相关宠物信息
             for (std::size_t index = 0; index < userIds.size(); ++index)
             {
                 placeholders += index == 0 ? "?" : ", ?";
@@ -452,18 +448,20 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
                                 ->sql("SELECT id, user_id, COALESCE(pet_name, ''), COALESCE(pet_type, ''), "
                                       "COALESCE(pet_sex, '') "
                                       "FROM pets "
-                                      "WHERE user_id IN (" + placeholders + ") AND is_deleted = 0 "
-                                      "ORDER BY user_id ASC, created_at ASC, id ASC");
+                                      "WHERE user_id IN (" +
+                                      placeholders + ") AND is_deleted = 0 "
+                                                     "ORDER BY user_id ASC, created_at ASC, id ASC");
 
             auto orderQuery = dbManager->getSession()
-                                    ->sql("SELECT o.id, o.owner_id, COALESCE(p.pet_name, ''), COALESCE(doctor.name, ''), "
-                                          "COALESCE(o.order_type, ''), COALESCE(o.order_data, ''), "
-                                          "COALESCE(o.order_status, '待付款'), COALESCE(o.order_totalprice, 0.0) "
-                                          "FROM orders AS o "
-                                          "LEFT JOIN pets AS p ON o.pet_id = p.id "
-                                          "LEFT JOIN users AS doctor ON doctor.id = o.doctor_id "
-                                          "WHERE o.owner_id IN (" + placeholders + ") "
-                                          "ORDER BY o.created_at DESC, o.id DESC");
+                                  ->sql("SELECT o.id, o.owner_id, COALESCE(p.pet_name, ''), COALESCE(doctor.name, ''), "
+                                        "COALESCE(o.order_type, ''), COALESCE(o.order_data, ''), "
+                                        "COALESCE(o.order_status, '待付款'), COALESCE(o.order_totalprice, 0.0) "
+                                        "FROM orders AS o "
+                                        "LEFT JOIN pets AS p ON o.pet_id = p.id "
+                                        "LEFT JOIN users AS doctor ON doctor.id = o.doctor_id "
+                                        "WHERE o.owner_id IN (" +
+                                        placeholders + ") "
+                                                       "ORDER BY o.created_at DESC, o.id DESC");
 
             for (const int userId : userIds)
             {
@@ -493,7 +491,7 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
                 response[userIndexIt->second]["pets"].push_back(pet);
             }
 
-            for(auto row : orderResult)
+            for (auto row : orderResult)
             {
                 const int ownerId = row[1].get<int>();
                 auto userIndexIt = userIndexById.find(ownerId);
@@ -523,7 +521,6 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
 
 crow::response doctorHandler::handleDutyAction(const crow::request &req, int userId, bool requireDoctorId)
 {
@@ -557,7 +554,6 @@ crow::response doctorHandler::handleDutyAction(const crow::request &req, int use
 
     return ResponseHelper::error(req, "status 参数无效，仅支持 online 或 offline");
 }
-
 
 crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
 {
@@ -642,7 +638,6 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
     }
 }
 
-
 crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId)
 {
     try
@@ -706,7 +701,6 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
 
 nlohmann::json doctorHandler::getOrderData(const int &orderId)
 {

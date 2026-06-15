@@ -208,7 +208,7 @@ bool shouldAutoMigrateOnlineDoctorsForeignKeys()
 bool shouldAutoMigrateReservationsForeignKeys()
 {
     return shouldAutoMigrateForeignKeys() ||
-           Common::isTruthyEnv(std::getenv("DB_AUTO_MIGRATE_REASERVATIONS_FOREIGN_KEYS"));
+           Common::isTruthyEnv(std::getenv("DB_AUTO_MIGRATE_RESERVATIONS_FOREIGN_KEYS"));
 }
 
 bool shouldAutoMigratePetsForeignKeys()
@@ -270,27 +270,27 @@ void migrateOnlineDoctors(DatabaseManagerInterface &database_manager)
 
 void migrateReservations(DatabaseManagerInterface &database_manager)
 {
-    Common::addColumnIfNotExists(database_manager, "reaservations", "pet_id", "INT NOT NULL");
-    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_userId_creationTime", {"user_id", "created_at"});
-    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_userId_date", {"user_id", "date"});
-    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_doctorId_date_slot", {"doctor_id", "date", "time_slot"});
-    addCompositeIndexIfNotExists(database_manager, "reaservations", "idx_petId_date", {"pet_id", "date"});
+    Common::addColumnIfNotExists(database_manager, "reservations", "pet_id", "INT NOT NULL");
+    addCompositeIndexIfNotExists(database_manager, "reservations", "idx_userId_creationTime", {"user_id", "created_at"});
+    addCompositeIndexIfNotExists(database_manager, "reservations", "idx_userId_date", {"user_id", "date"});
+    addCompositeIndexIfNotExists(database_manager, "reservations", "idx_doctorId_date_slot", {"doctor_id", "date", "time_slot"});
+    addCompositeIndexIfNotExists(database_manager, "reservations", "idx_petId_date", {"pet_id", "date"});
 
     migrateForeignKeyIfEnabled(
         database_manager,
-        {"reaservations", "fk_user_id", "user_id", "users", "id", "CASCADE"},
+        {"reservations", "fk_user_id", "user_id", "users", "id", "CASCADE"},
         shouldAutoMigrateReservationsForeignKeys(),
-        "DB_AUTO_MIGRATE_REASERVATIONS_FOREIGN_KEYS");
+        "DB_AUTO_MIGRATE_RESERVATIONS_FOREIGN_KEYS");
     migrateForeignKeyIfEnabled(
         database_manager,
-        {"reaservations", "fk_doctor_id", "doctor_id", "users", "id", "CASCADE"},
+        {"reservations", "fk_doctor_id", "doctor_id", "users", "id", "CASCADE"},
         shouldAutoMigrateReservationsForeignKeys(),
-        "DB_AUTO_MIGRATE_REASERVATIONS_FOREIGN_KEYS");
+        "DB_AUTO_MIGRATE_RESERVATIONS_FOREIGN_KEYS");
     migrateForeignKeyIfEnabled(
         database_manager,
-        {"reaservations", "fk_pet_id", "pet_id", "pets", "id", "CASCADE"},
+        {"reservations", "fk_pet_id", "pet_id", "pets", "id", "CASCADE"},
         shouldAutoMigrateReservationsForeignKeys(),
-        "DB_AUTO_MIGRATE_REASERVATIONS_FOREIGN_KEYS");
+        "DB_AUTO_MIGRATE_RESERVATIONS_FOREIGN_KEYS");
 }
 
 void migratePets(DatabaseManagerInterface &database_manager)

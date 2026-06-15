@@ -17,6 +17,7 @@
       </div>
 
       <div class="search-bar">
+        <span class="search-type">reservations</span>
         <label class="search-field">
           <span class="search-field__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -39,6 +40,7 @@
             v-model.trim="searchKeyword"
             type="text"
             placeholder="输入宠物名、医生名或预约编号"
+            @keyup.enter="searchReservations"
           />
         </label>
         <div class="search-meta">
@@ -49,9 +51,17 @@
             v-if="searchKeyword"
             type="button"
             class="search-meta__reset"
-            @click="searchKeyword = ''"
+            @click="resetReservationSearch"
           >
             清空
+          </button>
+          <button
+            type="button"
+            class="search-meta__submit"
+            :disabled="searchLoading"
+            @click="searchReservations"
+          >
+            {{ searchLoading ? "搜索中" : "搜索" }}
           </button>
         </div>
       </div>
@@ -205,6 +215,11 @@ import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
 import AsyncViewState from "@/shared/components/AsyncViewState.vue";
+import { doctorApi } from "@/modules/doctor/api/doctorApi";
+import {
+  readOrderSearchHistory,
+  saveOrderSearchKeyword,
+} from "@/modules/user/utils/userPreferenceStorage";
 import {
   ReservationItem,
   ReservationSummaryItem,
@@ -221,6 +236,9 @@ export default defineComponent({
     const openReservationDetail = ref(false);
     const selectedReservationId = ref<number | null>(null);
     const checkInLoading = ref(false);
+    const searchLoading = ref(false);
+    const searchResults = ref<ReservationSummaryItem[] | null>(null);
+    const searchHistory = ref<Array<{ id: number; pet_name: string }>>([]);
     const listErrorMessage = ref("");
     const detailErrorMessage = ref("");
     const items = computed<ReservationSummaryItem[]>(
@@ -240,37 +258,16 @@ export default defineComponent({
         ? store.state.doctor.currentReservationDetail
         : null
     );
-    const normalizedSearchKeyword = computed(() =>
-      searchKeyword.value.trim().toLowerCase()
-    );
-
-    const filteredItems = computed(() => {
-      const keyword = normalizedSearchKeyword.value;
-
-      if (!keyword) {
-        return items.value;
-      }
-
-      return items.value.filter((item) => {
-        return [
-          String(item.id),
-          item.pet_name,
-          item.doctor_name,
-          item.reservation_type,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(keyword);
-      });
-    });
+    const normalizedSearchKeyword = computed(() => searchKeyword.value.trim());
+    const displayItems = computed(() => searchResults.value ?? items.value);
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredItems.value.length / pageSize))
+      Math.max(1, Math.ceil(displayItems.value.length / pageSize))
     );
 
     const visibleItems = computed(() => {
       const start = (page.value - 1) * pageSize;
-      return filteredItems.value.slice(start, start + pageSize);
+      return displayItems.value.slice(start, start + pageSize);
     });
 
     const placeholderCards = computed(() =>
@@ -287,7 +284,7 @@ export default defineComponent({
         return `共 ${items.value.length} 条预约记录`;
       }
 
-      return `匹配到 ${filteredItems.value.length} 条预约记录`;
+      return `reservations · 匹配到 ${displayItems.value.length} 条预约记录`;
     });
 
     const emptyStateText = computed(() =>
@@ -322,12 +319,56 @@ export default defineComponent({
       listErrorMessage.value = "";
       try {
         await store.dispatch("doctor/ensureReservations", { force: true });
+        searchResults.value = null;
       } catch (error) {
         listErrorMessage.value = getHttpErrorMessage(
           error,
           "预约记录加载失败，请稍后重试"
         );
       }
+    }
+
+    async function searchReservations() {
+      const keyword = normalizedSearchKeyword.value;
+      if (!keyword) {
+        searchResults.value = null;
+        return;
+      }
+
+      listErrorMessage.value = "";
+      searchLoading.value = true;
+      try {
+        searchResults.value = await doctorApi.searchReservationSummaries(
+          keyword
+        );
+        await doctorApi.updateSearchHistory(keyword);
+        searchHistory.value = saveOrderSearchKeyword(
+          searchHistory.value,
+          keyword,
+          (nextKeyword) => ({
+            id: Date.now(),
+            pet_name: nextKeyword,
+          }),
+          (item) => item.pet_name,
+          15,
+          "doctor",
+          "reservations"
+        );
+        page.value = 1;
+      } catch (error) {
+        listErrorMessage.value = getHttpErrorMessage(
+          error,
+          "预约记录搜索失败，请稍后重试"
+        );
+      } finally {
+        searchLoading.value = false;
+      }
+    }
+
+    function resetReservationSearch() {
+      searchKeyword.value = "";
+      searchResults.value = null;
+      page.value = 1;
     }
 
     async function loadReservationDetail(reservationId: number) {
@@ -388,9 +429,13 @@ export default defineComponent({
 
     watch(searchKeyword, () => {
       page.value = 1;
+      if (!normalizedSearchKeyword.value) {
+        searchResults.value = null;
+      }
     });
 
     onMounted(() => {
+      searchHistory.value = readOrderSearchHistory("doctor", "reservations");
       void loadReservations();
     });
 
@@ -400,6 +445,7 @@ export default defineComponent({
       totalPages,
       listLoading,
       detailLoading,
+      searchLoading,
       listErrorMessage,
       detailErrorMessage,
       visibleItems,
@@ -411,6 +457,8 @@ export default defineComponent({
       checkInDisabled,
       checkInButtonText,
       loadReservations,
+      searchReservations,
+      resetReservationSearch,
       retryReservationDetail,
       selectReservation,
       closeReservation,
@@ -485,6 +533,16 @@ export default defineComponent({
   border: 1px solid rgba(163, 192, 184, 0.24);
 }
 
+.search-type {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(41, 86, 90, 0.1);
+  color: #29565a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .search-field {
   display: flex;
   align-items: center;
@@ -543,6 +601,11 @@ export default defineComponent({
   background: transparent;
   color: #355c5f;
   box-shadow: none;
+}
+
+.search-meta__submit {
+  padding: 9px 14px;
+  border-radius: 14px;
 }
 
 button {

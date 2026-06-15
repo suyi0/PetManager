@@ -9,10 +9,11 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
     {
         return;
     }
-    
+
     // 获取医生本人信息路由.
-    CROW_ROUTE(app,"/api/doctors/profile")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
+    CROW_ROUTE(app, "/api/doctors/profile")
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
                 int userId = -1;
                 try
                 {
@@ -31,12 +32,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取医生信息", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取医生信息", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取医生信息", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 获取用户列表路由.
-    CROW_ROUTE(app,"/api/doctors/user-summaries")
-            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
+    CROW_ROUTE(app, "/api/doctors/user-summaries")
+        .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
                 int userId = -1;
                 try
                 {
@@ -66,12 +67,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取用户列表", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取用户列表", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取用户列表", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 获取用户档案信息路由.
     CROW_ROUTE(app, "/api/doctors/user-profiles/<int>")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int goalUserId) {
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res, int goalUserId)
+                                                                   {
                 int userId = -1;
                 try
                 {
@@ -91,12 +92,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取用户档案", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取用户档案", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取用户档案", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 获取值班状态路由.
-    CROW_ROUTE(app,"/api/doctors/duty-status")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res){
+    CROW_ROUTE(app, "/api/doctors/duty-status")
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
                 int userId = -1;
                 try
                 {
@@ -115,12 +116,11 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取值班状态", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取值班状态", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取值班状态", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 获取预约摘要路由.
     CROW_ROUTE(app, "/api/doctors/reservation-summaries")
-            .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                    {
                 int userId = -1;
                 try
@@ -142,13 +142,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取预约摘要", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::operation_failed(req, "Failed to fetch reservation summary", e.what());
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取预约摘要", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
-    
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取预约摘要", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
     // 获取预约订单信息路由.
     CROW_ROUTE(app, "/api/doctors/reservations/<int>/information")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int reservationId)
-                                                                       {
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res, int reservationId)
+                                                                   {
                 int userId = -1;
                 try
                 {
@@ -168,12 +167,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取预约订单", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取预约订单", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取预约订单", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 更新预约状态路由.
     CROW_ROUTE(app, "/api/doctors/reservations/<int>/statuses")
-            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int reservationId) {
+        .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res, int reservationId)
+                                                                    {
                 int userId = -1;
                 try
                 {
@@ -193,12 +192,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "更新预约状态", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "更新预约状态", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "更新预约状态", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 创建诊单记录路由.
     CROW_ROUTE(app, "/api/doctors/order-records")
-            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res) {
+        .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
                 int userId = -1;
                 try
                 {
@@ -218,12 +217,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "创建诊单记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "创建诊单记录", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "创建诊单记录", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 获取诊单摘要路由.
     CROW_ROUTE(app, "/api/doctors/order-summaries")
-            .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res) {
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
                 int userId = -1;
                 try
                 {
@@ -243,12 +242,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取诊单摘要", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取诊单摘要", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取诊单摘要", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 获取诊单详情路由.
     CROW_ROUTE(app, "/api/doctors/orders/<int>/information")
-        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request& req, crow::response& res, int orderId) {
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res, int orderId)
+                                                                   {
             int userId = -1;
             try
             {
@@ -268,8 +267,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                 OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取诊单详情", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::system_error(req);
             }
-            OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取诊单详情", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
-            });
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取诊单详情", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 医生端管理指定用户的宠物档案路由
     CROW_ROUTE(app, "/api/doctors/user-profiles/<int>/pet-profiles")
@@ -331,7 +329,8 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
 
     // 医生打卡接口
     CROW_ROUTE(app, "/api/doctors/duty-status-changes")
-            .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager] (const crow::request& req, crow::response& res) {
+        .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
                 int userId = -1;
                 try{
                     userId = isValidMedicalStaffToken(req, res, dbManager);
@@ -349,8 +348,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     OperationLogger::LogExceptionOperation(dbManager, req, "医生", "更新值班状态", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "更新值班状态", userId > 0 ? std::optional<int>(userId) : std::nullopt);
-            });
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "更新值班状态", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 修改订单
     CROW_ROUTE(app, "/api/doctors/orders/<int>/changes")
@@ -379,6 +377,66 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
 
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "订单", "修改订单", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    // 搜索关键字获取对应记录
+    CROW_ROUTE(app, "/api/doctors/search-keyword")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
+            int userId = -1;
+            try
+            {
+                userId = isValidMedicalStaffToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "搜索关键字获取对应记录");
+                    return;
+                }
+                
+                searchCommonHandler handler(dbManager);
+                crow::response response = handler.searchByKeyword(req, userId);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", "搜索关键字获取对应记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "搜索关键字获取对应记录", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    // 搜索历史记录
+    CROW_ROUTE(app, "/api/doctors/search-history")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                                           {
+            if (req.method == crow::HTTPMethod::Options)
+            {
+                res.code = 204;
+                return;
+            }
+
+            int userId = -1;
+            const bool isUpdate = req.method == crow::HTTPMethod::Post;
+            const std::string actionName = isUpdate ? "更新搜索历史记录" : "获取搜索历史记录";
+            try
+            {
+                userId = isValidMedicalStaffToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", actionName);
+                    return;
+                }
+                
+                searchCommonHandler handler(dbManager);
+                crow::response response = isUpdate ? handler.searchDataUpdate(req, userId) : handler.getSearchHistoryData(req, userId);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", actionName, e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", actionName, userId > 0 ? std::optional<int>(userId) : std::nullopt, isUpdate); });
 
     routes_setup = true;
 }

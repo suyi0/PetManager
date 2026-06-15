@@ -29,15 +29,24 @@
           class="toolbar-search"
           :class="{ 'toolbar-search--open': openSearch }"
         >
-          <span>搜索</span>
+          <span>{{ currentSearchType }}</span>
           <input
             v-model.trim="searchQuery"
             type="text"
-            placeholder="按名称搜索订单或预约"
+            :placeholder="searchPlaceholder"
             @keyup.enter="confirmSearch"
             @focus="openSearch = true"
             @blur="handleInputBlur"
           />
+          <button
+            type="button"
+            class="toolbar-search__button"
+            :disabled="searchLoading"
+            @mousedown.prevent
+            @click="confirmSearch"
+          >
+            {{ searchLoading ? "搜索中" : "搜索" }}
+          </button>
         </div>
 
         <div v-if="openSearch" class="search-popover">
@@ -179,11 +188,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useStore } from "vuex";
 import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AsyncViewState from "@/shared/components/AsyncViewState.vue";
+import { orderApi, reservationApi } from "@/modules/user/api/userApi";
 import { useRoute, useRouter } from "vue-router";
 import {
   clearOrderSearchHistory as clearStoredOrderSearchHistory,
@@ -223,6 +233,8 @@ const route = useRoute();
 const activeTab = ref<"order" | "reservation">("order");
 const editTab = ref(false);
 const searchQuery = ref("");
+const searchLoading = ref(false);
+const searchResults = ref<SearchableOrderItem[] | null>(null);
 const openSearch = ref(false);
 const homeOrderTopRef = ref<HTMLDivElement | null>(null);
 const choiceActive = ref<Record<number, boolean>>({});
@@ -246,8 +258,10 @@ const reservationOrder = computed<SearchableOrderItem[]>(
   () => store.state.userPortal.reservationRecords
 );
 
-const currentSource = computed(() =>
-  activeTab.value === "order" ? orders.value : reservationOrder.value
+const currentSource = computed(
+  () =>
+    searchResults.value ??
+    (activeTab.value === "order" ? orders.value : reservationOrder.value)
 );
 
 const pageLoading = computed(() =>
@@ -257,13 +271,8 @@ const pageLoading = computed(() =>
   )
 );
 
-const visibleItems = computed(() => {
-  const keyword = searchQuery.value.trim().toLowerCase();
-  const rows = currentSource.value.filter((item) =>
-    keyword ? getItemDisplayName(item).toLowerCase().includes(keyword) : true
-  );
-
-  return [...rows].sort((a, b) => {
+const visibleItems = computed(() =>
+  [...currentSource.value].sort((a, b) => {
     const left =
       sortKey.value === "price"
         ? getItemPrice(a) || 0
@@ -273,26 +282,48 @@ const visibleItems = computed(() => {
         ? getItemPrice(b) || 0
         : getItemSortTimeValue(b);
     return sortDirection.value === "asc" ? left - right : right - left;
-  });
-});
+  })
+);
 
 const selectedCount = computed(
   () => Object.values(choiceActive.value).filter(Boolean).length
 );
 
 const sortLabel = computed(() => (sortDirection.value === "asc" ? "↑" : "↓"));
+const currentSearchType = computed(() =>
+  activeTab.value === "order" ? "orders" : "reservations"
+);
+const searchPlaceholder = computed(() =>
+  activeTab.value === "order"
+    ? "按诊单编号、宠物名、医生名或订单状态搜索"
+    : "按预约编号、宠物名、医生名、日期或预约状态搜索"
+);
 
 const switchTab = (tab: "order" | "reservation") => {
   activeTab.value = tab;
   searchQuery.value = "";
+  searchResults.value = null;
   openSearch.value = false;
   editTab.value = false;
   choiceActive.value = {};
 };
 
-const confirmSearch = () => {
+const confirmSearch = async () => {
   const keyword = searchQuery.value.trim();
-  if (keyword) {
+  if (!keyword) {
+    searchResults.value = null;
+    openSearch.value = false;
+    return;
+  }
+
+  searchLoading.value = true;
+  pageErrorMessage.value = "";
+  try {
+    searchResults.value =
+      activeTab.value === "order"
+        ? await orderApi.searchOrderSummaries(keyword)
+        : await reservationApi.searchReservationSummaries(keyword);
+    await orderApi.updateSearchHistory(keyword);
     historyOrders.value = saveOrderSearchKeyword(
       historyOrders.value,
       keyword,
@@ -301,20 +332,28 @@ const confirmSearch = () => {
         pet_name: nextKeyword,
       }),
       getItemDisplayName,
-      MAX_HISTORY_COUNT
+      MAX_HISTORY_COUNT,
+      "user",
+      currentSearchType.value
     );
+    openSearch.value = false;
+  } catch (error) {
+    pageErrorMessage.value = getHttpErrorMessage(error, "搜索失败，请稍后重试");
+  } finally {
+    searchLoading.value = false;
   }
-
-  openSearch.value = false;
 };
 
 const clearSearchHistory = () => {
   historyOrders.value = [];
-  clearStoredOrderSearchHistory();
+  clearStoredOrderSearchHistory("user", currentSearchType.value);
 };
 
 const loadSearchHistory = () => {
-  historyOrders.value = readOrderSearchHistory<SearchableOrderItem>();
+  historyOrders.value = readOrderSearchHistory<SearchableOrderItem>(
+    "user",
+    currentSearchType.value
+  );
 };
 
 const handleClickOutside = (event: MouseEvent) => {
@@ -344,7 +383,7 @@ const isSelected = (id: number) => Boolean(choiceActive.value[id]);
 
 const buttonClick = (name: string) => {
   searchQuery.value = name;
-  confirmSearch();
+  void confirmSearch();
 };
 
 const changeSort = (type: SortKey) => {
@@ -408,6 +447,7 @@ const loadOrderPageData = async () => {
   pageErrorMessage.value = "";
   try {
     await store.dispatch("userPortal/ensureOrderPageData", { force: true });
+    searchResults.value = null;
   } catch (error) {
     pageErrorMessage.value = getHttpErrorMessage(
       error,
@@ -415,6 +455,16 @@ const loadOrderPageData = async () => {
     );
   }
 };
+
+watch(searchQuery, () => {
+  if (!searchQuery.value.trim()) {
+    searchResults.value = null;
+  }
+});
+
+watch(activeTab, () => {
+  loadSearchHistory();
+});
 
 const goToDetail = (item: SearchableOrderItem) => {
   if (editTab.value) {
@@ -612,7 +662,7 @@ onBeforeUnmount(() => {
 
 .toolbar-search {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   height: 56px;
   max-height: 56px;
@@ -624,9 +674,11 @@ onBeforeUnmount(() => {
 }
 
 .toolbar-search span {
+  min-width: 118px;
+  padding: 0 14px;
   text-align: center;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   color: #187f7d;
 }
 
@@ -641,6 +693,23 @@ onBeforeUnmount(() => {
   font-size: 16px;
   line-height: 46px;
   outline: none;
+}
+
+.toolbar-search__button {
+  height: 42px;
+  margin-right: 8px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #268f90, #156b6b);
+  color: #fffdf7;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.toolbar-search__button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }
 
 .search-popover {

@@ -136,6 +136,21 @@ const fetchReservationsSummaryResponse = () =>
   http.get("/api/users/me/reservations");
 
 /**
+ * 按关键词搜索当前用户的订单或预约摘要。
+ */
+const fetchSearchKeywordResponse = (
+  searchType: "orders" | "reservations",
+  searchByKeyword: string
+) =>
+  http.post("/api/users/me/search-keyword", {
+    searchType,
+    searchByKeyword,
+  });
+
+const updateSearchHistoryResponse = (searchText: string) =>
+  http.post("/api/users/me/search-history", { searchText });
+
+/**
  * 请求当前选中的完整预约记录。
  */
 const fetchReservationInformationResponse = (reservationId: number) =>
@@ -195,6 +210,25 @@ export const orderApi = {
     const response = await fetchGetOrderInformationResponse(orderId);
     return unwrapOrderDetail(response);
   },
+
+  /**
+   * 按关键词搜索订单摘要，searchType 固定为 orders。
+   */
+  async searchOrderSummaries(searchByKeyword: string): Promise<OrderSummary[]> {
+    const response = await fetchSearchKeywordResponse(
+      "orders",
+      searchByKeyword
+    );
+
+    return unwrapOrderList(response);
+  },
+
+  /**
+   * 更新用户搜索历史记录。
+   */
+  async updateSearchHistory(searchText: string): Promise<void> {
+    await updateSearchHistoryResponse(searchText);
+  },
 };
 
 /**
@@ -239,6 +273,22 @@ export const reservationApi = {
    */
   async getReservationsSummary(): Promise<ReservationSummary[]> {
     const response = await fetchReservationsSummaryResponse();
+    return normalizeReservationSummaries(
+      unwrapListData<ReservationSummary>(response)
+    );
+  },
+
+  /**
+   * 按关键词搜索预约摘要，searchType 固定为 reservations。
+   */
+  async searchReservationSummaries(
+    searchByKeyword: string
+  ): Promise<ReservationSummary[]> {
+    const response = await fetchSearchKeywordResponse(
+      "reservations",
+      searchByKeyword
+    );
+
     return normalizeReservationSummaries(
       unwrapListData<ReservationSummary>(response)
     );

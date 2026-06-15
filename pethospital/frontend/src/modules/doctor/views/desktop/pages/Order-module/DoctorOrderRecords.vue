@@ -29,6 +29,54 @@
       </button>
     </div>
 
+    <div class="search-bar">
+      <span class="search-type">orders</span>
+      <label class="search-field">
+        <span class="search-field__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle
+              cx="11"
+              cy="11"
+              r="6.5"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M16 16L21 21"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </span>
+        <input
+          v-model.trim="searchKeyword"
+          type="text"
+          placeholder="输入诊单编号、宠物名、医生名或订单状态"
+          @keyup.enter="searchOrderRecords"
+        />
+      </label>
+      <div class="search-meta">
+        <span class="search-meta__count">{{ searchSummary }}</span>
+        <button
+          v-if="searchKeyword"
+          type="button"
+          class="search-meta__reset"
+          @click="resetOrderSearch"
+        >
+          清空
+        </button>
+        <button
+          type="button"
+          class="search-meta__submit"
+          :disabled="searchLoading"
+          @click="searchOrderRecords"
+        >
+          {{ searchLoading ? "搜索中" : "搜索" }}
+        </button>
+      </div>
+    </div>
+
     <AsyncViewState
       v-if="isLoading || errorMessage"
       :loading="isLoading"
@@ -78,7 +126,7 @@
             <td colspan="6"></td>
           </tr>
           <tr v-if="visibleItems.length === 0">
-            <td colspan="6" class="empty-cell">当前分类下暂无订单记录。</td>
+            <td colspan="6" class="empty-cell">{{ emptyStateText }}</td>
           </tr>
         </tbody>
       </table>
@@ -94,6 +142,11 @@ import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
 import AsyncViewState from "@/shared/components/AsyncViewState.vue";
+import { doctorApi } from "@/modules/doctor/api/doctorApi";
+import {
+  readOrderSearchHistory,
+  saveOrderSearchKeyword,
+} from "@/modules/user/utils/userPreferenceStorage";
 import { OrderSummaryItem } from "@/modules/doctor/api/types";
 
 export default defineComponent({
@@ -104,6 +157,10 @@ export default defineComponent({
     const router = useRouter();
     const activeStatus = ref<"全部" | OrderSummaryItem["order_status"]>("全部");
     const page = ref(1);
+    const searchKeyword = ref("");
+    const searchLoading = ref(false);
+    const searchResults = ref<OrderSummaryItem[] | null>(null);
+    const searchHistory = ref<Array<{ id: number; pet_name: string }>>([]);
     const errorMessage = ref("");
     const pageSize = 10;
     const orderRecords = computed<OrderSummaryItem[]>(
@@ -119,6 +176,7 @@ export default defineComponent({
       errorMessage.value = "";
       try {
         await store.dispatch("doctor/ensureOrderRecords", { force: true });
+        searchResults.value = null;
       } catch (error) {
         errorMessage.value = getHttpErrorMessage(
           error,
@@ -135,7 +193,9 @@ export default defineComponent({
      * 按订单编号降序展示，确保新创建的订单摘要排在前面。
      */
     const items = computed(() =>
-      [...orderRecords.value].sort((a, b) => Number(b.id) - Number(a.id))
+      [...(searchResults.value ?? orderRecords.value)].sort(
+        (a, b) => Number(b.id) - Number(a.id)
+      )
     );
 
     /**
@@ -191,6 +251,22 @@ export default defineComponent({
       }));
     });
 
+    const normalizedSearchKeyword = computed(() => searchKeyword.value.trim());
+
+    const searchSummary = computed(() => {
+      if (!normalizedSearchKeyword.value) {
+        return `共 ${orderRecords.value.length} 条订单记录`;
+      }
+
+      return `orders · 匹配到 ${items.value.length} 条订单记录`;
+    });
+
+    const emptyStateText = computed(() =>
+      normalizedSearchKeyword.value
+        ? "没有找到符合关键词的订单，请检查诊单编号、宠物名、医生名或订单状态。"
+        : "当前分类下暂无订单记录。"
+    );
+
     const statusClassName = (status: OrderSummaryItem["order_status"]) => {
       if (status === "待付款") return "status-pill--pending";
       if (status === "已付款") return "status-pill--done";
@@ -204,8 +280,56 @@ export default defineComponent({
       });
     };
 
+    const searchOrderRecords = async () => {
+      const keyword = normalizedSearchKeyword.value;
+      if (!keyword) {
+        searchResults.value = null;
+        return;
+      }
+
+      errorMessage.value = "";
+      searchLoading.value = true;
+      try {
+        searchResults.value = await doctorApi.searchOrderSummaries(keyword);
+        await doctorApi.updateSearchHistory(keyword);
+        searchHistory.value = saveOrderSearchKeyword(
+          searchHistory.value,
+          keyword,
+          (nextKeyword) => ({
+            id: Date.now(),
+            pet_name: nextKeyword,
+          }),
+          (item) => item.pet_name,
+          15,
+          "doctor",
+          "orders"
+        );
+        page.value = 1;
+      } catch (error) {
+        errorMessage.value = getHttpErrorMessage(
+          error,
+          "订单记录搜索失败，请稍后重试"
+        );
+      } finally {
+        searchLoading.value = false;
+      }
+    };
+
+    const resetOrderSearch = () => {
+      searchKeyword.value = "";
+      searchResults.value = null;
+      page.value = 1;
+    };
+
     watch(activeStatus, () => {
       page.value = 1;
+    });
+
+    watch(searchKeyword, () => {
+      page.value = 1;
+      if (!normalizedSearchKeyword.value) {
+        searchResults.value = null;
+      }
     });
 
     watch(totalPages, (value) => {
@@ -215,21 +339,28 @@ export default defineComponent({
     });
 
     onMounted(() => {
+      searchHistory.value = readOrderSearchHistory("doctor", "orders");
       void loadOrderRecords();
     });
 
     return {
       activeStatus,
       page,
+      searchKeyword,
       totalPages,
       isLoading,
+      searchLoading,
       errorMessage,
       statusTabs,
+      searchSummary,
+      emptyStateText,
       visibleItems,
       pagedItems,
       placeholderRows,
       statusClassName,
       openOrderDetail,
+      searchOrderRecords,
+      resetOrderSearch,
       loadOrderRecords,
     };
   },
@@ -239,7 +370,7 @@ export default defineComponent({
 <style scoped>
 .panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   border: 1px solid rgba(157, 188, 178, 0.24);
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
@@ -280,6 +411,101 @@ export default defineComponent({
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: 22px;
+  background: radial-gradient(
+      circle at left top,
+      rgba(215, 233, 225, 0.72),
+      transparent 55%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(241, 249, 244, 0.88)
+    );
+  border: 1px solid rgba(163, 192, 184, 0.24);
+}
+
+.search-type {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(41, 86, 90, 0.1);
+  color: #29565a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.search-field__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #426260;
+  background: rgba(223, 238, 232, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(163, 192, 184, 0.2);
+}
+
+.search-field__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.search-field input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #173739;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.search-field input::placeholder {
+  color: #7d938d;
+}
+
+.search-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-meta__count {
+  font-size: 13px;
+  color: #5d7671;
+  white-space: nowrap;
+}
+
+.search-meta__reset {
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #355c5f;
+  box-shadow: none;
+}
+
+.search-meta__submit {
+  padding: 9px 14px;
+  border-radius: 14px;
 }
 
 .status-filter {

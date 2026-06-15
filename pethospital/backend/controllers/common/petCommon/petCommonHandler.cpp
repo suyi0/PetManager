@@ -28,16 +28,6 @@ namespace
             {"notes", safeString(9)},
         };
     }
-
-    std::string optionalString(const nlohmann::json &body, const std::string &key)
-    {
-        if (!body.contains(key) || body[key].is_null())
-        {
-            return "";
-        }
-
-        return body[key].is_string() ? body[key].get<std::string>() : body[key].dump();
-    }
 }
 
 crow::response petCommonHandler::createPetProfile(const crow::request &req, int userId)
@@ -50,9 +40,9 @@ crow::response petCommonHandler::createPetProfile(const crow::request &req, int 
         {
             return res;
         }
-        auto &body = request_body_opt.value();
+        auto &request_body = request_body_opt.value();
 
-        const std::string name = optionalString(body, "name");
+        const std::string name = getRequestString(request_body, "name");
         if (name.empty())
         {
             return ResponseHelper::validation(req, "宠物名称不能为空");
@@ -64,14 +54,14 @@ crow::response petCommonHandler::createPetProfile(const crow::request &req, int 
                                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                                              .bind(userId)
                                              .bind(name)
-                                             .bind(optionalString(body, "species"))
-                                             .bind(optionalString(body, "age"))
-                                             .bind(optionalString(body, "gender"))
-                                             .bind(optionalString(body, "breed"))
-                                             .bind(optionalString(body, "neutered"))
-                                             .bind(optionalString(body, "vaccineStatus"))
-                                             .bind(optionalString(body, "preference"))
-                                             .bind(optionalString(body, "notes"))
+                                             .bind(getRequestString(request_body, "species"))
+                                             .bind(getRequestString(request_body, "age"))
+                                             .bind(getRequestString(request_body, "gender"))
+                                             .bind(getRequestString(request_body, "breed"))
+                                             .bind(getRequestString(request_body, "neutered"))
+                                             .bind(getRequestString(request_body, "vaccineStatus"))
+                                             .bind(getRequestString(request_body, "preference"))
+                                             .bind(getRequestString(request_body, "notes"))
                                              .execute();
 
         const int petId = static_cast<int>(createResult.getAutoIncrementValue());
@@ -150,9 +140,9 @@ crow::response petCommonHandler::updatePetProfile(const crow::request &req, int 
         {
             return res;
         }
-        auto &body = request_body_opt.value();
+        auto &request_body = request_body_opt.value();
 
-        const std::string name = optionalString(body, "name");
+        const std::string name = getRequestString(request_body, "name");
         if (name.empty())
         {
             return ResponseHelper::validation(req, "宠物名称不能为空");
@@ -163,14 +153,14 @@ crow::response petCommonHandler::updatePetProfile(const crow::request &req, int 
                   "pet_neutered = ?, vaccine_status = ?, preference = ?, notes = ? "
                   "WHERE id = ? AND user_id = ? AND is_deleted = 0")
             .bind(name)
-            .bind(optionalString(body, "species"))
-            .bind(optionalString(body, "age"))
-            .bind(optionalString(body, "gender"))
-            .bind(optionalString(body, "breed"))
-            .bind(optionalString(body, "neutered"))
-            .bind(optionalString(body, "vaccineStatus"))
-            .bind(optionalString(body, "preference"))
-            .bind(optionalString(body, "notes"))
+            .bind(getRequestString(request_body, "species"))
+            .bind(getRequestString(request_body, "age"))
+            .bind(getRequestString(request_body, "gender"))
+            .bind(getRequestString(request_body, "breed"))
+            .bind(getRequestString(request_body, "neutered"))
+            .bind(getRequestString(request_body, "vaccineStatus"))
+            .bind(getRequestString(request_body, "preference"))
+            .bind(getRequestString(request_body, "notes"))
             .bind(petId, userId)
             .execute();
 

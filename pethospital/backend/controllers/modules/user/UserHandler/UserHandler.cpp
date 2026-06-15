@@ -1637,7 +1637,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                 }
 
                 mysqlx::SqlResult slotResult = dbManager->getSession()
-                                                   ->sql("SELECT id FROM reaservations "
+                                                   ->sql("SELECT id FROM reservations "
                                                          "WHERE doctor_id = ? AND date = ? AND time_slot = ? "
                                                          "AND COALESCE(status, '预约成功') NOT IN ('已取消', '预约失败') "
                                                          "LIMIT 1")
@@ -1649,7 +1649,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                 }
 
                 mysqlx::SqlResult insertResult = dbManager->getSession()
-                                                     ->sql("INSERT INTO reaservations (user_id, pet_id, doctor_id, reservation_type, date, time_slot, status) "
+                                                     ->sql("INSERT INTO reservations (user_id, pet_id, doctor_id, reservation_type, date, time_slot, status) "
                                                            "VALUES (?, ?, ?, ?, ?, ?, ?)")
                                                      .bind(user_id, pet_id, doctor_id, reservation_type, date, time_slot, status)
                                                      .execute();
@@ -1660,7 +1660,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                                                       ->sql("SELECT r.id, r.user_id, r.pet_id, r.doctor_id, COALESCE(p.pet_name, ''), "
                                                             "COALESCE(r.reservation_type, ''), CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), COALESCE(r.status, ''), "
                                                             "CAST(r.created_at AS CHAR) "
-                                                            "FROM reaservations AS r "
+                                                            "FROM reservations AS r "
                                                             "LEFT JOIN pets AS p ON r.pet_id = p.id "
                                                             "WHERE r.id = ? LIMIT 1")
                                                       .bind(reservationId)
@@ -1790,7 +1790,7 @@ crow::response userHandler::cancelReservation(const crow::request &req, int user
 
         // 验证用户和预约记录是否匹配
         mysqlx::SqlResult reservation_result = dbManager->getSession()
-                                                   ->sql("SELECT user_id FROM reaservations WHERE id = ? AND user_hidden = 0")
+                                                   ->sql("SELECT user_id FROM reservations WHERE id = ? AND is_deleted = 0")
                                                    .bind(reservationId)
                                                    .execute();
 
@@ -1804,7 +1804,7 @@ crow::response userHandler::cancelReservation(const crow::request &req, int user
         {
 
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("UPDATE reaservations SET status = ? WHERE id = ?")
+                                           ->sql("UPDATE reservations SET status = ? WHERE id = ?")
                                            .bind(status, reservationId)
                                            .execute();
 
@@ -1851,7 +1851,7 @@ crow::response userHandler::deleteReservation(const crow::request &req, int user
         }
 
         mysqlx::SqlResult reservation_result = dbManager->getSession()
-                                                   ->sql("SELECT user_id FROM reaservations WHERE id = ?")
+                                                   ->sql("SELECT user_id FROM reservations WHERE id = ?")
                                                    .bind(reservationId)
                                                    .execute();
 
@@ -1865,11 +1865,11 @@ crow::response userHandler::deleteReservation(const crow::request &req, int user
         if (reservation_row[0].get<int>() == userId) // 操作用户和预约记录用户匹配才允许删除
         {
 
-            // 用户侧删除只隐藏预约记录，医生端和管理端仍可查看历史记录。
+            // 用户侧删除采用软删除，历史记录仍保留在数据库中。
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("UPDATE reaservations "
-                                                 "SET user_hidden = 1, user_hidden_at = NOW(), hidden_by = ? "
-                                                 "WHERE id = ? AND user_id = ? AND user_hidden = 0")
+                                           ->sql("UPDATE reservations "
+                                                 "SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? "
+                                                 "WHERE id = ? AND user_id = ? AND is_deleted = 0")
                                            .bind(userId, reservationId, userId)
                                            .execute();
 
