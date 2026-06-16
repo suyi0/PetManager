@@ -210,7 +210,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
         }
 
         auto query = dbManager->getSession()->sql(sql);
-        if (!isBoss)
+        if ((searchType == "orders" || searchType == "reservations") && !isBoss)
         {
             query.bind(userId);
         }
@@ -219,11 +219,10 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
         {
             query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
         }
-        else
+        else if (searchType == "reservations")
         {
             query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
         }
-
         mysqlx::SqlResult result = query.execute();
 
         nlohmann::json data = nlohmann::json::array();
@@ -257,7 +256,6 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
                 data.push_back(searchResult);
             }
         }
-
         return ResponseHelper::success(req, data);
     }
     catch (const std::exception &e)

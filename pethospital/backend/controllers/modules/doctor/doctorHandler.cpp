@@ -255,7 +255,6 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
     }
 }
 
-// 医生端获取用户列表，支持根据姓名或手机号搜索，并返回用户的基本信息和宠物信息
 crow::response doctorHandler::getUserList(const crow::request &req, const std::string data, const std::string &identifier)
 {
     try
@@ -283,29 +282,20 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         }
         else if (identifier == "phone")
         {
-            std::string sql;
-            if (data.size() == 4)
-            {
-                sql =
-                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
-                    "FROM phones AS p "
-                    "JOIN users AS u ON p.user_id = u.id "
-                    "WHERE p.phone_lastfour = ? AND u.is_deleted = 0 "
-                    "ORDER BY u.name ASC "
-                    "LIMIT 20";
-            }
-            else
-            {
-                sql =
-                    "SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
-                    "FROM phones AS p "
-                    "JOIN users AS u ON p.user_id = u.id "
-                    "WHERE p.phone = ? AND u.is_deleted = 0 "
-                    "ORDER BY u.name ASC "
-                    "LIMIT 20";
-            }
+            const std::string phoneLike = "%" + data + "%";
+            result = dbManager->getSession()
+                         ->sql("SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
+                               "FROM users AS u "
+                               "LEFT JOIN phones AS p ON u.id = p.user_id "
+                               "WHERE u.is_deleted = 0 "
+                               "AND (COALESCE(u.phone, '') LIKE ? "
+                               "OR COALESCE(p.phone, '') LIKE ? "
+                               "OR COALESCE(p.phone_lastfour, '') LIKE ?) "
+                               "ORDER BY u.name ASC "
+                               "LIMIT 20")
+                         .bind(phoneLike, phoneLike, phoneLike)
+                         .execute();
 
-            result = dbManager->getSession()->sql(sql).bind(data).execute();
 
             if (result.count() == 0)
             {
@@ -386,6 +376,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         return ResponseHelper::system_error(req, e.what());
     }
 }
+
 
 // 医生端获取用户详细档案信息，包括基本信息、宠物信息和订单信息
 crow::response doctorHandler::getUserProfiles(const crow::request &req, int userId)

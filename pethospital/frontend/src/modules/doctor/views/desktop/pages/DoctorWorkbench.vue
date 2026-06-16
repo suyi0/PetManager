@@ -389,14 +389,6 @@ export default defineComponent({
       }
     };
 
-    const resolveSearchIdentifier = (keyword: string): "name" | "phone" => {
-      const digitKeyword = keyword.replace(/\D/g, "");
-
-      return digitKeyword.length >= 4 && digitKeyword === keyword
-        ? "phone"
-        : "name";
-    };
-
     const formatPetNames = (item: DoctorUserSummary) => {
       const petNames = item.pets
         .map((pet) => pet.pet_name)
@@ -418,10 +410,7 @@ export default defineComponent({
 
       searchLoading.value = true;
       try {
-        const users = await doctorApi.getUserList({
-          data: keyword,
-          identifier: resolveSearchIdentifier(keyword),
-        });
+        const users = await doctorApi.getUserList(keyword);
 
         if (requestId === searchRequestId) {
           searchResults.value = users;

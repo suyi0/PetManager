@@ -47,6 +47,7 @@ namespace DatabaseMigrations
 
         bool types_exists = false;
         bool phones_exists = false;
+        bool emails_exists = false;
         bool users_exists = false;
         bool address_exists = false;
         bool salary_exists = false;
@@ -75,6 +76,10 @@ namespace DatabaseMigrations
             else if (table_name == "phones")
             {
                 phones_exists = true;
+            }
+            else if (table_name == "emails")
+            {
+                emails_exists = true;
             }
             else if (table_name == "users")
             {
@@ -200,7 +205,6 @@ namespace DatabaseMigrations
                          "type_id INT NOT NULL, "
                          "name VARCHAR(255), "
                          "password VARCHAR(255), "
-                         "phone VARCHAR(20), "
                          "email VARCHAR(255), "
                          "birthday DATE, "
                          "head_image VARCHAR(255),"

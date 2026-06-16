@@ -156,6 +156,16 @@ const normalizeDoctorUserSummaries = (
       : [],
   }));
 
+const resolveDoctorUserSearchIdentifier = (
+  keyword: string
+): "name" | "phone" => {
+  const digitKeyword = keyword.replace(/\D/g, "");
+
+  return digitKeyword.length >= 4 && digitKeyword === keyword
+    ? "phone"
+    : "name";
+};
+
 /**
  * 将医生端用户详情接口返回的数据统一成页面直接使用的结构。
  */
@@ -305,13 +315,13 @@ export const doctorApi = {
   },
 
   /**
-   * 按用户名或手机号获取医生端用户摘要列表。
+   * 按关键词搜索医生端用户摘要列表。
    */
-  async getUserList(payload: {
-    data: string;
-    identifier: "name" | "phone";
-  }): Promise<DoctorUserSummary[]> {
-    const { data } = await http.post("/api/doctors/user-summaries", payload);
+  async getUserList(searchByKeyword: string): Promise<DoctorUserSummary[]> {
+    const { data } = await http.post("/api/doctors/user-summaries", {
+      data: searchByKeyword,
+      identifier: resolveDoctorUserSearchIdentifier(searchByKeyword),
+    });
 
     return normalizeDoctorUserSummaries(
       unwrapList<Record<string, unknown>>(data)
