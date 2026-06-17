@@ -40,7 +40,7 @@
               v-model.trim="keyword"
               type="text"
               class="online-search"
-              placeholder="搜索医生姓名 / 手机号 / 邮箱 / ID"
+              placeholder="搜索医生姓名 / 手机号 / 邮箱"
             />
             <button class="online-ghost" type="button" @click="refreshDoctors">
               刷新列表
@@ -232,12 +232,10 @@
 
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
-import { useStore } from "vuex";
 import { useRouter } from "vue-router";
-import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
-import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { UserRow, WorkTimeRecord } from "../../api/types";
+import { superAdminApi } from "../../api/superAdminApi";
 
 const formatDateTimeKey = (record: WorkTimeRecord) =>
   `${record.date}T${record.check_in_time || "00:00:00"}`;
@@ -246,26 +244,15 @@ export default defineComponent({
   name: "SuperAdminOnlineDoctors",
   components: { AppPager },
   setup() {
-    const store = useStore(storeKey);
     const router = useRouter();
     const keyword = ref("");
     const page = ref(1);
     const pageSize = 10;
     const selectedDoctorId = ref<number | null>(null);
+    const total = ref(0);
 
-    const users = computed<UserRow[]>(() => store.state.superAdmin.users);
-    const workRecords = computed<WorkTimeRecord[]>(
-      () => store.state.superAdmin.workTimeRecords
-    );
-
-    const onlineDoctors = computed(() =>
-      [...users.value]
-        .filter((item) => {
-          const role = resolveRoleName(item.type_name, item.type_id);
-          return role === "医生" && item.status === "online";
-        })
-        .sort((left, right) => left.id - right.id)
-    );
+    const onlineDoctors = ref<UserRow[]>([]);
+    const workRecords = ref<WorkTimeRecord[]>([]);
 
     const recordsByDoctorId = computed(() => {
       const map = new Map<number, WorkTimeRecord[]>();
@@ -318,29 +305,13 @@ export default defineComponent({
           }。`;
     };
 
-    const matchesKeyword = (item: UserRow) => {
-      const search = keyword.value.trim().toLowerCase();
-      if (!search) {
-        return true;
-      }
-
-      return [String(item.id), item.name, item.phone, item.email]
-        .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(search));
-    };
-
-    const filteredDoctors = computed(() =>
-      onlineDoctors.value.filter(matchesKeyword)
-    );
+    const filteredDoctors = computed(() => onlineDoctors.value);
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredDoctors.value.length / pageSize))
+      Math.max(1, Math.ceil(total.value / pageSize))
     );
 
-    const pagedDoctors = computed(() => {
-      const start = (page.value - 1) * pageSize;
-      return filteredDoctors.value.slice(start, start + pageSize);
-    });
+    const pagedDoctors = computed(() => filteredDoctors.value);
 
     const selectedDoctor = computed(
       () =>
@@ -400,13 +371,20 @@ export default defineComponent({
     });
 
     const loadOnlineDoctors = async () => {
-      await store.dispatch("superAdmin/ensureOnlineDoctorsData");
+      const result = await superAdminApi.searchOnlineDoctors({
+        keyword: keyword.value.trim(),
+        page: page.value,
+        pageSize,
+      });
+      onlineDoctors.value = result.items;
+      workRecords.value = result.records;
+      total.value = result.total;
     };
 
     const refreshDoctors = async () => {
       keyword.value = "";
       page.value = 1;
-      await store.dispatch("superAdmin/refreshOnlineDoctorsData");
+      await loadOnlineDoctors();
     };
 
     const goToDoctorDetail = () => {
@@ -432,9 +410,11 @@ export default defineComponent({
 
     watch(keyword, () => {
       page.value = 1;
+      void loadOnlineDoctors();
     });
 
     watch(page, () => {
+      void loadOnlineDoctors();
       if (
         !pagedDoctors.value.some((item) => item.id === selectedDoctorId.value)
       ) {

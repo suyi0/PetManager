@@ -37,6 +37,37 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             }
         );
 
+    CROW_ROUTE(app, "/api/warehouse-managers/items/search")
+        .methods(crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)(
+            [dbManager](const crow::request &req, crow::response &res) {
+                int userId = -1;
+                try {
+                    userId = isValidWarehouseStaffToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1) {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "搜索物资");
+                        return;
+                    }
+
+                    warehouseManagerHandler handler(dbManager);
+                    auto jsonOpt = handler.parseJson(req, res);
+                    if (!jsonOpt) {
+                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "搜索物资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        return;
+                    }
+
+                    crow::response response = handler.searchItems(req, jsonOpt.value());
+                    ProcessHandlerResponse(req, res, response);
+                } catch (const std::exception &e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "仓库", "搜索物资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(
+                        req,
+                        "Internal error: " + std::string(e.what())
+                    );
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "搜索物资", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            }
+        );
+
     CROW_ROUTE(app, "/api/warehouse-managers/items/<string>/<string>")
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)(
             [dbManager](

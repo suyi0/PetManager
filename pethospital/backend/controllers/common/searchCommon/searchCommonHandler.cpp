@@ -171,8 +171,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
                   "LEFT JOIN pets AS p ON o.pet_id = p.id "
                   "LEFT JOIN users AS d ON o.doctor_id = d.id " +
                   filterSql +
-                  "AND (CAST(o.id AS CHAR) LIKE ? "
-                  "OR COALESCE(p.pet_name, '') LIKE ? "
+                  "AND (COALESCE(p.pet_name, '') LIKE ? "
                   "OR COALESCE(d.name, '') LIKE ? "
                   "OR COALESCE(o.order_type, '') LIKE ? "
                   "OR COALESCE(o.order_data, '') LIKE ? "
@@ -194,8 +193,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
                   "LEFT JOIN pets AS p ON r.pet_id = p.id "
                   "LEFT JOIN users AS d ON r.doctor_id = d.id " +
                   filterSql +
-                  "AND (CAST(r.id AS CHAR) LIKE ? "
-                  "OR COALESCE(p.pet_name, '') LIKE ? "
+                  "AND (COALESCE(p.pet_name, '') LIKE ? "
                   "OR COALESCE(d.name, '') LIKE ? "
                   "OR CAST(r.date AS CHAR) LIKE ? "
                   "OR COALESCE(r.time_slot, '') LIKE ? "
@@ -217,11 +215,11 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
 
         if (searchType == "orders")
         {
-            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
+            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
         }
         else if (searchType == "reservations")
         {
-            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
+            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
         }
         mysqlx::SqlResult result = query.execute();
 

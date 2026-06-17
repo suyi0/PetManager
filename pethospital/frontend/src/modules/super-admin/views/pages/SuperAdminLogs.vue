@@ -223,8 +223,6 @@
 
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
-import { useStore } from "vuex";
-import { storeKey } from "@/app/store";
 import {
   ALL_ROLE_NAMES,
   isSuperAdminPortalRole,
@@ -232,12 +230,12 @@ import {
 import AppPager from "@/shared/components/AppPager.vue";
 import {
   UserLogs,
-  SystemLogs,
   MajorTab,
   UserRole,
   LogCategory,
   AuditLogItem,
 } from "../../api/types";
+import { superAdminApi } from "../../api/superAdminApi";
 
 const isUserLog = (item: AuditLogItem): item is UserLogs =>
   item.category === "用户类";
@@ -246,7 +244,6 @@ export default defineComponent({
   name: "SuperAdminLogs",
   components: { AppPager },
   setup() {
-    const store = useStore(storeKey);
     /**
      * 获取日志的大类：用户类 / 系统类
      */
@@ -268,13 +265,22 @@ export default defineComponent({
     const page = ref(1);
     // 分页大小
     const pageSize = 5;
+    const total = ref(0);
+    const filteredLogs = ref<AuditLogItem[]>([]);
 
     /**
      * 调用API获取日志列表
      */
     const loadLogs = async () => {
-      // 日志页也先读缓存，只有首次进入、过期或被标脏时才重新请求。
-      await store.dispatch("superAdmin/ensureLogs", { force: true });
+      const result = await superAdminApi.searchLogs({
+        majorTab: activeMajorTab.value,
+        role: activeUserRole.value,
+        keyword: keyword.value.trim(),
+        page: page.value,
+        pageSize,
+      });
+      filteredLogs.value = result.items;
+      total.value = result.total;
       selectedLogId.value = filteredLogs.value[0]?.id ?? "";
     };
 
@@ -299,87 +305,17 @@ export default defineComponent({
       })),
     ];
 
-    const userLogs = computed<UserLogs[]>(
-      () => store.state.superAdmin.logs.userLogs
-    );
-    const systemLogs = computed<SystemLogs[]>(
-      () => store.state.superAdmin.logs.systemLogs
-    );
-
-    /**
-     * 获取日志大类对应的角色和搜索关键词筛选后的结果列表,
-      结果按照时间降序排序，最新的日志排在前面
-     */
-    const filteredLogs = computed<AuditLogItem[]>(() => {
-      // 获取日志大类对应的基础数据
-      const base =
-        activeMajorTab.value === "user" ? userLogs.value : systemLogs.value;
-
-      // 筛选角色
-      const byRole =
-        activeMajorTab.value === "user" && activeUserRole.value !== "all"
-          ? base.filter((item) => {
-              if (isUserLog(item)) {
-                return item.userRole === activeUserRole.value;
-              }
-              return false;
-            })
-          : base;
-
-      const search = keyword.value.trim().toLowerCase();
-      const searched = !search
-        ? byRole
-        : byRole.filter((item) =>
-            [
-              item.operator,
-              item.module,
-              item.action,
-              item.summary,
-              item.details,
-              isUserLog(item) ? item.userRole : null,
-            ]
-              // .filter() 方法用于从数组中筛选元素
-              // (field): field is string => typeof field === "string" 是一个类型守卫函数
-              // 它检查每个 field 是否为字符串类型
-              // field is string 告诉TypeScript将过滤后的结果视为字符串数组
-              // 最终返回原数组中所有字符串类型的元素
-              .filter((field): field is string => typeof field === "string")
-
-              // .some() 方法用于检查数组中是否有至少一个元素满足指定条件
-              // 对数组中的每个 field 元素执行 field.toLowerCase().includes(search) 检查
-              // 将字段转换为小写后检查是否包含搜索关键词 search
-              // 如果任一字段包含搜索词则返回 true，否则返回 false
-              .some((field) => field.toLowerCase().includes(search))
-          );
-
-      return [...searched].sort(
-        (left, right) =>
-          new Date(right.time.replace(" ", "T")).getTime() -
-          new Date(left.time.replace(" ", "T")).getTime()
-      );
-    });
-
     const selectedLog = computed(() =>
       filteredLogs.value.find((item) => item.id === selectedLogId.value)
     );
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredLogs.value.length / pageSize))
+      Math.max(1, Math.ceil(total.value / pageSize))
     );
 
-    const pagedLogs = computed(() => {
-      const start = (page.value - 1) * pageSize;
-      return filteredLogs.value.slice(start, start + pageSize);
-    });
+    const pagedLogs = computed(() => filteredLogs.value);
 
-    const todayCount = computed(
-      () =>
-        userLogs.value
-          .concat(systemLogs.value)
-          .filter((item) =>
-            item.time.startsWith(new Date().toISOString().split("T")[0])
-          ).length
-    );
+    const todayCount = computed(() => total.value);
 
     const panelTitle = computed(() => {
       if (activeMajorTab.value === "system") {
@@ -445,21 +381,21 @@ export default defineComponent({
         activeUserRole.value = "all";
       }
       page.value = 1;
-      selectedLogId.value = filteredLogs.value[0]?.id ?? "";
+      void loadLogs();
     });
 
     watch(activeUserRole, () => {
       page.value = 1;
-      selectedLogId.value = filteredLogs.value[0]?.id ?? "";
+      void loadLogs();
     });
 
     watch(keyword, () => {
       page.value = 1;
-      selectedLogId.value = filteredLogs.value[0]?.id ?? "";
+      void loadLogs();
     });
 
     watch(page, () => {
-      selectedLogId.value = pagedLogs.value[0]?.id ?? "";
+      void loadLogs();
     });
 
     watch(totalPages, (value) => {
@@ -481,8 +417,6 @@ export default defineComponent({
       totalPages,
       majorTabs,
       userRoleTabs,
-      userLogs,
-      systemLogs,
       filteredLogs,
       pagedLogs,
       selectedLog,

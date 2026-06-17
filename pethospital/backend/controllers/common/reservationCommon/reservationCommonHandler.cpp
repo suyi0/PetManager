@@ -64,12 +64,13 @@ nlohmann::json reservationCommonHandler::getReservationData(const int &reservati
     {
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT r.id, r.user_id, u.name, u.phone, r.doctor_id, d.name, r.pet_id, "
+                                       ->sql("SELECT r.id, r.user_id, u.name, p_user.phone, r.doctor_id, d.name, r.pet_id, "
                                              "COALESCE(p.pet_name, ''), COALESCE(r.reservation_type, ''), "
                                              "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), "
                                              "COALESCE(r.status, ''), CAST(r.created_at AS CHAR) "
                                              "FROM reservations AS r "
                                              "LEFT JOIN users AS u ON r.user_id = u.id "
+                                             "LEFT JOIN phones AS p_user ON p_user.user_id = u.id "
                                              "LEFT JOIN users AS d ON r.doctor_id = d.id "
                                              "LEFT JOIN pets AS p ON r.pet_id = p.id "
                                              "WHERE r.id = ? "

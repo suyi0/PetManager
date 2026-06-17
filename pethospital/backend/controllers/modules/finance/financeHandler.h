@@ -27,6 +27,8 @@ public:
 
     crow::response getSalaryInformation(const crow::request &req, int salaryId); // 获取员工工资详情 对应 /api/finance/salary-records/<int>
 
+    crow::response searchSalaryEmployees(const crow::request &req, const nlohmann::json &requestBody); // 搜索员工工资列表 对应 /api/finance/salary-employees/search
+
     crow::response getExpenseData(const crow::request &req); // 获取工资管理页数据 对应 /api/finance/expenses
 
 };

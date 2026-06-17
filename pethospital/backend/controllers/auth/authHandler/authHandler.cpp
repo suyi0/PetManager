@@ -148,12 +148,12 @@ crow::response authHandler::authCheckPhone(const crow::request &req)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT COUNT(*) as count FROM users WHERE phone = ?")
+                                       ->sql("SELECT COUNT(*) as count FROM phones WHERE phone = ?")
                                        .bind(phone)
                                        .execute();
 
         auto row = result.fetchOne();
-        if (row && row[0].isNull())
+        if (row && !row[0].isNull())
         {
             int count = row[0].get<int>();
             if (count == 0) // 说明电话号码没有被注册，可以继续注册
@@ -391,9 +391,10 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         const std::string &identifier = claims->identifier;
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.type_id, t.type, u.email, u.phone "
+                                       ->sql("SELECT u.type_id, t.type, u.email, p.phone "
                                              "FROM users AS u "
                                              "JOIN types AS t ON u.type_id = t.id "
+                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
                                              "WHERE u.id = ? AND u.is_deleted = 0")
                                        .bind(userId)
                                        .execute();
@@ -517,7 +518,7 @@ crow::response authHandler::sendSmsVerification(const crow::request &req)
 
         // 检查手机号是否已被注册
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT COUNT(*) as count FROM users WHERE phone = ?")
+                                       ->sql("SELECT COUNT(*) as count FROM phones WHERE phone = ?")
                                        .bind(phone)
                                        .execute();
 

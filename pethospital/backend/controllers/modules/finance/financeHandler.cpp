@@ -5,6 +5,31 @@
 
 namespace
 {
+    std::string getJsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
+    {
+        return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : fallback;
+    }
+
+    int getJsonInt(const nlohmann::json &body, const std::string &key, int fallback)
+    {
+        return body.contains(key) && body[key].is_number_integer() ? body[key].get<int>() : fallback;
+    }
+
+    int normalizePage(int page)
+    {
+        return std::max(1, page);
+    }
+
+    int normalizePageSize(int pageSize, int fallback = 10, int max = 100)
+    {
+        if (pageSize <= 0)
+        {
+            return fallback;
+        }
+
+        return std::min(pageSize, max);
+    }
+
     // 获取当天的开始和结束时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
     std::pair<std::string, std::string> getTodayRange()
     {
@@ -406,6 +431,99 @@ crow::response financeHandler::getSalaryInformation(const crow::request &req, in
     catch (const std::exception &e)
     {
         OperationLogger::LogExceptionOperation(dbManager, req, "财务", "获取员工工资详情", "Failed to get salary information: " + std::string(e.what()));
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response financeHandler::searchSalaryEmployees(const crow::request &req, const nlohmann::json &requestBody)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        const std::string keyword = getJsonString(requestBody, "keyword");
+        const std::string likeKeyword = "%" + keyword + "%";
+        const int page = normalizePage(getJsonInt(requestBody, "page", 1));
+        const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
+        const int offset = (page - 1) * pageSize;
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, "
+                                             "COALESCE(s.base_salary, 0), COALESCE(s.PA_Award, 0), COALESCE(s.PB_Award, 0), "
+                                             "COALESCE(s.total_salary, 0), CAST(s.update_at AS CHAR) "
+                                             "FROM users AS u "
+                                             "JOIN types AS t ON t.id = u.type_id "
+                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                             "LEFT JOIN salary AS s ON s.user_id = u.id "
+                                             "WHERE u.is_deleted = 0 AND t.type <> '普通用户' "
+                                             "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(t.type, '') LIKE ? "
+                                             "OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) "
+                                             "ORDER BY u.id ASC "
+                                             "LIMIT ?, ?")
+                                       .bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, offset, pageSize)
+                                       .execute();
+
+        mysqlx::SqlResult countResult = dbManager->getSession()
+                                            ->sql("SELECT COUNT(DISTINCT u.id) "
+                                                  "FROM users AS u "
+                                                  "JOIN types AS t ON t.id = u.type_id "
+                                                  "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                                  "WHERE u.is_deleted = 0 AND t.type <> '普通用户' "
+                                                  "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(t.type, '') LIKE ? "
+                                                  "OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?)")
+                                            .bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword)
+                                            .execute();
+
+        mysqlx::SqlResult summaryResult = dbManager->getSession()
+                                              ->sql("SELECT COUNT(*), COALESCE(SUM(COALESCE(s.total_salary, 0)), 0) "
+                                                    "FROM users AS u "
+                                                    "JOIN types AS t ON t.id = u.type_id "
+                                                    "LEFT JOIN salary AS s ON s.user_id = u.id "
+                                                    "WHERE u.is_deleted = 0 AND t.type <> '普通用户'")
+                                              .execute();
+
+        nlohmann::json employees = nlohmann::json::array();
+        for (auto row : result)
+        {
+            nlohmann::json employee;
+            employee["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+            employee["type_id"] = row[1].isNull() ? nullptr : nlohmann::json(row[1].get<int>());
+            employee["type_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            employee["name"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            employee["phone"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            employee["email"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
+            employee["base_salary"] = row[6].isNull() ? 0.0 : row[6].get<double>();
+            employee["pa_award"] = row[7].isNull() ? 0.0 : row[7].get<double>();
+            employee["pb_award"] = row[8].isNull() ? 0.0 : row[8].get<double>();
+            employee["total_salary"] = row[9].isNull() ? 0.0 : row[9].get<double>();
+            employee["updated_at"] = row[10].isNull() ? "" : row[10].get<std::string>();
+            employees.push_back(employee);
+        }
+
+        auto summaryRow = summaryResult.fetchOne();
+        const int employeeCount = summaryRow && !summaryRow[0].isNull() ? summaryRow[0].get<int>() : 0;
+        const double monthlyPayroll = summaryRow && !summaryRow[1].isNull() ? summaryRow[1].get<double>() : 0.0;
+        const nlohmann::json homeData = buildHomeData();
+
+        nlohmann::json data = {
+            {"employees", employees},
+            {"total", countResult.fetchOne()[0].get<int>()},
+            {"page", page},
+            {"pageSize", pageSize},
+            {"summary", {
+                            {"employeeCount", employeeCount},
+                            {"monthlyPayroll", monthlyPayroll},
+                            {"todayCost", homeData.value("dailyCost", 0.0)},
+                            {"todayProfit", homeData.value("dailyProfit", 0.0)},
+                        }}};
+
+        return ResponseHelper::success(req, data);
+    }
+    catch (const std::exception &e)
+    {
         return ResponseHelper::system_error(req, e.what());
     }
 }

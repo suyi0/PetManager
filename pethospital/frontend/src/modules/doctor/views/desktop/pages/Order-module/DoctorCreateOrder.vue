@@ -25,10 +25,18 @@
               v-model.trim="searchQuery"
               type="text"
               placeholder="输入药品名称 / 编码 / 类型"
+              @keyup.enter="searchMedicines"
             />
           </label>
           <div class="strip-actions">
-            <button class="primary" type="button">搜索</button>
+            <button
+              class="primary"
+              type="button"
+              :disabled="searchLoading"
+              @click="searchMedicines"
+            >
+              {{ searchLoading ? "搜索中" : "搜索" }}
+            </button>
             <button class="ghost" type="button" @click="resetSearch">
               重置筛选
             </button>
@@ -64,7 +72,7 @@
               <span>{{ item.stock }}</span>
             </div>
             <div v-if="filteredMedicines.length === 0" class="board-empty">
-              没有匹配的药品，请调整搜索关键词。
+              {{ medicineSearchMessage }}
             </div>
           </div>
         </div>
@@ -118,19 +126,19 @@
                   ⊖
                 </button>
                 <span>{{ item.name }}</span>
-                <span>{{ medicineTypeMap[item.name] }}</span>
+                <span>{{ item.type || "药品" }}</span>
                 <span>¥{{ item.unitPrice.toFixed(2) }}</span>
                 <label class="quantity-cell">
                   <input
                     :value="item.days"
                     type="number"
                     min="1"
-                    :max="medicineStockMap[item.name]"
+                    :max="getSelectedMedicineStock(item)"
                     @input="updateQuantity(item.id, $event)"
                   />
                 </label>
                 <span>¥{{ (item.unitPrice * item.days).toFixed(2) }}</span>
-                <span>{{ medicineStockMap[item.name] }}</span>
+                <span>{{ formatSelectedMedicineStock(item) }}</span>
               </div>
             </div>
           </div>
@@ -181,7 +189,7 @@ import {
 import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
-import { medicineSearchItemsMock } from "@/modules/doctor/api/doctorMock";
+import { doctorApi } from "@/modules/doctor/api/doctorApi";
 import {
   MedicineSearchItem,
   SelectedMedicineItem,
@@ -198,9 +206,9 @@ export default defineComponent({
     const router = useRouter();
     const store = useStore(storeKey);
     const searchQuery = ref("");
-    const medicines = ref<MedicineSearchItem[]>(
-      medicineSearchItemsMock.map((item) => ({ ...item }))
-    );
+    const searchLoading = ref(false);
+    const searchErrorMessage = ref("");
+    const medicines = ref<MedicineSearchItem[]>([]);
     const selected = ref<SelectedMedicineItem[]>([]);
 
     /**
@@ -259,34 +267,24 @@ export default defineComponent({
       selected.value.reduce((sum, item) => sum + item.unitPrice * item.days, 0)
     );
 
-    const medicineTypeMap: Record<string, string> = {
-      胃复安片: "止吐类",
-      蒙脱石散: "肠胃保护",
-      益生菌粉: "驱虫",
+    const filteredMedicines = computed(() => medicines.value);
+    const medicineSearchMessage = computed(
+      () => searchErrorMessage.value || "没有匹配的药品，请调整搜索关键词。"
+    );
+
+    const searchMedicines = async () => {
+      searchLoading.value = true;
+      searchErrorMessage.value = "";
+
+      try {
+        medicines.value = await doctorApi.searchMedicines(searchQuery.value);
+      } catch {
+        medicines.value = [];
+        searchErrorMessage.value = "药品搜索失败，请稍后重试。";
+      } finally {
+        searchLoading.value = false;
+      }
     };
-
-    const medicineStockMap: Record<string, number> = {
-      胃复安片: 28,
-      蒙脱石散: 44,
-      益生菌粉: 20,
-    };
-
-    const filteredMedicines = computed(() => {
-      const keyword = searchQuery.value.toLowerCase();
-      if (!keyword) return medicines.value;
-
-      return medicines.value.filter((item) => {
-        const searchableText = [
-          String(item.id),
-          item.name,
-          item.type,
-          item.spec,
-        ]
-          .join(" ")
-          .toLowerCase();
-        return searchableText.includes(keyword);
-      });
-    });
 
     const addMedicine = (item: MedicineSearchItem) => {
       const existingItem = selected.value.find(
@@ -294,17 +292,20 @@ export default defineComponent({
       );
 
       if (existingItem) {
-        const stockLimit =
-          medicineStockMap[item.name] ?? Number.MAX_SAFE_INTEGER;
+        const stockLimit = item.stock || Number.MAX_SAFE_INTEGER;
         const nextCount = Math.min(stockLimit, existingItem.days + 1);
         existingItem.days = nextCount;
         existingItem.subtotal = existingItem.unitPrice * nextCount;
+        existingItem.type = item.type;
+        existingItem.stock = item.stock;
         return;
       }
 
       selected.value.push({
         id: item.id,
         name: item.name,
+        type: item.type,
+        stock: item.stock,
         dosage: "1次 / 日",
         days: 1,
         unitPrice: item.price,
@@ -328,8 +329,7 @@ export default defineComponent({
         return;
       }
 
-      const stockLimit =
-        medicineStockMap[selectedItem.name] ?? Number.MAX_SAFE_INTEGER;
+      const stockLimit = getSelectedMedicineStock(selectedItem);
       const safeValue = Math.min(
         stockLimit,
         Math.max(1, Number.isFinite(nextValue) ? Math.floor(nextValue) : 1)
@@ -342,6 +342,20 @@ export default defineComponent({
 
     const resetSearch = () => {
       searchQuery.value = "";
+      void searchMedicines();
+    };
+
+    const getSelectedMedicineStock = (item: SelectedMedicineItem) => {
+      return (
+        item.stock ||
+        medicines.value.find((medicine) => medicine.id === item.id)?.stock ||
+        Number.MAX_SAFE_INTEGER
+      );
+    };
+
+    const formatSelectedMedicineStock = (item: SelectedMedicineItem) => {
+      const stock = getSelectedMedicineStock(item);
+      return stock === Number.MAX_SAFE_INTEGER ? "未同步" : String(stock);
     };
 
     /**
@@ -459,6 +473,7 @@ export default defineComponent({
     };
 
     onMounted(() => {
+      void searchMedicines();
       void restoreDraft();
     });
 
@@ -472,15 +487,18 @@ export default defineComponent({
 
     return {
       searchQuery,
+      searchLoading,
       medicines,
       filteredMedicines,
+      medicineSearchMessage,
       selected,
       patientForm,
       visitCode,
       total,
-      medicineTypeMap,
-      medicineStockMap,
       addMedicine,
+      searchMedicines,
+      getSelectedMedicineStock,
+      formatSelectedMedicineStock,
       removeSelected,
       updateQuantity,
       resetSearch,

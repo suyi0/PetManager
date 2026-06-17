@@ -116,6 +116,72 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, isCreate);
             });
 
+    CROW_ROUTE(app, "/api/admins/users/search")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "搜索用户");
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    auto jsonOpt = handler.parseJson(req, res);
+                    if (!jsonOpt)
+                    {
+                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索用户", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        return;
+                    }
+
+                    crow::response response = handler.searchUsers(req, jsonOpt.value());
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "搜索用户", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索用户", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
+    CROW_ROUTE(app, "/api/admins/online-doctors/search")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "搜索在线医生");
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    auto jsonOpt = handler.parseJson(req, res);
+                    if (!jsonOpt)
+                    {
+                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索在线医生", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        return;
+                    }
+
+                    crow::response response = handler.searchOnlineDoctors(req, jsonOpt.value());
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "搜索在线医生", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索在线医生", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
     CROW_ROUTE(app, "/api/admins/work-time-records")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
@@ -261,6 +327,39 @@ void adminRoutes::setupAdminRoutes(
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "查询操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
+    CROW_ROUTE(app, "/api/admins/logs/search")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "搜索操作日志");
+                        return;
+                    }
+
+                    adminHandler handler(dbManager);
+                    auto jsonOpt = handler.parseJson(req, res);
+                    if (!jsonOpt)
+                    {
+                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        return;
+                    }
+
+                    crow::response response = handler.searchLogs(req, jsonOpt.value());
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", "搜索操作日志", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
 
     CROW_ROUTE(app, "/api/admins/order-records")

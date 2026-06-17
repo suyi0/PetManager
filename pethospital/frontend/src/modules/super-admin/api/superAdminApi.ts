@@ -7,7 +7,32 @@ import {
   WorkTimeRecord,
   UserLogs,
   SystemLogs,
+  AuditLogItem,
+  OnlineDoctorsSearchResult,
+  PagedList,
 } from "./types";
+
+const unwrapPagedList = <T>(
+  payload: unknown,
+  page: number,
+  pageSize: number
+): PagedList<T> => {
+  const data = (payload as { data?: unknown })?.data ?? payload;
+  const source = data as {
+    items?: unknown;
+    total?: unknown;
+    page?: unknown;
+    pageSize?: unknown;
+  };
+  const items = unwrapList<T>(source?.items);
+
+  return {
+    items,
+    total: Number(source?.total ?? items.length),
+    page: Number(source?.page ?? page),
+    pageSize: Number(source?.pageSize ?? pageSize),
+  };
+};
 
 export const superAdminApi = {
   /**
@@ -51,6 +76,34 @@ export const superAdminApi = {
     return unwrapList<UserRow>(data);
   },
 
+  async searchUsers(params: {
+    keyword: string;
+    role?: string;
+    page: number;
+    pageSize: number;
+  }): Promise<PagedList<UserRow>> {
+    const { data } = await http.post("/api/admins/users/search", params);
+    return unwrapPagedList<UserRow>(data, params.page, params.pageSize);
+  },
+
+  async searchOnlineDoctors(params: {
+    keyword: string;
+    page: number;
+    pageSize: number;
+  }): Promise<OnlineDoctorsSearchResult> {
+    const { data } = await http.post(
+      "/api/admins/online-doctors/search",
+      params
+    );
+    const payload = data?.data ?? data;
+    const paged = unwrapPagedList<UserRow>(data, params.page, params.pageSize);
+
+    return {
+      ...paged,
+      records: unwrapList<WorkTimeRecord>(payload?.records),
+    };
+  },
+
   async createUser(payload: CreateUserPayload): Promise<void> {
     await http.post("/api/admins/users", payload);
   },
@@ -71,6 +124,17 @@ export const superAdminApi = {
       userLogs: unwrapList<UserLogs>(logsPayload?.userLogs),
       systemLogs: unwrapList<SystemLogs>(logsPayload?.systemLogs),
     };
+  },
+
+  async searchLogs(params: {
+    majorTab: "user" | "system";
+    role: string;
+    keyword: string;
+    page: number;
+    pageSize: number;
+  }): Promise<PagedList<AuditLogItem>> {
+    const { data } = await http.post("/api/admins/logs/search", params);
+    return unwrapPagedList<AuditLogItem>(data, params.page, params.pageSize);
   },
 
   /**

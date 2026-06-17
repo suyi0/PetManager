@@ -13,6 +13,6 @@ bool shouldAutoBackfillRelationTables();
 bool shouldAutoBackfillPhonesFromUsers();
 
 // phones 表关系回填入口。
-// 根据 users.id -> phones.user_id、users.phone -> phones.phone 的映射补历史数据。
+// 仅在旧库仍存在 users.phone 时，将历史手机号搬到 phones 表。
 void backfillPhones(DatabaseManagerInterface &database_manager);
 }

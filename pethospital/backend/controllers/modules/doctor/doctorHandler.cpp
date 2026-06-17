@@ -7,6 +7,18 @@
 
 namespace
 {
+    std::string trimString(const std::string &value)
+    {
+        const auto start = value.find_first_not_of(" \t\r\n");
+        if (start == std::string::npos)
+        {
+            return "";
+        }
+
+        const auto end = value.find_last_not_of(" \t\r\n");
+        return value.substr(start, end - start + 1);
+    }
+
     bool isValidDoctorReservationStatus(const std::string &status)
     {
         return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
@@ -272,8 +284,9 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         mysqlx::SqlResult result;
         if (identifier == "name")
         {
-            result = dbManager->getSession()->sql("SELECT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
+            result = dbManager->getSession()->sql("SELECT u.id, u.type_id, u.name, p.phone, u.email, u.head_image "
                                                   "FROM users AS u "
+                                                  "LEFT JOIN phones AS p ON p.user_id = u.id "
                                                   "WHERE u.name LIKE ? AND u.is_deleted = 0 "
                                                   "ORDER BY u.name ASC "
                                                   "LIMIT 20")
@@ -284,18 +297,16 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         {
             const std::string phoneLike = "%" + data + "%";
             result = dbManager->getSession()
-                         ->sql("SELECT DISTINCT u.id, u.type_id, u.name, u.phone, u.email, u.head_image "
+                         ->sql("SELECT DISTINCT u.id, u.type_id, u.name, p.phone, u.email, u.head_image "
                                "FROM users AS u "
                                "LEFT JOIN phones AS p ON u.id = p.user_id "
                                "WHERE u.is_deleted = 0 "
-                               "AND (COALESCE(u.phone, '') LIKE ? "
-                               "OR COALESCE(p.phone, '') LIKE ? "
+                               "AND (COALESCE(p.phone, '') LIKE ? "
                                "OR COALESCE(p.phone_lastfour, '') LIKE ?) "
                                "ORDER BY u.name ASC "
                                "LIMIT 20")
-                         .bind(phoneLike, phoneLike, phoneLike)
+                         .bind(phoneLike, phoneLike)
                          .execute();
-
 
             if (result.count() == 0)
             {
@@ -354,7 +365,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
             {
                 const int userId = row[1].get<int>();
                 auto userIndexIt = userIndexById.find(userId);
-                // 快速通过用户ID找到对应的用户在响应数组中的位置，避免再次遍历响应数组查找用户对象，提高性能
+                // 快速通过宠物表的用户ID找到对应的用户在响应数组中的位置，避免再次遍历响应数组查找用户对象，提高性能
 
                 if (userIndexIt == userIndexById.end())
                 {
@@ -377,6 +388,50 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
     }
 }
 
+crow::response doctorHandler::searchMedicines(const crow::request &req, const std::string &keyword)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        const std::string normalizedKeyword = trimString(keyword); // trimString() 函数用于去除字符串首尾的空白字符
+        const std::string likeKeyword = "%" + normalizedKeyword + "%";
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT id, item_name, item_type, item_price, item_number, CAST(item_expirationdate AS CHAR) "
+                                             "FROM warehouse "
+                                             "WHERE is_deleted = 0 AND item_number > 0 "
+                                             "AND (? = '' OR item_name LIKE ? OR item_type LIKE ?) "
+                                             "ORDER BY item_name ASC, id DESC "
+                                             "LIMIT 50")
+                                       .bind(normalizedKeyword, likeKeyword, likeKeyword)
+                                       .execute();
+
+        nlohmann::json response = nlohmann::json::array();
+        for (auto row : result)
+        {
+            const std::string expirationDate = row[5].isNull() ? "" : row[5].get<std::string>();
+
+            nlohmann::json medicine;
+            medicine["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+            medicine["name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+            medicine["type"] = row[2].isNull() ? "" : row[2].get<std::string>();
+            medicine["price"] = row[3].isNull() ? 0.0 : row[3].get<double>();
+            medicine["stock"] = row[4].isNull() ? 0 : row[4].get<int>();
+            medicine["spec"] = expirationDate.empty() ? "库存药品" : "有效期至 " + expirationDate;
+            response.push_back(medicine);
+        }
+
+        return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, "搜索药品失败: " + std::string(e.what()));
+    }
+}
 
 // 医生端获取用户详细档案信息，包括基本信息、宠物信息和订单信息
 crow::response doctorHandler::getUserProfiles(const crow::request &req, int userId)
@@ -389,12 +444,13 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
         }
 
         mysqlx::SqlResult users = dbManager->getSession()
-                                      ->sql("SELECT u.id, COALESCE(u.name, ''), COALESCE(u.phone, ''), COALESCE(u.email, ''), "
+                                      ->sql("SELECT u.id, COALESCE(u.name, ''), COALESCE(p.phone, ''), COALESCE(u.email, ''), "
                                             "CAST(u.birthday AS CHAR), COALESCE(u.head_image, ''), COALESCE(u.user_specialty, ''), "
                                             "COALESCE(u.user_introduction, ''), COALESCE(u.user_level, 0), COALESCE(u.funds, 0.0), "
                                             "CAST(u.created_at AS CHAR), COALESCE(t.type, ''), COALESCE(u.type_id, 0) "
                                             "FROM users AS u "
                                             "LEFT JOIN types AS t ON u.type_id = t.id "
+                                            "LEFT JOIN phones AS p ON p.user_id = u.id "
                                             "WHERE u.id = ? ")
                                       .bind(userId)
                                       .execute();
@@ -558,11 +614,10 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
         boost::posix_time::ptime onlineDateTime = boost::posix_time::second_clock::local_time();
         std::string date = formatDateOnly(onlineDateTime);
         std::string time = formatTimeOnly(onlineDateTime);
-        std::string check_in_time_start;
         std::string check_in_time_end;
 
         mysqlx::SqlResult workTime_result = dbManager->getSession()
-                                                ->sql("SELECT check_in_time_start, check_in_time_end FROM workTimes")
+                                                ->sql("SELECT check_in_time_end FROM workTimes")
                                                 .execute();
 
         auto work_time_row = workTime_result.fetchOne();
@@ -571,20 +626,15 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
             return ResponseHelper::error(req, "未配置签到时间，请先联系管理员设置");
         }
 
-        check_in_time_start = work_time_row[0].get<std::string>();
         check_in_time_end = work_time_row[1].get<std::string>();
 
-        if (time <= check_in_time_start)
-        {
-            return ResponseHelper::error(req, "未到签到时间，请确认签到时间!!!");
-        }
-        else if (time >= check_in_time_end)
+        if (time >= check_in_time_end)
         {
             return ResponseHelper::error(req, "已超过签到时间，如果有特殊情况导致请与管理人员确认!!!");
         }
         else
         {
-            mysqlx::SqlResult existing_result = dbManager->getSession()->sql("SELECT doctor_id, status "
+            mysqlx::SqlResult existing_result = dbManager->getSession()->sql("SELECT status "
                                                                              "FROM onlineDoctors "
                                                                              "WHERE doctor_id = ? "
                                                                              "LIMIT 1")
@@ -594,7 +644,7 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
             auto existing_row = existing_result.fetchOne();
             if (existing_row)
             {
-                std::string current_status = existing_row[1].get<std::string>();
+                std::string current_status = existing_row[0].get<std::string>();
 
                 if (current_status == "online")
                 {
@@ -604,18 +654,14 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
                 dbManager->getSession()->sql("UPDATE onlineDoctors "
                                              "SET date = ?, check_in_time = ?, check_out_time = NULL, status = 'online' "
                                              "WHERE doctor_id = ?")
-                    .bind(date)
-                    .bind(time)
-                    .bind(userId)
+                    .bind(date, time, userId)
                     .execute();
             }
             else
             {
                 dbManager->getSession()->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, status) "
                                              "VALUES (?, ?, ?, 'online')")
-                    .bind(userId)
-                    .bind(date)
-                    .bind(time)
+                    .bind(userId, date, time)
                     .execute();
             }
 
@@ -641,11 +687,13 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
         boost::posix_time::ptime offlineDateTime = boost::posix_time::microsec_clock::local_time();
         std::string date = formatDateOnly(offlineDateTime);
         std::string time = formatTimeOnly(offlineDateTime);
+        std::string check_in_time_start;
+        std::string check_in_time_end;
         std::string check_out_time_start;
         std::string check_out_time_end;
 
         mysqlx::SqlResult workTime_result = dbManager->getSession()
-                                                ->sql("SELECT check_out_time_start, check_out_time_end FROM workTimes")
+                                                ->sql("SELECT check_in_time_start, check_in_time_end, check_out_time_start, check_out_time_end FROM workTimes")
                                                 .execute();
 
         auto work_time_row = workTime_result.fetchOne();
@@ -654,8 +702,10 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
             return ResponseHelper::error(req, "未配置签退时间，请先联系管理员设置");
         }
 
-        check_out_time_start = work_time_row[0].get<std::string>();
-        check_out_time_end = work_time_row[1].get<std::string>();
+        check_in_time_start = work_time_row[0].get<std::string>();
+        check_in_time_end = work_time_row[1].get<std::string>();
+        check_out_time_start = work_time_row[2].get<std::string>();
+        check_out_time_end = work_time_row[3].get<std::string>();
 
         if (time <= check_out_time_start)
         {
@@ -670,14 +720,48 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
             auto result = dbManager->getSession()->sql("UPDATE onlineDoctors "
                                                        "SET check_out_time = ?, status = 'offline' "
                                                        "WHERE doctor_id = ? AND date = ? AND status = 'online'")
-                              .bind(time)
-                              .bind(userId)
-                              .bind(date)
+                              .bind(time, userId, date)
                               .execute();
 
             // 检查是否更新了记录
             if (result.getAffectedItemsCount() > 0)
             {
+                mysqlx::SqlResult workTime_row = dbManager->getSession()
+                                                     ->sql("SELECT doctor_id, date, check_in_time, check_out_time "
+                                                           "FROM workTimeLogs "
+                                                           "WHERE doctor_id = ? AND date = ?")
+                                                     .bind(userId, date)
+                                                     .execute();
+
+                auto row = workTime_row.fetchOne();
+                const int doctorId = row[0].isNull() ? 0 : row[0].get<int>();
+                const std::string workTime_date = row[1].isNull() ? "" : row[1].get<std::string>();
+                const std::string checkInTime = row[2].isNull() ? "" : row[2].get<std::string>();
+                const std::string checkOutTime = row[3].isNull() ? "" : row[3].get<std::string>();
+                std::string workTime_status = "正常";
+                if (checkInTime.empty() || checkOutTime.empty())
+                {
+                    workTime_status = "异常";
+                }
+                else if (checkInTime >= check_in_time_end)
+                {
+                    workTime_status = "迟到";
+                }
+                else if (checkOutTime <= check_out_time_start)
+                {
+                    workTime_status = "早退";
+                }
+                else if (checkOutTime >= check_out_time_end)
+                {
+                    workTime_status = "加班";
+                }
+
+                mysqlx::SqlResult workTimeLogs_result = dbManager->getSession()
+                                                            ->sql("INSERT INTO workTimeLogs (doctor_id, date, check_in_time, check_out_time, status) "
+                                                                  "VALUES (?, ?, ?, ?, ?)")
+                                                            .bind(doctorId, workTime_date, checkInTime, checkOutTime, workTime_status)
+                                                            .execute();
+
                 AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
                 return ResponseHelper::success(req, "签退成功!");
             }

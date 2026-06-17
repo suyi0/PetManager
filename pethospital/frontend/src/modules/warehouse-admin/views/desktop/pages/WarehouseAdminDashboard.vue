@@ -47,7 +47,7 @@
         <div class="section-title">
           <div>
             <h3>库存列表</h3>
-            <span>共 {{ filteredItems.length }} 条记录</span>
+            <span>共 {{ total }} 条记录</span>
           </div>
           <b>{{ selectedIds.length }} 项已选</b>
         </div>
@@ -56,7 +56,7 @@
           <input
             v-model.trim="keyword"
             type="text"
-            placeholder="按名称 / ID 查询"
+            placeholder="按物品名称查询"
           />
           <div class="chips">
             <button
@@ -129,6 +129,11 @@
             </span>
           </div>
         </div>
+        <AppPager
+          :page="page"
+          :total-pages="totalPages"
+          @update:page="page = $event"
+        />
       </section>
 
       <div class="side-stack">
@@ -301,18 +306,27 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, reactive, ref } from "vue";
+import {
+  computed,
+  defineComponent,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
 import WarehouseStatCard from "@/modules/warehouse-admin/components/WarehouseStatCard.vue";
 import {
   WarehouseCreatePayload,
   WarehouseItem,
 } from "@/modules/warehouse-admin/api/types";
+import { warehouseAdminApi } from "@/modules/warehouse-admin/api/warehouseAdminApi";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
+import AppPager from "@/shared/components/AppPager.vue";
 
 export default defineComponent({
   name: "WarehouseAdminInventory",
-  components: { WarehouseStatCard },
+  components: { WarehouseStatCard, AppPager },
   setup() {
     const store = useStore(storeKey);
 
@@ -328,7 +342,10 @@ export default defineComponent({
       item_number: 1,
     });
 
-    const items = computed(() => store.state.warehouseAdmin.items);
+    const items = ref<WarehouseItem[]>([]);
+    const total = ref(0);
+    const page = ref(1);
+    const pageSize = 10;
     const keyword = ref("");
     const activeType = ref("全部");
     const sortKey = ref<"name" | "stock" | "price" | "total" | "expiry">(
@@ -356,42 +373,21 @@ export default defineComponent({
      * 进入仓库仪表盘时通过 RESTful 获取一次库存列表。
      */
     const loadItems = async () => {
-      await store.dispatch("warehouseAdmin/ensureItems", { force: true });
+      const result = await warehouseAdminApi.search({
+        keyword: keyword.value.trim(),
+        itemType: activeType.value,
+        sortKey: sortKey.value,
+        page: page.value,
+        pageSize,
+      });
+      items.value = result.items;
+      total.value = result.total;
     };
 
-    const filteredItems = computed(() => {
-      let rows = [...items.value];
-
-      if (activeType.value !== "全部") {
-        rows = rows.filter((item) => item.item_type === activeType.value);
-      }
-
-      if (keyword.value) {
-        const lower = keyword.value.toLowerCase();
-        rows = rows.filter(
-          (item) =>
-            item.item_name.toLowerCase().includes(lower) ||
-            String(item.id).includes(lower)
-        );
-      }
-
-      rows.sort((a, b) => {
-        switch (sortKey.value) {
-          case "stock":
-            return b.item_number - a.item_number;
-          case "price":
-            return b.item_price - a.item_price;
-          case "total":
-            return b.item_totalprice - a.item_totalprice;
-          case "expiry":
-            return a.item_expirationdate.localeCompare(b.item_expirationdate);
-          default:
-            return a.item_name.localeCompare(b.item_name, "zh-CN");
-        }
-      });
-
-      return rows;
-    });
+    const filteredItems = computed(() => items.value);
+    const totalPages = computed(() =>
+      Math.max(1, Math.ceil(total.value / pageSize))
+    );
 
     const totalValue = computed(() =>
       items.value.reduce((sum, item) => sum + item.item_totalprice, 0)
@@ -558,6 +554,7 @@ export default defineComponent({
           await store.dispatch("warehouseAdmin/createItem", { ...editForm });
         }
         showStatus(editingItem.value ? "库存信息已更新" : "物品已新增入库");
+        await loadItems();
       } catch (error) {
         showStatus(
           `保存失败：${String((error as Error).message || error)}`,
@@ -575,6 +572,7 @@ export default defineComponent({
           quantity: Number(movementQuantity.value),
         });
         showStatus("入库操作已完成");
+        await loadItems();
       } catch (error) {
         showStatus(
           `入库失败：${String((error as Error).message || error)}`,
@@ -592,6 +590,7 @@ export default defineComponent({
           quantity: Number(movementQuantity.value),
         });
         showStatus("出库操作已完成");
+        await loadItems();
       } catch (error) {
         showStatus(
           `出库失败：${String((error as Error).message || error)}`,
@@ -612,6 +611,7 @@ export default defineComponent({
           deletingItem.value.id
         );
         showStatus("物品已删除");
+        await loadItems();
       } catch (error) {
         showStatus(
           `删除失败：${String((error as Error).message || error)}`,
@@ -633,8 +633,20 @@ export default defineComponent({
       void store.dispatch("warehouseAdmin/ensureLogs");
     });
 
+    watch([keyword, activeType, sortKey], () => {
+      page.value = 1;
+      void loadItems();
+    });
+
+    watch(page, () => {
+      void loadItems();
+    });
+
     return {
       items,
+      total,
+      page,
+      totalPages,
       keyword,
       activeType,
       sortKey,

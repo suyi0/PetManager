@@ -14,6 +14,8 @@ public:
     crow::response selectAllData(const crow::request& req); // 查询仓库信息，对应 /api/warehouse-managers/items
     
     crow::response selectData(const crow::request& req, const std::string& identifier, const std::string& value); // 按 data-id 或 item-name 查询仓库信息，对应 /api/warehouse-managers/items/<identifier>/<value>
+
+    crow::response searchItems(const crow::request& req, const nlohmann::json& requestBody); // 搜索仓库信息，对应 /api/warehouse-managers/items/search
     
     crow::response updata(const crow::request& req, const int& dataID); // 修改仓库信息，对应 /api/warehouse-managers/items/<int>
 

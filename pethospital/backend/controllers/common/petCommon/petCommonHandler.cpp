@@ -117,11 +117,6 @@ crow::response petCommonHandler::getPetProfiles(const crow::request &req, int us
             response.push_back(mapPetRow(row));
         }
 
-        if (response.empty())
-        {
-            return ResponseHelper::notFound(req, "Pet profile not found");
-        }
-
         return ResponseHelper::success(req, response);
     }
     catch (const std::exception &e)

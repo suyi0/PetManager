@@ -4,6 +4,49 @@
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
+namespace
+{
+    std::string getJsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
+    {
+        return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : fallback;
+    }
+
+    int getJsonInt(const nlohmann::json &body, const std::string &key, int fallback)
+    {
+        return body.contains(key) && body[key].is_number_integer() ? body[key].get<int>() : fallback;
+    }
+
+    int normalizePage(int page)
+    {
+        return std::max(1, page);
+    }
+
+    int normalizePageSize(int pageSize, int fallback = 10, int max = 100)
+    {
+        if (pageSize <= 0)
+        {
+            return fallback;
+        }
+
+        return std::min(pageSize, max);
+    }
+
+    nlohmann::json buildUserJson(const mysqlx::Row &row)
+    {
+        nlohmann::json user_json;
+        user_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+        user_json["type_id"] = row[1].isNull() ? nullptr : nlohmann::json(row[1].get<int>());
+        user_json["type_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
+        user_json["name"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+        user_json["phone"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+        user_json["email"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
+        user_json["birthday"] = row[6].isNull() ? "" : row[6].get<std::string>();
+        user_json["head_image"] = row[7].isNull() ? "" : clean_string(row[7].get<std::string>());
+        user_json["status"] = row[8].isNull() ? "" : row[8].get<std::string>();
+        return user_json;
+    }
+}
+
 int adminHandler::calculateUserCount()
 {
     try
@@ -146,10 +189,11 @@ crow::response adminHandler::getUsers(const crow::request &req)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, u.phone, u.email, CAST(u.birthday AS CHAR), "
+                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
                                              "u.head_image, od.status "
                                              "FROM users AS u "
                                              "LEFT JOIN types AS t ON u.type_id = t.id "
+                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
                                              "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id "
                                              "WHERE u.is_deleted = 0")
                                        .execute();
@@ -176,6 +220,201 @@ crow::response adminHandler::getUsers(const crow::request &req)
     catch (const std::exception &e)
     {
         return ResponseHelper::operation_failed(req, "Failed to fetch data", e.what());
+    }
+}
+
+crow::response adminHandler::searchUsers(const crow::request &req, const nlohmann::json &requestBody)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        const std::string keyword = getJsonString(requestBody, "keyword");
+        const std::string role = getJsonString(requestBody, "role", "all");
+        const std::string likeKeyword = "%" + keyword + "%";
+        const int page = normalizePage(getJsonInt(requestBody, "page", 1));
+        const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
+        const int offset = (page - 1) * pageSize;
+
+        const bool filterRole = !role.empty() && role != "all";
+        std::string roleCondition;
+        if (role == "medical")
+        {
+            roleCondition = "AND COALESCE(t.type, '') IN ('医生', '护士') ";
+        }
+        else if (role == "admin")
+        {
+            roleCondition = "AND COALESCE(t.type, '') IN ('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') ";
+        }
+        else if (filterRole)
+        {
+            roleCondition = "AND COALESCE(t.type, '') = ? ";
+        }
+        const bool bindRole = filterRole && role != "medical" && role != "admin";
+
+        auto query = dbManager->getSession()
+                         ->sql(std::string("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
+                                           "u.head_image, od.status "
+                                           "FROM users AS u "
+                                           "LEFT JOIN types AS t ON u.type_id = t.id "
+                                           "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                           "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id "
+                                           "WHERE u.is_deleted = 0 "
+                                           "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) ") +
+                               roleCondition +
+                               "ORDER BY u.id ASC "
+                               "LIMIT ?, ?")
+                         .bind(keyword, likeKeyword, likeKeyword, likeKeyword);
+
+        if (bindRole)
+        {
+            query.bind(role);
+        }
+        query.bind(offset, pageSize);
+        mysqlx::SqlResult result = query.execute();
+
+        auto countQuery = dbManager->getSession()
+                              ->sql(std::string("SELECT COUNT(DISTINCT u.id) "
+                                                "FROM users AS u "
+                                                "LEFT JOIN types AS t ON u.type_id = t.id "
+                                                "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                                "WHERE u.is_deleted = 0 "
+                                                "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) ") +
+                                    roleCondition)
+                              .bind(keyword, likeKeyword, likeKeyword, likeKeyword);
+        if (bindRole)
+        {
+            countQuery.bind(role);
+        }
+        mysqlx::SqlResult countResult = countQuery.execute();
+
+        nlohmann::json items = nlohmann::json::array();
+        for (auto row : result)
+        {
+            items.push_back(buildUserJson(row));
+        }
+
+        nlohmann::json data = {
+            {"items", items},
+            {"total", countResult.fetchOne()[0].get<int>()},
+            {"page", page},
+            {"pageSize", pageSize}};
+
+        return ResponseHelper::success(req, data);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::operation_failed(req, "Failed to search users", e.what());
+    }
+}
+
+crow::response adminHandler::searchOnlineDoctors(const crow::request &req, const nlohmann::json &requestBody)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        const std::string keyword = getJsonString(requestBody, "keyword");
+        const std::string likeKeyword = "%" + keyword + "%";
+        const int page = normalizePage(getJsonInt(requestBody, "page", 1));
+        const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
+        const int offset = (page - 1) * pageSize;
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
+                                             "u.head_image, od.status "
+                                             "FROM users AS u "
+                                             "JOIN types AS t ON u.type_id = t.id "
+                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                             "JOIN onlineDoctors AS od ON od.doctor_id = u.id "
+                                             "WHERE u.is_deleted = 0 AND t.type = '医生' AND od.status = 'online' "
+                                             "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) "
+                                             "ORDER BY u.id ASC "
+                                             "LIMIT ?, ?")
+                                       .bind(keyword, likeKeyword, likeKeyword, likeKeyword, offset, pageSize)
+                                       .execute();
+
+        mysqlx::SqlResult countResult = dbManager->getSession()
+                                            ->sql("SELECT COUNT(DISTINCT u.id) "
+                                                  "FROM users AS u "
+                                                  "JOIN types AS t ON u.type_id = t.id "
+                                                  "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                                  "JOIN onlineDoctors AS od ON od.doctor_id = u.id "
+                                                  "WHERE u.is_deleted = 0 AND t.type = '医生' AND od.status = 'online' "
+                                                  "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?)")
+                                            .bind(keyword, likeKeyword, likeKeyword, likeKeyword)
+                                            .execute();
+
+        nlohmann::json items = nlohmann::json::array();
+        std::vector<int> doctorIds;
+        for (auto row : result)
+        {
+            const int doctorId = row[0].isNull() ? 0 : row[0].get<int>();
+            if (doctorId > 0)
+            {
+                doctorIds.push_back(doctorId);
+            }
+            items.push_back(buildUserJson(row));
+        }
+
+        nlohmann::json records = nlohmann::json::array();
+        if (!doctorIds.empty())
+        {
+            std::string placeholders;
+            for (std::size_t index = 0; index < doctorIds.size(); ++index)
+            {
+                placeholders += index == 0 ? "?" : ", ?";
+            }
+
+            auto recordQuery = dbManager->getSession()
+                                   ->sql("SELECT CAST(id AS SIGNED), doctor_id, date, check_in_time, check_out_time, status, notes, "
+                                         "CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
+                                         "FROM workTimeRecords "
+                                         "WHERE doctor_id IN (" +
+                                         placeholders + ") "
+                                                        "ORDER BY date DESC, check_in_time DESC, id DESC");
+            for (const int doctorId : doctorIds)
+            {
+                recordQuery.bind(doctorId);
+            }
+
+            mysqlx::SqlResult recordResult = recordQuery.execute();
+            for (auto row : recordResult)
+            {
+                nlohmann::json record;
+                record["source"] = "work_records";
+                record["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+                record["user_id"] = row[1].isNull() ? 0 : row[1].get<int>();
+                record["name"] = "";
+                record["date"] = row[2].isNull() ? "" : row[2].get<std::string>();
+                record["check_in_time"] = row[3].isNull() ? "" : row[3].get<std::string>();
+                record["check_out_time"] = row[4].isNull() ? "" : row[4].get<std::string>();
+                record["status"] = row[5].isNull() ? "" : row[5].get<std::string>();
+                record["notes"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
+                record["created_at"] = row[7].isNull() ? "" : row[7].get<std::string>();
+                record["updated_at"] = row[8].isNull() ? "" : row[8].get<std::string>();
+                records.push_back(record);
+            }
+        }
+
+        nlohmann::json data = {
+            {"items", items},
+            {"records", records},
+            {"total", countResult.fetchOne()[0].get<int>()},
+            {"page", page},
+            {"pageSize", pageSize}};
+
+        return ResponseHelper::success(req, data);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::operation_failed(req, "Failed to search online doctors", e.what());
     }
 }
 
@@ -574,6 +813,102 @@ crow::response adminHandler::getLogs(const crow::request &req)
         }
 
         return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann::json &requestBody)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        const std::string majorTab = getJsonString(requestBody, "majorTab", "user");
+        const std::string role = getJsonString(requestBody, "role", "all");
+        const std::string keyword = getJsonString(requestBody, "keyword");
+        const std::string likeKeyword = "%" + keyword + "%";
+        const int page = normalizePage(getJsonInt(requestBody, "page", 1));
+        const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
+        const int offset = (page - 1) * pageSize;
+        const bool isUserLogs = majorTab != "system";
+        const bool filterRole = isUserLogs && !role.empty() && role != "all";
+
+        const std::string tableName = isUserLogs ? "user_operations" : "system_operations";
+        const std::string roleColumn = isUserLogs ? "user_role" : "system_role";
+        const std::string roleCondition = filterRole ? "AND COALESCE(" + roleColumn + ", '') = ? " : "";
+        const std::string keywordCondition =
+            "AND (? = '' OR COALESCE(operator, '') LIKE ? OR COALESCE(module, '') LIKE ? "
+            "OR COALESCE(action, '') LIKE ? OR COALESCE(summary, '') LIKE ? OR COALESCE(details, '') LIKE ? "
+            "OR COALESCE(" +
+            roleColumn + ", '') LIKE ?) ";
+
+        auto query = dbManager->getSession()
+                         ->sql("SELECT CAST(id AS CHAR), category, " + roleColumn + ", operator, module, action, result, "
+                               "CAST(created_at AS CHAR), summary, details, source "
+                               "FROM " +
+                               tableName + " "
+                                           "WHERE 1 = 1 " +
+                               roleCondition + keywordCondition +
+                               "ORDER BY created_at DESC "
+                               "LIMIT ?, ?")
+                         ;
+
+        if (filterRole)
+        {
+            query.bind(role);
+        }
+        query.bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword);
+        query.bind(offset, pageSize);
+        mysqlx::SqlResult result = query.execute();
+
+        auto countQuery = dbManager->getSession()
+                              ->sql("SELECT COUNT(*) FROM " + tableName + " WHERE 1 = 1 " + roleCondition + keywordCondition)
+                              ;
+        if (filterRole)
+        {
+            countQuery.bind(role);
+        }
+        countQuery.bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword);
+        mysqlx::SqlResult countResult = countQuery.execute();
+
+        nlohmann::json items = nlohmann::json::array();
+        for (auto row : result)
+        {
+            nlohmann::json log;
+            log["id"] = row[0].isNull() ? "" : row[0].get<std::string>();
+            log["category"] = row[1].isNull() ? "" : row[1].get<std::string>();
+            if (isUserLogs)
+            {
+                log["userRole"] = row[2].isNull() ? nlohmann::json(nullptr) : nlohmann::json(row[2].get<std::string>());
+            }
+            else
+            {
+                log["systemRole"] = row[2].isNull() ? nlohmann::json(nullptr) : nlohmann::json(row[2].get<std::string>());
+            }
+            log["operator"] = row[3].isNull() ? "" : clean_string(row[3].get<std::string>());
+            log["module"] = row[4].isNull() ? "" : clean_string(row[4].get<std::string>());
+            log["action"] = row[5].isNull() ? "" : clean_string(row[5].get<std::string>());
+            log["result"] = row[6].isNull() ? "" : row[6].get<std::string>();
+            log["time"] = row[7].isNull() ? "" : row[7].get<std::string>();
+            log["summary"] = row[8].isNull() ? "" : clean_string(row[8].get<std::string>());
+            log["details"] = row[9].isNull() ? "" : clean_string(row[9].get<std::string>());
+            log["source"] = row[10].isNull() ? "" : row[10].get<std::string>();
+            items.push_back(log);
+        }
+
+        nlohmann::json data = {
+            {"items", items},
+            {"total", countResult.fetchOne()[0].get<int>()},
+            {"page", page},
+            {"pageSize", pageSize}};
+
+        return ResponseHelper::success(req, data);
     }
     catch (const std::exception &e)
     {

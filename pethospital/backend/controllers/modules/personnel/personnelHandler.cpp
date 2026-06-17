@@ -38,7 +38,7 @@ crow::response personnelHandler::createUser(const crow::request &req)
         if (!phone.empty())
         {
             mysqlx::SqlResult phone_result = dbManager->getSession()
-                                                 ->sql("SELECT id FROM users WHERE phone = ?")
+                                                 ->sql("SELECT user_id FROM phones WHERE phone = ?")
                                                  .bind(phone)
                                                  .execute();
 
@@ -76,9 +76,9 @@ crow::response personnelHandler::createUser(const crow::request &req)
         mysqlx::SqlResult result;
         try
         {
-            result = session->sql("INSERT INTO users (type_id, name, phone, password, email, birthday, head_image) "
-                                  "VALUES (?, ?, ?, ?, ?, ?, ?)")
-                         .bind(defaultUserRoleId, name, phone, hashed_password, email, birthday, head_image)
+            result = session->sql("INSERT INTO users (type_id, name, password, email, birthday, head_image) "
+                                  "VALUES (?, ?, ?, ?, ?, ?)")
+                         .bind(defaultUserRoleId, name, hashed_password, email, birthday, head_image)
                          .execute();
 
             if (result.getAffectedItemsCount() == 0)
@@ -389,5 +389,4 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
 

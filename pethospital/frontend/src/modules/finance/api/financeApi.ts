@@ -4,10 +4,19 @@ import {
   ChangeSalaryPayload,
   FinanceHomeData,
   SalaryInformationCache,
+  SalaryEmployeeRow,
   SalaryManagementPayload,
   SalarySummaryCache,
   SalarySummaryItem,
 } from "./types";
+
+interface SalaryEmployeeSearchResult {
+  employees: SalaryEmployeeRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  summary: SalaryManagementPayload["summary"];
+}
 
 const createEmptySalaryManagementPayload = (): SalaryManagementPayload => ({
   summary: {
@@ -78,6 +87,33 @@ export const financeApi = {
     } catch {
       return createEmptySalaryManagementPayload();
     }
+  },
+
+  async searchSalaryEmployees(params: {
+    keyword: string;
+    page: number;
+    pageSize: number;
+  }): Promise<SalaryEmployeeSearchResult> {
+    const { data } = await http.post("/api/finance/salary-employees/search", {
+      keyword: params.keyword,
+      page: params.page,
+      pageSize: params.pageSize,
+    });
+    const payload = data?.data ?? data;
+    const employees = unwrapList<SalaryEmployeeRow>(payload?.employees);
+
+    return {
+      employees,
+      total: Number(payload?.total ?? employees.length),
+      page: Number(payload?.page ?? params.page),
+      pageSize: Number(payload?.pageSize ?? params.pageSize),
+      summary: {
+        employeeCount: Number(payload?.summary?.employeeCount ?? 0),
+        monthlyPayroll: Number(payload?.summary?.monthlyPayroll ?? 0),
+        todayCost: Number(payload?.summary?.todayCost ?? 0),
+        todayProfit: Number(payload?.summary?.todayProfit ?? 0),
+      },
+    };
   },
 
   /**

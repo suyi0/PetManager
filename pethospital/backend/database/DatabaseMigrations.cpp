@@ -579,20 +579,20 @@ namespace DatabaseMigrations
         else
         {
             std::cout << "workTimeRecords table does not exist. Creating..." << std::endl;
-            session->sql("CREATE TABLE workTimeRecords( "
+            session->sql("CREATE TABLE workTimeLogs( "
                          "id INT AUTO_INCREMENT PRIMARY KEY, "
                          "doctor_id INT NOT NULL, "
                          "date DATE, "
                          "check_in_time TIME, "
                          "check_out_time TIME, "
-                         "status ENUM('pending', 'approved', 'rejected'), "
+                         "status ENUM('正常', '迟到', '早退', '加班', '异常') NOT NULL, "
                          "notes TEXT, "
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
                          "deleted_at DATETIME NULL COMMENT '软删除时间', "
                          "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
-                         "CONSTRAINT fk_worktime_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "CONSTRAINT fk_workLogs_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "INDEX idx_user_deleted (doctor_id, is_deleted) "
                          ")")
                 .execute();

@@ -102,6 +102,11 @@
             当前没有符合条件的工资记录
           </div>
         </div>
+        <AppPager
+          :page="page"
+          :total-pages="totalPages"
+          @update:page="page = $event"
+        />
       </section>
 
       <section class="salary-side">
@@ -268,17 +273,23 @@ import {
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { useRoute } from "vue-router";
-import { SalaryEmployeeRow } from "../../api/types";
+import { SalaryEmployeeRow, SalaryManagementPayload } from "../../api/types";
+import { financeApi } from "../../api/financeApi";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import { subscribeFinanceHomeData } from "../../utils/financeHomeDataStream";
+import AppPager from "@/shared/components/AppPager.vue";
 
 export default defineComponent({
   name: "FinanceSalary",
+  components: { AppPager },
   setup() {
     const store = useStore(storeKey);
     const route = useRoute();
     let closeHomeDataStream: (() => void) | null = null;
     const keyword = ref("");
+    const page = ref(1);
+    const pageSize = 8;
+    const total = ref(0);
     const selectedEmployeeId = ref<number | null>(null);
     const saving = ref(false);
     const statusMessage = ref("选择员工后可调整工资结构");
@@ -289,31 +300,28 @@ export default defineComponent({
       pbAward: 0,
     });
 
+    const salarySummary = ref<SalaryManagementPayload["summary"]>({
+      employeeCount: 0,
+      monthlyPayroll: 0,
+      todayCost: 0,
+      todayProfit: 0,
+    });
     const salaryManagement = computed(
       () => store.state.finance.salaryManagement
     );
+    const employees = ref<SalaryEmployeeRow[]>([]);
     const homeData = computed(() => store.state.finance.homeData);
     const isFinanceHomePage = computed(() => route.name === "financeSalary");
-    const summary = computed(() => salaryManagement.value.summary);
     const realtimeSummary = computed(() => ({
-      ...summary.value,
-      todayCost: homeData.value.dailyCost || summary.value.todayCost,
-      todayProfit: homeData.value.dailyProfit || summary.value.todayProfit,
+      ...salarySummary.value,
+      todayCost: homeData.value.dailyCost || salarySummary.value.todayCost,
+      todayProfit:
+        homeData.value.dailyProfit || salarySummary.value.todayProfit,
     }));
-    const employees = computed(() => salaryManagement.value.employees);
-
-    const filteredEmployees = computed(() => {
-      const search = keyword.value.trim().toLowerCase();
-      if (!search) {
-        return employees.value;
-      }
-
-      return employees.value.filter((item) =>
-        [item.name, item.type_name, item.phone, item.email]
-          .filter((field): field is string => typeof field === "string")
-          .some((field) => field.toLowerCase().includes(search))
-      );
-    });
+    const filteredEmployees = computed(() => employees.value);
+    const totalPages = computed(() =>
+      Math.max(1, Math.ceil(total.value / pageSize))
+    );
 
     const selectedEmployee = computed<SalaryEmployeeRow | null>(() => {
       if (selectedEmployeeId.value === null) {
@@ -373,19 +381,23 @@ export default defineComponent({
 
     const ensureSalaryData = async () => {
       await store.dispatch("finance/ensureHomeData");
-      await store.dispatch("finance/ensureSalaryManagement", { force: true });
+      const result = await financeApi.searchSalaryEmployees({
+        keyword: keyword.value.trim(),
+        page: page.value,
+        pageSize,
+      });
+      employees.value = result.employees;
+      total.value = result.total;
+      salarySummary.value = result.summary;
       if (!selectedEmployeeId.value && employees.value[0]) {
         selectedEmployeeId.value = employees.value[0].id;
       }
     };
 
     const refreshSalaryData = async () => {
-      await store.dispatch("finance/ensureSalaryManagement", { force: true });
+      await ensureSalaryData();
       statusMessage.value = "工资数据已刷新";
       statusMessageType.value = "info";
-      if (!selectedEmployeeId.value && employees.value[0]) {
-        selectedEmployeeId.value = employees.value[0].id;
-      }
     };
 
     const selectEmployee = (userId: number) => {
@@ -415,6 +427,7 @@ export default defineComponent({
           paAward: Number(editor.paAward || 0),
           pbAward: Number(editor.pbAward || 0),
         });
+        await ensureSalaryData();
         statusMessage.value = "工资结构保存成功";
         statusMessageType.value = "info";
       } catch (error: unknown) {
@@ -428,6 +441,7 @@ export default defineComponent({
     };
 
     onMounted(() => {
+      void store.dispatch("finance/ensureSalaryManagement", { force: true });
       void ensureSalaryData();
 
       if (isFinanceHomePage.value) {
@@ -444,6 +458,15 @@ export default defineComponent({
       }
     });
 
+    watch(keyword, () => {
+      page.value = 1;
+      void ensureSalaryData();
+    });
+
+    watch(page, () => {
+      void ensureSalaryData();
+    });
+
     onBeforeUnmount(() => {
       closeHomeDataStream?.();
       closeHomeDataStream = null;
@@ -452,6 +475,8 @@ export default defineComponent({
     return {
       isFinanceHomePage,
       keyword,
+      page,
+      totalPages,
       summary: realtimeSummary,
       salaryManagement,
       filteredEmployees,

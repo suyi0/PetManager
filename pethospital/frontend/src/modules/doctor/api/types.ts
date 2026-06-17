@@ -96,6 +96,8 @@ export interface MedicineSearchItem {
 export interface SelectedMedicineItem {
   id: number;
   name: string;
+  type?: string;
+  stock?: number;
   dosage: string;
   days: number;
   unitPrice: number;

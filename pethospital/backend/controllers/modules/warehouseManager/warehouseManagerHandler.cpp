@@ -1,5 +1,72 @@
 #include "warehouseManagerHandler.h"
 
+namespace
+{
+    std::string getJsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
+    {
+        return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : fallback;
+    }
+
+    int getJsonInt(const nlohmann::json &body, const std::string &key, int fallback)
+    {
+        return body.contains(key) && body[key].is_number_integer() ? body[key].get<int>() : fallback;
+    }
+
+    int normalizePage(int page)
+    {
+        return std::max(1, page);
+    }
+
+    int normalizePageSize(int pageSize, int fallback = 10, int max = 100)
+    {
+        if (pageSize <= 0)
+        {
+            return fallback;
+        }
+
+        return std::min(pageSize, max);
+    }
+
+    std::string resolveWarehouseOrderBy(const std::string &sortKey)
+    {
+        if (sortKey == "stock")
+        {
+            return "item_number DESC, id DESC";
+        }
+        if (sortKey == "price")
+        {
+            return "item_price DESC, id DESC";
+        }
+        if (sortKey == "total")
+        {
+            return "item_totalprice DESC, id DESC";
+        }
+        if (sortKey == "expiry")
+        {
+            return "item_expirationdate ASC, id DESC";
+        }
+
+        return "item_name ASC, id DESC";
+    }
+
+    nlohmann::json buildWarehouseItemJson(const mysqlx::Row &row)
+    {
+        nlohmann::json item_json;
+        item_json["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+        item_json["item_name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+        item_json["item_type"] = row[2].isNull() ? "" : row[2].get<std::string>();
+        item_json["item_productiondate"] = row[3].isNull() ? "" : row[3].get<std::string>();
+        item_json["item_expirationdate"] = row[4].isNull() ? "" : row[4].get<std::string>();
+        item_json["days_until_expire"] = row[5].isNull() ? nullptr : nlohmann::json(row[5].get<int>());
+        item_json["item_price"] = row[6].isNull() ? 0.0 : row[6].get<double>();
+        item_json["item_number"] = row[7].isNull() ? 0 : row[7].get<int>();
+        item_json["item_totalprice"] = row[8].isNull() ? 0.0 : row[8].get<double>();
+        item_json["created_at"] = row[9].isNull() ? "" : row[9].get<std::string>();
+        item_json["updated_at"] = row[10].isNull() ? "" : row[10].get<std::string>();
+        return item_json;
+    }
+}
+
 crow::response warehouseManagerHandler::upload(const crow::request &req)
 {
     crow::response res;
@@ -193,6 +260,75 @@ crow::response warehouseManagerHandler::selectData(const crow::request &req, con
     catch(const std::exception& e)
     {
         return ResponseHelper::system_error(req, "获取仓库数据失败: " + std::string(e.what()));
+    }
+}
+
+crow::response warehouseManagerHandler::searchItems(const crow::request &req, const nlohmann::json &requestBody)
+{
+    try
+    {
+        if(!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        const std::string keyword = getJsonString(requestBody, "keyword");
+        const std::string itemType = getJsonString(requestBody, "itemType", "全部");
+        const std::string sortKey = getJsonString(requestBody, "sortKey", "name");
+        const std::string likeKeyword = "%" + keyword + "%";
+        const int page = normalizePage(getJsonInt(requestBody, "page", 1));
+        const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
+        const int offset = (page - 1) * pageSize;
+        const bool filterType = !itemType.empty() && itemType != "全部";
+        const std::string typeCondition = filterType ? "AND item_type = ? " : "";
+
+        auto query = dbManager->getSession()
+                         ->sql(std::string("SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
+                                           "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
+                                           "FROM warehouse "
+                                           "WHERE is_deleted = 0 "
+                                           "AND (? = '' OR item_name LIKE ?) ") +
+                               typeCondition +
+                               "ORDER BY " + resolveWarehouseOrderBy(sortKey) + " "
+                               "LIMIT ?, ?")
+                         .bind(keyword, likeKeyword);
+        if (filterType)
+        {
+            query.bind(itemType);
+        }
+        query.bind(offset, pageSize);
+        mysqlx::SqlResult result = query.execute();
+
+        auto countQuery = dbManager->getSession()
+                              ->sql(std::string("SELECT COUNT(*) "
+                                                "FROM warehouse "
+                                                "WHERE is_deleted = 0 "
+                                                "AND (? = '' OR item_name LIKE ?) ") +
+                                    typeCondition)
+                              .bind(keyword, likeKeyword);
+        if (filterType)
+        {
+            countQuery.bind(itemType);
+        }
+        mysqlx::SqlResult countResult = countQuery.execute();
+
+        nlohmann::json items = nlohmann::json::array();
+        for (auto row : result)
+        {
+            items.push_back(buildWarehouseItemJson(row));
+        }
+
+        nlohmann::json data = {
+            {"items", items},
+            {"total", countResult.fetchOne()[0].get<int>()},
+            {"page", page},
+            {"pageSize", pageSize}};
+
+        return ResponseHelper::success(req, data);
+    }
+    catch(const std::exception& e)
+    {
+        return ResponseHelper::system_error(req, "搜索仓库数据失败: " + std::string(e.what()));
     }
 }
 

@@ -2,6 +2,13 @@ import http from "@/api/http";
 import { unwrapList } from "@/api/response";
 import { WarehouseCreatePayload, WarehouseItem } from "./types";
 
+interface WarehouseSearchResult {
+  items: WarehouseItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 const unwrapData = <T>(payload: unknown): T | null => {
   if (payload && typeof payload === "object" && "data" in payload) {
     return (payload as { data?: T }).data ?? null;
@@ -14,6 +21,28 @@ export const warehouseAdminApi = {
   async select(): Promise<WarehouseItem[]> {
     const { data } = await http.get("/api/warehouse-managers/items");
     return unwrapList<WarehouseItem>(data);
+  },
+
+  async search(params: {
+    keyword: string;
+    itemType: string;
+    sortKey: string;
+    page: number;
+    pageSize: number;
+  }): Promise<WarehouseSearchResult> {
+    const { data } = await http.post(
+      "/api/warehouse-managers/items/search",
+      params
+    );
+    const payload = data?.data ?? data;
+    const items = unwrapList<WarehouseItem>(payload?.items);
+
+    return {
+      items,
+      total: Number(payload?.total ?? items.length),
+      page: Number(payload?.page ?? params.page),
+      pageSize: Number(payload?.pageSize ?? params.pageSize),
+    };
   },
 
   async selectDataID(id: number): Promise<WarehouseItem | null> {

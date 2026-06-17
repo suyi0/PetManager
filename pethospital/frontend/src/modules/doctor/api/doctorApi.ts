@@ -6,6 +6,7 @@ import {
   DoctorDutyStatus,
   DoctorUserProfile,
   DoctorUserSummary,
+  MedicineSearchItem,
   OrderDetailItem,
   QueueItem,
   OrderSummaryItem,
@@ -156,14 +157,46 @@ const normalizeDoctorUserSummaries = (
       : [],
   }));
 
-const resolveDoctorUserSearchIdentifier = (
-  keyword: string
-): "name" | "phone" => {
-  const digitKeyword = keyword.replace(/\D/g, "");
+const normalizeMedicineSearchItems = (
+  items: Array<Record<string, unknown>>
+): MedicineSearchItem[] =>
+  items
+    .map((item) => ({
+      id: toNumber(item.id) ?? 0,
+      name: String(item.name ?? item.item_name ?? ""),
+      type: String(item.type ?? item.item_type ?? ""),
+      price: toNumber(item.price ?? item.item_price) ?? 0,
+      stock: toNumber(item.stock ?? item.item_number) ?? 0,
+      spec: String(item.spec ?? item.item_spec ?? ""),
+    }))
+    .filter((item) => item.id > 0 && item.stock > 0);
 
-  return digitKeyword.length >= 4 && digitKeyword === keyword
-    ? "phone"
-    : "name";
+type DoctorUserSearchPayload = {
+  data: string;
+  identifier: "name" | "phone";
+};
+
+const buildDoctorUserSearchPayload = (
+  keyword: string
+): DoctorUserSearchPayload => {
+  const normalizedKeyword = keyword.trim();
+  const digitKeyword = keyword.replace(/\D/g, "");
+  const phoneKeywordPattern = /^[+\d\s().-]+$/;
+
+  if (digitKeyword.length >= 4 && phoneKeywordPattern.test(normalizedKeyword)) {
+    return {
+      data:
+        digitKeyword.length === 13 && digitKeyword.startsWith("86")
+          ? digitKeyword.slice(2)
+          : digitKeyword,
+      identifier: "phone",
+    };
+  }
+
+  return {
+    data: normalizedKeyword,
+    identifier: "name",
+  };
 };
 
 /**
@@ -318,12 +351,25 @@ export const doctorApi = {
    * 按关键词搜索医生端用户摘要列表。
    */
   async getUserList(searchByKeyword: string): Promise<DoctorUserSummary[]> {
-    const { data } = await http.post("/api/doctors/user-summaries", {
-      data: searchByKeyword,
-      identifier: resolveDoctorUserSearchIdentifier(searchByKeyword),
-    });
+    const { data } = await http.post(
+      "/api/doctors/user-summaries",
+      buildDoctorUserSearchPayload(searchByKeyword)
+    );
 
     return normalizeDoctorUserSummaries(
+      unwrapList<Record<string, unknown>>(data)
+    );
+  },
+
+  /**
+   * 按关键词搜索可开单药品。
+   */
+  async searchMedicines(keyword: string): Promise<MedicineSearchItem[]> {
+    const { data } = await http.post("/api/doctors/medicine-search", {
+      keyword,
+    });
+
+    return normalizeMedicineSearchItems(
       unwrapList<Record<string, unknown>>(data)
     );
   },

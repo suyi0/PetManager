@@ -72,7 +72,8 @@ namespace
             result = dbManager->getSession()
                          ->sql("SELECT u.id, t.type FROM users AS u "
                                "JOIN types AS t ON u.type_id = t.id "
-                               "WHERE u.phone = ? AND u.is_deleted = 0")
+                               "JOIN phones AS p ON p.user_id = u.id "
+                               "WHERE p.phone = ? AND u.is_deleted = 0")
                          .bind(identifier)
                          .execute();
         }

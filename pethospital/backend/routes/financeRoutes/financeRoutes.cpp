@@ -126,6 +126,39 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取工资管理数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
             });
 
+    CROW_ROUTE(app, "/api/finance/salary-employees/search")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "搜索员工工资");
+                        return;
+                    }
+
+                    financeHandler handler(dbManager);
+                    auto jsonOpt = handler.parseJson(req, res);
+                    if (!jsonOpt)
+                    {
+                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "搜索员工工资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        return;
+                    }
+
+                    crow::response response = handler.searchSalaryEmployees(req, jsonOpt.value());
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "财务", "搜索员工工资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "搜索员工工资", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+            });
+
     // 获取员工工资详情路由
     CROW_ROUTE(app, "/api/finance/salary-records/<int>")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(

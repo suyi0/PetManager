@@ -36,7 +36,7 @@ namespace UserPhoneSync
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Failed to sync users.phone into phones: " << e.what() << std::endl;
+            std::cerr << "Failed to save phone into phones: " << e.what() << std::endl;
             return false;
         }
     }

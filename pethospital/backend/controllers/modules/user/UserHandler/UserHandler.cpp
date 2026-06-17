@@ -249,8 +249,10 @@ nlohmann::json userHandler::getUserData(const int &id)
     }
 
     mysqlx::SqlResult result = dbManager->getSession()
-                                   ->sql("SELECT id, name, password, phone, email, CAST(birthday AS CHAR), head_image "
-                                         "FROM users WHERE id = ?")
+                                   ->sql("SELECT u.id, u.name, u.password, p.phone, u.email, CAST(u.birthday AS CHAR), u.head_image "
+                                         "FROM users AS u "
+                                         "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                         "WHERE u.id = ?")
                                    .bind(id)
                                    .execute();
     nlohmann::json user_data;
@@ -407,9 +409,9 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
 
             try
             {
-                mysqlx::SqlResult result = session->sql("INSERT INTO users(type_id, name, phone, email, password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at) "
-                                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                                               .bind(type_id, name, phone, email, hashed_password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at)
+                mysqlx::SqlResult result = session->sql("INSERT INTO users(type_id, name, email, password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at) "
+                                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                                               .bind(type_id, name, email, hashed_password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at)
                                                .execute();
 
                 // 用户注册过程中，若手机号同步失败，则回滚整个事务，确保数据一致性
@@ -753,9 +755,10 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result1 = dbManager->getSession()
-                                        ->sql("SELECT id "
-                                              "FROM users "
-                                              "WHERE phone = ? AND id <> ? AND is_deleted = 0 "
+                                        ->sql("SELECT u.id "
+                                              "FROM users AS u "
+                                              "JOIN phones AS p ON p.user_id = u.id "
+                                              "WHERE p.phone = ? AND u.id <> ? AND u.is_deleted = 0 "
                                               "LIMIT 1")
                                         .bind(phone, userId)
                                         .execute();
@@ -766,9 +769,10 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result2 = dbManager->getSession()
-                                        ->sql("SELECT u.phone, u.type_id, t.type "
+                                        ->sql("SELECT p.phone, u.type_id, t.type "
                                               "FROM users AS u "
                                               "JOIN types AS t ON t.id = u.type_id "
+                                              "LEFT JOIN phones AS p ON p.user_id = u.id "
                                               "WHERE u.id = ? AND u.is_deleted = 0 "
                                               "LIMIT 1")
                                         .bind(userId)
@@ -794,16 +798,6 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
 
         try
         {
-            mysqlx::SqlResult result3 = session->sql("UPDATE users SET phone = ? "
-                                                     "WHERE id = ? AND is_deleted = 0")
-                                            .bind(phone, userId)
-                                            .execute();
-
-            if (result3.getAffectedItemsCount() == 0)
-            {
-                return ResponseHelper::database_error(req, "更新手机号失败");
-            }
-
             if (!UserPhoneSync::upsertUserPhone(*session, userId, phone)) // 同步手机号
             {
                 session->sql("ROLLBACK").execute();
@@ -934,10 +928,11 @@ crow::response userHandler::userLogin(const crow::request &req)
             {
                 // 通过email查询用户
                 result = dbManager->getSession()
-                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, u.phone, u.email, "
+                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, p.phone, u.email, "
                                    "CAST(u.birthday AS CHAR), u.head_image "
                                    "FROM users AS u "
                                    "LEFT JOIN types AS t ON u.type_id = t.id "
+                                   "LEFT JOIN phones AS p ON p.user_id = u.id "
                                    "WHERE u.email = ?")
                              .bind(email)
                              .execute();
@@ -947,11 +942,12 @@ crow::response userHandler::userLogin(const crow::request &req)
                 const std::string legacyPhone = stripChinaCountryCode(phone);
                 // 通过phone查询用户
                 result = dbManager->getSession()
-                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, u.phone, u.email, "
+                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, p.phone, u.email, "
                                    "CAST(u.birthday AS CHAR), u.head_image "
                                    "FROM users AS u "
                                    "LEFT JOIN types AS t ON u.type_id = t.id "
-                                   "WHERE u.phone = ? OR u.phone = ?")
+                                   "JOIN phones AS p ON p.user_id = u.id "
+                                   "WHERE p.phone = ? OR p.phone = ?")
                              .bind(phone)
                              .bind(legacyPhone)
                              .execute();
@@ -1574,6 +1570,7 @@ crow::response userHandler::upload(const crow::request &req, const std::string &
 
 namespace
 {
+    // 获取今天日期
     std::string getTodayDate()
     {
         const boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
@@ -1740,9 +1737,10 @@ crow::response userHandler::getDoctorList(const crow::request &req)
         const std::string todayDate = getTodayDate();
 
         mysqlx::RowResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, u.name, u.phone, u.email, u.user_specialty, "
+                                       ->sql("SELECT u.id, u.name, p.phone, u.email, u.user_specialty, "
                                              "COALESCE(od.status, 'offline') "
                                              "FROM users AS u "
+                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
                                              "LEFT JOIN onlineDoctors AS od "
                                              "ON od.doctor_id = u.id AND od.date = ? "
                                              "WHERE u.type_id = ? AND u.is_deleted = 0")

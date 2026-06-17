@@ -14,6 +14,12 @@ bool backfillPhonesFromUsers(DatabaseManagerInterface &database_manager)
 {
     try
     {
+        if (!Common::columnExists(database_manager, "users", "phone"))
+        {
+            std::cout << "Skipping legacy phone backfill: users.phone column does not exist." << std::endl;
+            return true;
+        }
+
         database_manager.getSession()
             ->sql("INSERT INTO phones (user_id, phone) "
                   "SELECT u.id, u.phone "
@@ -72,7 +78,7 @@ void backfillPhones(DatabaseManagerInterface &database_manager)
 {
     backfillRelationIfEnabled(
         database_manager,
-        "phones <- users.phone",
+        "legacy users.phone -> phones",
         shouldAutoBackfillPhonesFromUsers(),
         "DB_AUTO_BACKFILL_PHONES_FROM_USERS or DB_AUTO_BACKFILL_RELATION_TABLES",
         backfillPhonesFromUsers);

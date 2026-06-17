@@ -162,6 +162,8 @@ import {
 } from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
+import { UserRow } from "@/modules/super-admin/api/types";
+import { personnelApi } from "../../api/personnelApi";
 
 export default defineComponent({
   name: "PersonnelRoleAccess",
@@ -170,7 +172,8 @@ export default defineComponent({
     const store = useStore(storeKey);
     const userID = ref<number | null>(null);
     const message = ref("等待操作");
-    const users = computed(() => store.state.personnel.users);
+    const users = ref<UserRow[]>([]);
+    const total = ref(0);
     const page = ref(1);
     const pageSize = 8;
     const keywordInput = ref("");
@@ -195,29 +198,11 @@ export default defineComponent({
       return "user-card__role--user";
     };
 
-    const manageableUsers = computed(() => {
-      const source = users.value;
-      const search = keyword.value.toLowerCase();
-
-      if (!search) {
-        return source;
-      }
-
-      return source.filter((item) =>
-        [item.name, item.email, item.phone]
-          .filter((field): field is string => typeof field === "string")
-          .some((field) => field.toLowerCase().includes(search))
-      );
-    });
-
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(manageableUsers.value.length / pageSize))
+      Math.max(1, Math.ceil(total.value / pageSize))
     );
 
-    const pagedUsers = computed(() => {
-      const start = (page.value - 1) * pageSize;
-      return manageableUsers.value.slice(start, start + pageSize);
-    });
+    const pagedUsers = computed(() => users.value);
 
     const leftColumn = computed(() => pagedUsers.value.slice(0, 4));
     const rightColumn = computed(() => pagedUsers.value.slice(4, 8));
@@ -235,7 +220,13 @@ export default defineComponent({
     );
 
     const loadUsers = async () => {
-      await store.dispatch("personnel/ensureUsers", { force: true });
+      const result = await personnelApi.searchUsers({
+        keyword: keyword.value,
+        page: page.value,
+        pageSize,
+      });
+      users.value = result.items;
+      total.value = result.total;
       if (page.value > totalPages.value) {
         page.value = totalPages.value;
       }
@@ -243,6 +234,11 @@ export default defineComponent({
 
     watch(keyword, () => {
       page.value = 1;
+      void loadUsers();
+    });
+
+    watch(page, () => {
+      void loadUsers();
     });
 
     const applySearch = () => {
@@ -258,6 +254,7 @@ export default defineComponent({
       try {
         await store.dispatch("personnel/createDoctor", ensureUserID());
         message.value = "医生权限授予成功";
+        await loadUsers();
       } catch (error) {
         message.value =
           error instanceof Error ? error.message : "医生权限授予失败";
@@ -268,6 +265,7 @@ export default defineComponent({
       try {
         await store.dispatch("personnel/deleteDoctor", ensureUserID());
         message.value = "医生权限移除成功";
+        await loadUsers();
       } catch (error) {
         message.value =
           error instanceof Error ? error.message : "医生权限移除失败";
@@ -281,6 +279,7 @@ export default defineComponent({
           ensureUserID()
         );
         message.value = "仓库管理员授权成功";
+        await loadUsers();
       } catch (error) {
         message.value =
           error instanceof Error ? error.message : "仓库管理员授权失败";
@@ -294,6 +293,7 @@ export default defineComponent({
           ensureUserID()
         );
         message.value = "仓库管理员权限移除成功";
+        await loadUsers();
       } catch (error) {
         message.value =
           error instanceof Error ? error.message : "仓库管理员权限移除失败";

@@ -60,3 +60,5 @@ build/
 main
 RunServe
 skills
+AGENTS.md
+MEMORY.md

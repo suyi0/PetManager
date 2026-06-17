@@ -47,9 +47,7 @@
             <p class="role-panel__eyebrow">Role 01</p>
             <h3>普通用户</h3>
           </div>
-          <span class="role-panel__count"
-            >{{ filteredNormalUsers.length }} 人</span
-          >
+          <span class="role-panel__count">{{ normalTotal }} 人</span>
         </header>
         <div class="role-table-list">
           <button
@@ -85,9 +83,7 @@
             <p class="role-panel__eyebrow">Role 02</p>
             <h3>医护人员</h3>
           </div>
-          <span class="role-panel__count"
-            >{{ filteredDoctorUsers.length }} 人</span
-          >
+          <span class="role-panel__count">{{ doctorTotal }} 人</span>
         </header>
         <div class="role-table-list">
           <button
@@ -135,9 +131,7 @@
             <p class="role-panel__eyebrow">Role 03</p>
             <h3>管理员</h3>
           </div>
-          <span class="role-panel__count"
-            >{{ filteredAdminUsers.length }} 人</span
-          >
+          <span class="role-panel__count">{{ adminTotal }} 人</span>
         </header>
         <div class="role-table-list">
           <button
@@ -262,6 +256,7 @@ import {
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
 import { UserRow } from "../../api/types";
+import { superAdminApi } from "../../api/superAdminApi";
 import allUsersIllustration from "@/assets/photo/super-admin-users-all.svg";
 import normalUsersIllustration from "@/assets/photo/super-admin-users-normal.svg";
 import doctorUsersIllustration from "@/assets/photo/super-admin-users-doctor.svg";
@@ -295,7 +290,12 @@ export default defineComponent({
     const adminPage = ref(1);
     const pageSize = 10;
     const router = useRouter();
-    const users = computed<UserRow[]>(() => store.state.superAdmin.users);
+    const normalUsers = ref<UserRow[]>([]);
+    const doctorUsers = ref<UserRow[]>([]);
+    const adminUsers = ref<UserRow[]>([]);
+    const normalTotal = ref(0);
+    const doctorTotal = ref(0);
+    const adminTotal = ref(0);
     const form = reactive({
       name: "",
       phone: "",
@@ -312,44 +312,12 @@ export default defineComponent({
     const formatRole = (user: UserRow) =>
       resolveRoleName(user.type_name, user.type_id) || "未知角色";
 
-    const sortedById = (list: UserRow[]) =>
-      [...list].sort((a, b) => a.id - b.id);
-
-    const normalUsers = computed(() =>
-      sortedById(users.value.filter((item) => formatRole(item) === "普通用户"))
-    );
-
-    const doctorUsers = computed(() =>
-      [...users.value]
-        .filter((item) => {
-          const role = formatRole(item);
-          return role === "医生" || role === "护士";
-        })
-        .sort((a, b) => {
-          const aOnline = a.status === "online" ? 1 : 0;
-          const bOnline = b.status === "online" ? 1 : 0;
-          if (aOnline !== bOnline) {
-            return bOnline - aOnline;
-          }
-          return a.id - b.id;
-        })
-    );
-
-    const adminUsers = computed(() =>
-      sortedById(
-        users.value.filter((item) => {
-          const role = formatRole(item);
-          return isSuperAdminPortalRole(role) || role === "仓库管理员";
-        })
-      )
-    );
-
     const heroCards = computed(() => [
       {
         key: "all",
         eyebrow: "All Users",
         label: "全部用户",
-        count: users.value.length,
+        count: normalTotal.value + doctorTotal.value + adminTotal.value,
         image: allUsersIllustration,
         tone: "hero-card-item--all",
       },
@@ -357,7 +325,7 @@ export default defineComponent({
         key: "normal",
         eyebrow: "General",
         label: "普通用户",
-        count: normalUsers.value.length,
+        count: normalTotal.value,
         image: normalUsersIllustration,
         tone: "hero-card-item--normal",
       },
@@ -365,7 +333,7 @@ export default defineComponent({
         key: "doctor",
         eyebrow: "Medical Staff",
         label: "医护人员",
-        count: doctorUsers.value.length,
+        count: doctorTotal.value,
         image: doctorUsersIllustration,
         tone: "hero-card-item--doctor",
       },
@@ -373,66 +341,59 @@ export default defineComponent({
         key: "admin",
         eyebrow: "Admins",
         label: "管理员",
-        count: adminUsers.value.length,
+        count: adminTotal.value,
         image: adminUsersIllustration,
         tone: "hero-card-item--admin",
       },
     ]);
 
-    const matchesKeyword = (item: UserRow) => {
-      const search = keywordInput.value.trim().toLowerCase();
-      if (!search) return true;
-
-      return [item.name, item.email, item.phone]
-        .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(search));
-    };
-
-    const filteredNormalUsers = computed(() =>
-      normalUsers.value.filter(matchesKeyword)
-    );
-
-    const filteredDoctorUsers = computed(() =>
-      doctorUsers.value.filter(matchesKeyword)
-    );
-
-    const filteredAdminUsers = computed(() =>
-      adminUsers.value.filter(matchesKeyword)
-    );
-
     const normalTotalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredNormalUsers.value.length / pageSize))
+      Math.max(1, Math.ceil(normalTotal.value / pageSize))
     );
 
     const doctorTotalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredDoctorUsers.value.length / pageSize))
+      Math.max(1, Math.ceil(doctorTotal.value / pageSize))
     );
 
     const adminTotalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredAdminUsers.value.length / pageSize))
+      Math.max(1, Math.ceil(adminTotal.value / pageSize))
     );
 
-    const pagedNormalUsers = computed(() => {
-      const start = (normalPage.value - 1) * pageSize;
-      return filteredNormalUsers.value.slice(start, start + pageSize);
-    });
-
-    const pagedDoctorUsers = computed(() => {
-      const start = (doctorPage.value - 1) * pageSize;
-      return filteredDoctorUsers.value.slice(start, start + pageSize);
-    });
-
-    const pagedAdminUsers = computed(() => {
-      const start = (adminPage.value - 1) * pageSize;
-      return filteredAdminUsers.value.slice(start, start + pageSize);
-    });
+    const pagedNormalUsers = computed(() => normalUsers.value);
+    const pagedDoctorUsers = computed(() => doctorUsers.value);
+    const pagedAdminUsers = computed(() => adminUsers.value);
 
     /**
      * 加载用户列表
      */
     const loadUsers = async () => {
-      // 优先读全局缓存，只有脏数据、超时或首次进入时才会访问接口。
-      await store.dispatch("superAdmin/ensureUsers", { force: true });
+      const keyword = keywordInput.value.trim();
+      const [normal, doctors, admins] = await Promise.all([
+        superAdminApi.searchUsers({
+          keyword,
+          role: "普通用户",
+          page: normalPage.value,
+          pageSize,
+        }),
+        superAdminApi.searchUsers({
+          keyword,
+          role: "medical",
+          page: doctorPage.value,
+          pageSize,
+        }),
+        superAdminApi.searchUsers({
+          keyword,
+          role: "admin",
+          page: adminPage.value,
+          pageSize,
+        }),
+      ]);
+      normalUsers.value = normal.items;
+      doctorUsers.value = doctors.items;
+      adminUsers.value = admins.items;
+      normalTotal.value = normal.total;
+      doctorTotal.value = doctors.total;
+      adminTotal.value = admins.total;
       normalPage.value = Math.min(normalPage.value, normalTotalPages.value);
       doctorPage.value = Math.min(doctorPage.value, doctorTotalPages.value);
       adminPage.value = Math.min(adminPage.value, adminTotalPages.value);
@@ -445,6 +406,11 @@ export default defineComponent({
       normalPage.value = 1;
       doctorPage.value = 1;
       adminPage.value = 1;
+      void loadUsers();
+    });
+
+    watch([normalPage, doctorPage, adminPage], () => {
+      void loadUsers();
     });
 
     /**
@@ -454,6 +420,7 @@ export default defineComponent({
       normalPage.value = 1;
       doctorPage.value = 1;
       adminPage.value = 1;
+      void loadUsers();
     };
 
     /**
@@ -464,8 +431,7 @@ export default defineComponent({
       normalPage.value = 1;
       doctorPage.value = 1;
       adminPage.value = 1;
-      // 显式刷新时跳过缓存，直接请求最新数据。
-      await store.dispatch("superAdmin/ensureUsers", { force: true });
+      await loadUsers();
     };
 
     /**
@@ -528,6 +494,7 @@ export default defineComponent({
           birthday: form.birthday || undefined,
         });
         closeCreateDialog();
+        await loadUsers();
       } catch (error: unknown) {
         formError.value = getErrorDetails(error) || "创建失败，请稍后重试";
       } finally {
@@ -540,14 +507,13 @@ export default defineComponent({
     });
 
     return {
-      users,
       normalUsers,
       doctorUsers,
       adminUsers,
       heroCards,
-      filteredNormalUsers,
-      filteredDoctorUsers,
-      filteredAdminUsers,
+      normalTotal,
+      doctorTotal,
+      adminTotal,
       pagedNormalUsers,
       pagedDoctorUsers,
       pagedAdminUsers,

@@ -28,6 +28,10 @@ public:
 
     crow::response getUsers(const crow::request& req);  // 获取全部用户 对应 /api/admins/users
 
+    crow::response searchUsers(const crow::request& req, const nlohmann::json& requestBody); // 搜索用户 对应 /api/admins/users/search
+
+    crow::response searchOnlineDoctors(const crow::request& req, const nlohmann::json& requestBody); // 搜索在线医生 对应 /api/admins/online-doctors/search
+
     crow::response getWorkTimeRecord(const crow::request& req); // 获取全部人的工作时间记录 对应 /api/admins/work-time-records
 
     // 修改医生工作时间 对应 /api/admins/doctor-work-time-changes
@@ -36,6 +40,8 @@ public:
     crow::response handleDoctorStatusAction(const crow::request& req, int& userId, bool requireDoctorId);    // 修改医生工作状态 对应 /api/admins/doctor-work-status-changes
 
     crow::response getLogs(const crow::request &req);   // 获取日志记录 对应 /api/admins/logs
+
+    crow::response searchLogs(const crow::request& req, const nlohmann::json& requestBody); // 搜索日志 对应 /api/admins/logs/search
 
     crow::response getAllRecord(const crow::request& req, int &userId, int batch_size = 100, int offset = 1);   // 获取订单记录 对应 /api/admins/order-records
 };

@@ -329,6 +329,10 @@ export const reservationApi = {
 };
 
 export const petApi = {
+  /**
+   * 获取当前用户的宠物档案列表。
+   * @returns 宠物档案列表
+   */
   async getPetProfiles(): Promise<PetProfile[]> {
     const response = await http.get("/api/users/me/pet-profiles");
     return unwrapListData<PetProfile>(response);

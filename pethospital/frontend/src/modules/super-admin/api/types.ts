@@ -74,6 +74,17 @@ export interface ApiListResponse<T> {
   message?: string;
 }
 
+export interface PagedList<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface OnlineDoctorsSearchResult extends PagedList<UserRow> {
+  records: WorkTimeRecord[];
+}
+
 /**
  * 超级管理员首页摘要数据。
  */

@@ -4,93 +4,93 @@
 
 namespace
 {
-constexpr const char *kTotalHolder = "总份额";
-constexpr const char *kRemainingHolder = "剩余份额";
-constexpr const char *kDecisionShareType = "决策股分布图";
-constexpr const char *kDividendShareType = "分红股分布图";
+    constexpr const char *kTotalHolder = "总份额";
+    constexpr const char *kRemainingHolder = "剩余份额";
+    constexpr const char *kDecisionShareType = "决策股分布图";
+    constexpr const char *kDividendShareType = "分红股分布图";
 
-bool isReservedHolder(const std::string &holder)
-{
-    return holder == kTotalHolder || holder == kRemainingHolder;
-}
-
-void rollbackQuietly(mysqlx::Session &session)
-{
-    try
+    bool isReservedHolder(const std::string &holder)
     {
-        session.sql("ROLLBACK").execute();
+        return holder == kTotalHolder || holder == kRemainingHolder;
     }
-    catch (...)
+
+    void rollbackQuietly(mysqlx::Session &session)
     {
+        try
+        {
+            session.sql("ROLLBACK").execute();
+        }
+        catch (...)
+        {
+        }
     }
-}
 
-std::string resolveStockItemType(const std::string &holder)
-{
-    if (holder == kTotalHolder)
+    std::string resolveStockItemType(const std::string &holder)
     {
-        return "total";
-    }
-    if (holder == kRemainingHolder)
-    {
-        return "remaining";
-    }
-    return "holder";
-}
-
-nlohmann::json buildStockDistribution(mysqlx::Session &session, const std::string &shareType)
-{
-    mysqlx::SqlResult result = session.sql("SELECT id, holder, share FROM stock WHERE share_type = ? ORDER BY id ASC")
-                                    .bind(shareType)
-                                    .execute();
-
-    struct StockRow
-    {
-        int id;
-        std::string holder;
-        long long share;
-    };
-
-    std::vector<StockRow> rows;
-    rows.reserve(8);
-
-    long long totalShare = 0LL;
-    for (const auto &row : result)
-    {
-        const int id = row[0].isNull() ? -1 : row[0].get<int>();
-        const std::string holder = row[1].isNull() ? "" : row[1].get<std::string>();
-        const long long share = row[2].isNull() ? 0LL : row[2].get<long long>();
-
         if (holder == kTotalHolder)
         {
-            totalShare = share;
+            return "total";
+        }
+        if (holder == kRemainingHolder)
+        {
+            return "remaining";
+        }
+        return "holder";
+    }
+
+    nlohmann::json buildStockDistribution(mysqlx::Session &session, const std::string &shareType)
+    {
+        mysqlx::SqlResult result = session.sql("SELECT id, holder, share FROM stock WHERE share_type = ? ORDER BY id ASC")
+                                       .bind(shareType)
+                                       .execute();
+
+        struct StockRow
+        {
+            int id;
+            std::string holder;
+            long long share;
+        };
+
+        std::vector<StockRow> rows;
+        rows.reserve(8);
+
+        long long totalShare = 0LL;
+        for (const auto &row : result)
+        {
+            const int id = row[0].isNull() ? -1 : row[0].get<int>();
+            const std::string holder = row[1].isNull() ? "" : row[1].get<std::string>();
+            const long long share = row[2].isNull() ? 0LL : row[2].get<long long>();
+
+            if (holder == kTotalHolder)
+            {
+                totalShare = share;
+            }
+
+            rows.push_back({id, holder, share});
         }
 
-        rows.push_back({id, holder, share});
-    }
+        nlohmann::json stocks = nlohmann::json::array();
+        if (totalShare <= 0)
+        {
+            return stocks;
+        }
 
-    nlohmann::json stocks = nlohmann::json::array();
-    if (totalShare <= 0)
-    {
+        for (const auto &row : rows)
+        {
+            const double rawPercentage = static_cast<double>(row.share) / static_cast<double>(totalShare) * 100.0;
+            const double percentage = std::round(rawPercentage * 100.0) / 100.0;
+
+            stocks.push_back({
+                {"id", row.id},
+                {"type", resolveStockItemType(row.holder)},
+                {"holder", row.holder},
+                {"share", row.share},
+                {"percentage", percentage},
+            });
+        }
+
         return stocks;
     }
-
-    for (const auto &row : rows)
-    {
-        const double rawPercentage = static_cast<double>(row.share) / static_cast<double>(totalShare) * 100.0;
-        const double percentage = std::round(rawPercentage * 100.0) / 100.0;
-
-        stocks.push_back({
-            {"id", row.id},
-            {"type", resolveStockItemType(row.holder)},
-            {"holder", row.holder},
-            {"share", row.share},
-            {"percentage", percentage},
-        });
-    }
-
-    return stocks;
-}
 } // namespace
 
 crow::response bossHandler::allocateTotalStock(const crow::request &req)
@@ -410,13 +410,6 @@ crow::response bossHandler::getStock(const crow::request &req)
         nlohmann::json response;
         response["decisionStocks"] = buildStockDistribution(*session, kDecisionShareType);
         response["dividendStocks"] = buildStockDistribution(*session, kDividendShareType);
-
-        const bool hasDecisionStocks = !response["decisionStocks"].empty();
-        const bool hasDividendStocks = !response["dividendStocks"].empty();
-        if (!hasDecisionStocks && !hasDividendStocks)
-        {
-            return ResponseHelper::notFound(req, "数据库无股份分布数据");
-        }
 
         return ResponseHelper::success(req, response);
     }
