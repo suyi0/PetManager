@@ -77,8 +77,7 @@ crow::response doctorHandler::getDutyStatus(const crow::request &req, int userId
                                                                 "FROM onlineDoctors "
                                                                 "WHERE doctor_id = ? AND date = ? "
                                                                 "LIMIT 1")
-                                       .bind(userId)
-                                       .bind(today)
+                                       .bind(userId, today)
                                        .execute();
 
         nlohmann::json response = nlohmann::json::object();

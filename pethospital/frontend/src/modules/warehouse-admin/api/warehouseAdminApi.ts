@@ -17,10 +17,50 @@ const unwrapData = <T>(payload: unknown): T | null => {
   return (payload as T) ?? null;
 };
 
+const normalizeWarehouseSearchResult = (
+  payload: unknown,
+  fallback: { page: number; pageSize: number }
+): WarehouseSearchResult => {
+  const dataPayload =
+    payload && typeof payload === "object" && "data" in payload
+      ? (payload as { data?: unknown }).data
+      : payload;
+  const body =
+    dataPayload && typeof dataPayload === "object"
+      ? (dataPayload as {
+          items?: unknown;
+          total?: unknown;
+          page?: unknown;
+          pageSize?: unknown;
+        })
+      : {};
+  const items = unwrapList<WarehouseItem>(body.items);
+
+  return {
+    items,
+    total: Number(body?.total ?? items.length),
+    page: Number(body?.page ?? fallback.page),
+    pageSize: Number(body?.pageSize ?? fallback.pageSize),
+  };
+};
+
 export const warehouseAdminApi = {
   async select(): Promise<WarehouseItem[]> {
     const { data } = await http.get("/api/warehouse-managers/items");
     return unwrapList<WarehouseItem>(data);
+  },
+
+  async list(params: {
+    keyword: string;
+    itemType: string;
+    sortKey: string;
+    page: number;
+    pageSize: number;
+  }): Promise<WarehouseSearchResult> {
+    const { data } = await http.get("/api/warehouse-managers/items", {
+      params,
+    });
+    return normalizeWarehouseSearchResult(data, params);
   },
 
   async search(params: {
@@ -34,15 +74,7 @@ export const warehouseAdminApi = {
       "/api/warehouse-managers/items/search",
       params
     );
-    const payload = data?.data ?? data;
-    const items = unwrapList<WarehouseItem>(payload?.items);
-
-    return {
-      items,
-      total: Number(payload?.total ?? items.length),
-      page: Number(payload?.page ?? params.page),
-      pageSize: Number(payload?.pageSize ?? params.pageSize),
-    };
+    return normalizeWarehouseSearchResult(data, params);
   },
 
   async selectDataID(id: number): Promise<WarehouseItem | null> {

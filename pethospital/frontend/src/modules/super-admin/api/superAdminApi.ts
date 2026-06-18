@@ -130,6 +130,10 @@ export const superAdminApi = {
     majorTab: "user" | "system";
     role: string;
     keyword: string;
+    module?: string;
+    result?: string;
+    startDate?: string;
+    endDate?: string;
     page: number;
     pageSize: number;
   }): Promise<PagedList<AuditLogItem>> {

@@ -1,6 +1,6 @@
 <template>
   <section class="panel">
-    <div v-if="!openReservationDetail">
+    <div v-if="!openReservationDetail" class="reservation-list-view">
       <div class="panel-head">
         <div class="panel-head__intro">
           <h3>预约订单</h3>
@@ -12,12 +12,11 @@
             :total-pages="totalPages"
             @update:page="page = $event"
           />
-          <button>批量确认</button>
         </div>
       </div>
 
       <div class="search-bar">
-        <span class="search-type">reservations</span>
+        <span class="search-type">预约</span>
         <label class="search-field">
           <span class="search-field__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -39,7 +38,7 @@
           <input
             v-model.trim="searchKeyword"
             type="text"
-            placeholder="输入宠物名、医生名或预约编号"
+            placeholder="输入宠物名、医生名或联系人后按 Enter"
             @keyup.enter="searchReservations"
           />
         </label>
@@ -55,13 +54,39 @@
           >
             清空
           </button>
+        </div>
+      </div>
+
+      <div class="filter-strip" aria-label="预约筛选">
+        <div class="filter-group">
+          <span class="filter-label">状态</span>
           <button
+            v-for="option in statusFilterOptions"
+            :key="option.value"
             type="button"
-            class="search-meta__submit"
-            :disabled="searchLoading"
-            @click="searchReservations"
+            class="filter-chip"
+            :class="{ 'filter-chip--active': activeStatus === option.value }"
+            @click="activeStatus = option.value"
           >
-            {{ searchLoading ? "搜索中" : "搜索" }}
+            <span>{{ option.label }}</span>
+            <strong>{{ option.count }}</strong>
+          </button>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">日期</span>
+          <button
+            v-for="option in dateFilterOptions"
+            :key="option.value"
+            type="button"
+            class="filter-chip"
+            :class="{
+              'filter-chip--active': activeDateFilter === option.value,
+            }"
+            @click="activeDateFilter = option.value"
+          >
+            <span>{{ option.label }}</span>
+            <strong>{{ option.count }}</strong>
           </button>
         </div>
       </div>
@@ -108,7 +133,7 @@
         </button>
 
         <div class="reservation-hero__title">
-          <p>RESERVATION DETAIL</p>
+          <p>预约详情</p>
           <h3>{{ selectedReservation.pet_name || "预约记录" }}</h3>
           <span>
             {{ selectedReservation.reservation_type }} ·
@@ -133,6 +158,14 @@
           </button>
         </div>
       </header>
+
+      <p
+        v-if="actionMessage"
+        class="action-message"
+        :class="`action-message--${actionMessage.type}`"
+      >
+        {{ actionMessage.text }}
+      </p>
 
       <section class="reservation-facts">
         <article class="reservation-fact">
@@ -160,7 +193,7 @@
       <section class="reservation-owner">
         <div class="reservation-owner__head">
           <div>
-            <p>Owner Info</p>
+            <p>联系人信息</p>
             <h4>预约联系人</h4>
           </div>
           <span>NO.{{ selectedReservation.id }}</span>
@@ -232,10 +265,16 @@ export default defineComponent({
     const store = useStore(storeKey);
     const page = ref(1);
     const searchKeyword = ref("");
+    const activeStatus = ref("全部");
+    const activeDateFilter = ref<"全部" | "今日" | "未来" | "过期">("全部");
     const pageSize = 9;
     const openReservationDetail = ref(false);
     const selectedReservationId = ref<number | null>(null);
     const checkInLoading = ref(false);
+    const actionMessage = ref<{
+      type: "success" | "error";
+      text: string;
+    } | null>(null);
     const searchLoading = ref(false);
     const searchResults = ref<ReservationSummaryItem[] | null>(null);
     const searchHistory = ref<Array<{ id: number; pet_name: string }>>([]);
@@ -260,14 +299,50 @@ export default defineComponent({
     );
     const normalizedSearchKeyword = computed(() => searchKeyword.value.trim());
     const displayItems = computed(() => searchResults.value ?? items.value);
+    const todayDate = computed(() => new Date().toISOString().slice(0, 10));
+
+    const itemDateValue = (item: ReservationSummaryItem) =>
+      String(item.date || item.schedule.slice(0, 10)).slice(0, 10);
+
+    const matchesDateFilter = (
+      item: ReservationSummaryItem,
+      filter: typeof activeDateFilter.value
+    ) => {
+      if (filter === "全部") {
+        return true;
+      }
+
+      const itemDate = itemDateValue(item);
+      if (!itemDate) {
+        return false;
+      }
+
+      if (filter === "今日") {
+        return itemDate === todayDate.value;
+      }
+
+      if (filter === "未来") {
+        return itemDate > todayDate.value;
+      }
+
+      return itemDate < todayDate.value;
+    };
+
+    const filteredItems = computed(() =>
+      displayItems.value.filter((item) => {
+        const statusMatches =
+          activeStatus.value === "全部" || item.status === activeStatus.value;
+        return statusMatches && matchesDateFilter(item, activeDateFilter.value);
+      })
+    );
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(displayItems.value.length / pageSize))
+      Math.max(1, Math.ceil(filteredItems.value.length / pageSize))
     );
 
     const visibleItems = computed(() => {
       const start = (page.value - 1) * pageSize;
-      return displayItems.value.slice(start, start + pageSize);
+      return filteredItems.value.slice(start, start + pageSize);
     });
 
     const placeholderCards = computed(() =>
@@ -281,16 +356,45 @@ export default defineComponent({
 
     const searchSummary = computed(() => {
       if (!normalizedSearchKeyword.value) {
-        return `共 ${items.value.length} 条预约记录`;
+        return `共 ${filteredItems.value.length} 条预约记录`;
       }
 
-      return `reservations · 匹配到 ${displayItems.value.length} 条预约记录`;
+      return `匹配到 ${filteredItems.value.length} 条预约记录`;
     });
+
+    const statusFilterOptions = computed(() => {
+      const statuses = Array.from(
+        new Set(displayItems.value.map((item) => item.status || "预约成功"))
+      );
+
+      return ["全部", ...statuses].map((status) => ({
+        value: status,
+        label: status,
+        count:
+          status === "全部"
+            ? displayItems.value.length
+            : displayItems.value.filter((item) => item.status === status)
+                .length,
+      }));
+    });
+
+    const dateFilterOptions = computed(() =>
+      (["全部", "今日", "未来", "过期"] as const).map((filter) => ({
+        value: filter,
+        label: filter,
+        count:
+          filter === "全部"
+            ? displayItems.value.length
+            : displayItems.value.filter((item) =>
+                matchesDateFilter(item, filter)
+              ).length,
+      }))
+    );
 
     const emptyStateText = computed(() =>
       normalizedSearchKeyword.value
-        ? "没有找到符合关键词的预约，请检查宠物名、医生名或预约编号。"
-        : "当前页暂无预约记录。"
+        ? "没有找到符合当前关键词和筛选条件的预约。"
+        : "当前筛选条件下暂无预约记录。"
     );
 
     const checkInDisabled = computed(() => {
@@ -399,6 +503,7 @@ export default defineComponent({
       openReservationDetail.value = false;
       selectedReservationId.value = null;
       detailErrorMessage.value = "";
+      actionMessage.value = null;
     }
 
     async function checkInReservation() {
@@ -408,14 +513,22 @@ export default defineComponent({
         return;
       }
 
+      actionMessage.value = null;
       checkInLoading.value = true;
       try {
         await store.dispatch("doctor/updateReservationStatus", {
           reservationId: reservation.id,
           status: "已到院",
         });
-      } catch {
-        window.alert("到院签到失败，请稍后重试。");
+        actionMessage.value = {
+          type: "success",
+          text: "到院签到已更新。",
+        };
+      } catch (error) {
+        actionMessage.value = {
+          type: "error",
+          text: getHttpErrorMessage(error, "到院签到失败，请稍后重试。"),
+        };
       } finally {
         checkInLoading.value = false;
       }
@@ -434,6 +547,10 @@ export default defineComponent({
       }
     });
 
+    watch([activeStatus, activeDateFilter], () => {
+      page.value = 1;
+    });
+
     onMounted(() => {
       searchHistory.value = readOrderSearchHistory("doctor", "reservations");
       void loadReservations();
@@ -442,15 +559,20 @@ export default defineComponent({
     return {
       page,
       searchKeyword,
+      activeStatus,
+      activeDateFilter,
       totalPages,
       listLoading,
       detailLoading,
       searchLoading,
+      actionMessage,
       listErrorMessage,
       detailErrorMessage,
       visibleItems,
       placeholderCards,
       searchSummary,
+      statusFilterOptions,
+      dateFilterOptions,
       emptyStateText,
       openReservationDetail,
       selectedReservation,
@@ -473,15 +595,22 @@ export default defineComponent({
 .panel {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 18px;
+  gap: 20px;
   border: 1px solid rgba(157, 188, 178, 0.24);
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
-  padding: 22px;
-  min-height: 620px;
+  padding: 28px;
+  min-height: 720px;
   box-shadow: 0 20px 38px rgba(49, 82, 77, 0.06);
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.reservation-list-view {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 20px;
+  min-height: 0;
 }
 
 .panel-head {
@@ -518,7 +647,7 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-radius: 22px;
   background: radial-gradient(
       circle at left top,
@@ -603,9 +732,61 @@ export default defineComponent({
   box-shadow: none;
 }
 
-.search-meta__submit {
-  padding: 9px 14px;
-  border-radius: 14px;
+.filter-strip {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(163, 192, 184, 0.22);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  color: #607a75;
+  font-size: 12px;
+  font-weight: 800;
+  min-width: 32px;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border-radius: 12px;
+  padding: 7px 10px;
+  border: 1px solid rgba(167, 193, 185, 0.34);
+  background: rgba(255, 255, 255, 0.82);
+  color: #355c5f;
+  box-shadow: none;
+}
+
+.filter-chip strong {
+  min-width: 20px;
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: rgba(41, 86, 90, 0.08);
+  color: #607a75;
+  font-size: 11px;
+}
+
+.filter-chip--active {
+  border-color: rgba(36, 88, 73, 0.28);
+  background: #245849;
+  color: #fff;
+}
+
+.filter-chip--active strong {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
 
 button {
@@ -629,7 +810,7 @@ button:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-content: start;
   gap: 16px;
-  min-height: 0;
+  min-height: 476px;
   overflow: hidden;
 }
 
@@ -724,8 +905,9 @@ button:disabled {
 
 .empty-state {
   display: grid;
+  grid-column: 1 / -1;
   place-items: center;
-  min-height: 148px;
+  min-height: 476px;
   border-radius: 22px;
   border: 1px dashed rgba(160, 188, 181, 0.42);
   color: #728782;
@@ -814,6 +996,26 @@ button:disabled {
   font-weight: 800;
 }
 
+.action-message {
+  margin: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.action-message--success {
+  border: 1px solid rgba(36, 123, 98, 0.26);
+  background: rgba(36, 123, 98, 0.08);
+  color: #247b62;
+}
+
+.action-message--error {
+  border: 1px solid rgba(176, 68, 85, 0.26);
+  background: rgba(176, 68, 85, 0.08);
+  color: #b04455;
+}
+
 .reservation-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -879,7 +1081,8 @@ button:disabled {
 
   .search-bar,
   .panel-head__actions,
-  .panel-head__actions {
+  .panel-head__actions,
+  .filter-strip {
     width: 100%;
     flex-wrap: wrap;
   }

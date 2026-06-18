@@ -1,222 +1,288 @@
 <template>
   <section class="logs-page">
-    <section class="logs-hero">
+    <header class="logs-head panel">
       <div>
-        <p class="logs-hero__eyebrow">Audit Center</p>
-        <h3>系统日志审计台</h3>
-        <span>
-          先按“用户类日志 /
-          系统日志”拆分浏览，再按角色快速筛选不同岗位的操作轨迹。
-        </span>
+        <p class="section-label">日志审计</p>
+        <h3>日志台账</h3>
+        <p>
+          按时间、结果、模块、角色和关键词定位审计记录，右侧查看完整上下文。
+        </p>
+      </div>
+      <button class="button button--ghost" type="button" @click="resetFilters">
+        重置筛选
+      </button>
+    </header>
+
+    <section class="panel audit-panel">
+      <div class="summary-strip">
+        <article>
+          <span>当前筛选</span>
+          <strong>{{ total }}</strong>
+        </article>
+        <article>
+          <span>用户类日志</span>
+          <strong>{{ userLogCount }}</strong>
+        </article>
+        <article>
+          <span>系统日志</span>
+          <strong>{{ systemLogCount }}</strong>
+        </article>
+        <article>
+          <span>当前页</span>
+          <strong>{{ page }} / {{ totalPages }}</strong>
+        </article>
       </div>
 
-      <div class="logs-hero__metrics">
-        <article>
-          <strong>{{ filteredLogs.length }}</strong>
-          <span>当前筛选结果</span>
-        </article>
-        <article>
-          <strong>{{ userLogs.length }}</strong>
-          <span>用户类日志</span>
-        </article>
-        <article>
-          <strong>{{ systemLogs.length }}</strong>
-          <span>系统日志</span>
-        </article>
-        <article>
-          <strong>{{ todayCount }}</strong>
-          <span>今日新增</span>
-        </article>
+      <div class="filters">
+        <div class="major-tabs" aria-label="日志大类">
+          <button
+            v-for="tab in majorTabs"
+            :key="tab.key"
+            type="button"
+            class="major-tab"
+            :class="{ 'major-tab--active': activeMajorTab === tab.key }"
+            @click="setMajorTab(tab.key)"
+          >
+            <strong>{{ tab.label }}</strong>
+            <span>{{ tab.hint }}</span>
+          </button>
+        </div>
+
+        <div class="filter-grid">
+          <label>
+            <span>开始日期</span>
+            <input v-model="startDate" type="date" @change="applyFilters" />
+          </label>
+          <label>
+            <span>结束日期</span>
+            <input v-model="endDate" type="date" @change="applyFilters" />
+          </label>
+          <label>
+            <span>结果状态</span>
+            <select v-model="resultFilter" @change="applyFilters">
+              <option
+                v-for="option in resultOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+          <label>
+            <span>角色</span>
+            <select
+              v-model="activeUserRole"
+              :disabled="activeMajorTab === 'system'"
+              @change="applyFilters"
+            >
+              <option
+                v-for="option in userRoleOptions"
+                :key="option.key"
+                :value="option.key"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+          <label>
+            <span>模块</span>
+            <input
+              v-model.trim="moduleInput"
+              type="text"
+              placeholder="输入模块后按 Enter"
+              @keyup.enter="applyModuleFilter"
+            />
+          </label>
+          <label>
+            <span>关键词</span>
+            <input
+              v-model.trim="keywordInput"
+              type="text"
+              placeholder="操作人 / 动作 / 描述"
+              @keyup.enter="applySearch"
+            />
+          </label>
+        </div>
+
+        <div class="active-filters">
+          <span>{{ activeMajorLabel }}</span>
+          <span v-if="activeMajorTab === 'user'">
+            角色：{{ activeUserRoleLabel }}
+          </span>
+          <span v-if="resultFilter !== 'all'">结果：{{ resultFilter }}</span>
+          <span v-if="startDate || endDate">
+            时间：{{ startDate || "不限" }} 至 {{ endDate || "不限" }}
+          </span>
+          <span v-if="moduleFilter">模块：{{ moduleFilter }}</span>
+          <span v-if="keyword">关键词：{{ keyword }}</span>
+          <button
+            v-if="hasActiveTextFilter"
+            class="text-button"
+            type="button"
+            @click="clearTextFilters"
+          >
+            清除文本筛选
+          </button>
+        </div>
       </div>
     </section>
 
-    <section class="logs-shell">
-      <div class="logs-stage">
-        <section class="logs-panel">
-          <div class="logs-panel__head">
-            <div>
-              <h4>{{ panelTitle }}</h4>
-              <p>{{ panelDescription }}</p>
-            </div>
-            <button class="logs-ghost" type="button" @click="resetFilters">
-              重置筛选
-            </button>
+    <section class="audit-layout">
+      <section class="panel logs-ledger">
+        <div class="ledger-headline">
+          <div>
+            <h4>{{ panelTitle }}</h4>
+            <p>{{ panelDescription }}</p>
           </div>
+          <button class="button button--ghost" type="button" @click="loadLogs">
+            刷新
+          </button>
+        </div>
 
-          <div class="logs-toolbar">
-            <div class="logs-toolbar__major">
-              <small>日志大类</small>
-              <div class="logs-toolbar__major-grid">
-                <button
-                  v-for="tab in majorTabs"
-                  :key="tab.key"
-                  type="button"
-                  class="logs-chip"
-                  :class="{ 'logs-chip--active': activeMajorTab === tab.key }"
-                  @click="activeMajorTab = tab.key"
-                >
-                  <strong>{{ tab.label }}</strong>
-                  <span>{{ tab.hint }}</span>
-                </button>
-              </div>
-            </div>
+        <div v-if="listError" class="state-banner state-banner--error">
+          <span>{{ listError }}</span>
+          <button class="button button--ghost" type="button" @click="loadLogs">
+            重试
+          </button>
+        </div>
 
-            <div class="logs-toolbar__filters">
-              <div class="logs-filter__group">
-                <small>用户类细分</small>
-                <div class="logs-subchips">
-                  <button
-                    v-for="tab in userRoleTabs"
-                    :key="tab.key"
-                    type="button"
-                    class="logs-subchip"
-                    :class="{
-                      'logs-subchip--active': activeUserRole === tab.key,
-                    }"
-                    :disabled="activeMajorTab !== 'user'"
-                    @click="activeUserRole = tab.key"
+        <div class="table-shell">
+          <table class="logs-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>类别</th>
+                <th>操作人</th>
+                <th>模块</th>
+                <th>动作</th>
+                <th>结果</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in logs"
+                :key="item.id"
+                class="logs-row"
+                :class="{ 'logs-row--active': selectedLog?.id === item.id }"
+                tabindex="0"
+                @click="selectedLogId = item.id"
+                @keyup.enter="selectedLogId = item.id"
+              >
+                <td>{{ item.time }}</td>
+                <td>
+                  <span
+                    class="logs-badge"
+                    :class="badgeClass(item.category, getUserRole(item))"
                   >
-                    {{ tab.label }}
-                  </button>
-                </div>
-              </div>
+                    {{ displayCategory(item) }}
+                  </span>
+                </td>
+                <td>{{ item.operator || "系统" }}</td>
+                <td>{{ item.module || "未记录" }}</td>
+                <td>{{ item.action || "未记录" }}</td>
+                <td>
+                  <span
+                    class="logs-status"
+                    :class="{
+                      'logs-status--success': item.result === '成功',
+                      'logs-status--warning': item.result === '警告',
+                      'logs-status--failed': item.result === '失败',
+                    }"
+                  >
+                    {{ item.result || "未知" }}
+                  </span>
+                </td>
+              </tr>
 
-              <div class="logs-filter__group">
-                <small>检索条件</small>
-                <input
-                  v-model.trim="keyword"
-                  type="text"
-                  class="logs-search"
-                  placeholder="搜索操作人 / 模块 / 动作 / 描述"
-                />
-              </div>
-            </div>
-          </div>
+              <tr v-if="!loading && logs.length === 0">
+                <td colspan="6">
+                  <div class="empty-state">
+                    <strong>没有匹配的日志记录</strong>
+                    <span>调整时间范围、结果状态、模块或关键词后再试。</span>
+                  </div>
+                </td>
+              </tr>
 
-          <div class="logs-table">
-            <header class="logs-table__head">
-              <span>时间</span>
-              <span>类别</span>
-              <span>操作人</span>
-              <span>模块</span>
-              <span>动作</span>
-              <span>结果</span>
-            </header>
+              <tr
+                v-for="index in placeholderRows"
+                :key="`placeholder-${index}`"
+                class="placeholder-row"
+              >
+                <td colspan="6"></td>
+              </tr>
+            </tbody>
+          </table>
 
-            <button
-              v-for="item in pagedLogs"
-              :key="item.id"
-              type="button"
-              class="logs-row"
-              :class="{ 'logs-row--active': selectedLog?.id === item.id }"
-              @click="selectedLogId = item.id"
+          <div v-if="loading" class="loading-layer">正在同步日志数据...</div>
+        </div>
+
+        <div class="logs-footer">
+          <span>共 {{ total }} 条记录</span>
+          <AppPager
+            :page="page"
+            :total-pages="totalPages"
+            @update:page="page = $event"
+          />
+        </div>
+      </section>
+
+      <aside class="panel logs-detail">
+        <div class="detail-head">
+          <p class="section-label">日志详情</p>
+          <h4>审计上下文</h4>
+        </div>
+
+        <div v-if="selectedLog" class="detail-content">
+          <section class="detail-hero">
+            <span
+              class="logs-badge"
+              :class="
+                badgeClass(selectedLog.category, getUserRole(selectedLog))
+              "
             >
-              <span>{{ item.time }}</span>
-              <span>
-                <em
-                  class="logs-badge"
-                  :class="badgeClass(item.category, getUserRole(item))"
-                >
-                  {{ displayCategory(item) }}
-                </em>
-              </span>
-              <strong>{{ item.operator }}</strong>
-              <span>{{ item.module }}</span>
-              <span class="logs-row__action">{{ item.action }}</span>
-              <span
-                class="logs-status"
-                :class="{
-                  'logs-status--success': item.result === '成功',
-                  'logs-status--warning': item.result === '警告',
-                  'logs-status--failed': item.result === '失败',
-                }"
-              >
-                {{ item.result }}
-              </span>
-            </button>
-
-            <div v-if="filteredLogs.length === 0" class="logs-empty">
-              <strong>当前筛选下没有日志</strong>
-              <span
-                >可以切换到其他角色或系统类日志查看不同范围的审计记录。</span
-              >
-            </div>
-          </div>
-
-          <div v-if="filteredLogs.length > 0" class="logs-footer">
-            <span class="logs-footer__summary">
-              共 {{ filteredLogs.length }} 条，当前第 {{ page }} /
-              {{ totalPages }} 页
+              {{ displayCategory(selectedLog) }}
             </span>
-            <AppPager
-              :page="page"
-              :total-pages="totalPages"
-              @update:page="page = $event"
-            />
-          </div>
-        </section>
+            <strong>{{ selectedLog.action || "未记录动作" }}</strong>
+            <p>{{ selectedLog.summary || "暂无操作摘要" }}</p>
+          </section>
 
-        <section class="logs-detail">
-          <div class="logs-detail__head">
-            <small>DETAIL</small>
-            <h4>日志详情</h4>
-          </div>
-
-          <div v-if="selectedLog" class="logs-detail__content">
-            <article class="logs-detail__hero">
-              <span
-                class="logs-badge"
-                :class="
-                  badgeClass(selectedLog.category, getUserRole(selectedLog))
-                "
-              >
-                {{ displayCategory(selectedLog) }}
-              </span>
-              <strong>{{ selectedLog.action }}</strong>
-              <p>{{ selectedLog.summary }}</p>
+          <section class="detail-grid">
+            <article>
+              <span>操作人</span>
+              <strong>{{ selectedLog.operator || "系统" }}</strong>
             </article>
+            <article>
+              <span>所属模块</span>
+              <strong>{{ selectedLog.module || "未记录" }}</strong>
+            </article>
+            <article>
+              <span>操作时间</span>
+              <strong>{{ selectedLog.time || "未记录" }}</strong>
+            </article>
+            <article>
+              <span>执行结果</span>
+              <strong>{{ selectedLog.result || "未知" }}</strong>
+            </article>
+          </section>
 
-            <div class="logs-detail__grid">
-              <article>
-                <span>操作人</span>
-                <strong>{{ selectedLog.operator }}</strong>
-              </article>
-              <article>
-                <span>所属模块</span>
-                <strong>{{ selectedLog.module }}</strong>
-              </article>
-              <article>
-                <span>操作时间</span>
-                <strong>{{ selectedLog.time }}</strong>
-              </article>
-              <article>
-                <span>执行结果</span>
-                <strong>{{ selectedLog.result }}</strong>
-              </article>
-            </div>
+          <section class="detail-trace">
+            <article>
+              <span>记录来源</span>
+              <p>{{ selectedLog.source || "未记录" }}</p>
+            </article>
+            <article>
+              <span>附加信息</span>
+              <p>{{ selectedLog.details || "暂无附加信息" }}</p>
+            </article>
+          </section>
+        </div>
 
-            <div class="logs-detail__trace">
-              <article>
-                <small>操作说明</small>
-                <p>{{ selectedLog.summary }}</p>
-              </article>
-              <article>
-                <small>记录来源</small>
-                <p>{{ selectedLog.source }}</p>
-              </article>
-              <article>
-                <small>附加信息</small>
-                <p>{{ selectedLog.details }}</p>
-              </article>
-            </div>
-          </div>
-
-          <div v-else class="logs-empty logs-empty--detail">
-            <strong>请选择一条日志</strong>
-            <span>点击左侧任意记录后，这里会展示更完整的审计细节。</span>
-          </div>
-        </section>
-      </div>
+        <div v-else class="empty-state empty-state--detail">
+          <strong>请选择一条日志</strong>
+          <span>点击左侧任意记录后，这里会展示更完整的审计细节。</span>
+        </div>
+      </aside>
     </section>
   </section>
 </template>
@@ -234,107 +300,112 @@ import {
   UserRole,
   LogCategory,
   AuditLogItem,
+  LogResult,
 } from "../../api/types";
 import { superAdminApi } from "../../api/superAdminApi";
 
 const isUserLog = (item: AuditLogItem): item is UserLogs =>
   item.category === "用户类";
 
+type ResultFilter = "all" | LogResult;
+
 export default defineComponent({
   name: "SuperAdminLogs",
   components: { AppPager },
   setup() {
-    /**
-     * 获取日志的大类：用户类 / 系统类
-     */
     const activeMajorTab = ref<MajorTab>("user");
-    /**
-     * 获取用户类日志时的角色筛选：全部用户 + 当前系统内已知角色
-       仅在用户类日志下生效，系统类日志不区分角色
-       选择“全部用户”时不过滤角色，选择其他选项时仅展示对应角色的日志
-     */
     const activeUserRole = ref<UserRole>("all");
-    // 搜索关键字
+    const keywordInput = ref("");
     const keyword = ref("");
-    /**
-     *
-     * 选中的日志ID
-     */
+    const moduleInput = ref("");
+    const moduleFilter = ref("");
+    const resultFilter = ref<ResultFilter>("all");
+    const startDate = ref("");
+    const endDate = ref("");
     const selectedLogId = ref<string>("");
-    // 日志列表分页
     const page = ref(1);
-    // 分页大小
-    const pageSize = 5;
+    const pageSize = 10;
     const total = ref(0);
-    const filteredLogs = ref<AuditLogItem[]>([]);
-
-    /**
-     * 调用API获取日志列表
-     */
-    const loadLogs = async () => {
-      const result = await superAdminApi.searchLogs({
-        majorTab: activeMajorTab.value,
-        role: activeUserRole.value,
-        keyword: keyword.value.trim(),
-        page: page.value,
-        pageSize,
-      });
-      filteredLogs.value = result.items;
-      total.value = result.total;
-      selectedLogId.value = filteredLogs.value[0]?.id ?? "";
-    };
+    const userLogCount = ref(0);
+    const systemLogCount = ref(0);
+    const logs = ref<AuditLogItem[]>([]);
+    const loading = ref(false);
+    const listError = ref("");
+    const requestId = ref(0);
 
     const majorTabs = [
       {
         key: "user" as MajorTab,
         label: "用户类日志",
-        hint: "按全部角色快速切换，聚焦不同岗位的操作轨迹",
+        hint: "按角色审计账号、预约、订单、资料等操作",
       },
       {
         key: "system" as MajorTab,
         label: "系统日志",
-        hint: "查看迁移、鉴权、短信服务与运行时事件",
+        hint: "查看任务、迁移、连接、服务调用等运行事件",
       },
     ];
 
-    const userRoleTabs = [
-      { key: "all" as UserRole, label: "全部用户" },
+    const userRoleOptions = [
+      { key: "all" as UserRole, label: "全部角色" },
       ...ALL_ROLE_NAMES.map((role) => ({
         key: role as UserRole,
         label: role,
       })),
     ];
 
+    const resultOptions: Array<{ value: ResultFilter; label: string }> = [
+      { value: "all", label: "全部结果" },
+      { value: "成功", label: "成功" },
+      { value: "警告", label: "警告" },
+      { value: "失败", label: "失败" },
+    ];
+
     const selectedLog = computed(() =>
-      filteredLogs.value.find((item) => item.id === selectedLogId.value)
+      logs.value.find((item) => item.id === selectedLogId.value)
     );
 
     const totalPages = computed(() =>
       Math.max(1, Math.ceil(total.value / pageSize))
     );
 
-    const pagedLogs = computed(() => filteredLogs.value);
-
-    const todayCount = computed(() => total.value);
-
-    const panelTitle = computed(() => {
-      if (activeMajorTab.value === "system") {
-        return "系统运行日志";
+    const placeholderRows = computed(() => {
+      if (loading.value || logs.value.length === 0) {
+        return 0;
       }
 
-      return activeUserRole.value === "all"
-        ? "全部用户操作日志"
-        : `${activeUserRole.value}日志`;
+      return Math.max(0, pageSize - logs.value.length);
     });
 
-    const panelDescription = computed(() => {
-      if (activeMajorTab.value === "system") {
-        return "主要记录系统级任务、迁移回填、连接恢复、短信服务调用等运行事件。";
-      }
+    const activeMajorLabel = computed(
+      () =>
+        majorTabs.find((tab) => tab.key === activeMajorTab.value)?.label ||
+        "用户类日志"
+    );
 
-      return activeUserRole.value === "all"
-        ? "聚合查看所有用户类操作，适合从整体角度回看近期后台与业务动作。"
-        : `当前仅展示${activeUserRole.value}相关的操作记录，便于按角色快速审计。`;
+    const activeUserRoleLabel = computed(
+      () =>
+        userRoleOptions.find((option) => option.key === activeUserRole.value)
+          ?.label || "全部角色"
+    );
+
+    const hasActiveTextFilter = computed(
+      () => Boolean(keyword.value) || Boolean(moduleFilter.value)
+    );
+
+    const panelTitle = computed(() =>
+      activeMajorTab.value === "system" ? "系统运行日志" : "用户操作日志"
+    );
+
+    const panelDescription = computed(() => {
+      const parts = [activeMajorLabel.value];
+      if (activeMajorTab.value === "user") {
+        parts.push(`角色：${activeUserRoleLabel.value}`);
+      }
+      if (resultFilter.value !== "all") {
+        parts.push(`结果：${resultFilter.value}`);
+      }
+      return parts.join(" / ");
     });
 
     const getUserRole = (item: AuditLogItem) =>
@@ -354,10 +425,7 @@ export default defineComponent({
       if (category === "系统类") {
         return "logs-badge--system";
       }
-      if (userRole === "医生") {
-        return "logs-badge--doctor";
-      }
-      if (userRole === "护士") {
+      if (userRole === "医生" || userRole === "护士") {
         return "logs-badge--doctor";
       }
       if (userRole === "仓库管理员") {
@@ -369,63 +437,174 @@ export default defineComponent({
       return "logs-badge--user";
     };
 
-    const resetFilters = () => {
-      activeMajorTab.value = "user";
-      activeUserRole.value = "all";
-      keyword.value = "";
+    const getErrorDetails = (error: unknown) => {
+      const responseError = error as {
+        response?: {
+          data?: {
+            error?: {
+              details?: string;
+            };
+          };
+        };
+      };
+
+      return responseError.response?.data?.error?.details;
+    };
+
+    const loadLogs = async () => {
+      const currentRequestId = requestId.value + 1;
+      requestId.value = currentRequestId;
+      loading.value = true;
+      listError.value = "";
+
+      try {
+        const result = await superAdminApi.searchLogs({
+          majorTab: activeMajorTab.value,
+          role:
+            activeMajorTab.value === "system" ? "all" : activeUserRole.value,
+          keyword: keyword.value.trim(),
+          module: moduleFilter.value.trim(),
+          result: resultFilter.value,
+          startDate: startDate.value,
+          endDate: endDate.value,
+          page: page.value,
+          pageSize,
+        });
+
+        if (currentRequestId !== requestId.value) {
+          return;
+        }
+
+        logs.value = result.items;
+        total.value = result.total;
+        selectedLogId.value = result.items[0]?.id ?? "";
+
+        const nextTotalPages = Math.max(1, Math.ceil(result.total / pageSize));
+        if (page.value > nextTotalPages) {
+          page.value = nextTotalPages;
+        }
+      } catch (error: unknown) {
+        if (currentRequestId !== requestId.value) {
+          return;
+        }
+
+        listError.value = getErrorDetails(error) || "日志列表加载失败，请重试";
+      } finally {
+        if (currentRequestId === requestId.value) {
+          loading.value = false;
+        }
+      }
+    };
+
+    const loadLogMetrics = async () => {
+      const summary = await superAdminApi.homePageGetData();
+      userLogCount.value = summary.userLogCount;
+      systemLogCount.value = summary.systemLogCount;
+    };
+
+    const resetPageAndLoad = () => {
+      if (page.value === 1) {
+        void loadLogs();
+        return;
+      }
+
       page.value = 1;
     };
 
-    watch(activeMajorTab, (value) => {
-      if (value === "system") {
+    const setMajorTab = (tab: MajorTab) => {
+      if (activeMajorTab.value === tab) {
+        return;
+      }
+
+      activeMajorTab.value = tab;
+      if (tab === "system") {
         activeUserRole.value = "all";
       }
-      page.value = 1;
-      void loadLogs();
-    });
+      resetPageAndLoad();
+    };
 
-    watch(activeUserRole, () => {
-      page.value = 1;
-      void loadLogs();
-    });
+    const applyFilters = () => {
+      resetPageAndLoad();
+    };
 
-    watch(keyword, () => {
-      page.value = 1;
-      void loadLogs();
-    });
+    const applySearch = () => {
+      keyword.value = keywordInput.value.trim();
+      resetPageAndLoad();
+    };
+
+    const applyModuleFilter = () => {
+      moduleFilter.value = moduleInput.value.trim();
+      resetPageAndLoad();
+    };
+
+    const clearTextFilters = () => {
+      keywordInput.value = "";
+      keyword.value = "";
+      moduleInput.value = "";
+      moduleFilter.value = "";
+      resetPageAndLoad();
+    };
+
+    const resetFilters = () => {
+      activeMajorTab.value = "user";
+      activeUserRole.value = "all";
+      keywordInput.value = "";
+      keyword.value = "";
+      moduleInput.value = "";
+      moduleFilter.value = "";
+      resultFilter.value = "all";
+      startDate.value = "";
+      endDate.value = "";
+      resetPageAndLoad();
+    };
 
     watch(page, () => {
       void loadLogs();
     });
 
-    watch(totalPages, (value) => {
-      if (page.value > value) {
-        page.value = value;
-      }
-    });
-
     onMounted(() => {
+      void loadLogMetrics();
       void loadLogs();
     });
 
     return {
       activeMajorTab,
       activeUserRole,
+      keywordInput,
       keyword,
+      moduleInput,
+      moduleFilter,
+      resultFilter,
+      startDate,
+      endDate,
       selectedLogId,
       page,
       totalPages,
       majorTabs,
-      userRoleTabs,
-      filteredLogs,
-      pagedLogs,
+      userRoleOptions,
+      resultOptions,
+      logs,
+      total,
+      userLogCount,
+      systemLogCount,
+      loading,
+      listError,
       selectedLog,
-      todayCount,
+      placeholderRows,
+      activeMajorLabel,
+      activeUserRoleLabel,
+      hasActiveTextFilter,
       panelTitle,
       panelDescription,
       getUserRole,
       displayCategory,
       badgeClass,
+      loadLogs,
+      setMajorTab,
+      applyFilters,
+      applySearch,
+      applyModuleFilter,
+      clearTextFilters,
       resetFilters,
     };
   },
@@ -438,163 +617,220 @@ export default defineComponent({
   gap: 18px;
 }
 
-.logs-hero,
-.logs-panel,
-.logs-detail {
-  border: 1px solid #dbe6fb;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 40px rgba(88, 116, 170, 0.08);
+.panel {
+  border: 1px solid #dce7ff;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(34, 64, 128, 0.06);
 }
 
-.logs-hero {
+.logs-head {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  padding: 24px 26px;
-  background: linear-gradient(135deg, #eef7ff 0%, #f8fbff 45%, #f4f8ff 100%);
+  gap: 16px;
+  padding: 22px 24px;
 }
 
-.logs-hero__eyebrow,
-.logs-filter__group small,
-.logs-detail__head small {
-  margin: 0;
-  color: #4f7cba;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.logs-hero h3,
-.logs-panel__head h4,
-.logs-detail__head h4 {
-  margin: 0;
-  color: #1c3159;
-}
-
-.logs-hero h3 {
-  font-size: 32px;
-}
-
-.logs-hero span,
-.logs-panel__head p {
-  color: #627494;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.logs-hero__metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  min-width: 360px;
-}
-
-.logs-hero__metrics article {
-  display: grid;
-  gap: 4px;
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.76);
-}
-
-.logs-hero__metrics strong {
-  color: #214169;
-  font-size: 28px;
-  font-weight: 800;
-}
-
-.logs-hero__metrics span {
-  color: #7082a4;
-  font-size: 13px;
-}
-
-.logs-shell {
-  display: block;
-}
-
-.logs-filter__group {
-  display: grid;
-  gap: 10px;
-}
-
-.logs-subchips {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.logs-chip,
-.logs-subchip {
-  border: 1px solid #d7e4ff;
-  background: linear-gradient(180deg, #ffffff, #f7faff);
-  color: #36507b;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.logs-chip {
-  display: grid;
-  gap: 3px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  text-align: left;
-}
-
-.logs-chip strong,
-.logs-subchip {
-  font-weight: 700;
-}
-
-.logs-chip span {
-  color: #7385a6;
+.section-label {
+  margin: 0 0 8px;
+  color: #617196;
   font-size: 12px;
+  font-weight: 700;
+}
+
+.logs-head h3,
+.ledger-headline h4,
+.detail-head h4 {
+  margin: 0;
+  color: #13203a;
+}
+
+.logs-head h3 {
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.logs-head p,
+.ledger-headline p {
+  margin: 8px 0 0;
+  color: #617196;
+  font-size: 13px;
   line-height: 1.6;
 }
 
-.logs-chip--active,
-.logs-subchip--active {
-  border-color: rgba(77, 131, 232, 0.34);
-  background: linear-gradient(135deg, #e9f4ff, #edf3ff);
-  box-shadow: 0 12px 24px rgba(72, 120, 198, 0.14);
+.button {
+  border: 1px solid #1f5fe8;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #2f6ff3;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.logs-subchip {
-  padding: 10px 12px;
-  border-radius: 999px;
-  font-size: 13px;
+.button--ghost {
+  border-color: #dce7ff;
+  background: #edf2ff;
+  color: #284181;
 }
 
-.logs-subchip:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
+.button:focus-visible,
+.major-tab:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.logs-row:focus-visible,
+.text-button:focus-visible {
+  outline: 3px solid rgba(47, 111, 243, 0.18);
+  outline-offset: 2px;
 }
 
-.logs-search {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid #d2def9;
-  border-radius: 16px;
-  background: #fff;
-  color: #1f3257;
-  font-size: 14px;
-}
-
-.logs-stage {
+.audit-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 360px);
-  gap: 18px;
+  gap: 16px;
+  padding: 18px 22px;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summary-strip article {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dce7ff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f8fbff;
+}
+
+.summary-strip span {
+  color: #617196;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.summary-strip strong {
+  color: #13203a;
+  font-size: 18px;
+}
+
+.filters {
+  display: grid;
+  gap: 14px;
+}
+
+.major-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.major-tab {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #dce7ff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  color: #36507b;
+  cursor: pointer;
+  text-align: left;
+}
+
+.major-tab span {
+  color: #6c7a9f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.major-tab--active {
+  border-color: #8eb4ff;
+  background: #edf4ff;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.filter-grid label {
+  display: grid;
+  gap: 7px;
   min-width: 0;
 }
 
-.logs-panel,
+.filter-grid span {
+  color: #617196;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filter-grid input,
+.filter-grid select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #cfdcff;
+  border-radius: 10px;
+  padding: 10px 11px;
+  background: #ffffff;
+  color: #13203a;
+  font-size: 13px;
+}
+
+.filter-grid input::placeholder {
+  color: #6c7a9f;
+}
+
+.filter-grid select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.active-filters span {
+  border: 1px solid #dce7ff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f6f9ff;
+  color: #617196;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #2f6ff3;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.audit-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 18px;
+}
+
+.logs-ledger,
 .logs-detail {
   padding: 18px;
   min-width: 0;
 }
 
-.logs-panel__head {
+.ledger-headline {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -602,118 +838,114 @@ export default defineComponent({
   margin-bottom: 14px;
 }
 
-.logs-panel__head p {
-  margin: 6px 0 0;
-}
-
-.logs-toolbar {
-  display: grid;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.logs-toolbar__major,
-.logs-toolbar__filters {
-  display: grid;
+.state-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-}
-
-.logs-toolbar__major-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.logs-ghost {
-  border: 0;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: #eaf1ff;
-  color: #3059a7;
-  cursor: pointer;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
   font-weight: 700;
+}
+
+.state-banner--error {
+  border: 1px solid rgba(191, 79, 89, 0.28);
+  background: rgba(191, 79, 89, 0.08);
+  color: #bf4f59;
+}
+
+.table-shell {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #dce7ff;
+  border-radius: 12px;
+  min-height: 480px;
+  background: #ffffff;
 }
 
 .logs-table {
-  display: grid;
-  gap: 10px;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.logs-table__head,
-.logs-row {
-  display: grid;
-  grid-template-columns:
-    132px
-    116px
-    minmax(138px, 1.1fr)
-    minmax(112px, 0.9fr)
-    minmax(116px, 1fr)
-    72px;
-  gap: 10px;
-  align-items: center;
+.logs-table th,
+.logs-table td {
+  border-bottom: 1px solid #edf2ff;
+  padding: 12px 13px;
+  text-align: left;
+  color: #13203a;
+  font-size: 13px;
+  vertical-align: middle;
 }
 
-.logs-table__head {
-  padding: 0 12px 10px;
-  color: #7182a3;
+.logs-table th {
+  height: 42px;
+  background: #f6f9ff;
+  color: #617196;
   font-size: 12px;
   font-weight: 700;
-  border-bottom: 1px solid #e6eeff;
+}
+
+.logs-table tbody tr {
+  height: 43px;
+}
+
+.logs-table th:nth-child(1),
+.logs-table td:nth-child(1) {
+  width: 18%;
+}
+
+.logs-table th:nth-child(2),
+.logs-table td:nth-child(2) {
+  width: 13%;
+}
+
+.logs-table th:nth-child(3),
+.logs-table td:nth-child(3),
+.logs-table th:nth-child(4),
+.logs-table td:nth-child(4),
+.logs-table th:nth-child(6),
+.logs-table td:nth-child(6) {
+  width: 13%;
+}
+
+.logs-table th:nth-child(5),
+.logs-table td:nth-child(5) {
+  width: 30%;
 }
 
 .logs-row {
-  padding: 14px 12px;
-  border: 1px solid #dfe8fb;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #ffffff, #fbfdff);
-  color: #314566;
-  text-align: left;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease,
-    border-color 0.18s ease;
 }
 
-.logs-row:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 26px rgba(89, 118, 175, 0.1);
-}
-
+.logs-row:hover,
 .logs-row--active {
-  border-color: #8eb4ff;
-  background: linear-gradient(180deg, #eef4ff, #f5f8ff);
-  box-shadow: 0 16px 28px rgba(80, 122, 206, 0.14);
+  background: #f7faff;
 }
 
-.logs-row strong,
-.logs-row span {
-  min-width: 0;
+.logs-row--active td {
+  box-shadow: inset 0 1px 0 #8eb4ff, inset 0 -1px 0 #8eb4ff;
+}
+
+.logs-table td {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: normal;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
-.logs-row__action {
-  line-height: 1.5;
-}
-
-.logs-badge {
+.logs-badge,
+.logs-status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  justify-self: start;
-  width: fit-content;
-  max-width: 100%;
-  min-width: 88px;
-  padding: 5px 10px;
   border-radius: 999px;
+  padding: 5px 9px;
   font-size: 12px;
-  font-style: normal;
   font-weight: 700;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .logs-badge--user {
@@ -741,126 +973,49 @@ export default defineComponent({
   color: #24759e;
 }
 
-.logs-status {
-  font-weight: 700;
-}
-
 .logs-status--success {
+  background: #dff5eb;
   color: #1f8a61;
 }
 
 .logs-status--warning {
+  background: #fff1d8;
   color: #b57400;
 }
 
 .logs-status--failed {
+  background: #fff0f1;
   color: #bf4f59;
 }
 
-.logs-detail {
+.empty-state {
   display: grid;
-  align-content: start;
-  gap: 16px;
-  overflow: hidden;
+  place-items: center;
+  gap: 6px;
+  min-height: 300px;
+  color: #617196;
+  text-align: center;
 }
 
-.logs-detail__content {
+.empty-state strong {
+  color: #13203a;
+  font-size: 15px;
+}
+
+.placeholder-row td {
+  height: 43px;
+  background: #ffffff;
+}
+
+.loading-layer {
+  position: absolute;
+  inset: 42px 0 0;
   display: grid;
-  gap: 16px;
-  min-width: 0;
-}
-
-.logs-detail__hero {
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 20px;
-  background: linear-gradient(180deg, #f7fbff, #ffffff);
-  border: 1px solid #e0e9fb;
-  min-width: 0;
-}
-
-.logs-detail__hero strong {
-  color: #22375f;
-  font-size: 24px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.logs-detail__hero p,
-.logs-detail__trace p {
-  margin: 0;
-  color: #627494;
-  line-height: 1.8;
-  font-size: 14px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.logs-detail__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.logs-detail__grid article,
-.logs-detail__trace article {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(248, 251, 255, 0.84);
-  border: 1px solid #e2eafb;
-  overflow: hidden;
-}
-
-.logs-detail__grid span,
-.logs-detail__trace small {
-  color: #7384a5;
-  font-size: 12px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.logs-detail__grid strong {
-  color: #1f345b;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.logs-detail__trace {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.logs-empty {
-  display: grid;
-  gap: 8px;
-  justify-items: start;
-  padding: 22px;
-  border: 1px dashed #cfdbf5;
-  border-radius: 18px;
-  background: #fbfdff;
-}
-
-.logs-empty strong {
-  color: #23385f;
-}
-
-.logs-empty span {
-  color: #667895;
-  line-height: 1.7;
-  font-size: 14px;
-}
-
-.logs-empty--detail {
-  min-height: 240px;
-  align-content: center;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.72);
+  color: #2f6ff3;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .logs-footer {
@@ -868,53 +1023,134 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-top: 30px;
-}
-
-.logs-footer__summary {
-  color: #6f80a1;
+  padding-top: 12px;
+  color: #617196;
   font-size: 13px;
 }
 
+:deep(.pager) {
+  justify-content: flex-end;
+  padding-top: 0;
+}
+
+.logs-detail {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.detail-head h4 {
+  font-size: 20px;
+}
+
+.detail-content {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.detail-hero,
+.detail-grid article,
+.detail-trace article {
+  border: 1px solid #dce7ff;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.detail-hero {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.detail-hero strong {
+  color: #13203a;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.detail-hero p,
+.detail-trace p {
+  margin: 0;
+  color: #617196;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-grid article,
+.detail-trace article {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.detail-grid span,
+.detail-trace span {
+  color: #6c7a9f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-grid strong {
+  color: #13203a;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.detail-trace {
+  display: grid;
+  gap: 10px;
+}
+
+.empty-state--detail {
+  min-height: 260px;
+}
+
 @media (max-width: 1180px) {
-  .logs-stage {
+  .audit-layout {
     grid-template-columns: 1fr;
+  }
+
+  .filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 900px) {
-  .logs-hero {
+  .logs-head,
+  .ledger-headline,
+  .logs-footer {
     display: grid;
   }
 
-  .logs-hero__metrics,
-  .logs-detail__grid,
-  .logs-toolbar__major-grid,
-  .logs-subchips {
-    grid-template-columns: 1fr 1fr;
-    min-width: 0;
-  }
-
-  .logs-table__head,
-  .logs-row {
+  .summary-strip,
+  .major-tabs,
+  .filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .logs-footer {
-    display: grid;
+  .table-shell {
+    overflow-x: auto;
+  }
+
+  .logs-table {
+    min-width: 920px;
   }
 }
 
 @media (max-width: 640px) {
-  .logs-hero__metrics,
-  .logs-detail__grid,
-  .logs-toolbar__major-grid,
-  .logs-subchips {
-    grid-template-columns: 1fr;
-  }
-
-  .logs-table__head,
-  .logs-row {
+  .summary-strip,
+  .major-tabs,
+  .filter-grid,
+  .detail-grid {
     grid-template-columns: 1fr;
   }
 }

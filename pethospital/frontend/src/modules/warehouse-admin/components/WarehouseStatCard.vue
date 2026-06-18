@@ -36,57 +36,48 @@ export default defineComponent({
 .card {
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
-  padding: 16px 18px;
-  border: 1px solid rgba(147, 196, 255, 0.3);
-  background: radial-gradient(
-      circle at top right,
-      rgba(106, 190, 255, 0.24),
-      transparent 36%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(224, 237, 255, 0.98),
-      rgba(197, 216, 244, 0.98)
-    );
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28),
-    0 10px 28px rgba(70, 127, 205, 0.16);
-}
-
-.card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-top: 1px solid rgba(169, 216, 255, 0.28);
-  pointer-events: none;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid #dfe7df;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
 }
 
 .card p {
   margin: 0;
   font-size: 12px;
-  color: #476489;
+  color: #6d7b72;
+  font-weight: 700;
 }
 
 .card strong {
   display: block;
   margin: 8px 0 6px;
   font-size: 20px;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  color: #15385e;
+  color: #1d3429;
+  letter-spacing: 0;
 }
 
 .card span {
-  color: #4a678d;
+  color: #6d7b72;
   font-size: 12px;
 }
 
-.warning strong,
-.warning span {
-  color: #cc8f2f;
+.warning {
+  background: #fffaf0;
+  border-color: rgba(155, 104, 23, 0.22);
 }
 
-.danger strong,
-.danger span {
-  color: #d65f76;
+.warning strong {
+  color: #9b6817;
+}
+
+.danger {
+  background: #fff6f7;
+  border-color: rgba(176, 68, 85, 0.22);
+}
+
+.danger strong {
+  color: #b04455;
 }
 </style>

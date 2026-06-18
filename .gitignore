@@ -60,5 +60,15 @@ build/
 main
 RunServe
 skills
+
+# AI agent context and local tool state
+.agents/
+.codex/
+.cursor/
+.impeccable/
+.playwright-mcp/
+.superpowers/
 AGENTS.md
 MEMORY.md
+PRODUCT.md
+DESIGN.md

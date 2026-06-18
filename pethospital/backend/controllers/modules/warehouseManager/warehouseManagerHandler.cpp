@@ -12,6 +12,30 @@ namespace
         return body.contains(key) && body[key].is_number_integer() ? body[key].get<int>() : fallback;
     }
 
+    std::string getQueryString(const crow::request &req, const std::string &key, const std::string &fallback = "")
+    {
+        const char *value = req.url_params.get(key);
+        return value == nullptr ? fallback : std::string(value);
+    }
+
+    int getQueryInt(const crow::request &req, const std::string &key, int fallback)
+    {
+        const char *value = req.url_params.get(key);
+        if (value == nullptr)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return std::stoi(value);
+        }
+        catch (const std::exception &)
+        {
+            return fallback;
+        }
+    }
+
     int normalizePage(int page)
     {
         return std::max(1, page);
@@ -139,6 +163,70 @@ crow::response warehouseManagerHandler::selectAllData(const crow::request &req)
         if(!checkDbConnection())
         {
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        const bool hasListParams =
+            req.url_params.get("keyword") != nullptr ||
+            req.url_params.get("itemType") != nullptr ||
+            req.url_params.get("sortKey") != nullptr ||
+            req.url_params.get("page") != nullptr ||
+            req.url_params.get("pageSize") != nullptr;
+
+        if (hasListParams)
+        {
+            const std::string keyword = getQueryString(req, "keyword");
+            const std::string itemType = getQueryString(req, "itemType", "全部");
+            const std::string sortKey = getQueryString(req, "sortKey", "name");
+            const std::string likeKeyword = "%" + keyword + "%";
+            const int page = normalizePage(getQueryInt(req, "page", 1));
+            const int pageSize = normalizePageSize(getQueryInt(req, "pageSize", 10), 10, 100);
+            const int offset = (page - 1) * pageSize;
+            const bool filterType = !itemType.empty() && itemType != "全部";
+            const std::string typeCondition = filterType ? "AND item_type = ? " : "";
+
+            auto query = dbManager->getSession()
+                             ->sql(std::string("SELECT id, item_name, item_type, CAST(item_productiondate AS CHAR), CAST(item_expirationdate AS CHAR), "
+                                               "days_until_expire, item_price, item_number, item_totalprice, CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
+                                               "FROM warehouse "
+                                               "WHERE is_deleted = 0 "
+                                               "AND (? = '' OR item_name LIKE ?) ") +
+                                   typeCondition +
+                                   "ORDER BY " + resolveWarehouseOrderBy(sortKey) + " "
+                                   "LIMIT ?, ?")
+                             .bind(keyword, likeKeyword);
+            if (filterType)
+            {
+                query.bind(itemType);
+            }
+            query.bind(offset, pageSize);
+            mysqlx::SqlResult result = query.execute();
+
+            auto countQuery = dbManager->getSession()
+                                  ->sql(std::string("SELECT COUNT(*) "
+                                                    "FROM warehouse "
+                                                    "WHERE is_deleted = 0 "
+                                                    "AND (? = '' OR item_name LIKE ?) ") +
+                                        typeCondition)
+                                  .bind(keyword, likeKeyword);
+            if (filterType)
+            {
+                countQuery.bind(itemType);
+            }
+            mysqlx::SqlResult countResult = countQuery.execute();
+
+            nlohmann::json items = nlohmann::json::array();
+            for (auto row : result)
+            {
+                items.push_back(buildWarehouseItemJson(row));
+            }
+
+            nlohmann::json data = {
+                {"items", items},
+                {"total", countResult.fetchOne()[0].get<int>()},
+                {"page", page},
+                {"pageSize", pageSize}};
+
+            return ResponseHelper::success(req, data);
         }
 
         mysqlx::SqlResult result = dbManager->getSession()->sql(

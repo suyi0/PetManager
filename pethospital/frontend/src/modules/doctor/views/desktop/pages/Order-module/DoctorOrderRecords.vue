@@ -3,7 +3,7 @@
     <div class="panel-head">
       <div>
         <h3>订单记录</h3>
-        <p>按诊单编号、宠物、主人和费用追踪历史记录。</p>
+        <p>按宠物、主人、医生和费用追踪历史记录。</p>
       </div>
       <div class="panel-head__actions">
         <AppPager
@@ -11,7 +11,6 @@
           :total-pages="totalPages"
           @update:page="page = $event"
         />
-        <button>导出记录</button>
       </div>
     </div>
 
@@ -30,7 +29,7 @@
     </div>
 
     <div class="search-bar">
-      <span class="search-type">orders</span>
+      <span class="search-type">诊单</span>
       <label class="search-field">
         <span class="search-field__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
@@ -52,7 +51,7 @@
         <input
           v-model.trim="searchKeyword"
           type="text"
-          placeholder="输入诊单编号、宠物名、医生名或订单状态"
+          placeholder="输入宠物名、医生名、主人名或订单状态后按 Enter"
           @keyup.enter="searchOrderRecords"
         />
       </label>
@@ -65,14 +64,6 @@
           @click="resetOrderSearch"
         >
           清空
-        </button>
-        <button
-          type="button"
-          class="search-meta__submit"
-          :disabled="searchLoading"
-          @click="searchOrderRecords"
-        >
-          {{ searchLoading ? "搜索中" : "搜索" }}
         </button>
       </div>
     </div>
@@ -258,12 +249,12 @@ export default defineComponent({
         return `共 ${orderRecords.value.length} 条订单记录`;
       }
 
-      return `orders · 匹配到 ${items.value.length} 条订单记录`;
+      return `匹配到 ${items.value.length} 条订单记录`;
     });
 
     const emptyStateText = computed(() =>
       normalizedSearchKeyword.value
-        ? "没有找到符合关键词的订单，请检查诊单编号、宠物名、医生名或订单状态。"
+        ? "没有找到符合关键词的订单，请检查宠物名、医生名、主人名或订单状态。"
         : "当前分类下暂无订单记录。"
     );
 
@@ -503,11 +494,6 @@ export default defineComponent({
   box-shadow: none;
 }
 
-.search-meta__submit {
-  padding: 9px 14px;
-  border-radius: 14px;
-}
-
 .status-filter {
   display: grid;
   gap: 6px;
@@ -552,7 +538,7 @@ table {
 }
 
 .table-shell {
-  min-height: 0;
+  min-height: 586px;
   overflow: hidden;
 }
 
@@ -614,8 +600,10 @@ tbody tr {
 }
 
 .empty-cell {
+  height: 520px;
   color: #708682;
   padding: 26px 12px;
+  text-align: center;
 }
 
 .placeholder-row td {

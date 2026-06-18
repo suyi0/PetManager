@@ -42,10 +42,11 @@
           </div>
           <div class="salary-list__actions">
             <input
-              v-model.trim="keyword"
+              v-model.trim="keywordInput"
               class="search-input"
               type="text"
               placeholder="搜索姓名 / 角色 / 手机号 / 邮箱"
+              @keyup.enter="applySearch"
             />
             <button class="ghost" type="button" @click="refreshSalaryData">
               刷新列表
@@ -286,6 +287,7 @@ export default defineComponent({
     const store = useStore(storeKey);
     const route = useRoute();
     let closeHomeDataStream: (() => void) | null = null;
+    const keywordInput = ref("");
     const keyword = ref("");
     const page = ref(1);
     const pageSize = 8;
@@ -395,9 +397,18 @@ export default defineComponent({
     };
 
     const refreshSalaryData = async () => {
+      keywordInput.value = "";
+      keyword.value = "";
+      page.value = 1;
       await ensureSalaryData();
       statusMessage.value = "工资数据已刷新";
       statusMessageType.value = "info";
+    };
+
+    const applySearch = () => {
+      keyword.value = keywordInput.value.trim();
+      page.value = 1;
+      void ensureSalaryData();
     };
 
     const selectEmployee = (userId: number) => {
@@ -458,11 +469,6 @@ export default defineComponent({
       }
     });
 
-    watch(keyword, () => {
-      page.value = 1;
-      void ensureSalaryData();
-    });
-
     watch(page, () => {
       void ensureSalaryData();
     });
@@ -474,6 +480,7 @@ export default defineComponent({
 
     return {
       isFinanceHomePage,
+      keywordInput,
       keyword,
       page,
       totalPages,
@@ -490,6 +497,7 @@ export default defineComponent({
       formatRecordDate,
       roleClassName,
       refreshSalaryData,
+      applySearch,
       selectEmployee,
       resetEditor,
       saveSalary,

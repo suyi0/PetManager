@@ -6,16 +6,26 @@
         <p>查看未提交的诊单内容，按来源和更新时间继续编辑。</p>
       </div>
       <div class="panel-head__actions">
-        <AppPager
-          :page="page"
-          :total-pages="totalPages"
-          @update:page="page = $event"
-        />
-        <button type="button" @click="toggleManageMode">
+        <button type="button" class="manage-button" @click="toggleManageMode">
           {{ isManaging ? "完成" : "管理" }}
         </button>
+        <div class="panel-head__pager">
+          <AppPager
+            :page="page"
+            :total-pages="totalPages"
+            @update:page="page = $event"
+          />
+        </div>
       </div>
     </div>
+
+    <p
+      v-if="draftMessage"
+      class="draft-message"
+      :class="`draft-message--${draftMessage.type}`"
+    >
+      {{ draftMessage.text }}
+    </p>
 
     <div class="status-filters">
       <button
@@ -141,6 +151,10 @@ export default defineComponent({
     const pageSize = 10;
     const isManaging = ref(false);
     const pendingDeleteKeys = ref(new Set<string>());
+    const draftMessage = ref<{
+      type: "success" | "error";
+      text: string;
+    } | null>(null);
     let remainingTimer: number | undefined;
 
     const basePath = computed(() => "/doctor");
@@ -259,7 +273,10 @@ export default defineComponent({
       )) as DoctorOrderDraft | null;
 
       if (!draft) {
-        window.alert("该诊单草稿不存在或已超过 24 小时");
+        draftMessage.value = {
+          type: "error",
+          text: "该诊单草稿不存在或已超过 24 小时，已刷新草稿列表。",
+        };
         void syncDrafts();
         return;
       }
@@ -327,6 +344,7 @@ export default defineComponent({
       pagedItems,
       placeholderRows,
       isManaging,
+      draftMessage,
       pendingDeleteKeys,
       toggleManageMode,
       togglePendingDelete,
@@ -346,8 +364,9 @@ export default defineComponent({
   border: 1px solid rgba(157, 188, 178, 0.24);
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
-  padding: 22px;
-  max-height: min(100vh - 140px, 780px);
+  padding: 28px;
+  min-height: 720px;
+  max-height: min(100vh - 96px, 860px);
   box-shadow: 0 20px 38px rgba(49, 82, 77, 0.06);
   box-sizing: border-box;
   overflow: hidden;
@@ -357,8 +376,8 @@ export default defineComponent({
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
 .panel-head h3,
@@ -373,9 +392,24 @@ export default defineComponent({
 }
 
 .panel-head__actions {
+  display: grid;
+  justify-items: end;
+  gap: 14px;
+  min-width: min(100%, 520px);
+}
+
+.panel-head__pager {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  justify-content: flex-end;
+}
+
+.panel-head__pager :deep(.pager) {
+  padding-top: 0;
+  justify-content: flex-end;
+}
+
+.manage-button {
+  min-width: 96px;
 }
 
 button {
@@ -388,10 +422,30 @@ button {
   box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
 }
 
+.draft-message {
+  margin: 0 0 14px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.draft-message--success {
+  border: 1px solid rgba(36, 123, 98, 0.26);
+  background: rgba(36, 123, 98, 0.08);
+  color: #247b62;
+}
+
+.draft-message--error {
+  border: 1px solid rgba(176, 68, 85, 0.26);
+  background: rgba(176, 68, 85, 0.08);
+  color: #b04455;
+}
+
 .status-filters {
   display: flex;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 24px;
 }
 
 .status-filter {
@@ -417,7 +471,7 @@ button {
 }
 
 .table-shell {
-  min-height: 0;
+  min-height: 586px;
   overflow: hidden;
 }
 
@@ -496,7 +550,7 @@ td {
 }
 
 .empty-cell {
-  height: 120px;
+  height: 520px;
   color: #708682;
   text-align: center;
 }

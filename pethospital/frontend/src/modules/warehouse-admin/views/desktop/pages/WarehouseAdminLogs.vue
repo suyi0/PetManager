@@ -6,12 +6,21 @@
           <h3>操作日志</h3>
           <span>新增 / 更新 / 删除轨迹</span>
         </div>
-        <div class="status-pill">Operation Feed</div>
+        <div class="status-pill">共 {{ visibleLogs.length }} 条</div>
+      </div>
+
+      <div class="toolbar">
+        <input
+          v-model.trim="keywordInput"
+          type="text"
+          placeholder="按操作、说明或标签查询"
+          @keyup.enter="applySearch"
+        />
       </div>
 
       <div class="log-list">
         <article
-          v-for="entry in logs"
+          v-for="entry in visibleLogs"
           :key="entry.time + entry.title"
           class="log-item"
         >
@@ -22,13 +31,16 @@
           </div>
           <i>{{ entry.tag }}</i>
         </article>
+        <div v-if="visibleLogs.length === 0" class="empty-state">
+          当前没有匹配的操作日志
+        </div>
       </div>
     </section>
   </section>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted } from "vue";
+import { computed, defineComponent, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 
@@ -36,15 +48,38 @@ export default defineComponent({
   name: "WarehouseAdminLogs",
   setup() {
     const store = useStore(storeKey);
+    const keywordInput = ref("");
+    const keyword = ref("");
     const logs = computed(() => store.state.warehouseAdmin.operationLogs);
+    const visibleLogs = computed(() => {
+      const query = keyword.value.toLowerCase();
+      if (!query) {
+        return logs.value;
+      }
+
+      return logs.value.filter((entry) =>
+        [entry.title, entry.description, entry.tag, entry.time]
+          .join(" ")
+          .toLowerCase()
+          .includes(query)
+      );
+    });
 
     onMounted(() => {
       // 操作流优先复用会话缓存，避免切页后重复初始化。
       void store.dispatch("warehouseAdmin/ensureLogs");
     });
 
+    const applySearch = () => {
+      keyword.value = keywordInput.value.trim();
+    };
+
     return {
       logs,
+      visibleLogs,
+      keywordInput,
+      keyword,
+      applySearch,
     };
   },
 });
@@ -61,14 +96,11 @@ export default defineComponent({
 .panel {
   width: 100%;
   box-sizing: border-box;
-  border-radius: 20px;
+  border-radius: 12px;
   padding: 18px;
-  border: 1px solid rgba(148, 197, 255, 0.28);
-  background: linear-gradient(
-    180deg,
-    rgba(225, 237, 253, 0.97),
-    rgba(205, 223, 247, 0.98)
-  );
+  border: 1px solid #dfe7df;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
 }
 
 .panel-head {
@@ -81,21 +113,44 @@ export default defineComponent({
 
 .panel-head h3 {
   margin: 0 0 4px;
-  color: #16385d;
+  color: #1d3429;
+  font-size: 20px;
 }
 
 .panel-head span {
-  color: #587398;
+  color: #6d7b72;
   font-size: 12px;
 }
 
 .status-pill {
   padding: 10px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(173, 210, 255, 0.3);
-  background: rgba(217, 230, 248, 0.84);
-  color: #1d4d7f;
+  border-radius: 8px;
+  border: 1px solid #dfe7df;
+  background: #f4f7f4;
+  color: #245849;
   font-size: 12px;
+  font-weight: 700;
+}
+
+.toolbar {
+  margin-bottom: 14px;
+}
+
+input {
+  width: min(100%, 360px);
+  box-sizing: border-box;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #ffffff;
+  color: #1d3429;
+  font-size: 13px;
+}
+
+input:focus-visible {
+  outline: 3px solid rgba(36, 88, 73, 0.24);
+  outline-offset: 2px;
+  border-color: #245849;
 }
 
 .log-list {
@@ -109,25 +164,26 @@ export default defineComponent({
   gap: 14px;
   align-items: center;
   padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(176, 212, 255, 0.3);
-  background: rgba(217, 230, 248, 0.84);
+  border-radius: 10px;
+  border: 1px solid #dfe7df;
+  background: #ffffff;
 }
 
 time {
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: 24px;
-  color: #1f5588;
+  font-size: 16px;
+  font-weight: 700;
+  color: #245849;
+  letter-spacing: 0;
 }
 
 strong {
   display: block;
-  color: #173a60;
+  color: #1d3429;
 }
 
 p {
   margin: 6px 0 0;
-  color: #587398;
+  color: #6d7b72;
 }
 
 i {
@@ -135,12 +191,20 @@ i {
   font-style: normal;
   padding: 8px 12px;
   border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    rgba(220, 240, 255, 0.98),
-    rgba(198, 231, 255, 0.96)
-  );
-  color: #1d4d7f;
+  background: #e7f1ed;
+  color: #245849;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.empty-state {
+  padding: 28px;
+  border-radius: 10px;
+  border: 1px dashed #dfe7df;
+  background: #f4f7f4;
+  color: #6d7b72;
+  text-align: center;
+  font-size: 13px;
 }
 
 @media (max-width: 900px) {

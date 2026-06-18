@@ -24,19 +24,11 @@
             <input
               v-model.trim="searchQuery"
               type="text"
-              placeholder="输入药品名称 / 编码 / 类型"
+              placeholder="输入药品名称或类型后按 Enter"
               @keyup.enter="searchMedicines"
             />
           </label>
           <div class="strip-actions">
-            <button
-              class="primary"
-              type="button"
-              :disabled="searchLoading"
-              @click="searchMedicines"
-            >
-              {{ searchLoading ? "搜索中" : "搜索" }}
-            </button>
             <button class="ghost" type="button" @click="resetSearch">
               重置筛选
             </button>
@@ -155,11 +147,23 @@
         </div>
 
         <div class="print-row">
+          <p
+            v-if="formMessage"
+            class="form-message"
+            :class="`form-message--${formMessage.type}`"
+          >
+            {{ formMessage.text }}
+          </p>
           <button type="button" class="ghost-button" @click="clearDraft">
             清空草稿
           </button>
-          <button type="button" class="print-button" @click="submitOrder">
-            打印诊单
+          <button
+            type="button"
+            class="print-button"
+            :disabled="submitting"
+            @click="submitOrder"
+          >
+            {{ submitButtonText }}
           </button>
         </div>
 
@@ -208,6 +212,11 @@ export default defineComponent({
     const searchQuery = ref("");
     const searchLoading = ref(false);
     const searchErrorMessage = ref("");
+    const submitting = ref(false);
+    const formMessage = ref<{
+      type: "success" | "error";
+      text: string;
+    } | null>(null);
     const medicines = ref<MedicineSearchItem[]>([]);
     const selected = ref<SelectedMedicineItem[]>([]);
 
@@ -268,8 +277,15 @@ export default defineComponent({
     );
 
     const filteredMedicines = computed(() => medicines.value);
-    const medicineSearchMessage = computed(
-      () => searchErrorMessage.value || "没有匹配的药品，请调整搜索关键词。"
+    const medicineSearchMessage = computed(() => {
+      if (searchLoading.value) {
+        return "正在搜索药品...";
+      }
+
+      return searchErrorMessage.value || "没有匹配的药品，请调整搜索关键词。";
+    });
+    const submitButtonText = computed(() =>
+      submitting.value ? "提交中" : "提交诊单"
     );
 
     const searchMedicines = async () => {
@@ -371,8 +387,13 @@ export default defineComponent({
       if (!draft) {
         if (openedDraftKey) {
           pauseDraftPersist.value = true;
-          window.alert("该诊单草稿不存在或已超过 24 小时");
-          void router.push("/doctor/drafts");
+          formMessage.value = {
+            type: "error",
+            text: "该诊单草稿不存在或已超过 24 小时，正在返回草稿箱。",
+          };
+          window.setTimeout(() => {
+            void router.push("/doctor/drafts");
+          }, 900);
         }
         return;
       }
@@ -421,6 +442,10 @@ export default defineComponent({
       Object.assign(patientForm, initialPatientForm);
       selected.value = [];
       searchQuery.value = "";
+      formMessage.value = {
+        type: "success",
+        text: "草稿已清空。",
+      };
       requestAnimationFrame(() => {
         pauseDraftPersist.value = false;
       });
@@ -431,10 +456,15 @@ export default defineComponent({
      */
     const submitOrder = async () => {
       if (!ownerId.value || !petId.value) {
-        window.alert("缺少主人或宠物 ID，请从待接诊队列重新进入创建诊单页");
+        formMessage.value = {
+          type: "error",
+          text: "缺少主人或宠物信息，请从待接诊队列重新进入创建诊单页。",
+        };
         return;
       }
 
+      formMessage.value = null;
+      submitting.value = true;
       try {
         const normalizedRecord = await store.dispatch(
           "doctor/createOrderRecord",
@@ -465,10 +495,20 @@ export default defineComponent({
 
         pauseDraftPersist.value = true;
         void store.dispatch("doctor/removeOrderDraft", draftStorageKey.value);
-        window.alert(`诊单 ${normalizedRecord.id} 已打印并加入诊单记录`);
-        void router.push("/doctor/order-records");
+        formMessage.value = {
+          type: "success",
+          text: `诊单 ${normalizedRecord.id} 已提交，正在进入诊单记录。`,
+        };
+        window.setTimeout(() => {
+          void router.push("/doctor/order-records");
+        }, 500);
       } catch {
-        window.alert("订单创建失败，请检查宠物、主人和药品信息后重试");
+        formMessage.value = {
+          type: "error",
+          text: "订单创建失败，请检查宠物、主人和药品信息后重试。",
+        };
+      } finally {
+        submitting.value = false;
       }
     };
 
@@ -488,9 +528,12 @@ export default defineComponent({
     return {
       searchQuery,
       searchLoading,
+      submitting,
+      formMessage,
       medicines,
       filteredMedicines,
       medicineSearchMessage,
+      submitButtonText,
       selected,
       patientForm,
       visitCode,
@@ -598,11 +641,10 @@ button {
   cursor: pointer;
 }
 
-.primary {
-  border: 1px solid rgba(144, 175, 166, 0.24);
-  background: linear-gradient(135deg, #29565a, #7d5348);
-  color: #fffdfb;
-  box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+  box-shadow: none;
 }
 
 .ghost {
@@ -845,9 +887,32 @@ button {
 
 .print-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 12px;
   padding: 14px 18px 6px;
+}
+
+.form-message {
+  flex: 1 0 100%;
+  margin: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.form-message--success {
+  border: 1px solid rgba(36, 123, 98, 0.26);
+  background: rgba(36, 123, 98, 0.08);
+  color: #247b62;
+}
+
+.form-message--error {
+  border: 1px solid rgba(176, 68, 85, 0.26);
+  background: rgba(176, 68, 85, 0.08);
+  color: #b04455;
 }
 
 .print-button {

@@ -375,7 +375,7 @@ crow::response adminHandler::searchOnlineDoctors(const crow::request &req, const
             auto recordQuery = dbManager->getSession()
                                    ->sql("SELECT CAST(id AS SIGNED), doctor_id, date, check_in_time, check_out_time, status, notes, "
                                          "CAST(created_at AS CHAR), CAST(updated_at AS CHAR) "
-                                         "FROM workTimeRecords "
+                                         "FROM workTimeLogs "
                                          "WHERE doctor_id IN (" +
                                          placeholders + ") "
                                                         "ORDER BY date DESC, check_in_time DESC, id DESC");
@@ -495,17 +495,17 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
 
         try
         {
-            mysqlx::SqlResult workTimeRecords_result =
+            mysqlx::SqlResult workTimeLogs_result =
                 dbManager->getSession()
                     ->sql("SELECT wtr.id, wtr.doctor_id, u.name, wtr.date, "
                           "wtr.check_in_time, wtr.check_out_time, wtr.status, "
                           "wtr.notes, wtr.created_at, wtr.updated_at "
-                          "FROM workTimeRecords AS wtr "
+                          "FROM workTimeLogs AS wtr "
                           "JOIN users AS u ON wtr.doctor_id = u.id "
                           "ORDER BY wtr.date DESC, u.name ASC")
                     .execute();
 
-            for (auto row : workTimeRecords_result)
+            for (auto row : workTimeLogs_result)
             {
                 nlohmann::json doctor = nlohmann::json::object();
                 doctor["source"] = "work_records";
@@ -529,7 +529,7 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
         }
         catch (const std::exception &e)
         {
-            std::cerr << "Error querying workTimeRecords: " << e.what() << std::endl;
+            std::cerr << "Error querying workTimeLogs: " << e.what() << std::endl;
             return ResponseHelper::system_error(req, "Database query failed");
         }
 
@@ -586,7 +586,7 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         {
             // 更新历史工作时间记录表
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("UPDATE workTimeRecords SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
+                                           ->sql("UPDATE workTimeLogs SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
                                            .bind(time_value, userId, date)
                                            .execute();
 
@@ -832,16 +832,41 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
         const std::string majorTab = getJsonString(requestBody, "majorTab", "user");
         const std::string role = getJsonString(requestBody, "role", "all");
         const std::string keyword = getJsonString(requestBody, "keyword");
+        const std::string module = getJsonString(requestBody, "module");
+        const std::string resultFilter = getJsonString(requestBody, "result", "all");
+        const std::string startDate = getJsonString(requestBody, "startDate");
+        const std::string endDate = getJsonString(requestBody, "endDate");
         const std::string likeKeyword = "%" + keyword + "%";
+        const std::string likeModule = "%" + module + "%";
         const int page = normalizePage(getJsonInt(requestBody, "page", 1));
         const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
         const int offset = (page - 1) * pageSize;
         const bool isUserLogs = majorTab != "system";
         const bool filterRole = isUserLogs && !role.empty() && role != "all";
+        const bool filterModule = !module.empty();
+        const bool filterResult = !resultFilter.empty() && resultFilter != "all";
+        const bool filterStartDate = !startDate.empty();
+        const bool filterEndDate = !endDate.empty();
 
         const std::string tableName = isUserLogs ? "user_operations" : "system_operations";
         const std::string roleColumn = isUserLogs ? "user_role" : "system_role";
-        const std::string roleCondition = filterRole ? "AND COALESCE(" + roleColumn + ", '') = ? " : "";
+        std::string filters = filterRole ? "AND COALESCE(" + roleColumn + ", '') = ? " : "";
+        if (filterModule)
+        {
+            filters += "AND COALESCE(module, '') LIKE ? ";
+        }
+        if (filterResult)
+        {
+            filters += "AND COALESCE(result, '') = ? ";
+        }
+        if (filterStartDate)
+        {
+            filters += "AND DATE(created_at) >= ? ";
+        }
+        if (filterEndDate)
+        {
+            filters += "AND DATE(created_at) <= ? ";
+        }
         const std::string keywordCondition =
             "AND (? = '' OR COALESCE(operator, '') LIKE ? OR COALESCE(module, '') LIKE ? "
             "OR COALESCE(action, '') LIKE ? OR COALESCE(summary, '') LIKE ? OR COALESCE(details, '') LIKE ? "
@@ -854,7 +879,7 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
                                "FROM " +
                                tableName + " "
                                            "WHERE 1 = 1 " +
-                               roleCondition + keywordCondition +
+                               filters + keywordCondition +
                                "ORDER BY created_at DESC "
                                "LIMIT ?, ?")
                          ;
@@ -863,16 +888,48 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
         {
             query.bind(role);
         }
+        if (filterModule)
+        {
+            query.bind(likeModule);
+        }
+        if (filterResult)
+        {
+            query.bind(resultFilter);
+        }
+        if (filterStartDate)
+        {
+            query.bind(startDate);
+        }
+        if (filterEndDate)
+        {
+            query.bind(endDate);
+        }
         query.bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword);
         query.bind(offset, pageSize);
         mysqlx::SqlResult result = query.execute();
 
         auto countQuery = dbManager->getSession()
-                              ->sql("SELECT COUNT(*) FROM " + tableName + " WHERE 1 = 1 " + roleCondition + keywordCondition)
+                              ->sql("SELECT COUNT(*) FROM " + tableName + " WHERE 1 = 1 " + filters + keywordCondition)
                               ;
         if (filterRole)
         {
             countQuery.bind(role);
+        }
+        if (filterModule)
+        {
+            countQuery.bind(likeModule);
+        }
+        if (filterResult)
+        {
+            countQuery.bind(resultFilter);
+        }
+        if (filterStartDate)
+        {
+            countQuery.bind(startDate);
+        }
+        if (filterEndDate)
+        {
+            countQuery.bind(endDate);
         }
         countQuery.bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword);
         mysqlx::SqlResult countResult = countQuery.execute();

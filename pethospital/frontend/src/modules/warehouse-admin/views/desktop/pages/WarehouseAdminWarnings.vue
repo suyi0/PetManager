@@ -4,12 +4,18 @@
       <div class="panel-head">
         <div>
           <h3>库存预警中心</h3>
-          <span>Warning Center</span>
+          <span>按临期和低库存状态处理库存风险</span>
         </div>
         <div class="filter-pills">
-          <span class="active">全部预警</span>
-          <span>低库存</span>
-          <span>临期</span>
+          <button
+            v-for="filter in filters"
+            :key="filter.value"
+            type="button"
+            :class="{ active: activeFilter === filter.value }"
+            @click="activeFilter = filter.value"
+          >
+            {{ filter.label }}
+          </button>
         </div>
       </div>
 
@@ -24,15 +30,14 @@
           <strong>{{ lowStockCount }}</strong>
           <span>建议立即补货</span>
         </article>
-        <article>
-          <small>价格异常</small>
-          <strong>00</strong>
-          <span>单价波动过大</span>
-        </article>
       </div>
 
       <div class="warning-list">
-        <article v-for="item in warnings" :key="item.title" class="warning-row">
+        <article
+          v-for="item in visibleWarnings"
+          :key="item.title + item.description"
+          class="warning-row"
+        >
           <strong>{{ item.title }}</strong>
           <span>{{ item.description }}</span>
           <i :class="item.level">{{
@@ -43,20 +48,31 @@
               : "复核"
           }}</i>
         </article>
+        <div v-if="visibleWarnings.length === 0" class="empty-state">
+          当前筛选下没有库存预警
+        </div>
       </div>
     </section>
   </section>
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted } from "vue";
+import { computed, defineComponent, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
+
+type WarningFilter = "all" | "danger" | "warning";
 
 export default defineComponent({
   name: "WarehouseAdminWarnings",
   setup() {
     const store = useStore(storeKey);
+    const activeFilter = ref<WarningFilter>("all");
+    const filters: Array<{ label: string; value: WarningFilter }> = [
+      { label: "全部预警", value: "all" },
+      { label: "低库存", value: "danger" },
+      { label: "临期", value: "warning" },
+    ];
 
     /**
      * 预警页直接复用仓库库存缓存，不再单独重复拉接口。
@@ -87,6 +103,14 @@ export default defineComponent({
         .slice(0, 12)
     );
 
+    const visibleWarnings = computed(() => {
+      if (activeFilter.value === "all") {
+        return warnings.value;
+      }
+
+      return warnings.value.filter((item) => item.level === activeFilter.value);
+    });
+
     const expiringCount = computed(
       () =>
         store.state.warehouseAdmin.items.filter(
@@ -107,6 +131,9 @@ export default defineComponent({
 
     return {
       warnings,
+      visibleWarnings,
+      activeFilter,
+      filters,
       expiringCount,
       lowStockCount,
     };
@@ -125,14 +152,11 @@ export default defineComponent({
 .panel {
   width: 100%;
   box-sizing: border-box;
-  border-radius: 20px;
+  border-radius: 12px;
   padding: 18px;
-  border: 1px solid rgba(148, 197, 255, 0.28);
-  background: linear-gradient(
-    180deg,
-    rgba(225, 237, 253, 0.97),
-    rgba(205, 223, 247, 0.98)
-  );
+  border: 1px solid #dfe7df;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
 }
 
 .panel-head {
@@ -145,11 +169,12 @@ export default defineComponent({
 
 .panel-head h3 {
   margin: 0 0 4px;
-  color: #16385d;
+  color: #1d3429;
+  font-size: 20px;
 }
 
 .panel-head span {
-  color: #587398;
+  color: #6d7b72;
   font-size: 12px;
 }
 
@@ -159,27 +184,32 @@ export default defineComponent({
   flex-wrap: wrap;
 }
 
-.filter-pills span {
+.filter-pills button {
   padding: 9px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(176, 212, 255, 0.3);
-  background: rgba(219, 232, 250, 0.86);
-  color: #49658b;
+  border-radius: 8px;
+  border: 1px solid #dfe7df;
+  background: #ffffff;
+  color: #1d3429;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.filter-pills .active {
-  color: #12375f;
-  border-color: rgba(103, 170, 255, 0.34);
-  background: linear-gradient(
-    180deg,
-    rgba(168, 202, 251, 0.98),
-    rgba(145, 184, 240, 0.96)
-  );
+.filter-pills button.active {
+  color: #ffffff;
+  border-color: #245849;
+  background: #245849;
+}
+
+.filter-pills button:focus-visible,
+.warning-row:focus-within {
+  outline: 3px solid rgba(36, 88, 73, 0.24);
+  outline-offset: 2px;
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -187,34 +217,30 @@ export default defineComponent({
 .summary-grid article,
 .warning-row {
   padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(176, 212, 255, 0.3);
-  background: rgba(217, 230, 248, 0.84);
+  border-radius: 10px;
+  border: 1px solid #dfe7df;
+  background: #ffffff;
 }
 
 .summary-grid small,
 .summary-grid span,
 .warning-row span {
-  color: #597397;
+  color: #6d7b72;
 }
 
 .summary-grid strong {
   display: block;
   margin: 6px 0;
-  font-size: 34px;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
+  font-size: 26px;
+  letter-spacing: 0;
 }
 
 .summary-grid article:nth-child(1) strong {
-  color: #5db1ff;
+  color: #9b6817;
 }
 
 .summary-grid article:nth-child(2) strong {
-  color: #f07287;
-}
-
-.summary-grid article:nth-child(3) strong {
-  color: #69d7ff;
+  color: #b04455;
 }
 
 .warning-list {
@@ -227,7 +253,7 @@ export default defineComponent({
   grid-template-columns: 1.2fr 1fr auto;
   align-items: center;
   gap: 16px;
-  color: #173a60;
+  color: #1d3429;
 }
 
 .warning-row i {
@@ -241,18 +267,28 @@ export default defineComponent({
 }
 
 .warning-row i.warning {
-  color: #996100;
-  background: rgba(160, 121, 53, 0.24);
+  color: #9b6817;
+  background: #fff3d6;
 }
 
 .warning-row i.danger {
-  color: #c63b57;
-  background: rgba(154, 65, 88, 0.28);
+  color: #b04455;
+  background: #ffe9ed;
 }
 
 .warning-row i.normal {
-  color: #0f82bf;
-  background: rgba(59, 136, 204, 0.24);
+  color: #245849;
+  background: #e7f1ed;
+}
+
+.empty-state {
+  padding: 28px;
+  border-radius: 10px;
+  border: 1px dashed #dfe7df;
+  background: #f4f7f4;
+  color: #6d7b72;
+  text-align: center;
+  font-size: 13px;
 }
 
 @media (max-width: 1100px) {

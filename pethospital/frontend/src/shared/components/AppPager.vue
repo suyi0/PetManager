@@ -92,6 +92,7 @@ export default defineComponent({
   gap: 10px;
   color: #5c7470;
   font-size: 13px;
+  padding-top: 30px;
 }
 
 .pager-button,

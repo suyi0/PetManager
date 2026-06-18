@@ -66,7 +66,6 @@
             placeholder="搜索用户名 / 邮箱 / 手机号"
             @keyup.enter="applySearch"
           />
-          <button class="ghost" @click="applySearch">搜索</button>
           <button class="ghost" @click="loadUsers">刷新列表</button>
           <AppPager
             :page="page"
@@ -232,17 +231,14 @@ export default defineComponent({
       }
     };
 
-    watch(keyword, () => {
-      page.value = 1;
-      void loadUsers();
-    });
-
     watch(page, () => {
       void loadUsers();
     });
 
     const applySearch = () => {
       keyword.value = keywordInput.value.trim();
+      page.value = 1;
+      void loadUsers();
     };
 
     const selectUser = (id: number) => {

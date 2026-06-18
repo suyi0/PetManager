@@ -4,20 +4,19 @@
       <aside class="sidebar">
         <div class="brand-stack">
           <div class="logo-core">PM</div>
-          <div class="brand-copy"></div>
         </div>
 
         <nav>
-          <RouterLink :to="`${routePrefix}/dashboard`">仪表盘</RouterLink>
-          <RouterLink :to="`${routePrefix}/create`">入库</RouterLink>
-          <RouterLink :to="`${routePrefix}/warnings`">紧急</RouterLink>
+          <RouterLink :to="`${routePrefix}/dashboard`">库存台账</RouterLink>
+          <RouterLink :to="`${routePrefix}/create`">新增入库</RouterLink>
+          <RouterLink :to="`${routePrefix}/warnings`">库存预警</RouterLink>
           <RouterLink :to="`${routePrefix}/logs`">日志</RouterLink>
         </nav>
 
         <button
           v-if="showBossReturn"
           type="button"
-          class="boss-return"
+          class="portal-return"
           @click="returnToBossPortal"
         >
           返回总裁端
@@ -26,7 +25,7 @@
         <button
           v-if="showAdminReturn"
           type="button"
-          class="admin-return"
+          class="portal-return"
           @click="returnToSuperAdmin"
         >
           返回超级管理员
@@ -35,11 +34,9 @@
 
       <main class="content">
         <header class="topbar">
-          <div>
-            <p class="eyebrow">PetManager Warehouse</p>
-          </div>
+          <p class="eyebrow">仓库管理</p>
           <div class="topbar-actions">
-            <button @click="logout">登出</button>
+            <button type="button" @click="logout">登出</button>
           </div>
         </header>
 
@@ -117,50 +114,24 @@ export default defineComponent({
   box-sizing: border-box;
   height: 100vh;
   min-height: 100vh;
-  padding: clamp(12px, 2vw, 20px);
+  padding: 16px;
   overflow: hidden;
-  background: radial-gradient(
-      circle at 8% 16%,
-      rgba(95, 191, 255, 0.34),
-      transparent 20%
-    ),
-    radial-gradient(
-      circle at 88% 10%,
-      rgba(74, 146, 255, 0.22),
-      transparent 26%
-    ),
-    linear-gradient(180deg, #cddff7 0%, #d8e8fb 52%, #cfdef5 100%);
+  background: #f6faf9;
 }
 
 .shell {
-  position: relative;
   display: grid;
-  grid-template-columns: minmax(112px, 14vw) minmax(0, 1fr);
-  height: calc(100vh - clamp(24px, 4vw, 40px));
+  grid-template-columns: 176px minmax(0, 1fr);
+  height: calc(100vh - 32px);
   min-height: 0;
   width: min(100%, 1536px);
   margin: 0 auto;
   overflow: clip;
-  border-radius: clamp(16px, 2vw, 18px);
-  border: 1px solid rgba(132, 192, 255, 0.28);
-  background: linear-gradient(
-      180deg,
-      rgba(225, 236, 252, 0.96),
-      rgba(204, 222, 248, 0.98)
-    ),
-    linear-gradient(180deg, #ddeafb, #c8daf4);
-  box-shadow: 0 28px 72px rgba(61, 117, 194, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
-  color: #183d66;
-  font-family: "Noto Sans SC", "Segoe UI", sans-serif;
-}
-
-.shell::before {
-  content: "";
-  position: absolute;
-  inset: 76px 0 0 clamp(112px, 14vw, 220px);
-  border-top: 1px solid rgba(142, 196, 255, 0.32);
-  pointer-events: none;
+  border-radius: 18px;
+  border: 1px solid #dfe7df;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
+  color: #1d3429;
 }
 
 .sidebar {
@@ -168,67 +139,31 @@ export default defineComponent({
   top: 0;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   min-width: 0;
   height: 100%;
   min-height: 0;
-  padding: clamp(18px, 2vw, 20px) clamp(14px, 1.6vw, 16px) 18px;
-  border-right: 1px solid rgba(141, 192, 255, 0.28);
-  background: radial-gradient(
-      circle at top,
-      rgba(110, 195, 255, 0.22),
-      transparent 34%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(215, 228, 249, 0.98),
-      rgba(196, 214, 242, 0.96)
-    );
+  padding: 18px 14px;
+  border-right: 1px solid #dfe7df;
+  background: #f4f7f4;
 }
 
 .brand-stack {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .logo-core {
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
-  margin: 0 auto;
-  border-radius: 18px;
-  border: 1px solid rgba(117, 196, 255, 0.36);
-  background: radial-gradient(
-      circle at 50% 30%,
-      rgba(146, 222, 255, 0.54),
-      transparent 64%
-    ),
-    linear-gradient(180deg, rgba(98, 180, 255, 0.92), rgba(67, 124, 255, 0.96));
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(36, 88, 73, 0.2);
+  background: #245849;
   color: #ffffff;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  box-shadow: 0 0 0 6px rgba(142, 206, 255, 0.22),
-    0 0 24px rgba(89, 171, 255, 0.2);
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #3e73d6;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 11px;
-}
-
-.sidebar h1,
-.topbar h2 {
-  margin: 0;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-}
-
-.sidebar h1 {
-  font-size: 18px;
-  font-weight: 700;
+  letter-spacing: 0;
 }
 
 nav {
@@ -237,56 +172,35 @@ nav {
 }
 
 .sidebar a {
-  padding: 12px 14px;
-  border-radius: 12px;
-  color: #456187;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 13px 12px;
+  border-radius: 8px;
+  color: #1d3429;
   text-decoration: none;
   font-size: 12px;
-  border: 1px solid rgba(161, 204, 255, 0.26);
-  background: linear-gradient(
-    180deg,
-    rgba(226, 237, 251, 0.92),
-    rgba(194, 214, 242, 0.94)
-  );
+  font-weight: 700;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background-color 160ms ease, color 160ms ease,
+    border-color 160ms ease;
 }
 
+.sidebar a:hover,
 .sidebar a.router-link-active {
-  color: #0f3966;
-  border-color: rgba(92, 163, 255, 0.34);
-  background: linear-gradient(
-    180deg,
-    rgba(173, 207, 255, 0.98),
-    rgba(148, 189, 247, 0.96)
-  );
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 12px 20px rgba(85, 132, 205, 0.2);
+  color: #ffffff;
+  border-color: #245849;
+  background: #245849;
 }
 
-.admin-return {
-  margin-top: auto;
-  border: 1px solid rgba(114, 178, 255, 0.34);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, #eef7ff, #dbeaff);
-  color: #0f3966;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 12px 24px rgba(90, 149, 228, 0.16);
+.sidebar a:focus-visible,
+button:focus-visible {
+  outline: 3px solid rgba(36, 88, 73, 0.24);
+  outline-offset: 2px;
 }
 
-.boss-return {
+.portal-return {
   margin-top: auto;
-  border: 1px solid rgba(114, 178, 255, 0.34);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, #fff6e7, #dfefff);
-  color: #0f3966;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  text-align: left;
-  box-shadow: 0 12px 24px rgba(90, 149, 228, 0.16);
 }
 
 .content {
@@ -298,9 +212,9 @@ nav {
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: clamp(16px, 2vw, 18px) clamp(16px, 2vw, 22px) clamp(22px, 3vw, 28px)
-    clamp(12px, 1.6vw, 16px);
+  padding: 16px 20px 24px;
   box-sizing: border-box;
+  background: #f6faf9;
 }
 
 .page-viewport {
@@ -323,13 +237,16 @@ nav {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   gap: 12px;
-  padding: 8px 12px 16px;
+  padding: 2px 0 12px;
+  border-bottom: 1px solid #dfe7df;
 }
 
-.topbar h2 {
-  font-size: 18px;
+.eyebrow {
+  margin: 0;
+  color: #6d7b72;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -338,111 +255,51 @@ nav {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  border-radius: 999px;
-  border: 1px solid rgba(157, 205, 255, 0.32);
-  background: rgba(224, 236, 252, 0.74);
-}
-
-.topbar-actions span {
-  font-size: 12px;
-  color: #4d6790;
 }
 
 button {
-  border: 1px solid rgba(106, 175, 255, 0.24);
-  border-radius: 999px;
-  padding: 9px 14px;
-  background: linear-gradient(135deg, #7dd8ff, #5a9dff);
-  color: #062448;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #ffffff;
+  color: #245849;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(87, 160, 255, 0.22);
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
 
-@media (max-width: 1080px) {
+button:hover {
+  border-color: rgba(36, 88, 73, 0.32);
+  background: #f4f7f4;
+}
+
+@media (max-width: 840px) {
   .warehouse-stage {
-    padding: 12px;
+    padding: 0;
+    overflow: auto;
   }
 
   .shell {
     grid-template-columns: 1fr;
-    height: calc(100vh - 24px);
-    min-height: 0;
-  }
-
-  .shell::before {
-    inset: 76px 0 0 0;
+    min-height: 100vh;
+    height: auto;
+    border-radius: 0;
   }
 
   .sidebar {
-    position: relative;
-    top: auto;
-    gap: 20px;
+    position: static;
     height: auto;
-    min-height: auto;
-    max-height: 40vh;
-    overflow-y: auto;
     border-right: 0;
-    border-bottom: 1px solid rgba(116, 183, 255, 0.12);
+    border-bottom: 1px solid #dfe7df;
   }
 
   nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .topbar-actions {
-    flex-wrap: wrap;
-  }
-
   .content {
-    height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-  }
-}
-
-@media (max-width: 720px) {
-  .warehouse-stage {
-    padding: 0;
-  }
-
-  .shell {
-    height: 100vh;
-    min-height: 0;
-    border-radius: 0;
-  }
-
-  .sidebar {
-    padding: 16px 14px;
-  }
-
-  nav {
-    grid-template-columns: 1fr;
-  }
-
-  .content {
+    height: auto;
     padding: 14px;
-  }
-
-  .topbar {
-    padding: 4px 4px 14px;
-  }
-
-  .topbar-actions {
-    width: 100%;
-    border-radius: 18px;
-  }
-
-  .topbar-actions span,
-  button {
-    width: 100%;
-    text-align: center;
   }
 }
 </style>

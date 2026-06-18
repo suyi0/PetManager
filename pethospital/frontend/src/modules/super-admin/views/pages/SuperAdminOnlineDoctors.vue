@@ -37,10 +37,11 @@
           </div>
           <div class="online-panel__actions">
             <input
-              v-model.trim="keyword"
+              v-model.trim="keywordInput"
               type="text"
               class="online-search"
               placeholder="搜索医生姓名 / 手机号 / 邮箱"
+              @keyup.enter="applySearch"
             />
             <button class="online-ghost" type="button" @click="refreshDoctors">
               刷新列表
@@ -245,6 +246,7 @@ export default defineComponent({
   components: { AppPager },
   setup() {
     const router = useRouter();
+    const keywordInput = ref("");
     const keyword = ref("");
     const page = ref(1);
     const pageSize = 10;
@@ -382,9 +384,16 @@ export default defineComponent({
     };
 
     const refreshDoctors = async () => {
+      keywordInput.value = "";
       keyword.value = "";
       page.value = 1;
       await loadOnlineDoctors();
+    };
+
+    const applySearch = () => {
+      keyword.value = keywordInput.value.trim();
+      page.value = 1;
+      void loadOnlineDoctors();
     };
 
     const goToDoctorDetail = () => {
@@ -408,11 +417,6 @@ export default defineComponent({
       }
     });
 
-    watch(keyword, () => {
-      page.value = 1;
-      void loadOnlineDoctors();
-    });
-
     watch(page, () => {
       void loadOnlineDoctors();
       if (
@@ -428,6 +432,7 @@ export default defineComponent({
     });
 
     return {
+      keywordInput,
       keyword,
       page,
       totalPages,
@@ -446,6 +451,7 @@ export default defineComponent({
       getRecentRecords,
       getShiftSummary,
       refreshDoctors,
+      applySearch,
       goToDoctorDetail,
     };
   },

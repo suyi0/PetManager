@@ -23,6 +23,13 @@
             <h4>待接诊队列</h4>
             <span>优先展示即将到号、已到院、等待医生处理的患者。</span>
           </div>
+          <p
+            v-if="queueMessage"
+            class="queue-message"
+            :class="`queue-message--${queueMessage.type}`"
+          >
+            {{ queueMessage.text }}
+          </p>
           <ul class="list queue-list">
             <li v-for="item in priorityQueue" :key="`focus-${item.id}`">
               <strong
@@ -66,6 +73,13 @@
                 }}
               </button>
             </div>
+            <p
+              v-if="dutyMessage"
+              class="duty-message"
+              :class="`duty-message--${dutyMessage.type}`"
+            >
+              {{ dutyMessage.text }}
+            </p>
           </div>
           <div
             class="hero-status"
@@ -106,9 +120,10 @@
               <input
                 type="text"
                 class="search-form"
-                placeholder="输入用户名 / 手机号码"
+                placeholder="输入用户名 / 手机号码后按 Enter"
                 v-model.trim="searchKeyword"
-                @input="handleUserSearch"
+                @input="handleSearchInput"
+                @keyup.enter="handleUserSearch"
               />
             </label>
             <div class="search-results">
@@ -127,7 +142,10 @@
               <p v-if="searchLoading" class="search-empty">
                 正在查询用户摘要...
               </p>
-              <p v-else-if="!searchResults.length" class="search-empty">
+              <p
+                v-else-if="searchHasSearched && !searchResults.length"
+                class="search-empty"
+              >
                 暂无匹配结果，试试输入主人名或手机号码。
               </p>
             </div>
@@ -211,9 +229,18 @@ export default defineComponent({
     const isDoctorOnline = ref(false);
     const dutyStatusLoaded = ref(false);
     const dutyActionLoading = ref(false);
+    const dutyMessage = ref<{
+      type: "success" | "error";
+      text: string;
+    } | null>(null);
+    const queueMessage = ref<{
+      type: "error";
+      text: string;
+    } | null>(null);
     const lastDutyActionAt = ref("");
     const searchKeyword = ref("");
     const searchLoading = ref(false);
+    const searchHasSearched = ref(false);
     const searchResults = ref<DoctorUserSummary[]>([]);
     const now = ref(new Date());
     let timer: number | undefined;
@@ -235,10 +262,8 @@ export default defineComponent({
       }, 1000);
       window.addEventListener("focus", handleFocus);
 
-      void Promise.all([
-        store.dispatch("doctor/ensureDutyStatus"),
-        store.dispatch("doctor/ensureQueueItems", { force: true }),
-      ])
+      void store
+        .dispatch("doctor/ensureDutyStatus")
         .then(() => {
           const status = store.state.doctor.dutyStatus;
           isDoctorOnline.value = status.is_online;
@@ -249,10 +274,25 @@ export default defineComponent({
               "";
         })
         .catch((error) => {
-          console.error("获取医生值班状态失败:", error);
+          dutyMessage.value = {
+            type: "error",
+            text: resolveErrorMessage(error),
+          };
         })
         .finally(() => {
           dutyStatusLoaded.value = true;
+        });
+
+      void store
+        .dispatch("doctor/ensureQueueItems", { force: true })
+        .then(() => {
+          queueMessage.value = null;
+        })
+        .catch((error) => {
+          queueMessage.value = {
+            type: "error",
+            text: resolveErrorMessage(error),
+          };
         });
     });
 
@@ -345,6 +385,7 @@ export default defineComponent({
       }
 
       dutyActionLoading.value = true;
+      dutyMessage.value = null;
       try {
         const { message, dutyStatus } = (await store.dispatch(
           "doctor/changeDutyStatus",
@@ -356,9 +397,15 @@ export default defineComponent({
         isDoctorOnline.value = dutyStatus.is_online;
         const checkInTime = dutyStatus.check_in_time?.slice(0, 5);
         lastDutyActionAt.value = checkInTime || formatDutyTime(new Date());
-        window.alert(message);
+        dutyMessage.value = {
+          type: "success",
+          text: message,
+        };
       } catch (error) {
-        window.alert(resolveErrorMessage(error));
+        dutyMessage.value = {
+          type: "error",
+          text: resolveErrorMessage(error),
+        };
       } finally {
         dutyActionLoading.value = false;
       }
@@ -370,6 +417,7 @@ export default defineComponent({
       }
 
       dutyActionLoading.value = true;
+      dutyMessage.value = null;
       try {
         const { message, dutyStatus } = (await store.dispatch(
           "doctor/changeDutyStatus",
@@ -381,9 +429,15 @@ export default defineComponent({
         isDoctorOnline.value = dutyStatus.is_online;
         const checkOutTime = dutyStatus.check_out_time?.slice(0, 5);
         lastDutyActionAt.value = checkOutTime || formatDutyTime(new Date());
-        window.alert(message);
+        dutyMessage.value = {
+          type: "success",
+          text: message,
+        };
       } catch (error) {
-        window.alert(resolveErrorMessage(error));
+        dutyMessage.value = {
+          type: "error",
+          text: resolveErrorMessage(error),
+        };
       } finally {
         dutyActionLoading.value = false;
       }
@@ -398,6 +452,12 @@ export default defineComponent({
       return petNames.length > 0 ? petNames.join(" / ") : "暂无宠物档案";
     };
 
+    const handleSearchInput = () => {
+      searchResults.value = [];
+      searchHasSearched.value = false;
+      searchLoading.value = false;
+    };
+
     const handleUserSearch = async () => {
       const keyword = searchKeyword.value.trim();
       const requestId = ++searchRequestId;
@@ -405,6 +465,7 @@ export default defineComponent({
       if (!keyword) {
         searchResults.value = [];
         searchLoading.value = false;
+        searchHasSearched.value = false;
         return;
       }
 
@@ -414,6 +475,7 @@ export default defineComponent({
 
         if (requestId === searchRequestId) {
           searchResults.value = users;
+          searchHasSearched.value = true;
         }
       } finally {
         if (requestId === searchRequestId) {
@@ -458,6 +520,8 @@ export default defineComponent({
       isDoctorOnline,
       dutyStatusLoaded,
       dutyActionLoading,
+      dutyMessage,
+      queueMessage,
       statusText,
       dutyStatusHint,
       basePath,
@@ -465,8 +529,10 @@ export default defineComponent({
       offline,
       searchKeyword,
       searchLoading,
+      searchHasSearched,
       searchResults,
       formatPetNames,
+      handleSearchInput,
       handleUserSearch,
       goToUserProfile,
       goToCreateOrder,
@@ -667,6 +733,26 @@ export default defineComponent({
   margin-top: 34px;
 }
 
+.duty-message {
+  margin: 12px 0 0;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.duty-message--success {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.16);
+  color: #f7fffb;
+}
+
+.duty-message--error {
+  border: 1px solid rgba(255, 179, 190, 0.36);
+  background: rgba(176, 68, 85, 0.2);
+  color: #ffe8eb;
+}
+
 .soft-action {
   width: 40%;
   border: 0;
@@ -791,6 +877,20 @@ export default defineComponent({
 .panel-head span {
   font-size: 12px;
   color: #809692;
+}
+
+.queue-message {
+  margin: 0 0 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.queue-message--error {
+  border: 1px solid rgba(176, 68, 85, 0.26);
+  background: rgba(176, 68, 85, 0.08);
+  color: #b04455;
 }
 
 .search-link {

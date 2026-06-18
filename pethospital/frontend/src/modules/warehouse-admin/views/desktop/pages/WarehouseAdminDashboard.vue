@@ -2,9 +2,9 @@
   <section class="page">
     <header class="command-head">
       <div>
-        <p>Warehouse Console</p>
-        <h2>仓储调度台</h2>
-        <span>库存入库、出库、预警和基础档案统一处理</span>
+        <p>库存工作台</p>
+        <h2>库存台账</h2>
+        <span>以库存列表为核心，快速完成查询、预警处理和库存动作</span>
       </div>
       <button type="button" @click="openCreatePreset">新增入库</button>
     </header>
@@ -42,229 +42,245 @@
       />
     </div>
 
-    <div class="workbench">
-      <section class="dashboard-panel">
-        <div class="section-title">
-          <div>
-            <h3>库存列表</h3>
-            <span>共 {{ total }} 条记录</span>
-          </div>
-          <b>{{ selectedIds.length }} 项已选</b>
+    <section class="ledger-panel">
+      <div class="section-title">
+        <div>
+          <h3>库存列表</h3>
+          <span>共 {{ total }} 条记录</span>
         </div>
+        <b>{{ selectedIds.length }} 项已选</b>
+      </div>
 
-        <div class="toolbar">
-          <input
-            v-model.trim="keyword"
-            type="text"
-            placeholder="按物品名称查询"
-          />
-          <div class="chips">
-            <button
-              v-for="type in typeFilters"
-              :key="type"
-              :class="{ active: activeType === type }"
-              @click="activeType = type"
-            >
-              {{ type }}
-            </button>
-          </div>
-        </div>
-
-        <div class="sort-strip">
-          <span
-            v-for="option in sortOptions"
-            :key="option.key"
-            :class="{ active: sortKey === option.key }"
-            @click="sortKey = option.key"
+      <div class="toolbar">
+        <input
+          v-model.trim="keywordInput"
+          type="text"
+          placeholder="按物品名称查询"
+          @keyup.enter="applySearch"
+        />
+        <div class="chips">
+          <button
+            v-for="type in typeFilters"
+            :key="type"
+            :class="{ active: activeType === type }"
+            @click="activeType = type"
           >
-            {{ option.label }}
+            {{ type }}
+          </button>
+        </div>
+      </div>
+
+      <div class="sort-strip">
+        <small>排序</small>
+        <span
+          v-for="option in sortOptions"
+          :key="option.key"
+          :class="{ active: sortKey === option.key }"
+          @click="sortKey = option.key"
+        >
+          {{ option.label }}
+        </span>
+      </div>
+
+      <div class="grid-table">
+        <div class="grid-head">
+          <span class="head-check">
+            <input
+              type="checkbox"
+              :checked="allVisibleSelected"
+              @change="toggleSelectAll"
+            />
+          </span>
+          <span>名称</span>
+          <span>类型</span>
+          <span>库存</span>
+          <span>单价</span>
+          <span>总价</span>
+          <span>状态</span>
+          <span>到期日期</span>
+          <span>操作</span>
+        </div>
+
+        <div v-for="item in filteredItems" :key="item.id" class="grid-row">
+          <span class="check-cell">
+            <input
+              :checked="isSelected(item.id)"
+              type="checkbox"
+              @change="toggleSelected(item.id)"
+            />
+          </span>
+          <span class="name-cell">
+            <b>{{ item.item_name }}</b>
+            <small>ID {{ item.id }}</small>
+          </span>
+          <span>{{ item.item_type }}</span>
+          <span>{{ item.item_number }}</span>
+          <span>{{ item.item_price.toFixed(2) }}</span>
+          <span>{{ item.item_totalprice.toFixed(2) }}</span>
+          <span>
+            <i class="status" :class="statusTone(item)">{{
+              statusLabel(item)
+            }}</i>
+          </span>
+          <span>{{ item.item_expirationdate }}</span>
+          <span class="action-cell">
+            <button class="mini-action" @click="openEdit(item)">
+              详情 / 编辑
+            </button>
           </span>
         </div>
 
-        <div class="grid-table">
-          <div class="grid-head">
-            <span class="head-check">
-              <input
-                type="checkbox"
-                :checked="allVisibleSelected"
-                @change="toggleSelectAll"
-              />
-            </span>
-            <span>名称</span>
-            <span>类型</span>
-            <span>库存</span>
-            <span>单价</span>
-            <span>总价</span>
-            <span>状态</span>
-            <span>到期日期</span>
-            <span>操作</span>
-          </div>
-
-          <div v-for="item in filteredItems" :key="item.id" class="grid-row">
-            <span class="check-cell">
-              <input
-                :checked="isSelected(item.id)"
-                type="checkbox"
-                @change="toggleSelected(item.id)"
-              />
-            </span>
-            <span class="name-cell">
-              <b>{{ item.item_name }}</b>
-              <small>ID {{ item.id }}</small>
-            </span>
-            <span>{{ item.item_type }}</span>
-            <span>{{ item.item_number }}</span>
-            <span>{{ item.item_price.toFixed(2) }}</span>
-            <span>{{ item.item_totalprice.toFixed(2) }}</span>
-            <span>
-              <i class="status" :class="statusTone(item)">{{
-                statusLabel(item)
-              }}</i>
-            </span>
-            <span>{{ item.item_expirationdate }}</span>
-            <span class="action-cell">
-              <button class="mini-action" @click="openEdit(item)">
-                详情 / 编辑
-              </button>
-            </span>
-          </div>
+        <div
+          v-for="index in placeholderRows"
+          :key="`placeholder-${index}`"
+          class="grid-row grid-row--placeholder"
+          aria-hidden="true"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
-        <AppPager
-          :page="page"
-          :total-pages="totalPages"
-          @update:page="page = $event"
-        />
-      </section>
+      </div>
 
-      <div class="side-stack">
-        <section class="side-panel">
-          <div class="section-title">
-            <div>
-              <h3>快速操作</h3>
-              <span>{{
-                editingItem ? editingItem.item_name : "未选择库存记录"
-              }}</span>
-            </div>
-            <b>{{ editingItem ? "编辑中" : "新增模式" }}</b>
+      <AppPager
+        :page="page"
+        :total-pages="totalPages"
+        @update:page="page = $event"
+      />
+    </section>
+
+    <section class="warning-panel">
+      <div class="section-title">
+        <div>
+          <h3>预警队列</h3>
+          <span>低库存与临期优先处理</span>
+        </div>
+        <b>{{ warningCount }} 项</b>
+      </div>
+
+      <div v-if="warningItems.length" class="warning-list">
+        <button
+          v-for="item in warningItems"
+          :key="item.id"
+          type="button"
+          class="warning-row"
+          @click="openEdit(item)"
+        >
+          <span>
+            <strong>{{ item.item_name }}</strong>
+            <small>{{ warningReason(item) }}</small>
+          </span>
+          <em>{{ item.item_number }} 件</em>
+        </button>
+      </div>
+      <div v-else class="empty-warning">暂无需要处理的库存预警</div>
+    </section>
+
+    <div v-if="drawerOpen" class="drawer-backdrop" @click.self="closeDrawer">
+      <aside class="inventory-drawer">
+        <div class="drawer-head">
+          <div>
+            <small>{{ editingItem ? "EDIT ITEM" : "CREATE ITEM" }}</small>
+            <h3>{{ editingItem ? editingItem.item_name : "新增入库" }}</h3>
           </div>
+          <button type="button" class="icon-button" @click="closeDrawer">
+            ×
+          </button>
+        </div>
 
-          <div class="form-grid">
-            <input
-              v-model="editForm.item_name"
-              type="text"
-              :placeholder="editingItem ? '物品名称' : '请选择左侧记录后编辑'"
-            />
-            <input
-              v-model="editForm.item_type"
-              type="text"
-              :placeholder="editingItem ? '物品类型' : '物品类型'"
-            />
+        <div class="form-grid">
+          <label>
+            <span>物品名称</span>
+            <input v-model="editForm.item_name" type="text" />
+          </label>
+          <label>
+            <span>物品类型</span>
+            <input v-model="editForm.item_type" type="text" />
+          </label>
+          <label>
+            <span>数量</span>
             <input
               v-model.number="editForm.item_number"
               type="number"
               min="1"
-              :placeholder="editingItem ? '数量' : '数量'"
             />
+          </label>
+          <label>
+            <span>单价</span>
             <input
               v-model.number="editForm.item_price"
               type="number"
               min="0.01"
               step="0.01"
-              :placeholder="editingItem ? '单价' : '单价'"
             />
+          </label>
+          <label>
+            <span>总价</span>
+            <input type="text" :value="editSummaryTotal" readonly />
+          </label>
+          <label>
+            <span>库存记录</span>
             <input
               type="text"
-              :value="editSummaryTotal"
+              :value="editingItem ? '系统已建档' : '新增后生成'"
               readonly
-              placeholder="总价"
             />
-            <input
-              type="text"
-              :value="editingItem ? `SKU / ${editingItem.id}` : ''"
-              readonly
-              placeholder="SKU / 批次号"
-            />
-            <input
-              v-model="editForm.item_productiondate"
-              type="date"
-              placeholder="生产日期"
-            />
-            <input
-              v-model="editForm.item_expirationdate"
-              type="date"
-              placeholder="到期日期"
-            />
-          </div>
+          </label>
+          <label>
+            <span>生产日期</span>
+            <input v-model="editForm.item_productiondate" type="date" />
+          </label>
+          <label>
+            <span>到期日期</span>
+            <input v-model="editForm.item_expirationdate" type="date" />
+          </label>
+        </div>
 
-          <div class="meta-strip">
-            <span>{{
-              editingItem
-                ? "当前库存 " + editingItem.item_number
-                : "当前未选择物品"
-            }}</span>
-            <span>{{
-              editingItem ? "修改后 " + editForm.item_number : "待编辑"
-            }}</span>
-            <span>总价自动更新</span>
-          </div>
+        <div class="meta-strip">
+          <span>{{
+            editingItem ? "当前库存 " + editingItem.item_number : "新增库存记录"
+          }}</span>
+          <span>{{
+            editingItem ? "修改后 " + editForm.item_number : "待入库"
+          }}</span>
+          <span>总价自动更新</span>
+        </div>
 
-          <div class="movement-box">
-            <input
-              v-model.number="movementQuantity"
-              type="number"
-              min="1"
-              placeholder="入库 / 出库数量"
-            />
-            <button
-              class="ghost"
-              :disabled="!editingItem || movementQuantity <= 0"
-              @click="submitStockIn"
-            >
-              入库
-            </button>
-            <button
-              class="ghost"
-              :disabled="!editingItem || movementQuantity <= 0"
-              @click="submitStockOut"
-            >
-              出库
-            </button>
-          </div>
+        <div class="movement-box">
+          <input
+            v-model.number="movementQuantity"
+            type="number"
+            min="1"
+            placeholder="入库 / 出库数量"
+          />
+          <button
+            class="ghost"
+            :disabled="!editingItem || movementQuantity <= 0"
+            @click="submitStockIn"
+          >
+            入库
+          </button>
+          <button
+            class="ghost"
+            :disabled="!editingItem || movementQuantity <= 0"
+            @click="submitStockOut"
+          >
+            出库
+          </button>
+        </div>
 
-          <div class="panel-actions">
-            <button class="ghost" @click="openCreatePreset">新增模式</button>
-            <button @click="saveEdit">
-              {{ editingItem ? "保存修改" : "新增入库" }}
-            </button>
-          </div>
-        </section>
-
-        <section class="warning-panel">
-          <div class="section-title">
-            <div>
-              <h3>预警队列</h3>
-              <span>低库存与临期优先处理</span>
-            </div>
-            <b>{{ warningCount }} 项</b>
-          </div>
-
-          <div v-if="warningItems.length" class="warning-list">
-            <button
-              v-for="item in warningItems"
-              :key="item.id"
-              type="button"
-              class="warning-row"
-              @click="openEdit(item)"
-            >
-              <span>
-                <strong>{{ item.item_name }}</strong>
-                <small>{{ warningReason(item) }}</small>
-              </span>
-              <em>{{ item.item_number }} 件</em>
-            </button>
-          </div>
-          <div v-else class="empty-warning">暂无需要处理的库存预警</div>
-        </section>
+        <div class="panel-actions">
+          <button class="ghost" @click="closeDrawer">取消</button>
+          <button @click="saveEdit">
+            {{ editingItem ? "保存修改" : "新增入库" }}
+          </button>
+        </div>
 
         <section class="delete-panel">
           <div class="section-title">
@@ -294,13 +310,11 @@
             </button>
           </template>
           <template v-else>
-            <p class="delete-title">删除候选物品</p>
-            <small>先在左侧库存列表中选择一条记录，再进入删除确认。</small>
-            <input type="text" placeholder="待选择物品" readonly />
-            <button class="danger-btn muted" disabled>确认删除</button>
+            <p class="delete-title">新增模式不可删除</p>
+            <small>保存为库存记录后，才能执行删除操作。</small>
           </template>
         </section>
-      </div>
+      </aside>
     </div>
   </section>
 </template>
@@ -346,6 +360,7 @@ export default defineComponent({
     const total = ref(0);
     const page = ref(1);
     const pageSize = 10;
+    const keywordInput = ref("");
     const keyword = ref("");
     const activeType = ref("全部");
     const sortKey = ref<"name" | "stock" | "price" | "total" | "expiry">(
@@ -353,6 +368,7 @@ export default defineComponent({
     );
     const editingItem = ref<WarehouseItem | null>(null);
     const deletingItem = ref<WarehouseItem | null>(null);
+    const drawerOpen = ref(false);
     const selectedIds = ref<number[]>([]);
     const deleteConfirmText = ref("");
     const movementQuantity = ref(1);
@@ -370,10 +386,10 @@ export default defineComponent({
     ] as const;
 
     /**
-     * 进入仓库仪表盘时通过 RESTful 获取一次库存列表。
+     * 进入仓库仪表盘时通过列表接口获取库存数据。
      */
     const loadItems = async () => {
-      const result = await warehouseAdminApi.search({
+      const result = await warehouseAdminApi.list({
         keyword: keyword.value.trim(),
         itemType: activeType.value,
         sortKey: sortKey.value,
@@ -385,6 +401,12 @@ export default defineComponent({
     };
 
     const filteredItems = computed(() => items.value);
+    const placeholderRows = computed(() =>
+      Array.from(
+        { length: Math.max(0, pageSize - filteredItems.value.length) },
+        (_, index) => index + 1
+      )
+    );
     const totalPages = computed(() =>
       Math.max(1, Math.ceil(total.value / pageSize))
     );
@@ -484,6 +506,7 @@ export default defineComponent({
     const openEdit = (item: WarehouseItem) => {
       editingItem.value = item;
       deletingItem.value = item;
+      drawerOpen.value = true;
       deleteConfirmText.value = "";
       movementQuantity.value = 1;
       Object.assign(editForm, {
@@ -499,6 +522,7 @@ export default defineComponent({
     const openCreatePreset = () => {
       editingItem.value = null;
       deletingItem.value = null;
+      drawerOpen.value = true;
       movementQuantity.value = 1;
       Object.assign(editForm, {
         item_name: "宠物补液套装",
@@ -508,6 +532,10 @@ export default defineComponent({
         item_price: 68,
         item_number: 24,
       });
+    };
+
+    const closeDrawer = () => {
+      drawerOpen.value = false;
     };
 
     const toggleSelected = (itemId: number) => {
@@ -555,6 +583,7 @@ export default defineComponent({
         }
         showStatus(editingItem.value ? "库存信息已更新" : "物品已新增入库");
         await loadItems();
+        closeDrawer();
       } catch (error) {
         showStatus(
           `保存失败：${String((error as Error).message || error)}`,
@@ -612,6 +641,7 @@ export default defineComponent({
         );
         showStatus("物品已删除");
         await loadItems();
+        closeDrawer();
       } catch (error) {
         showStatus(
           `删除失败：${String((error as Error).message || error)}`,
@@ -627,13 +657,19 @@ export default defineComponent({
 
     const currency = (value: number) => `¥ ${value.toLocaleString("zh-CN")}`;
 
+    const applySearch = () => {
+      keyword.value = keywordInput.value.trim();
+      page.value = 1;
+      void loadItems();
+    };
+
     onMounted(() => {
       // 页面首次进入时优先复用仓库缓存，只有过期或脏数据时才会重拉。
       void loadItems();
       void store.dispatch("warehouseAdmin/ensureLogs");
     });
 
-    watch([keyword, activeType, sortKey], () => {
+    watch([activeType, sortKey], () => {
       page.value = 1;
       void loadItems();
     });
@@ -647,6 +683,8 @@ export default defineComponent({
       total,
       page,
       totalPages,
+      placeholderRows,
+      keywordInput,
       keyword,
       activeType,
       sortKey,
@@ -656,6 +694,7 @@ export default defineComponent({
       allVisibleSelected,
       editingItem,
       deletingItem,
+      drawerOpen,
       selectedIds,
       deleteConfirmText,
       movementQuantity,
@@ -672,6 +711,7 @@ export default defineComponent({
       isSelected,
       openEdit,
       openCreatePreset,
+      closeDrawer,
       saveEdit,
       submitStockIn,
       submitStockOut,
@@ -682,6 +722,7 @@ export default defineComponent({
       statusTone,
       warningReason,
       currency,
+      applySearch,
     };
   },
 });
@@ -694,8 +735,8 @@ export default defineComponent({
   width: 100%;
   min-height: 100%;
   box-sizing: border-box;
-  gap: 16px;
-  color: #173c45;
+  gap: 14px;
+  color: #1e342b;
 }
 
 .command-head {
@@ -703,16 +744,11 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  border: 1px solid rgba(113, 166, 176, 0.2);
-  border-radius: 20px;
-  padding: 18px 20px;
-  background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.94),
-      rgba(238, 250, 248, 0.88)
-    ),
-    linear-gradient(180deg, #f8fbf8, #e5f4f3);
-  box-shadow: 0 18px 42px rgba(57, 102, 115, 0.1);
+  border: 1px solid #dfe7df;
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(32, 62, 45, 0.06);
 }
 
 .command-head p,
@@ -722,34 +758,34 @@ export default defineComponent({
 }
 
 .command-head p {
-  color: #6f8f92;
+  color: #6d7f72;
   font-size: 11px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .command-head h2 {
   margin: 4px 0;
-  font-size: 28px;
+  font-size: 26px;
   line-height: 1.15;
-  color: #12383d;
+  color: #1c3329;
 }
 
 .command-head span {
-  color: #668288;
+  color: #6a7a70;
   font-size: 13px;
 }
 
 .command-head button {
   flex: 0 0 auto;
   border: 0;
-  border-radius: 14px;
-  padding: 12px 18px;
-  background: linear-gradient(135deg, #1f7077, #6d5348);
+  border-radius: 8px;
+  padding: 11px 16px;
+  background: #245849;
   color: #ffffff;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 14px 28px rgba(48, 93, 98, 0.22);
+  box-shadow: 0 10px 20px rgba(36, 88, 73, 0.18);
 }
 
 .status-message {
@@ -778,41 +814,23 @@ export default defineComponent({
   width: 100%;
 }
 
-.workbench {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) 420px;
-  gap: 14px;
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-}
-
-.dashboard-panel,
-.side-panel,
+.ledger-panel,
 .warning-panel,
 .delete-panel {
-  border-radius: 18px;
-  border: 1px solid rgba(108, 151, 156, 0.2);
-  background: rgba(250, 253, 250, 0.9);
-  box-shadow: 0 18px 36px rgba(45, 82, 92, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  border-radius: 12px;
+  border: 1px solid #dfe7df;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
 }
 
-.dashboard-panel {
+.ledger-panel {
   min-width: 0;
-  padding: 18px;
+  padding: 16px;
 }
 
-.side-stack {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-}
-
-.side-panel,
 .warning-panel,
 .delete-panel {
-  padding: 16px;
+  padding: 14px;
 }
 
 .section-title {
@@ -825,16 +843,16 @@ export default defineComponent({
 
 .section-title h3 {
   margin: 0 0 4px;
-  color: #163d42;
+  color: #1d3429;
   font-size: 16px;
 }
 
 .section-title b {
   flex: 0 0 auto;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 6px 10px;
-  background: rgba(221, 241, 237, 0.9);
-  color: #2d6f70;
+  background: #eef5ef;
+  color: #3d735d;
   font-size: 12px;
 }
 
@@ -846,7 +864,7 @@ export default defineComponent({
 
 .section-title span,
 .delete-panel small {
-  color: #6a8589;
+  color: #6d7b72;
   font-size: 12px;
 }
 
@@ -858,23 +876,23 @@ export default defineComponent({
 }
 
 .toolbar input,
-.side-panel input,
+.inventory-drawer input,
 .delete-panel input {
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid rgba(91, 139, 143, 0.18);
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #153f45;
+  border: 1px solid #d8e2da;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #ffffff;
+  color: #1d3429;
   outline: none;
 }
 
 .toolbar input::placeholder,
-.side-panel input::placeholder,
+.inventory-drawer input::placeholder,
 .delete-panel input::placeholder {
-  color: #90a7aa;
+  color: #93a097;
 }
 
 .chips,
@@ -887,13 +905,12 @@ export default defineComponent({
 
 .chips button,
 .sort-strip span {
-  border-radius: 999px;
-  border: 1px solid rgba(102, 150, 154, 0.22);
-  background: rgba(248, 252, 249, 0.86);
-  color: #526f75;
+  border-radius: 8px;
+  border: 1px solid #d8e2da;
+  background: #ffffff;
+  color: #5e7066;
   font-size: 12px;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
 .chips button {
@@ -903,16 +920,20 @@ export default defineComponent({
 .chips button.active,
 .sort-strip span.active {
   color: #ffffff;
-  border-color: rgba(31, 112, 119, 0.38);
-  background: linear-gradient(135deg, #1f7077, #426d69);
-  box-shadow: 0 10px 18px rgba(49, 99, 105, 0.22);
+  border-color: #245849;
+  background: #245849;
 }
 
 .sort-strip {
   margin-bottom: 12px;
   padding: 10px;
-  border-radius: 14px;
-  background: rgba(234, 247, 244, 0.74);
+  border-radius: 10px;
+  background: #f4f7f4;
+}
+
+.sort-strip small {
+  color: #6d7b72;
+  font-size: 12px;
 }
 
 .sort-strip span {
@@ -920,10 +941,10 @@ export default defineComponent({
 }
 
 .grid-table {
-  border: 1px solid rgba(101, 146, 150, 0.16);
-  border-radius: 16px;
+  border: 1px solid #dfe7df;
+  border-radius: 10px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.78);
+  background: #ffffff;
 }
 
 .grid-head,
@@ -936,21 +957,31 @@ export default defineComponent({
 }
 
 .grid-head {
-  color: #668085;
+  color: #6b786e;
   font-size: 12px;
-  border-bottom: 1px solid rgba(107, 151, 154, 0.12);
-  background: rgba(237, 248, 245, 0.84);
+  border-bottom: 1px solid #dfe7df;
+  background: #f4f7f4;
 }
 
 .grid-row {
-  color: #173f45;
+  color: #20382d;
   font-size: 13px;
-  border-top: 1px solid rgba(107, 151, 154, 0.1);
-  transition: background 0.18s ease, transform 0.18s ease;
+  border-top: 1px solid #edf2ee;
+  transition: background 0.18s ease;
 }
 
 .grid-row:hover {
-  background: rgba(238, 249, 246, 0.82);
+  background: #f8fbf8;
+}
+
+.grid-row--placeholder {
+  min-height: 52px;
+  color: transparent;
+  pointer-events: none;
+}
+
+.grid-row--placeholder:hover {
+  background: #ffffff;
 }
 
 .grid-row:first-of-type {
@@ -969,7 +1000,7 @@ export default defineComponent({
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: #1f7077;
+  accent-color: #245849;
   cursor: pointer;
 }
 
@@ -978,7 +1009,7 @@ export default defineComponent({
 }
 
 .name-cell small {
-  color: #789093;
+  color: #7a877e;
 }
 
 .status {
@@ -1015,11 +1046,11 @@ export default defineComponent({
 .panel-actions button,
 .danger-btn {
   width: 100%;
-  border: 1px solid rgba(91, 139, 143, 0.2);
-  border-radius: 12px;
+  border: 1px solid #d8e2da;
+  border-radius: 8px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #24565c;
+  background: #ffffff;
+  color: #245849;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1031,12 +1062,12 @@ export default defineComponent({
 }
 
 .panel-actions .ghost {
-  background: rgba(238, 249, 246, 0.88);
+  background: #f4f7f4;
 }
 
 .panel-actions button:last-child {
-  border-color: rgba(31, 112, 119, 0.24);
-  background: linear-gradient(135deg, #1f7077, #6d5348);
+  border-color: #245849;
+  background: #245849;
   color: #ffffff;
   font-weight: 700;
 }
@@ -1045,6 +1076,17 @@ export default defineComponent({
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-grid label span {
+  color: #617268;
+  font-size: 12px;
 }
 
 .meta-strip {
@@ -1056,9 +1098,9 @@ export default defineComponent({
 
 .meta-strip span {
   padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(234, 247, 244, 0.8);
-  color: #5b777b;
+  border-radius: 8px;
+  background: #f4f7f4;
+  color: #617268;
   font-size: 12px;
 }
 
@@ -1070,11 +1112,11 @@ export default defineComponent({
 }
 
 .movement-box button {
-  border: 1px solid rgba(91, 139, 143, 0.18);
-  border-radius: 12px;
+  border: 1px solid #d8e2da;
+  border-radius: 8px;
   padding: 0 14px;
-  background: #f8fcf9;
-  color: #1d6067;
+  background: #f8faf8;
+  color: #245849;
   font-weight: 800;
   cursor: pointer;
 }
@@ -1086,16 +1128,12 @@ export default defineComponent({
 }
 
 .warning-panel {
-  background: linear-gradient(
-      180deg,
-      rgba(255, 252, 245, 0.94),
-      rgba(250, 253, 250, 0.9)
-    ),
-    #ffffff;
+  background: #ffffff;
 }
 
 .warning-list {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1105,11 +1143,11 @@ export default defineComponent({
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  border: 1px solid rgba(166, 122, 70, 0.16);
-  border-radius: 14px;
+  border: 1px solid #ead8b5;
+  border-radius: 10px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.78);
-  color: #173f45;
+  background: #fffaf1;
+  color: #20382d;
   text-align: left;
   cursor: pointer;
 }
@@ -1137,20 +1175,16 @@ export default defineComponent({
 }
 
 .empty-warning {
-  border: 1px dashed rgba(97, 142, 146, 0.22);
-  border-radius: 14px;
+  border: 1px dashed #cfdad2;
+  border-radius: 10px;
   padding: 18px;
-  color: #789093;
+  color: #7a877e;
   text-align: center;
 }
 
 .delete-panel {
-  background: linear-gradient(
-      180deg,
-      rgba(255, 247, 249, 0.95),
-      rgba(250, 253, 250, 0.9)
-    ),
-    #ffffff;
+  margin-top: 16px;
+  background: #fffafa;
 }
 
 .delete-panel small {
@@ -1178,23 +1212,68 @@ export default defineComponent({
   color: #b7969e;
 }
 
-@media (max-width: 1280px) {
-  .workbench {
-    grid-template-columns: 1fr;
-  }
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(24, 35, 30, 0.28);
+}
 
-  .side-stack {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+.inventory-drawer {
+  width: min(520px, 100%);
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: -18px 0 44px rgba(24, 42, 32, 0.18);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.drawer-head small {
+  color: #6d7b72;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.drawer-head h3 {
+  margin: 4px 0 0;
+  color: #1d3429;
+  font-size: 20px;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d8e2da;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #20382d;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (max-width: 1280px) {
+  .warning-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1080px) {
   .stats-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .side-stack {
-    grid-template-columns: 1fr;
   }
 
   .toolbar {
@@ -1220,14 +1299,12 @@ export default defineComponent({
     gap: 12px;
   }
 
-  .dashboard-panel,
-  .side-panel,
+  .ledger-panel,
   .delete-panel {
-    border-radius: 16px;
+    border-radius: 12px;
   }
 
-  .dashboard-panel,
-  .side-panel,
+  .ledger-panel,
   .delete-panel,
   .sort-strip {
     padding-left: 12px;
@@ -1349,8 +1426,13 @@ export default defineComponent({
   }
 
   .stats-row,
-  .movement-box {
+  .movement-box,
+  .warning-list {
     grid-template-columns: 1fr;
+  }
+
+  .inventory-drawer {
+    padding: 16px;
   }
 }
 </style>
