@@ -87,52 +87,61 @@ export default defineComponent({
 
 <style scoped>
 .pager {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: #5c7470;
+  gap: 8px;
+  color: #64748b;
   font-size: 13px;
-  padding-top: 30px;
 }
 
 .pager-button,
 .pager-button--ghost {
-  padding: 9px 12px;
-  border: 1px solid rgba(144, 175, 166, 0.24);
-  border-radius: 14px;
-  background: linear-gradient(135deg, #29565a, #7d5348);
-  color: #fffdfb;
-  font-size: 12px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.pager-button--ghost {
-  background: rgba(241, 248, 244, 0.96);
-  color: #214f4b;
+.pager-button:hover:not(:disabled),
+.pager-button--ghost:hover {
+  background: #f6f7f9;
+  border-color: #cbd5e1;
 }
 
 .pager-button:disabled {
-  opacity: 0.52;
+  opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 .pager-jump {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .pager-jump input {
-  width: 62px;
-  min-height: 34px;
+  width: 56px;
+  height: 36px;
   padding: 0 10px;
-  border: 1px solid rgba(144, 175, 166, 0.24);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
-  color: #214f4b;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+}
+
+.pager-jump input:focus {
+  outline: none;
+  border-color: #94a3b8;
 }
 
 @media (max-width: 960px) {

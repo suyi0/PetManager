@@ -258,20 +258,19 @@ export default defineComponent({
 <style scoped>
 .page {
   display: grid;
-  gap: 18px;
+  align-content: start;
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .panel {
-  border: 1px solid #dce7ff;
-  border-radius: 24px;
-  background: radial-gradient(
-      circle at top left,
-      rgba(47, 111, 243, 0.12),
-      transparent 34%
-    ),
-    linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
-  padding: 22px;
-  box-shadow: 0 22px 44px rgba(34, 64, 128, 0.08);
+  border: 1px solid #e7e9ee;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .hero {
@@ -298,19 +297,19 @@ export default defineComponent({
   min-height: 120px;
   padding: 24px 28px;
   border-radius: 20px;
-  border: 1px solid rgba(47, 111, 243, 0.12);
+  border: 1px solid rgba(79, 70, 229, 0.12);
   background: rgba(255, 255, 255, 0.86);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
 }
 
 .balance-card span {
-  color: #7381a4;
+  color: #64748b;
   font-size: 16px;
   font-weight: 700;
 }
 
 .balance-card strong {
-  color: #13203a;
+  color: #0f172a;
   font-size: 34px;
   line-height: 1.1;
 }
@@ -320,18 +319,18 @@ export default defineComponent({
   font-size: 12px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: #6c7a9f;
+  color: #64748b;
 }
 
 .hero h2 {
   margin: 0;
   font-size: 32px;
-  color: #13203a;
+  color: #0f172a;
 }
 
 .hero__meta {
   margin: 10px 0 0;
-  color: #617196;
+  color: #64748b;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -359,7 +358,7 @@ export default defineComponent({
 .status-message,
 .empty-state p {
   margin: 0;
-  color: #6c7a9f;
+  color: #64748b;
   line-height: 1.7;
 }
 
@@ -375,14 +374,14 @@ export default defineComponent({
   padding: 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(47, 111, 243, 0.12);
+  border: 1px solid rgba(79, 70, 229, 0.12);
 }
 
 .info-grid span,
 .status-board span {
   display: block;
   margin-bottom: 8px;
-  color: #7381a4;
+  color: #64748b;
   font-size: 13px;
 }
 
@@ -395,19 +394,19 @@ export default defineComponent({
 .detail-card--doctor {
   background: radial-gradient(
       circle at top right,
-      rgba(36, 190, 123, 0.12),
+      rgba(16, 185, 129, 0.12),
       transparent 30%
     ),
-    linear-gradient(180deg, #ffffff 0%, #f6fbff 100%);
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
 .danger-zone {
   background: radial-gradient(
       circle at top right,
-      rgba(234, 92, 103, 0.12),
+      rgba(220, 38, 38, 0.12),
       transparent 32%
     ),
-    linear-gradient(180deg, #ffffff 0%, #fff8fa 100%);
+    linear-gradient(180deg, #ffffff 0%, #fef2f2 100%);
 }
 
 .status-chip {
@@ -421,13 +420,13 @@ export default defineComponent({
 }
 
 .status-chip--online {
-  background: #e9f8ef;
+  background: #ecfdf5;
   color: #217149;
 }
 
 .status-chip--offline {
-  background: #fff1f1;
-  color: #b14f57;
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 .status-actions {
@@ -444,19 +443,19 @@ button {
   border: 0;
   border-radius: 14px;
   padding: 11px 16px;
-  background: #2f6ff3;
+  background: #4f46e5;
   color: #fff;
   cursor: pointer;
   font-weight: 700;
 }
 
 button.ghost {
-  background: #ecffd4;
+  background: #ecfdf5;
   color: #2a4c92;
 }
 
 button.danger {
-  background: #ea5c67;
+  background: #ef4444;
 }
 
 button:disabled {

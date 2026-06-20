@@ -144,9 +144,9 @@ export default defineComponent({
   gap: 0;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.06);
 }
 
 .main-panel {
@@ -164,26 +164,26 @@ export default defineComponent({
 
 .panel-head h3 {
   margin: 0 0 4px;
-  color: #1d3429;
+  color: #0f172a;
   font-size: 20px;
 }
 
 .panel-head span {
-  color: #6d7b72;
+  color: #64748b;
   font-size: 12px;
 }
 
 button,
 input {
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   border-radius: 8px;
   background: #ffffff;
-  color: #1d3429;
+  color: #0f172a;
 }
 
 button {
   padding: 11px 16px;
-  background: #245849;
+  background: #4f46e5;
   color: #ffffff;
   font-weight: 700;
   cursor: pointer;
@@ -207,7 +207,7 @@ label {
 }
 
 label span {
-  color: #1d3429;
+  color: #0f172a;
   font-size: 12px;
   font-weight: 700;
 }
@@ -220,23 +220,23 @@ input {
 
 input:focus-visible,
 button:focus-visible {
-  outline: 3px solid rgba(36, 88, 73, 0.24);
+  outline: 3px solid rgba(79, 70, 229, 0.24);
   outline-offset: 2px;
-  border-color: #245849;
+  border-color: #4f46e5;
 }
 
 input[readonly] {
-  background: #f4f7f4;
-  color: #6d7b72;
+  background: #f1f2f5;
+  color: #64748b;
 }
 
 .tip-bar {
   margin-top: 14px;
   padding: 12px 14px;
   border-radius: 8px;
-  border: 1px solid #dfe7df;
-  background: #f4f7f4;
-  color: #1d3429;
+  border: 1px solid #e7e9ee;
+  background: #f1f2f5;
+  color: #0f172a;
   font-size: 12px;
 }
 
@@ -248,13 +248,13 @@ input[readonly] {
 }
 
 .status-message--info {
-  color: #247b62;
-  background: rgba(215, 242, 230, 0.86);
+  color: #059669;
+  background: rgba(236, 253, 245, 0.86);
 }
 
 .status-message--error {
-  color: #b04455;
-  background: rgba(255, 229, 234, 0.9);
+  color: #dc2626;
+  background: rgba(254, 242, 242, 0.9);
 }
 
 @media (max-width: 960px) {

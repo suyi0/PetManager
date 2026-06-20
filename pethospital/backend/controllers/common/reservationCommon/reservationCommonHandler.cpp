@@ -1,5 +1,6 @@
 #include "reservationCommonHandler.h"
 #include "roleTypeUtils/roleTypeUtils.h"
+#include "statusLabelUtils/StatusLabelUtils.h"
 
 crow::response reservationCommonHandler::getReservationSummary(const crow::request &req, int userId)
 {
@@ -45,7 +46,7 @@ crow::response reservationCommonHandler::getReservationSummary(const crow::reque
             reservationSummary["date"] = row[3].isNull() ? "" : row[3].get<std::string>();
             reservationSummary["time_slot"] = row[4].isNull() ? "" : row[4].get<std::string>();
             reservationSummary["reservation_type"] = row[5].isNull() ? "" : row[5].get<std::string>();
-            reservationSummary["status"] = row[6].isNull() ? "预约成功" : row[6].get<std::string>();
+            reservationSummary["status"] = StatusLabelUtils::toDisplayReservationStatus(row[6].isNull() ? "scheduled" : row[6].get<std::string>());
             data.push_back(reservationSummary);
         }
 
@@ -96,7 +97,7 @@ nlohmann::json reservationCommonHandler::getReservationData(const int &reservati
             {"reservation_type", row[8].isNull() ? "" : row[8].get<std::string>()},
             {"date", row[9].isNull() ? "" : row[9].get<std::string>()},
             {"time_slot", row[10].isNull() ? "" : row[10].get<std::string>()},
-            {"status", row[11].isNull() ? "预约成功" : row[11].get<std::string>()},
+            {"status", StatusLabelUtils::toDisplayReservationStatus(row[11].isNull() ? "scheduled" : row[11].get<std::string>())},
             {"created_at", row[12].isNull() ? "" : row[12].get<std::string>()}};
 
         return reservation;

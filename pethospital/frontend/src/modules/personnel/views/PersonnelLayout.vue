@@ -1,27 +1,53 @@
 <template>
   <div class="shell">
     <aside class="sidebar">
-      <div class="sidebar-head">{{ currentRoleLabel }}</div>
-      <div class="sidebar-logo"><h1>logo</h1></div>
-      <nav>
-        <RouterLink :to="`${routePrefix}/access`">权限授予</RouterLink>
+      <div class="brand">
+        <div class="brand__logo">宠</div>
+        <div>
+          <div class="brand__name">宠物医院</div>
+          <div class="brand__sub">人事端</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <RouterLink class="nav__item" :to="`${routePrefix}/access`">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          权限授予
+        </RouterLink>
       </nav>
+
       <button
         v-if="showBossReturn"
         type="button"
-        class="boss-return"
+        class="saas-return"
         @click="returnToBossPortal"
       >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M19 12H5" />
+          <path d="m12 19-7-7 7-7" />
+        </svg>
         返回总裁端
       </button>
+
+      <PortalAccount :fallback-name="currentRoleLabel" @logout="logout" />
     </aside>
 
     <main class="content">
-      <header class="topbar">
-        <h2>宠物医院人事端</h2>
-        <span>岗位授权 · 角色调整 · 员工编制</span>
-        <button @click="logout" class="lgout"><span>登出</span></button>
-      </header>
       <RouterView />
     </main>
   </div>
@@ -38,9 +64,11 @@ import {
   stopPersonnelSessionGuard,
 } from "@/modules/personnel/utils/personnelSessionGuard";
 import { useBossPortalReturn } from "@/core/auth/utils/bossPortalReturn";
+import PortalAccount from "@/shared/components/PortalAccount.vue";
 
 export default defineComponent({
   name: "PersonnelLayout",
+  components: { PortalAccount },
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
@@ -81,113 +109,156 @@ export default defineComponent({
 
 <style scoped>
 .shell {
+  --indigo: #4f46e5;
+  --indigo-50: #eef2ff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --border: #e7e9ee;
+
   display: grid;
-  grid-template-columns: 268px 1fr;
-  min-height: 100vh;
-  background: radial-gradient(
-    circle at 20% 10%,
-    #f5f9ff 0%,
-    #f0f4ff 45%,
-    #e9eefb 100%
-  );
-  color: #182442;
-  font-family: "PingFang SC", "Segoe UI", sans-serif;
+  grid-template-columns: 248px 1fr;
+  height: 100vh;
+  overflow: hidden;
+  background: #f6f7f9;
+  color: var(--text);
+  font-family: "PingFang SC", "Segoe UI", system-ui, sans-serif;
 }
 
 .sidebar {
-  top: 0;
-  height: 100vh;
-  position: sticky;
   display: flex;
   flex-direction: column;
-  padding: 32px 20px 24px;
-  border-right: 1px solid #d5e2ff;
-  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  padding: 20px 16px;
+  background: #ffffff;
+  border-right: 1px solid var(--border);
 }
 
-.sidebar-head {
+.brand {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 72px;
-  margin-bottom: 18px;
-  padding: 0 18px;
-  border-radius: 28px;
-  font-weight: 700;
-  font-size: 30px;
-  letter-spacing: 0.04em;
-  color: #17345f;
-  background: linear-gradient(135deg, #7ad1f3 0%, #4dbcc5 100%);
-  border: 1px solid rgba(52, 144, 196, 0.24);
+  gap: 10px;
+  padding: 6px 8px 18px;
 }
 
-.sidebar-logo {
-  height: 84px;
-  margin-bottom: 18px;
-  border-radius: 28px;
-  background: linear-gradient(
-    135deg,
-    rgba(122, 209, 243, 0.18),
-    rgba(77, 188, 197, 0.06)
-  );
-  border: 1px solid rgba(116, 154, 222, 0.18);
-  h1 {
-    text-align: center;
-  }
-}
-
-nav {
+.brand__logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
   display: grid;
-  gap: 12px;
+  place-items: center;
+  font-weight: 800;
+  font-size: 16px;
 }
 
-nav a {
+.brand__name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.brand__sub {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.nav {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.nav__item {
   display: flex;
   align-items: center;
-  min-height: 68px;
-  padding: 0 22px;
-  border-radius: 22px;
-  border: 1px solid #d7e4ff;
-  background: #fff;
-  color: #2c4778;
-  font-size: 16px;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  box-shadow: 0 16px 30px rgba(69, 106, 178, 0.06);
-}
-
-nav a.router-link-active {
-  background: linear-gradient(135deg, #eefaff 0%, #f1fbff 100%);
-  color: #1c4f91;
-  border-color: rgba(73, 125, 214, 0.26);
-}
-
-.boss-return {
-  margin-top: auto;
-  min-height: 56px;
-  padding: 0 20px;
-  border: 1px solid rgba(73, 125, 214, 0.24);
-  border-radius: 20px;
-  background: linear-gradient(135deg, #fff7e8 0%, #eaf8ff 100%);
-  color: #1c4f91;
   cursor: pointer;
-  font-size: 15px;
-  font-weight: 800;
-  text-align: left;
-  box-shadow: 0 16px 30px rgba(69, 106, 178, 0.08);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.boss-return:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 20px 34px rgba(69, 106, 178, 0.12);
+.nav__item:hover {
+  background: #f1f2f5;
+  color: var(--text);
+}
+
+.nav__item.router-link-active {
+  background: var(--indigo-50);
+  color: var(--indigo);
+}
+
+.nav__item svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sidebar__foot {
+  margin-top: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.role-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.role-card__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--indigo-50);
+  color: var(--indigo);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.role-card__name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.role-card__role {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.btn-return {
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-return:hover {
+  border-color: var(--indigo);
+  color: var(--indigo);
 }
 
 .content {
   display: grid;
-  align-content: start;
-  gap: 20px;
-  padding: 26px 30px 30px;
+  grid-template-rows: minmax(0, 1fr);
+  padding: 18px 24px 22px;
+  height: 100vh;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .topbar {
@@ -195,41 +266,53 @@ nav a.router-link-active {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 24px;
-  border: 1px solid #d8e5ff;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 18px 34px rgba(56, 90, 152, 0.08);
 }
 
-.topbar h2 {
+.topbar__title {
   margin: 0;
-  font-size: 24px;
-  color: #14284f;
-}
-
-.topbar span {
-  color: #6c7da1;
-}
-
-.lgout {
-  border: 0;
-  border-radius: 999px;
-  padding: 12px 18px;
-  background: linear-gradient(135deg, #7ad1f3, #4dbcc5);
-  color: #fff;
+  font-size: 20px;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.topbar__sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.btn-logout {
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.btn-logout:hover {
+  background: #f6f7f9;
 }
 
 @media (max-width: 1100px) {
   .shell {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
   }
 
   .sidebar {
-    position: static;
     height: auto;
+  }
+
+  .content {
+    height: auto;
+    overflow: visible;
+    grid-template-rows: auto auto;
   }
 }
 </style>

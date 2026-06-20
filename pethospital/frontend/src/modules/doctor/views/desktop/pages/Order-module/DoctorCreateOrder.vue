@@ -562,8 +562,8 @@ export default defineComponent({
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0;
+  height: var(--doctor-page-card-height, 860px);
   overflow: hidden;
-  max-height: min(100vh - 24px, 900px);
   border-radius: 30px;
   border: 1px solid rgba(157, 188, 178, 0.28);
   background: linear-gradient(180deg, rgba(255, 254, 250, 0.95), #f6fbf8);
@@ -662,8 +662,8 @@ button:disabled {
 
 .board-scroll {
   min-height: 0;
-  max-height: 98px;
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
   background-color: rgba(244, 234, 158, 0.8);
 }
 
@@ -815,8 +815,8 @@ button:disabled {
 
 .prescription-scroll {
   min-height: 180px;
-  max-height: 180px;
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .prescription-row {

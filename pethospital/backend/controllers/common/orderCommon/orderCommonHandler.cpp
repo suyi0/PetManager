@@ -1,5 +1,6 @@
 #include "orderCommonHandler.h"
 #include "roleTypeUtils/roleTypeUtils.h"
+#include "statusLabelUtils/StatusLabelUtils.h"
 
 crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int &userId)
 {
@@ -42,7 +43,7 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
             orderSummary["doctor_name"] = row[2].get<std::string>();
             orderSummary["order_type"] = row[3].get<std::string>();
             orderSummary["order_data"] = row[4].get<std::string>();
-            orderSummary["order_status"] = row[5].get<std::string>();
+            orderSummary["order_status"] = StatusLabelUtils::toDisplayOrderStatus(row[5].get<std::string>());
             orderSummary["order_totalprice"] = row[6].get<double>();
             data.push_back(orderSummary);
         }
@@ -62,7 +63,7 @@ nlohmann::json orderCommonHandler::getOrderData(const int &orderId)
         mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT o.id, o.owner_id, COALESCE(owner.name, ''), "
                                                                 "o.pet_id, COALESCE(p.pet_name, ''), COALESCE(p.pet_type, ''), COALESCE(p.pet_age, ''), COALESCE(p.pet_sex, ''), "
                                                                 "o.doctor_id, COALESCE(d.name, ''), COALESCE(o.order_type, ''), COALESCE(o.order_data, ''), "
-                                                                "COALESCE(o.order_status, '待付款'), COALESCE(o.order_totalprice, 0.0), "
+                                                                "COALESCE(o.order_status, 'pending_payment'), COALESCE(o.order_totalprice, 0.0), "
                                                                 "CAST(o.created_at AS CHAR), CAST(o.updated_at AS CHAR) "
                                                                 "FROM orders AS o "
                                                                 "JOIN pets AS p ON o.pet_id = p.id "
@@ -91,7 +92,7 @@ nlohmann::json orderCommonHandler::getOrderData(const int &orderId)
             {"doctor_name", row[9].get<std::string>()},
             {"order_type", row[10].get<std::string>()},
             {"order_data", row[11].get<std::string>()},
-            {"order_status", row[12].get<std::string>()},
+            {"order_status", StatusLabelUtils::toDisplayOrderStatus(row[12].get<std::string>())},
             {"order_totalprice", row[13].get<double>()},
             {"created_at", row[14].get<std::string>()},
             {"updated_at", row[15].get<std::string>()}};

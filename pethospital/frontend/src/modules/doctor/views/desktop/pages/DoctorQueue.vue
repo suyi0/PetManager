@@ -16,7 +16,11 @@
         </div>
       </div>
 
-      <div class="table-shell">
+      <div
+        ref="tableShellRef"
+        class="table-shell"
+        :style="{ '--record-page-size': pageSize }"
+      >
         <table>
           <thead>
             <tr>
@@ -65,7 +69,15 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch, onMounted } from "vue";
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
@@ -85,7 +97,8 @@ export default defineComponent({
       () => store.state.doctor.queueItems
     );
     const page = ref(1);
-    const pageSize = 10;
+    const pageSize = ref(10);
+    const tableShellRef = ref<HTMLElement | null>(null);
     const basePath = computed(() => "/doctor");
 
     /**
@@ -112,22 +125,41 @@ export default defineComponent({
     };
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(queueItems.value.length / pageSize))
+      Math.max(1, Math.ceil(queueItems.value.length / pageSize.value))
     );
 
     const visibleItems = computed(() => {
-      const start = (page.value - 1) * pageSize;
-      return queueItems.value.slice(start, start + pageSize);
+      const start = (page.value - 1) * pageSize.value;
+      return queueItems.value.slice(start, start + pageSize.value);
     });
 
     const placeholderRows = computed(() =>
       visibleItems.value.length === 0
         ? []
         : Array.from(
-            { length: Math.max(0, pageSize - visibleItems.value.length) },
+            { length: Math.max(0, pageSize.value - visibleItems.value.length) },
             (_, index) => index + 1
           )
     );
+
+    // 按表格可用高度反推每页行数（与管理端一致），用占位空行补满。
+    const updatePageSize = () => {
+      const shell = tableShellRef.value;
+      if (!shell) return;
+      const shellHeight = shell.clientHeight;
+      if (!shellHeight) return;
+      const thead = shell.querySelector("thead");
+      const headerHeight = thead ? thead.getBoundingClientRect().height : 40;
+      const firstRow = shell.querySelector("tbody tr:not(.placeholder-row)");
+      const rowHeight = firstRow ? firstRow.getBoundingClientRect().height : 48;
+      const next = Math.max(
+        4,
+        Math.floor((shellHeight - headerHeight) / rowHeight)
+      );
+      if (Number.isFinite(next) && next !== pageSize.value) {
+        pageSize.value = next;
+      }
+    };
 
     watch(totalPages, (value) => {
       if (page.value > value) {
@@ -135,12 +167,27 @@ export default defineComponent({
       }
     });
 
+    let resizeObserver: ResizeObserver | null = null;
+
     onMounted(() => {
       void loadQueueItems();
+      void nextTick(() => {
+        updatePageSize();
+        if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => updatePageSize());
+          resizeObserver.observe(tableShellRef.value);
+        }
+      });
+    });
+
+    onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
     });
 
     return {
       page,
+      pageSize,
+      tableShellRef,
       totalPages,
       visibleItems,
       placeholderRows,
@@ -159,12 +206,12 @@ export default defineComponent({
 .panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  border: 1px solid rgba(157, 188, 178, 0.24);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
+  height: var(--doctor-page-card-height, 860px);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f8fafc);
   padding: 22px;
-  max-height: min(100vh - 140px, 760px);
-  box-shadow: 0 20px 38px rgba(49, 82, 77, 0.06);
+  box-shadow: 0 20px 38px rgba(16, 24, 40, 0.06);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -184,7 +231,7 @@ export default defineComponent({
 
 .panel-head p {
   margin-top: 6px;
-  color: #67807b;
+  color: #64748b;
   line-height: 1.6;
 }
 
@@ -195,20 +242,20 @@ export default defineComponent({
 }
 
 button {
-  border: 1px solid rgba(144, 175, 166, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 16px;
   padding: 11px 16px;
-  background: linear-gradient(135deg, #29565a, #7d5348);
-  color: #fffdfb;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
+  box-shadow: 0 12px 24px rgba(16, 24, 40, 0.12);
 }
 
 .action-button {
   padding: 7px 12px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #ecf8f3, #d7ebe4);
-  color: #214f4b;
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  color: #1e293b;
   box-shadow: none;
 }
 
@@ -220,36 +267,40 @@ button:disabled {
 
 .table-shell {
   min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  overflow: hidden;
   table-layout: fixed;
 }
 
 th,
 td {
   text-align: left;
-  padding: 14px 12px;
-  border-bottom: 1px solid rgba(226, 236, 232, 0.92);
+  height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e5e7eb;
   font-size: 13px;
 }
 
 th {
-  color: #6f8582;
-  font-weight: 600;
+  height: 40px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 td {
-  color: #19383b;
+  color: #0f172a;
 }
 
 .action-column-th {
   width: 110px;
-  padding: 14px 24px 14px 12px;
+  padding-right: 24px;
   text-align: right;
 }
 
@@ -258,18 +309,14 @@ td {
   text-align: right;
 }
 
-tbody tr {
-  background: rgba(255, 255, 255, 0.46);
-}
-
 .placeholder-row td {
-  height: 52px;
-  background: rgba(255, 255, 255, 0.32);
+  height: 48px;
+  background: #ffffff;
 }
 
 .empty-cell {
-  height: 120px;
-  color: #708682;
+  height: calc(48px * var(--record-page-size, 10));
+  color: #64748b;
   text-align: center;
 }
 
@@ -282,18 +329,18 @@ tbody tr {
 }
 
 .tag.普通 {
-  background: #edf5f1;
+  background: #f8fafc;
   color: #355a53;
 }
 
 .tag.优先 {
-  background: #fff1d8;
-  color: #96611d;
+  background: #fffbeb;
+  color: #b45309;
 }
 
 .tag.紧急 {
-  background: #ffe2df;
-  color: #b14739;
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 @media (max-width: 960px) {
@@ -308,7 +355,7 @@ tbody tr {
   }
 
   .panel {
-    overflow: auto;
+    overflow: visible;
   }
 
   table {

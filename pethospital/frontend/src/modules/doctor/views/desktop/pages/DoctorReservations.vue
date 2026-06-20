@@ -99,7 +99,12 @@
         @retry="loadReservations"
       />
 
-      <div v-else class="cards">
+      <div
+        v-else
+        ref="cardsRef"
+        class="cards"
+        :style="{ '--reservation-page-size': pageSize }"
+      >
         <article
           v-for="item in visibleItems"
           :key="item.id"
@@ -242,7 +247,15 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useStore } from "vuex";
 import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
@@ -267,7 +280,8 @@ export default defineComponent({
     const searchKeyword = ref("");
     const activeStatus = ref("全部");
     const activeDateFilter = ref<"全部" | "今日" | "未来" | "过期">("全部");
-    const pageSize = 9;
+    const pageSize = ref(9);
+    const cardsRef = ref<HTMLElement | null>(null);
     const openReservationDetail = ref(false);
     const selectedReservationId = ref<number | null>(null);
     const checkInLoading = ref(false);
@@ -337,22 +351,37 @@ export default defineComponent({
     );
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredItems.value.length / pageSize))
+      Math.max(1, Math.ceil(filteredItems.value.length / pageSize.value))
     );
 
     const visibleItems = computed(() => {
-      const start = (page.value - 1) * pageSize;
-      return filteredItems.value.slice(start, start + pageSize);
+      const start = (page.value - 1) * pageSize.value;
+      return filteredItems.value.slice(start, start + pageSize.value);
     });
 
     const placeholderCards = computed(() =>
       visibleItems.value.length === 0
         ? []
         : Array.from(
-            { length: Math.max(0, pageSize - visibleItems.value.length) },
+            { length: Math.max(0, pageSize.value - visibleItems.value.length) },
             (_, index) => index + 1
           )
     );
+
+    const updatePageSize = () => {
+      const cardsElement = cardsRef.value;
+      const height = cardsElement?.clientHeight ?? 0;
+      const width = cardsElement?.clientWidth ?? 0;
+      const gap = 12;
+      const rowHeight = 128;
+      const columns = width >= 900 ? 3 : 1;
+      const rows = Math.max(1, Math.floor((height + gap) / (rowHeight + gap)));
+      const nextPageSize = Math.max(columns, columns * rows);
+
+      if (Number.isFinite(nextPageSize) && nextPageSize !== pageSize.value) {
+        pageSize.value = nextPageSize;
+      }
+    };
 
     const searchSummary = computed(() => {
       if (!normalizedSearchKeyword.value) {
@@ -551,9 +580,28 @@ export default defineComponent({
       page.value = 1;
     });
 
+    watch(listLoading, (loading) => {
+      if (!loading) {
+        void nextTick(updatePageSize);
+      }
+    });
+
+    let resizeObserver: ResizeObserver | null = null;
+
     onMounted(() => {
       searchHistory.value = readOrderSearchHistory("doctor", "reservations");
       void loadReservations();
+      void nextTick(() => {
+        updatePageSize();
+        if (cardsRef.value && typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => updatePageSize());
+          resizeObserver.observe(cardsRef.value);
+        }
+      });
+    });
+
+    onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
     });
 
     return {
@@ -570,6 +618,8 @@ export default defineComponent({
       detailErrorMessage,
       visibleItems,
       placeholderCards,
+      pageSize,
+      cardsRef,
       searchSummary,
       statusFilterOptions,
       dateFilterOptions,
@@ -595,13 +645,13 @@ export default defineComponent({
 .panel {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 20px;
-  border: 1px solid rgba(157, 188, 178, 0.24);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
-  padding: 28px;
-  min-height: 720px;
-  box-shadow: 0 20px 38px rgba(49, 82, 77, 0.06);
+  gap: 14px;
+  height: var(--doctor-page-card-height, 860px);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f8fafc);
+  padding: 22px;
+  box-shadow: 0 20px 38px rgba(16, 24, 40, 0.06);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -609,7 +659,7 @@ export default defineComponent({
 .reservation-list-view {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
-  gap: 20px;
+  gap: 12px;
   min-height: 0;
 }
 
@@ -631,9 +681,9 @@ export default defineComponent({
 }
 
 .panel-head p {
-  margin-top: 6px;
-  color: #67807b;
-  line-height: 1.6;
+  margin-top: 4px;
+  color: #64748b;
+  line-height: 1.4;
 }
 
 .panel-head__actions {
@@ -646,28 +696,28 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 16px 18px;
-  border-radius: 22px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
   background: radial-gradient(
       circle at left top,
-      rgba(215, 233, 225, 0.72),
+      rgba(238, 242, 255, 0.72),
       transparent 55%
     ),
     linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.96),
-      rgba(241, 249, 244, 0.88)
+      rgba(248, 250, 252, 0.88)
     );
-  border: 1px solid rgba(163, 192, 184, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.24);
 }
 
 .search-type {
   flex: 0 0 auto;
   border-radius: 999px;
   padding: 8px 12px;
-  background: rgba(41, 86, 90, 0.1);
-  color: #29565a;
+  background: rgba(16, 24, 40, 0.1);
+  color: #4f46e5;
   font-size: 12px;
   font-weight: 800;
 }
@@ -682,14 +732,14 @@ export default defineComponent({
 }
 
 .search-field__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  color: #426260;
-  background: rgba(223, 238, 232, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(163, 192, 184, 0.2);
+  color: #64748b;
+  background: rgba(238, 242, 255, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
 }
 
 .search-field__icon svg {
@@ -702,13 +752,13 @@ export default defineComponent({
   border: 0;
   outline: none;
   background: transparent;
-  color: #173739;
-  font-size: 18px;
+  color: #0f172a;
+  font-size: 15px;
   line-height: 1.5;
 }
 
 .search-field input::placeholder {
-  color: #7d938d;
+  color: #64748b;
 }
 
 .search-meta {
@@ -719,7 +769,7 @@ export default defineComponent({
 
 .search-meta__count {
   font-size: 13px;
-  color: #5d7671;
+  color: #64748b;
   white-space: nowrap;
 }
 
@@ -728,16 +778,16 @@ export default defineComponent({
   padding: 0;
   border-radius: 0;
   background: transparent;
-  color: #355c5f;
+  color: #4f46e5;
   box-shadow: none;
 }
 
 .filter-strip {
   display: grid;
-  gap: 14px;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(163, 192, 184, 0.22);
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(255, 255, 255, 0.58);
 }
 
@@ -750,7 +800,7 @@ export default defineComponent({
 }
 
 .filter-label {
-  color: #607a75;
+  color: #64748b;
   font-size: 12px;
   font-weight: 800;
   min-width: 32px;
@@ -760,12 +810,12 @@ export default defineComponent({
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
+  min-height: 30px;
   border-radius: 12px;
-  padding: 7px 10px;
-  border: 1px solid rgba(167, 193, 185, 0.34);
+  padding: 6px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
   background: rgba(255, 255, 255, 0.82);
-  color: #355c5f;
+  color: #4f46e5;
   box-shadow: none;
 }
 
@@ -773,13 +823,13 @@ export default defineComponent({
   min-width: 20px;
   border-radius: 999px;
   padding: 2px 6px;
-  background: rgba(41, 86, 90, 0.08);
-  color: #607a75;
+  background: rgba(16, 24, 40, 0.08);
+  color: #64748b;
   font-size: 11px;
 }
 
 .filter-chip--active {
-  border-color: rgba(36, 88, 73, 0.28);
+  border-color: rgba(79, 70, 229, 0.28);
   background: #245849;
   color: #fff;
 }
@@ -790,13 +840,13 @@ export default defineComponent({
 }
 
 button {
-  border: 1px solid rgba(144, 175, 166, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 16px;
   padding: 11px 16px;
-  background: linear-gradient(135deg, #29565a, #7d5348);
-  color: #fffdfb;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
+  box-shadow: 0 12px 24px rgba(16, 24, 40, 0.12);
 }
 
 button:disabled {
@@ -806,33 +856,47 @@ button:disabled {
 }
 
 .cards {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-content: start;
-  gap: 16px;
-  min-height: 476px;
+  grid-auto-rows: minmax(var(--doctor-card-row-height, 132px), 1fr);
+  align-content: stretch;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
+}
+
+.cards::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.86);
+  pointer-events: none;
 }
 
 .card {
   position: relative;
-  min-height: 148px;
-  padding: 18px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #fffefb, #f1f8f4);
-  border: 1px solid rgba(166, 193, 185, 0.22);
-  box-shadow: 0 16px 30px rgba(44, 76, 71, 0.05);
+  min-height: 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 16px 30px rgba(16, 24, 40, 0.05);
   cursor: pointer;
 }
 
 .card::after {
   content: "";
   position: absolute;
-  right: 16px;
-  top: 16px;
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
+  right: 14px;
+  top: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
   background: rgba(215, 235, 227, 0.84);
 }
 
@@ -840,40 +904,40 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   position: relative;
   z-index: 1;
   gap: 12px;
 }
 
 .card-top strong {
-  color: #19383b;
-  font-size: 18px;
+  color: #0f172a;
+  font-size: 16px;
 }
 
 .status {
   font-size: 12px;
   color: #49645f;
-  padding: 7px 10px;
+  padding: 5px 8px;
   border-radius: 999px;
   background: rgba(235, 245, 240, 0.94);
-  border: 1px solid rgba(167, 193, 185, 0.22);
+  border: 1px solid rgba(148, 163, 184, 0.22);
 }
 
 .status--active {
   color: #246563;
   background: rgba(226, 242, 235, 0.96);
-  border-color: rgba(81, 150, 139, 0.24);
+  border-color: rgba(16, 24, 40, 0.24);
 }
 
 .status--arrived {
-  color: #fffaf4;
-  background: linear-gradient(135deg, #315f62, #6f867e);
+  color: #ffffff;
+  background: linear-gradient(135deg, #315f62, #64748b);
   border-color: rgba(50, 95, 98, 0.28);
 }
 
 .status--cancelled {
-  color: #9f4545;
+  color: #dc2626;
   background: rgba(255, 238, 234, 0.96);
   border-color: rgba(178, 86, 73, 0.2);
 }
@@ -888,14 +952,14 @@ button:disabled {
 }
 
 .card-phone {
-  margin-top: 10px !important;
+  margin-top: 8px !important;
   color: #355658 !important;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
 
 .card small {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .card--placeholder {
@@ -904,13 +968,15 @@ button:disabled {
 }
 
 .empty-state {
+  position: absolute;
+  inset: 0;
   display: grid;
   grid-column: 1 / -1;
   place-items: center;
-  min-height: 476px;
-  border-radius: 22px;
+  min-height: 0;
+  border-radius: 12px;
   border: 1px dashed rgba(160, 188, 181, 0.42);
-  color: #728782;
+  color: #64748b;
   background: rgba(255, 255, 255, 0.42);
 }
 
@@ -922,9 +988,9 @@ button:disabled {
 .reservation-hero,
 .reservation-fact,
 .reservation-owner {
-  border: 1px solid rgba(166, 193, 185, 0.22);
-  background: linear-gradient(180deg, #fffefb, #f3faf6);
-  box-shadow: 0 16px 30px rgba(44, 76, 71, 0.05);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  box-shadow: 0 16px 30px rgba(16, 24, 40, 0.05);
 }
 
 .reservation-hero {
@@ -961,7 +1027,7 @@ button:disabled {
 .reservation-hero__title h3,
 .reservation-owner__head h4 {
   margin: 0;
-  color: #173739;
+  color: #0f172a;
 }
 
 .reservation-hero__title h3 {
@@ -972,7 +1038,7 @@ button:disabled {
 .reservation-hero__title span,
 .reservation-fact span,
 .reservation-owner__head span {
-  color: #607a75;
+  color: #64748b;
   line-height: 1.7;
 }
 
@@ -1005,15 +1071,15 @@ button:disabled {
 }
 
 .action-message--success {
-  border: 1px solid rgba(36, 123, 98, 0.26);
-  background: rgba(36, 123, 98, 0.08);
-  color: #247b62;
+  border: 1px solid rgba(22, 163, 74, 0.26);
+  background: rgba(22, 163, 74, 0.08);
+  color: #16a34a;
 }
 
 .action-message--error {
-  border: 1px solid rgba(176, 68, 85, 0.26);
-  background: rgba(176, 68, 85, 0.08);
-  color: #b04455;
+  border: 1px solid rgba(220, 38, 38, 0.26);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
 }
 
 .reservation-facts {
@@ -1027,7 +1093,7 @@ button:disabled {
   gap: 8px;
   min-height: 132px;
   padding: 18px;
-  border-radius: 22px;
+  border-radius: 12px;
 }
 
 .reservation-fact small,
@@ -1038,7 +1104,7 @@ button:disabled {
 
 .reservation-fact strong,
 .reservation-owner__grid strong {
-  color: #173739;
+  color: #0f172a;
   font-size: 20px;
 }
 
@@ -1065,7 +1131,7 @@ button:disabled {
   display: grid;
   gap: 8px;
   padding: 16px;
-  border-radius: 18px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.62);
 }
 
@@ -1097,6 +1163,8 @@ button:disabled {
 
   .cards {
     grid-template-columns: 1fr;
+    grid-auto-rows: minmax(var(--doctor-card-row-height, 132px), auto);
+    overflow: visible;
   }
 
   .reservation-hero,

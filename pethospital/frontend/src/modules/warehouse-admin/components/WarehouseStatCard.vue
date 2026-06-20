@@ -34,50 +34,50 @@ export default defineComponent({
 
 <style scoped>
 .card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 12px;
-  padding: 14px 16px;
-  border: 1px solid #dfe7df;
-  background: #ffffff;
-  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--saas-border, #e7e9ee);
+  background: var(--saas-surface, #fff);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .card p {
   margin: 0;
-  font-size: 12px;
-  color: #6d7b72;
-  font-weight: 700;
+  font-size: 13px;
+  color: var(--saas-muted, #64748b);
 }
 
 .card strong {
   display: block;
-  margin: 8px 0 6px;
-  font-size: 20px;
-  color: #1d3429;
-  letter-spacing: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--saas-text, #0f172a);
+  font-variant-numeric: tabular-nums;
 }
 
 .card span {
-  color: #6d7b72;
+  color: var(--saas-faint, #94a3b8);
   font-size: 12px;
 }
 
 .warning {
-  background: #fffaf0;
-  border-color: rgba(155, 104, 23, 0.22);
+  background: var(--saas-amber-50, #fffbeb);
+  border-color: rgba(245, 158, 11, 0.28);
 }
 
 .warning strong {
-  color: #9b6817;
+  color: var(--saas-amber, #b45309);
 }
 
 .danger {
-  background: #fff6f7;
-  border-color: rgba(176, 68, 85, 0.22);
+  background: var(--saas-red-50, #fef2f2);
+  border-color: rgba(220, 38, 38, 0.22);
 }
 
 .danger strong {
-  color: #b04455;
+  color: var(--saas-red, #dc2626);
 }
 </style>

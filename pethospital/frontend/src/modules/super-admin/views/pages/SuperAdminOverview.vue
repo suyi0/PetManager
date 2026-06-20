@@ -168,7 +168,11 @@ export default defineComponent({
 <style scoped>
 .page {
   display: grid;
+  align-content: start;
   gap: 16px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .grid.stats {
@@ -178,7 +182,7 @@ export default defineComponent({
 }
 
 .panel {
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 16px;
   background: #fff;
   padding: 16px;
@@ -199,7 +203,7 @@ button {
   border: 0;
   padding: 8px 14px;
   border-radius: 10px;
-  background: #2f6ff3;
+  background: #4f46e5;
   color: #fff;
   cursor: pointer;
 }
@@ -214,7 +218,7 @@ th,
 td {
   text-align: left;
   padding: 10px;
-  border-bottom: 1px solid #edf2ff;
+  border-bottom: 1px solid #eef2ff;
 }
 
 .statCard {

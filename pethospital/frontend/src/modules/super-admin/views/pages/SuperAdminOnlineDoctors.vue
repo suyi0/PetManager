@@ -461,24 +461,28 @@ export default defineComponent({
 <style scoped>
 .online-page {
   display: grid;
-  gap: 18px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
 }
 
 .online-hero,
 .online-panel,
 .doctor-detail {
-  border: 1px solid #dbe6fb;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 20px 40px rgba(88, 116, 170, 0.08);
+  border: 1px solid #e7e9ee;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .online-hero {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 24px 26px;
-  background: linear-gradient(135deg, #eefaff 0%, #f8fbff 50%, #f4f8ff 100%);
+  padding: 14px 18px;
+  background: #ffffff;
 }
 
 .online-hero__eyebrow,
@@ -501,59 +505,75 @@ export default defineComponent({
 }
 
 .online-hero h3 {
-  font-size: 32px;
+  font-size: 18px;
+}
+
+.online-hero > div:first-child span {
+  display: none;
 }
 
 .online-hero span,
 .online-panel__head p,
 .timeline-item p {
   color: #627494;
-  line-height: 1.8;
-  font-size: 14px;
+  line-height: 1.6;
+  font-size: 13px;
 }
 
 .online-hero__metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  min-width: 360px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 460px;
 }
 
 .online-hero__metrics article {
   display: grid;
-  gap: 4px;
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #e7e9ee;
+  background: #f8fafc;
 }
 
 .online-hero__metrics strong {
-  color: #214169;
-  font-size: 28px;
+  color: #0f172a;
+  font-size: 20px;
   font-weight: 800;
 }
 
 .online-hero__metrics span {
-  color: #7082a4;
+  color: #64748b;
   font-size: 13px;
 }
 
 .online-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) 380px;
-  gap: 18px;
+  gap: 14px;
+  min-height: 0;
+  height: 100%;
 }
 
 .online-panel,
 .doctor-detail {
   padding: 14px;
   min-width: 0;
+  min-height: 0;
 }
 
 .online-panel {
   display: grid;
-  grid-template-rows: minmax(0, 0.1fr) minmax(0, 1fr) min-content;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 10px;
+}
+
+.doctor-detail {
+  overflow-y: auto;
+}
+
+.doctor-grid {
+  overflow-y: auto;
 }
 
 .online-panel__head,
@@ -575,7 +595,7 @@ export default defineComponent({
   width: 100%;
   min-height: 40px;
   padding: 9px 12px;
-  border: 1px solid #d2def9;
+  border: 1px solid #e7e9ee;
   border-radius: 14px;
   background: #fff;
   color: #1f3257;
@@ -592,10 +612,10 @@ export default defineComponent({
 }
 
 .doctor-card {
-  border: 1px solid #dfe8fb;
+  border: 1px solid #e7e9ee;
   border-radius: 18px;
   padding: 14px;
-  background: linear-gradient(180deg, #ffffff, #fbfdff);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
   text-align: left;
   color: #314566;
   cursor: pointer;
@@ -605,13 +625,13 @@ export default defineComponent({
 
 .doctor-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 30px rgba(89, 118, 175, 0.1);
+  box-shadow: 0 16px 30px rgba(16, 24, 40, 0.1);
 }
 
 .doctor-card--active {
-  border-color: #84cddd;
-  background: linear-gradient(180deg, #f0fbff, #f7fbff);
-  box-shadow: 0 18px 34px rgba(70, 155, 177, 0.14);
+  border-color: #a5b4fc;
+  background: linear-gradient(180deg, #eef2ff, #f8fafc);
+  box-shadow: 0 18px 34px rgba(79, 70, 229, 0.14);
 }
 
 .doctor-card__top {
@@ -629,7 +649,7 @@ export default defineComponent({
   overflow: hidden;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #9ae7da, #94bfff);
+  background: linear-gradient(135deg, #a5b4fc, #a5b4fc);
   color: #18345a;
   font-size: 20px;
   font-weight: 800;
@@ -687,7 +707,7 @@ export default defineComponent({
   padding: 10px 11px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(47, 111, 243, 0.1);
+  border: 1px solid rgba(79, 70, 229, 0.1);
 }
 
 .doctor-card__stats strong,
@@ -716,7 +736,7 @@ export default defineComponent({
 }
 
 .doctor-status--online {
-  background: rgba(44, 186, 143, 0.14);
+  background: rgba(16, 185, 129, 0.14);
   color: #0f8f66;
 }
 
@@ -754,8 +774,8 @@ export default defineComponent({
 .timeline-item {
   padding: 14px;
   border-radius: 18px;
-  border: 1px solid #dfe8fb;
-  background: linear-gradient(180deg, #ffffff, #fbfdff);
+  border: 1px solid #e7e9ee;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
 }
 
 .timeline-item strong,
@@ -777,7 +797,7 @@ export default defineComponent({
   min-height: 40px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: #eaf7ff;
+  background: #eef2ff;
   color: #2e6598;
   cursor: pointer;
   font-weight: 700;
@@ -808,7 +828,7 @@ export default defineComponent({
   padding: 7px 10px;
   border-radius: 12px;
   font-size: 11px;
-  box-shadow: 0 8px 16px rgba(49, 82, 87, 0.1);
+  box-shadow: 0 8px 16px rgba(16, 24, 40, 0.1);
 }
 
 .online-footer :deep(.pager-jump) {
@@ -828,9 +848,9 @@ export default defineComponent({
   align-content: center;
   min-height: 220px;
   padding: 24px;
-  border: 1px dashed #cfe0fb;
+  border: 1px dashed #e7e9ee;
   border-radius: 22px;
-  background: linear-gradient(180deg, #fbfdff, #f7faff);
+  background: linear-gradient(180deg, #f8fafc, #f8fafc);
   text-align: center;
 }
 
@@ -839,7 +859,7 @@ export default defineComponent({
 }
 
 .online-empty span {
-  color: #7183a5;
+  color: #64748b;
   line-height: 1.7;
 }
 

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-frontend-changes.sh\"",
+            "timeout": 60,
+            "statusMessage": "Linting changed frontend files..."
+          }
+        ]
+      }
+    ]
+  }
+}

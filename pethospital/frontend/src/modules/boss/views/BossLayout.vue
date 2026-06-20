@@ -1,34 +1,47 @@
 <template>
-  <div class="boss-shell">
-    <aside class="boss-sidebar">
-      <div class="boss-sidebar__tag">Boss Portal</div>
-      <h1 class="boss-sidebar__title">股份中枢</h1>
+  <div class="saas-shell">
+    <aside class="saas-sidebar">
+      <div class="saas-brand">
+        <div class="saas-brand__logo">宠</div>
+        <div>
+          <div class="saas-brand__name">宠物医院</div>
+          <div class="saas-brand__sub">总裁端</div>
+        </div>
+      </div>
 
-      <nav class="boss-nav">
-        <RouterLink :to="`${routePrefix}/overview`">股份概览</RouterLink>
+      <nav class="saas-nav">
+        <RouterLink class="saas-nav__item" :to="`${routePrefix}/overview`">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M3 3v18h18" />
+            <path d="m7 14 4-4 3 3 5-6" />
+          </svg>
+          股份概览
+        </RouterLink>
       </nav>
 
-      <section class="boss-portal-switcher">
-        <p class="boss-portal-switcher__title">快捷入口</p>
+      <section class="switcher">
+        <p class="switcher__title">快捷入口</p>
         <button
           v-for="portal in portalEntries"
           :key="portal.key"
           type="button"
-          class="boss-portal-switcher__button"
+          class="switcher__btn"
           @click="enterPortal(portal)"
         >
           <strong>{{ portal.label }}</strong>
           <span>{{ portal.hint }}</span>
         </button>
       </section>
+
+      <PortalAccount fallback-name="总裁" @logout="logout" />
     </aside>
 
-    <main class="boss-content">
-      <header class="boss-topbar">
-        <div>
-          <h2>公司股份总览</h2>
-        </div>
-      </header>
+    <main class="saas-content">
       <RouterView />
     </main>
   </div>
@@ -37,7 +50,10 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useStore } from "vuex";
+import { storeKey } from "@/app/store";
 import { authStorage } from "@/core/auth/utils/authStorage";
+import PortalAccount from "@/shared/components/PortalAccount.vue";
 
 type PortalEntry = {
   key: string;
@@ -58,15 +74,21 @@ type PortalEntry = {
 
 export default defineComponent({
   name: "BossLayout",
+  components: { PortalAccount },
   setup() {
     const router = useRouter();
     const route = useRoute();
+    const store = useStore(storeKey);
 
     const routePrefix = computed(() => "/boss");
 
     onMounted(() => {
       authStorage.clearBossPortalReturn();
     });
+
+    const logout = () => {
+      void store.dispatch("auth/logout");
+    };
 
     const portalEntries = computed<PortalEntry[]>(() => [
       {
@@ -85,22 +107,6 @@ export default defineComponent({
           userHeadImage: "",
         },
       },
-      // {
-      //   key: "finance",
-      //   label: "进入财务端",
-      //   hint: "打开薪资与财务管理界面",
-      //   userType: 3,
-      //   userRole: "财务经理",
-      //   path: "/finance/salary",
-      //   profile: {
-      //     userName: "财务经理 林予澄",
-      //     userPhone: "13600136002",
-      //     userEmail: "finance.lin@example.com",
-      //     userBirthday: "1990-04-26",
-      //     userAddress: "上海市徐汇区财务管理中心 12 楼",
-      //     userHeadImage: "",
-      //   },
-      // },
       {
         key: "personnel",
         label: "进入人事端",
@@ -179,161 +185,61 @@ export default defineComponent({
       routePrefix,
       portalEntries,
       enterPortal,
+      logout,
     };
   },
 });
 </script>
 
 <style scoped>
-.boss-shell {
+/* 外壳来自全局 saas.css；保留“快捷入口”枢纽，内容区自然滚动。 */
+.saas-content {
+  display: block;
+  overflow-y: auto;
+}
+
+.switcher {
   display: grid;
-  grid-template-columns: 290px 1fr;
-  min-height: 100vh;
-  background: radial-gradient(
-      circle at top right,
-      rgba(255, 241, 220, 0.95),
-      transparent 28%
-    ),
-    linear-gradient(135deg, #f8f2e8 0%, #efe3cf 48%, #e6d6bc 100%);
-  color: #261b13;
-  font-family: "PingFang SC", "Segoe UI", sans-serif;
-}
-
-.boss-sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  padding: 34px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  border-right: 1px solid rgba(90, 66, 42, 0.12);
-  background: linear-gradient(
-    180deg,
-    rgba(255, 252, 246, 0.92),
-    rgba(248, 240, 224, 0.92)
-  );
-  backdrop-filter: blur(14px);
-}
-
-.boss-sidebar__tag {
-  width: fit-content;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #f4e6ce;
-  color: #896848;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.boss-sidebar__title {
-  margin: 0;
-  font-family: Georgia, serif;
-  font-size: 42px;
-  line-height: 1;
-}
-
-.boss-sidebar__subtitle {
-  margin: 0;
-  color: #7c6753;
-  line-height: 1.7;
-  font-size: 14px;
-}
-
-.boss-nav {
-  display: grid;
-  gap: 10px;
+  gap: 8px;
   margin-top: 14px;
 }
 
-.boss-nav a {
-  padding: 14px 16px;
-  border-radius: 16px;
-  color: #5c4630;
-  text-decoration: none;
-  background: rgba(255, 255, 255, 0.52);
-  font-weight: 700;
-}
-
-.boss-nav a.router-link-active {
-  background: linear-gradient(135deg, #fff8ef, #f5e5cc);
-  box-shadow: 0 12px 28px rgba(101, 76, 49, 0.12);
-}
-
-.boss-portal-switcher {
-  margin-top: auto;
-  display: grid;
-  gap: 10px;
-}
-
-.boss-portal-switcher__title {
-  margin: 0;
-  color: #8e7359;
-  font-size: 12px;
+.switcher__title {
+  margin: 0 0 2px;
+  color: #94a3b8;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.boss-portal-switcher__button {
+.switcher__btn {
   display: grid;
-  gap: 6px;
+  gap: 3px;
   width: 100%;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 0;
+  padding: 10px 12px;
+  border: 1px solid #e7e9ee;
+  border-radius: 10px;
   text-align: left;
-  text-decoration: none;
   cursor: pointer;
-  color: #5a422c;
-  background: linear-gradient(135deg, #fffaf2, #f5e4cb);
-  box-shadow: 0 14px 30px rgba(117, 87, 56, 0.12);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  color: #0f172a;
+  background: #fafbfc;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.boss-portal-switcher__button strong {
-  font-size: 15px;
+.switcher__btn:hover {
+  background: #f1f2f5;
+  border-color: #4f46e5;
 }
 
-.boss-portal-switcher__button span {
-  color: #876c52;
+.switcher__btn strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.switcher__btn span {
   font-size: 12px;
-  line-height: 1.5;
-}
-
-.boss-portal-switcher__button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 34px rgba(117, 87, 56, 0.16);
-}
-
-.boss-content {
-  padding: 28px 32px 36px;
-}
-
-.boss-topbar {
-  margin-bottom: 20px;
-}
-
-.boss-topbar h2 {
-  margin: 0 0 6px;
-  font-size: 28px;
-}
-
-.boss-topbar span {
-  color: #7c6753;
-  font-size: 14px;
-}
-
-@media (max-width: 1080px) {
-  .boss-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .boss-sidebar {
-    position: relative;
-    height: auto;
-  }
+  color: #64748b;
+  line-height: 1.4;
 }
 </style>

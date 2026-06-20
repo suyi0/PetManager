@@ -62,7 +62,8 @@ namespace DatabaseMigrations
         bool pets_exists = false;
         bool userSearch_exists = false;
         bool warehouse_exists = false;
-        bool workTimeRecords_exists = false;
+        bool workTimeLogs_exists = false;
+        bool medicalQueues_exists = false;
         bool system_operations_exists = false;
         bool user_operations_exists = false;
 
@@ -137,9 +138,13 @@ namespace DatabaseMigrations
             {
                 warehouse_exists = true;
             }
-            else if (table_name == "workTimeRecords")
+            else if (table_name == "workTimeLogs")
             {
-                workTimeRecords_exists = true;
+                workTimeLogs_exists = true;
+            }
+            else if (table_name == "medicalQueues")
+            {
+                medicalQueues_exists = true;
             }
             else if (table_name == "system_operations")
             {
@@ -493,7 +498,7 @@ namespace DatabaseMigrations
                          "reservation_type VARCHAR(30) NOT NULL, "
                          "date DATE, "
                          "time_slot VARCHAR(20), "
-                         "status ENUM('预约成功', '预约失败', '已取消', '已到院') NOT NULL, "
+                         "status ENUM('scheduled', 'failed', 'cancelled', 'arrived') NOT NULL, "
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
                          "deleted_at DATETIME NULL COMMENT '软删除时间', "
                          "deleted_by INT NULL COMMENT '执行删除的用户ID', "
@@ -526,7 +531,7 @@ namespace DatabaseMigrations
                          "doctor_id INT NOT NULL, "
                          "order_type VARCHAR(255),"
                          "order_data VARCHAR(255), "
-                         "order_status ENUM('待付款', '已付款', '已取消', '已退款', '部分退款') NOT NULL DEFAULT '待付款', "
+                         "order_status ENUM('pending_payment', 'paid', 'cancelled', 'refunded', 'partial_refund') NOT NULL DEFAULT 'pending_payment', "
                          "order_totalprice DECIMAL(18, 2), "
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
                          "deleted_at DATETIME NULL COMMENT '软删除时间', "
@@ -571,21 +576,21 @@ namespace DatabaseMigrations
             std::cout << "orderMedicines table created successfully" << std::endl;
         }
 
-        if (workTimeRecords_exists)
+        if (workTimeLogs_exists)
         {
-            std::cout << "workTimeRecords table already exists." << std::endl;
+            std::cout << "workTimeLogs table already exists." << std::endl;
             ForeignKeys::migrateWorkTimeRecords(dbManager);
         }
         else
         {
-            std::cout << "workTimeRecords table does not exist. Creating..." << std::endl;
+            std::cout << "workTimeLogs table does not exist. Creating..." << std::endl;
             session->sql("CREATE TABLE workTimeLogs( "
                          "id INT AUTO_INCREMENT PRIMARY KEY, "
                          "doctor_id INT NOT NULL, "
                          "date DATE, "
                          "check_in_time TIME, "
                          "check_out_time TIME, "
-                         "status ENUM('正常', '迟到', '早退', '加班', '异常') NOT NULL, "
+                         "status ENUM('normal', 'late', 'early_leave', 'overtime', 'abnormal') NOT NULL, "
                          "notes TEXT, "
                          "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
                          "deleted_at DATETIME NULL COMMENT '软删除时间', "
@@ -596,7 +601,43 @@ namespace DatabaseMigrations
                          "INDEX idx_user_deleted (doctor_id, is_deleted) "
                          ")")
                 .execute();
-            std::cout << "workTimeRecords table created successfully." << std::endl;
+            std::cout << "workTimeLogs table created successfully." << std::endl;
+        }
+
+        if (medicalQueues_exists)
+        {
+            std::cout << "medicalQueues table is exists." << std::endl;
+        }
+        else
+        {
+            std::cout << "medicalQueues table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE medicalQueues( "
+                         "id INT AUTO_INCREMENT PRIMARY KEY, "
+                         "queue_date DATE NOT NULL COMMENT '队列日期', "
+                         "queue_number VARCHAR(32) NOT NULL COMMENT '队列号/序号', "
+                         "doctor_id INT NOT NULL, "
+                         "pet_id INT NOT NULL, "
+                         "owner_id INT NOT NULL, "
+                         "status ENUM('waiting', 'in_progress', 'skipped', 'cancelled', 'completed') NOT NULL DEFAULT 'waiting', "
+                         "source ENUM('appointment', 'walk_in', 'follow_up', 'emergency') NOT NULL DEFAULT 'walk_in', "
+                         "triage_level ENUM('normal', 'priority', 'urgent') NOT NULL DEFAULT 'normal', "
+                         "scheduled_at DATETIME NULL COMMENT '预约时间', "
+                         "arrived_at DATETIME NULL COMMENT '到院时间', "
+                         "is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '是否软删除', "
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         "CONSTRAINT fk_medicalQueues_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "CONSTRAINT fk_medicalQueues_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
+                         "CONSTRAINT fk_medicalQueues_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE, "
+                         "UNIQUE INDEX idx_medicalQueues_queue_date_number (queue_date, queue_number), "
+                         "INDEX idx_medicalQueues_doctor_status (doctor_id, status, is_deleted), "
+                         "INDEX idx_medicalQueues_doctor_date (doctor_id, queue_date, is_deleted), "
+                         "INDEX idx_medicalQueues_doctor_arrived (doctor_id, arrived_at), "
+                         "INDEX idx_medicalQueues_owner_id (owner_id), "
+                         "INDEX idx_medicalQueues_pet_id (pet_id) "
+                         ")")
+                .execute();
+            std::cout << "medicalQueues table created successfully." << std::endl;
         }
 
         if (system_operations_exists)

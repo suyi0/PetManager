@@ -36,6 +36,8 @@ public:
     nlohmann::json getOrderData(const int &orderId);                          // 订单详情内部组装函数
     crow::response changeOrder(const crow::request& req,int &orderId);             //修改订单 对应 /api/doctors/orders/<int>/changes
 
+    nlohmann::json buildQueuesData(const int &doctorId);
+    crow::response getQueues(const crow::request &req, const int doctorId);      // 获取待接诊队列 对应 /api/doctors/queues
 };
 
 

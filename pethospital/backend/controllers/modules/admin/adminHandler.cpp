@@ -3,6 +3,7 @@
 #include "../../../services/logger/operationLogger.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
+#include "statusLabelUtils/StatusLabelUtils.h"
 
 namespace
 {
@@ -395,7 +396,7 @@ crow::response adminHandler::searchOnlineDoctors(const crow::request &req, const
                 record["date"] = row[2].isNull() ? "" : row[2].get<std::string>();
                 record["check_in_time"] = row[3].isNull() ? "" : row[3].get<std::string>();
                 record["check_out_time"] = row[4].isNull() ? "" : row[4].get<std::string>();
-                record["status"] = row[5].isNull() ? "" : row[5].get<std::string>();
+                record["status"] = StatusLabelUtils::toDisplayWorkTimeStatus(row[5].isNull() ? "" : row[5].get<std::string>());
                 record["notes"] = row[6].isNull() ? "" : clean_string(row[6].get<std::string>());
                 record["created_at"] = row[7].isNull() ? "" : row[7].get<std::string>();
                 record["updated_at"] = row[8].isNull() ? "" : row[8].get<std::string>();
@@ -517,7 +518,7 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
                     row[4].isNull() ? "" : row[4].get<std::string>();
                 doctor["check_out_time"] =
                     row[5].isNull() ? "" : row[5].get<std::string>();
-                doctor["status"] = row[6].isNull() ? "" : row[6].get<std::string>();
+                doctor["status"] = StatusLabelUtils::toDisplayWorkTimeStatus(row[6].isNull() ? "" : row[6].get<std::string>());
                 doctor["notes"] = row[7].isNull() ? "" : row[7].get<std::string>();
                 doctor["created_at"] =
                     row[8].isNull() ? "" : row[8].get<std::string>();
@@ -1005,7 +1006,7 @@ crow::response adminHandler::getAllRecord(const crow::request &req, int &userId,
             order["doctor_id"] = order_row[3].get<int>();
             order["order_type"] = order_row[4].get<std::string>();
             order["order_data"] = order_row[5].get<std::string>();
-            order["order_status"] = order_row[6].get<std::string>();
+            order["order_status"] = StatusLabelUtils::toDisplayOrderStatus(order_row[6].get<std::string>());
             order["order_totalprice"] = order_row[7].get<double>();
             order["created_at"] = order_row[8].get<std::string>();
 

@@ -198,7 +198,10 @@ export default defineComponent({
 <style scoped>
 .detail-page {
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 20px;
+  height: var(--doctor-page-card-height, 860px);
+  overflow: hidden;
 }
 
 .detail-hero,
@@ -266,6 +269,8 @@ export default defineComponent({
 
 .content-grid {
   grid-template-columns: 0.95fr 1.05fr;
+  min-height: 0;
+  overflow: visible;
 }
 
 .detail-card,

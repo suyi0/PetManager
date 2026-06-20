@@ -154,9 +154,9 @@ export default defineComponent({
   box-sizing: border-box;
   border-radius: 12px;
   padding: 18px;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.06);
 }
 
 .panel-head {
@@ -169,12 +169,12 @@ export default defineComponent({
 
 .panel-head h3 {
   margin: 0 0 4px;
-  color: #1d3429;
+  color: #0f172a;
   font-size: 20px;
 }
 
 .panel-head span {
-  color: #6d7b72;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -187,9 +187,9 @@ export default defineComponent({
 .filter-pills button {
   padding: 9px 12px;
   border-radius: 8px;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
-  color: #1d3429;
+  color: #0f172a;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -197,13 +197,13 @@ export default defineComponent({
 
 .filter-pills button.active {
   color: #ffffff;
-  border-color: #245849;
-  background: #245849;
+  border-color: #4f46e5;
+  background: #4f46e5;
 }
 
 .filter-pills button:focus-visible,
 .warning-row:focus-within {
-  outline: 3px solid rgba(36, 88, 73, 0.24);
+  outline: 3px solid rgba(79, 70, 229, 0.24);
   outline-offset: 2px;
 }
 
@@ -218,14 +218,14 @@ export default defineComponent({
 .warning-row {
   padding: 16px;
   border-radius: 10px;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
 }
 
 .summary-grid small,
 .summary-grid span,
 .warning-row span {
-  color: #6d7b72;
+  color: #64748b;
 }
 
 .summary-grid strong {
@@ -236,11 +236,11 @@ export default defineComponent({
 }
 
 .summary-grid article:nth-child(1) strong {
-  color: #9b6817;
+  color: #b45309;
 }
 
 .summary-grid article:nth-child(2) strong {
-  color: #b04455;
+  color: #dc2626;
 }
 
 .warning-list {
@@ -253,7 +253,7 @@ export default defineComponent({
   grid-template-columns: 1.2fr 1fr auto;
   align-items: center;
   gap: 16px;
-  color: #1d3429;
+  color: #0f172a;
 }
 
 .warning-row i {
@@ -267,26 +267,26 @@ export default defineComponent({
 }
 
 .warning-row i.warning {
-  color: #9b6817;
+  color: #b45309;
   background: #fff3d6;
 }
 
 .warning-row i.danger {
-  color: #b04455;
+  color: #dc2626;
   background: #ffe9ed;
 }
 
 .warning-row i.normal {
-  color: #245849;
+  color: #4f46e5;
   background: #e7f1ed;
 }
 
 .empty-state {
   padding: 28px;
   border-radius: 10px;
-  border: 1px dashed #dfe7df;
-  background: #f4f7f4;
-  color: #6d7b72;
+  border: 1px dashed #e7e9ee;
+  background: #f1f2f5;
+  color: #64748b;
   text-align: center;
   font-size: 13px;
 }

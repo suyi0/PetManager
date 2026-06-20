@@ -98,9 +98,9 @@ export default defineComponent({
   box-sizing: border-box;
   border-radius: 12px;
   padding: 18px;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.06);
 }
 
 .panel-head {
@@ -113,21 +113,21 @@ export default defineComponent({
 
 .panel-head h3 {
   margin: 0 0 4px;
-  color: #1d3429;
+  color: #0f172a;
   font-size: 20px;
 }
 
 .panel-head span {
-  color: #6d7b72;
+  color: #64748b;
   font-size: 12px;
 }
 
 .status-pill {
   padding: 10px 14px;
   border-radius: 8px;
-  border: 1px solid #dfe7df;
-  background: #f4f7f4;
-  color: #245849;
+  border: 1px solid #e7e9ee;
+  background: #f1f2f5;
+  color: #4f46e5;
   font-size: 12px;
   font-weight: 700;
 }
@@ -139,18 +139,18 @@ export default defineComponent({
 input {
   width: min(100%, 360px);
   box-sizing: border-box;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   border-radius: 8px;
   padding: 11px 12px;
   background: #ffffff;
-  color: #1d3429;
+  color: #0f172a;
   font-size: 13px;
 }
 
 input:focus-visible {
-  outline: 3px solid rgba(36, 88, 73, 0.24);
+  outline: 3px solid rgba(79, 70, 229, 0.24);
   outline-offset: 2px;
-  border-color: #245849;
+  border-color: #4f46e5;
 }
 
 .log-list {
@@ -165,25 +165,25 @@ input:focus-visible {
   align-items: center;
   padding: 16px;
   border-radius: 10px;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
 }
 
 time {
   font-size: 16px;
   font-weight: 700;
-  color: #245849;
+  color: #4f46e5;
   letter-spacing: 0;
 }
 
 strong {
   display: block;
-  color: #1d3429;
+  color: #0f172a;
 }
 
 p {
   margin: 6px 0 0;
-  color: #6d7b72;
+  color: #64748b;
 }
 
 i {
@@ -192,7 +192,7 @@ i {
   padding: 8px 12px;
   border-radius: 999px;
   background: #e7f1ed;
-  color: #245849;
+  color: #4f46e5;
   font-size: 12px;
   font-weight: 700;
 }
@@ -200,9 +200,9 @@ i {
 .empty-state {
   padding: 28px;
   border-radius: 10px;
-  border: 1px dashed #dfe7df;
-  background: #f4f7f4;
-  color: #6d7b72;
+  border: 1px dashed #e7e9ee;
+  background: #f1f2f5;
+  color: #64748b;
   text-align: center;
   font-size: 13px;
 }

@@ -1,14 +1,11 @@
 <template>
-  <section class="panel">
+  <section class="panel" :class="{ 'panel--has-message': draftMessage }">
     <div class="panel-head">
       <div>
         <h3>诊单草稿</h3>
         <p>查看未提交的诊单内容，按来源和更新时间继续编辑。</p>
       </div>
       <div class="panel-head__actions">
-        <button type="button" class="manage-button" @click="toggleManageMode">
-          {{ isManaging ? "完成" : "管理" }}
-        </button>
         <div class="panel-head__pager">
           <AppPager
             :page="page"
@@ -28,20 +25,29 @@
     </p>
 
     <div class="status-filters">
-      <button
-        v-for="tab in sourceTabs"
-        :key="tab.key"
-        type="button"
-        class="status-filter"
-        :class="{ 'status-filter--active': activeSource === tab.key }"
-        @click="activeSource = tab.key"
-      >
-        <span>{{ tab.label }}</span>
-        <strong>{{ tab.count }}</strong>
+      <div class="status-filter-row">
+        <button
+          v-for="tab in sourceTabs"
+          :key="tab.key"
+          type="button"
+          class="status-filter"
+          :class="{ 'status-filter--active': activeSource === tab.key }"
+          @click="activeSource = tab.key"
+        >
+          <span>{{ tab.label }}</span>
+          <strong>{{ tab.count }}</strong>
+        </button>
+      </div>
+      <button type="button" class="manage-button" @click="toggleManageMode">
+        {{ isManaging ? "完成" : "管理" }}
       </button>
     </div>
 
-    <div class="table-shell">
+    <div
+      ref="tableShellRef"
+      class="table-shell"
+      :style="{ '--record-page-size': pageSize }"
+    >
       <table>
         <thead>
           <tr>
@@ -123,6 +129,7 @@
 import {
   computed,
   defineComponent,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -148,7 +155,8 @@ export default defineComponent({
     );
     const drafts = ref<DoctorOrderDraftSummary[]>([]);
     const page = ref(1);
-    const pageSize = 10;
+    const pageSize = ref(10);
+    const tableShellRef = ref<HTMLElement | null>(null);
     const isManaging = ref(false);
     const pendingDeleteKeys = ref(new Set<string>());
     const draftMessage = ref<{
@@ -202,22 +210,43 @@ export default defineComponent({
     });
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(visibleItems.value.length / pageSize))
+      Math.max(1, Math.ceil(visibleItems.value.length / pageSize.value))
     );
 
     const pagedItems = computed(() => {
-      const start = (page.value - 1) * pageSize;
-      return visibleItems.value.slice(start, start + pageSize);
+      const start = (page.value - 1) * pageSize.value;
+      return visibleItems.value.slice(start, start + pageSize.value);
     });
 
     const placeholderRows = computed(() =>
       pagedItems.value.length === 0
         ? []
         : Array.from(
-            { length: Math.max(0, pageSize - pagedItems.value.length) },
+            { length: Math.max(0, pageSize.value - pagedItems.value.length) },
             (_, index) => index + 1
           )
     );
+
+    const updatePageSize = () => {
+      const shell = tableShellRef.value;
+      if (!shell) return;
+      const shellHeight = shell.clientHeight;
+      if (!shellHeight) return;
+      const thead = shell.querySelector("thead");
+      const headerHeight = thead ? thead.getBoundingClientRect().height : 40;
+      const firstRow = shell.querySelector("tbody tr:not(.placeholder-row)");
+      const rowHeight = firstRow ? firstRow.getBoundingClientRect().height : 48;
+      const nextPageSize = Math.max(
+        4,
+        Math.floor((shellHeight - headerHeight) / rowHeight)
+      );
+
+      if (Number.isFinite(nextPageSize) && nextPageSize !== pageSize.value) {
+        pageSize.value = nextPageSize;
+      }
+    };
+
+    let resizeObserver: ResizeObserver | null = null;
 
     const sourceTabs = computed(() => {
       const sources: Array<"全部" | DoctorOrderDraftSummary["source"]> = [
@@ -326,6 +355,13 @@ export default defineComponent({
         void syncDrafts();
       }, 60000);
       window.addEventListener("focus", handleFocus);
+      void nextTick(() => {
+        updatePageSize();
+        if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => updatePageSize());
+          resizeObserver.observe(tableShellRef.value);
+        }
+      });
     });
 
     onBeforeUnmount(() => {
@@ -333,6 +369,7 @@ export default defineComponent({
         window.clearInterval(remainingTimer);
       }
       window.removeEventListener("focus", handleFocus);
+      resizeObserver?.disconnect();
     });
 
     return {
@@ -343,6 +380,8 @@ export default defineComponent({
       visibleItems,
       pagedItems,
       placeholderRows,
+      pageSize,
+      tableShellRef,
       isManaging,
       draftMessage,
       pendingDeleteKeys,
@@ -361,15 +400,19 @@ export default defineComponent({
 .panel {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  border: 1px solid rgba(157, 188, 178, 0.24);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
-  padding: 28px;
-  min-height: 720px;
-  max-height: min(100vh - 96px, 860px);
-  box-shadow: 0 20px 38px rgba(49, 82, 77, 0.06);
+  gap: 16px;
+  height: var(--doctor-page-card-height, 860px);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f8fafc);
+  padding: 28px 28px 22px;
+  box-shadow: 0 20px 38px rgba(16, 24, 40, 0.06);
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.panel--has-message {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
 .panel-head {
@@ -377,7 +420,6 @@ export default defineComponent({
   justify-content: space-between;
   align-items: flex-start;
   gap: 20px;
-  margin-bottom: 20px;
 }
 
 .panel-head h3,
@@ -387,7 +429,7 @@ export default defineComponent({
 
 .panel-head p {
   margin-top: 6px;
-  color: #67807b;
+  color: #64748b;
   line-height: 1.6;
 }
 
@@ -409,21 +451,21 @@ export default defineComponent({
 }
 
 .manage-button {
-  min-width: 96px;
+  min-width: 58px;
 }
 
 button {
-  border: 1px solid rgba(144, 175, 166, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 16px;
   padding: 11px 16px;
-  background: linear-gradient(135deg, #29565a, #7d5348);
-  color: #fffdfb;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
+  box-shadow: 0 12px 24px rgba(16, 24, 40, 0.12);
 }
 
 .draft-message {
-  margin: 0 0 14px;
+  margin: 0;
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 13px;
@@ -431,21 +473,20 @@ button {
 }
 
 .draft-message--success {
-  border: 1px solid rgba(36, 123, 98, 0.26);
-  background: rgba(36, 123, 98, 0.08);
-  color: #247b62;
+  border: 1px solid rgba(22, 163, 74, 0.26);
+  background: rgba(22, 163, 74, 0.08);
+  color: #16a34a;
 }
 
 .draft-message--error {
-  border: 1px solid rgba(176, 68, 85, 0.26);
-  background: rgba(176, 68, 85, 0.08);
-  color: #b04455;
+  border: 1px solid rgba(220, 38, 38, 0.26);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
 }
 
 .status-filters {
   display: flex;
-  gap: 14px;
-  margin-bottom: 24px;
+  justify-content: space-between;
 }
 
 .status-filter {
@@ -453,11 +494,16 @@ button {
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border-radius: 18px;
+  border-radius: 10px;
   border: 1px solid rgba(160, 186, 178, 0.3);
   background: rgba(255, 255, 255, 0.72);
   color: #4e6762;
   box-shadow: none;
+}
+
+.status-filter-row {
+  display: flex;
+  gap: 14px;
 }
 
 .status-filter strong {
@@ -465,14 +511,28 @@ button {
 }
 
 .status-filter--active {
-  border-color: rgba(95, 140, 131, 0.38);
-  background: linear-gradient(135deg, #eef8f4, #e0eee7);
+  border-color: rgba(16, 24, 40, 0.38);
+  background: linear-gradient(135deg, #f8fafc, #eef2ff);
   color: #21464b;
 }
 
 .table-shell {
-  min-height: 586px;
+  position: relative;
+  display: grid;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
+}
+
+.table-shell::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.86);
+  pointer-events: none;
 }
 
 table {
@@ -483,19 +543,23 @@ table {
 
 th,
 td {
-  padding: 14px 12px;
-  border-bottom: 1px solid rgba(226, 236, 232, 0.92);
+  height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e5e7eb;
   text-align: left;
   font-size: 13px;
 }
 
 th {
-  color: #6f8582;
-  font-weight: 600;
+  height: 40px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 td {
-  color: #19383b;
+  color: #0f172a;
 }
 
 .source-pill {
@@ -507,13 +571,13 @@ td {
 }
 
 .source-pill--queue {
-  background: #ecf8f3;
+  background: #eef2ff;
   color: #275b56;
 }
 
 .source-pill--manual {
-  background: #f8efe7;
-  color: #7a5841;
+  background: #fef2f2;
+  color: #64748b;
 }
 
 .action-column-th {
@@ -530,14 +594,14 @@ td {
 .action-button {
   padding: 7px 12px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #ecf8f3, #d7ebe4);
-  color: #214f4b;
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  color: #1e293b;
   box-shadow: none;
 }
 
 .action-button--delete {
-  background: linear-gradient(135deg, #fbeee8, #f5d8ca);
-  color: #7a3f2f;
+  background: linear-gradient(135deg, #fef2f2, #fef2f2);
+  color: #64748b;
 }
 
 .record-row--pending-delete {
@@ -545,13 +609,13 @@ td {
 }
 
 .placeholder-row td {
-  height: 52px;
-  background: rgba(255, 255, 255, 0.32);
+  height: 48px;
+  background: #ffffff;
 }
 
 .empty-cell {
-  height: 520px;
-  color: #708682;
+  height: calc(48px * var(--record-page-size, 10));
+  color: #64748b;
   text-align: center;
 }
 </style>

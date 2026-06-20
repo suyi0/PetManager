@@ -263,9 +263,11 @@ export default defineComponent({
 <style scoped>
 .profile-page {
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 20px;
+  height: var(--doctor-page-card-height, 860px);
   min-width: 0;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .hero-card,
@@ -404,6 +406,8 @@ export default defineComponent({
 .order-shell,
 .empty-page {
   padding: 24px;
+  min-height: 0;
+  overflow: visible;
 }
 
 .section-head {

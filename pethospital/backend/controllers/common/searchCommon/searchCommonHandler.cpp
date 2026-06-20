@@ -1,5 +1,6 @@
 #include "searchCommonHandler.h"
 #include "roleTypeUtils/roleTypeUtils.h"
+#include "statusLabelUtils/StatusLabelUtils.h"
 
 namespace
 {
@@ -157,6 +158,8 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
         const bool isMedicalStaff = RoleTypeUtils::isMedicalStaffRole(roleName);
 
         const std::string keywordLike = "%" + searchByKeyword + "%";
+        const std::string orderStatusKeywordLike = "%" + StatusLabelUtils::toDbOrderStatus(searchByKeyword) + "%";
+        const std::string reservationStatusKeywordLike = "%" + StatusLabelUtils::toDbReservationStatus(searchByKeyword) + "%";
         std::string sql = "";
         if (searchType == "orders")
         {
@@ -166,7 +169,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
                                                            : "WHERE o.owner_id = ? AND o.is_deleted = 0 ";
 
             sql = "SELECT o.id, p.pet_name, COALESCE(d.name, ''), o.order_type, "
-                  "COALESCE(o.order_data, ''), COALESCE(o.order_status, '待付款'), COALESCE(o.order_totalprice, 0.0) "
+                  "COALESCE(o.order_data, ''), COALESCE(o.order_status, 'pending_payment'), COALESCE(o.order_totalprice, 0.0) "
                   "FROM orders AS o "
                   "LEFT JOIN pets AS p ON o.pet_id = p.id "
                   "LEFT JOIN users AS d ON o.doctor_id = d.id " +
@@ -215,11 +218,11 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
 
         if (searchType == "orders")
         {
-            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
+            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, orderStatusKeywordLike);
         }
         else if (searchType == "reservations")
         {
-            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, keywordLike);
+            query.bind(keywordLike, keywordLike, keywordLike, keywordLike, keywordLike, reservationStatusKeywordLike);
         }
         mysqlx::SqlResult result = query.execute();
 
@@ -234,7 +237,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
                 searchResult["doctor_name"] = row[2].isNull() ? "" : row[2].get<std::string>();
                 searchResult["order_type"] = row[3].isNull() ? "" : row[3].get<std::string>();
                 searchResult["order_data"] = row[4].isNull() ? "" : row[4].get<std::string>();
-                searchResult["order_status"] = row[5].isNull() ? "待付款" : row[5].get<std::string>();
+                searchResult["order_status"] = StatusLabelUtils::toDisplayOrderStatus(row[5].isNull() ? "pending_payment" : row[5].get<std::string>());
                 searchResult["order_totalprice"] = row[6].isNull() ? 0.0 : row[6].get<double>();
                 data.push_back(searchResult);
             }
@@ -250,7 +253,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
                 searchResult["date"] = row[3].isNull() ? "" : row[3].get<std::string>();
                 searchResult["time_slot"] = row[4].isNull() ? "" : row[4].get<std::string>();
                 searchResult["reservation_type"] = row[5].isNull() ? "" : row[5].get<std::string>();
-                searchResult["status"] = row[6].isNull() ? "预约成功" : row[6].get<std::string>();
+                searchResult["status"] = StatusLabelUtils::toDisplayReservationStatus(row[6].isNull() ? "scheduled" : row[6].get<std::string>());
                 data.push_back(searchResult);
             }
         }

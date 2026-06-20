@@ -76,7 +76,12 @@
       @retry="loadOrderRecords"
     />
 
-    <div v-else class="table-shell">
+    <div
+      v-else
+      ref="tableShellRef"
+      class="table-shell"
+      :style="{ '--record-page-size': pageSize }"
+    >
       <table>
         <thead>
           <tr>
@@ -126,7 +131,15 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch, onMounted } from "vue";
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { getHttpErrorMessage } from "@/api/httpError";
@@ -153,7 +166,8 @@ export default defineComponent({
     const searchResults = ref<OrderSummaryItem[] | null>(null);
     const searchHistory = ref<Array<{ id: number; pet_name: string }>>([]);
     const errorMessage = ref("");
-    const pageSize = 10;
+    const pageSize = ref(10);
+    const tableShellRef = ref<HTMLElement | null>(null);
     const orderRecords = computed<OrderSummaryItem[]>(
       () => store.state.doctor.orderRecords
     );
@@ -202,22 +216,41 @@ export default defineComponent({
     });
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(visibleItems.value.length / pageSize))
+      Math.max(1, Math.ceil(visibleItems.value.length / pageSize.value))
     );
 
     const pagedItems = computed(() => {
-      const start = (page.value - 1) * pageSize;
-      return visibleItems.value.slice(start, start + pageSize);
+      const start = (page.value - 1) * pageSize.value;
+      return visibleItems.value.slice(start, start + pageSize.value);
     });
 
     const placeholderRows = computed(() =>
       pagedItems.value.length === 0
         ? []
         : Array.from(
-            { length: Math.max(0, pageSize - pagedItems.value.length) },
+            { length: Math.max(0, pageSize.value - pagedItems.value.length) },
             (_, index) => index + 1
           )
     );
+
+    const updatePageSize = () => {
+      const shell = tableShellRef.value;
+      if (!shell) return;
+      const shellHeight = shell.clientHeight;
+      if (!shellHeight) return;
+      const thead = shell.querySelector("thead");
+      const headerHeight = thead ? thead.getBoundingClientRect().height : 40;
+      const firstRow = shell.querySelector("tbody tr:not(.placeholder-row)");
+      const rowHeight = firstRow ? firstRow.getBoundingClientRect().height : 48;
+      const nextPageSize = Math.max(
+        4,
+        Math.floor((shellHeight - headerHeight) / rowHeight)
+      );
+
+      if (Number.isFinite(nextPageSize) && nextPageSize !== pageSize.value) {
+        pageSize.value = nextPageSize;
+      }
+    };
 
     /**
      * 状态标签
@@ -323,15 +356,34 @@ export default defineComponent({
       }
     });
 
+    watch(isLoading, (loading) => {
+      if (!loading) {
+        void nextTick(updatePageSize);
+      }
+    });
+
     watch(totalPages, (value) => {
       if (page.value > value) {
         page.value = value;
       }
     });
 
+    let resizeObserver: ResizeObserver | null = null;
+
     onMounted(() => {
       searchHistory.value = readOrderSearchHistory("doctor", "orders");
       void loadOrderRecords();
+      void nextTick(() => {
+        updatePageSize();
+        if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => updatePageSize());
+          resizeObserver.observe(tableShellRef.value);
+        }
+      });
+    });
+
+    onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
     });
 
     return {
@@ -339,6 +391,8 @@ export default defineComponent({
       page,
       searchKeyword,
       totalPages,
+      pageSize,
+      tableShellRef,
       isLoading,
       searchLoading,
       errorMessage,
@@ -362,12 +416,13 @@ export default defineComponent({
 .panel {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
-  border: 1px solid rgba(157, 188, 178, 0.24);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), #f6fbf8);
-  padding: 22px;
-  max-height: min(100vh - 140px, 780px);
-  box-shadow: 0 20px 38px rgba(49, 82, 77, 0.06);
+  gap: 12px;
+  height: var(--doctor-page-card-height, 860px);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f8fafc);
+  padding: 18px 18px 22px;
+  box-shadow: 0 20px 38px rgba(16, 24, 40, 0.06);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -377,7 +432,6 @@ export default defineComponent({
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 14px;
 }
 
 .panel-head h3,
@@ -386,9 +440,9 @@ export default defineComponent({
 }
 
 .panel-head p {
-  margin-top: 6px;
-  color: #67807b;
-  line-height: 1.6;
+  margin-top: 4px;
+  color: #64748b;
+  line-height: 1.4;
 }
 
 .panel-head__actions {
@@ -400,37 +454,35 @@ export default defineComponent({
 .status-filters {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 10px;
 }
 
 .search-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 18px;
-  padding: 14px 16px;
-  border-radius: 22px;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
   background: radial-gradient(
       circle at left top,
-      rgba(215, 233, 225, 0.72),
+      rgba(238, 242, 255, 0.72),
       transparent 55%
     ),
     linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.96),
-      rgba(241, 249, 244, 0.88)
+      rgba(248, 250, 252, 0.88)
     );
-  border: 1px solid rgba(163, 192, 184, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.24);
 }
 
 .search-type {
   flex: 0 0 auto;
   border-radius: 999px;
-  padding: 8px 12px;
-  background: rgba(41, 86, 90, 0.1);
-  color: #29565a;
+  padding: 6px 10px;
+  background: rgba(16, 24, 40, 0.1);
+  color: #4f46e5;
   font-size: 12px;
   font-weight: 800;
 }
@@ -444,14 +496,14 @@ export default defineComponent({
 }
 
 .search-field__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  color: #426260;
-  background: rgba(223, 238, 232, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(163, 192, 184, 0.2);
+  color: #64748b;
+  background: rgba(238, 242, 255, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
 }
 
 .search-field__icon svg {
@@ -464,13 +516,13 @@ export default defineComponent({
   border: 0;
   outline: none;
   background: transparent;
-  color: #173739;
-  font-size: 16px;
+  color: #0f172a;
+  font-size: 14px;
   line-height: 1.5;
 }
 
 .search-field input::placeholder {
-  color: #7d938d;
+  color: #64748b;
 }
 
 .search-meta {
@@ -481,7 +533,7 @@ export default defineComponent({
 
 .search-meta__count {
   font-size: 13px;
-  color: #5d7671;
+  color: #64748b;
   white-space: nowrap;
 }
 
@@ -490,20 +542,20 @@ export default defineComponent({
   padding: 0;
   border-radius: 0;
   background: transparent;
-  color: #355c5f;
+  color: #4f46e5;
   box-shadow: none;
 }
 
 .status-filter {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   justify-items: start;
-  padding: 14px 16px;
+  padding: 10px 12px;
   border: 1px solid rgba(155, 185, 177, 0.22);
-  border-radius: 18px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
   color: #24484b;
-  box-shadow: 0 12px 26px rgba(49, 82, 77, 0.06);
+  box-shadow: 0 12px 26px rgba(16, 24, 40, 0.06);
 }
 
 .status-filter span {
@@ -512,23 +564,23 @@ export default defineComponent({
 }
 
 .status-filter strong {
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
 }
 
 .status-filter--active {
-  border-color: rgba(41, 97, 94, 0.28);
-  background: linear-gradient(135deg, #edf8f3, #fff7ef);
+  border-color: rgba(79, 70, 229, 0.28);
+  background: linear-gradient(135deg, #eef2ff, #f8fafc);
 }
 
 button {
-  border: 1px solid rgba(144, 175, 166, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 16px;
   padding: 11px 16px;
-  background: linear-gradient(135deg, #29565a, #7d5348);
-  color: #fffdfb;
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  color: #ffffff;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(49, 82, 87, 0.12);
+  box-shadow: 0 12px 24px rgba(16, 24, 40, 0.12);
 }
 
 table {
@@ -538,30 +590,43 @@ table {
 }
 
 .table-shell {
-  min-height: 586px;
+  position: relative;
+  display: grid;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
+}
+
+.table-shell::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.86);
+  pointer-events: none;
 }
 
 th,
 td {
   text-align: left;
-  padding: 14px 12px;
-  border-bottom: 1px solid rgba(226, 236, 232, 0.92);
+  height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid #e5e7eb;
   font-size: 13px;
-  text-align: center;
 }
 
 th {
-  color: #6f8582;
-  font-weight: 600;
+  height: 40px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 td {
-  color: #19383b;
-}
-
-tbody tr {
-  background: rgba(255, 255, 255, 0.46);
+  color: #0f172a;
 }
 
 .record-row {
@@ -585,30 +650,30 @@ tbody tr {
 }
 
 .status-pill--pending {
-  background: #fff1db;
-  color: #b86c11;
+  background: #fffbeb;
+  color: #b45309;
 }
 
 .status-pill--done {
-  background: #dff4e9;
+  background: #ecfdf5;
   color: #1f8960;
 }
 
 .status-pill--cancelled {
-  background: #f7e2e2;
-  color: #bf4747;
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 .empty-cell {
-  height: 520px;
-  color: #708682;
+  height: calc(48px * var(--record-page-size, 10));
+  color: #64748b;
   padding: 26px 12px;
   text-align: center;
 }
 
 .placeholder-row td {
-  height: 52px;
-  background: rgba(255, 255, 255, 0.32);
+  height: 48px;
+  background: #ffffff;
 }
 
 @media (max-width: 960px) {
@@ -628,7 +693,7 @@ tbody tr {
   }
 
   .panel {
-    overflow: auto;
+    overflow: visible;
   }
 
   table {

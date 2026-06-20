@@ -1,38 +1,31 @@
 <template>
   <section class="logs-page">
-    <header class="logs-head panel">
-      <div>
-        <p class="section-label">日志审计</p>
+    <header class="logs-hero panel">
+      <div class="logs-hero__title">
+        <p class="logs-hero__eyebrow">LOG AUDIT</p>
         <h3>日志台账</h3>
-        <p>
-          按时间、结果、模块、角色和关键词定位审计记录，右侧查看完整上下文。
-        </p>
       </div>
-      <button class="button button--ghost" type="button" @click="resetFilters">
-        重置筛选
-      </button>
+      <div class="logs-hero__metrics">
+        <article>
+          <strong>{{ total }}</strong>
+          <span>当前筛选</span>
+        </article>
+        <article>
+          <strong>{{ userLogCount }}</strong>
+          <span>用户类日志</span>
+        </article>
+        <article>
+          <strong>{{ systemLogCount }}</strong>
+          <span>系统日志</span>
+        </article>
+        <article>
+          <strong>{{ page }} / {{ totalPages }}</strong>
+          <span>当前页</span>
+        </article>
+      </div>
     </header>
 
     <section class="panel audit-panel">
-      <div class="summary-strip">
-        <article>
-          <span>当前筛选</span>
-          <strong>{{ total }}</strong>
-        </article>
-        <article>
-          <span>用户类日志</span>
-          <strong>{{ userLogCount }}</strong>
-        </article>
-        <article>
-          <span>系统日志</span>
-          <strong>{{ systemLogCount }}</strong>
-        </article>
-        <article>
-          <span>当前页</span>
-          <strong>{{ page }} / {{ totalPages }}</strong>
-        </article>
-      </div>
-
       <div class="filters">
         <div class="major-tabs" aria-label="日志大类">
           <button
@@ -147,7 +140,7 @@
           </button>
         </div>
 
-        <div class="table-shell">
+        <div ref="tableShellRef" class="table-shell">
           <table class="logs-table">
             <thead>
               <tr>
@@ -288,7 +281,15 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import {
   ALL_ROLE_NAMES,
   isSuperAdminPortalRole,
@@ -324,7 +325,8 @@ export default defineComponent({
     const endDate = ref("");
     const selectedLogId = ref<string>("");
     const page = ref(1);
-    const pageSize = 10;
+    const pageSize = ref(10);
+    const tableShellRef = ref<HTMLElement | null>(null);
     const total = ref(0);
     const userLogCount = ref(0);
     const systemLogCount = ref(0);
@@ -366,7 +368,7 @@ export default defineComponent({
     );
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(total.value / pageSize))
+      Math.max(1, Math.ceil(total.value / pageSize.value))
     );
 
     const placeholderRows = computed(() => {
@@ -374,8 +376,30 @@ export default defineComponent({
         return 0;
       }
 
-      return Math.max(0, pageSize - logs.value.length);
+      return Math.max(0, pageSize.value - logs.value.length);
     });
+
+    // 按表格可用高度反推每页行数，使列表恰好填满、页面不滚动。
+    const applyPageSize = () => {
+      const shell = tableShellRef.value;
+      if (!shell) return false;
+      const shellH = shell.clientHeight;
+      if (!shellH) return false;
+      const thead = shell.querySelector("thead");
+      const headerH = thead ? thead.getBoundingClientRect().height : 42;
+      const firstRow = shell.querySelector("tbody tr:not(.placeholder-row)");
+      const rowH = firstRow ? firstRow.getBoundingClientRect().height : 44;
+      const next = Math.max(4, Math.floor((shellH - headerH) / rowH));
+      if (Number.isFinite(next) && next !== pageSize.value) {
+        pageSize.value = next;
+        return true;
+      }
+      return false;
+    };
+
+    const onResize = () => {
+      if (applyPageSize()) void loadLogs();
+    };
 
     const activeMajorLabel = computed(
       () =>
@@ -468,7 +492,7 @@ export default defineComponent({
           startDate: startDate.value,
           endDate: endDate.value,
           page: page.value,
-          pageSize,
+          pageSize: pageSize.value,
         });
 
         if (currentRequestId !== requestId.value) {
@@ -479,7 +503,10 @@ export default defineComponent({
         total.value = result.total;
         selectedLogId.value = result.items[0]?.id ?? "";
 
-        const nextTotalPages = Math.max(1, Math.ceil(result.total / pageSize));
+        const nextTotalPages = Math.max(
+          1,
+          Math.ceil(result.total / pageSize.value)
+        );
         if (page.value > nextTotalPages) {
           page.value = nextTotalPages;
         }
@@ -562,12 +589,26 @@ export default defineComponent({
       void loadLogs();
     });
 
+    let resizeObserver: ResizeObserver | null = null;
+
     onMounted(() => {
       void loadLogMetrics();
-      void loadLogs();
+      void nextTick(async () => {
+        applyPageSize();
+        await loadLogs();
+        if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => onResize());
+          resizeObserver.observe(tableShellRef.value);
+        }
+      });
+    });
+
+    onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
     });
 
     return {
+      tableShellRef,
       activeMajorTab,
       activeUserRole,
       keywordInput,
@@ -614,56 +655,95 @@ export default defineComponent({
 <style scoped>
 .logs-page {
   display: grid;
-  gap: 18px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
 }
 
 .panel {
-  border: 1px solid #dce7ff;
-  border-radius: 16px;
+  border: 1px solid #e7e9ee;
+  border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 16px 32px rgba(34, 64, 128, 0.06);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
-.logs-head {
+.logs-hero {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 22px 24px;
+  padding: 12px 18px;
+}
+
+.logs-hero__eyebrow {
+  margin: 0 0 2px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
 }
 
 .section-label {
   margin: 0 0 8px;
-  color: #617196;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
 
-.logs-head h3,
+.logs-hero h3,
 .ledger-headline h4,
 .detail-head h4 {
   margin: 0;
-  color: #13203a;
+  color: #0f172a;
 }
 
-.logs-head h3 {
-  font-size: 26px;
-  line-height: 1.15;
+.logs-hero h3 {
+  font-size: 18px;
+  line-height: 1.2;
 }
 
-.logs-head p,
 .ledger-headline p {
-  margin: 8px 0 0;
-  color: #617196;
+  margin: 4px 0 0;
+  color: #64748b;
   font-size: 13px;
   line-height: 1.6;
 }
 
+.logs-hero__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 440px;
+}
+
+.logs-hero__metrics article {
+  display: grid;
+  gap: 2px;
+  padding: 8px 14px;
+  border: 1px solid #e7e9ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.logs-hero__metrics strong {
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.logs-hero__metrics span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .button {
-  border: 1px solid #1f5fe8;
+  border: 1px solid #4338ca;
   border-radius: 10px;
   padding: 10px 14px;
-  background: #2f6ff3;
+  background: #4f46e5;
   color: #ffffff;
   cursor: pointer;
   font-size: 12px;
@@ -671,9 +751,9 @@ export default defineComponent({
 }
 
 .button--ghost {
-  border-color: #dce7ff;
-  background: #edf2ff;
-  color: #284181;
+  border-color: #e7e9ee;
+  background: #eef2ff;
+  color: #3730a3;
 }
 
 .button:focus-visible,
@@ -682,14 +762,14 @@ input:focus-visible,
 select:focus-visible,
 .logs-row:focus-visible,
 .text-button:focus-visible {
-  outline: 3px solid rgba(47, 111, 243, 0.18);
+  outline: 3px solid rgba(79, 70, 229, 0.18);
   outline-offset: 2px;
 }
 
 .audit-panel {
   display: grid;
-  gap: 16px;
-  padding: 18px 22px;
+  gap: 12px;
+  padding: 14px 18px;
 }
 
 .summary-strip {
@@ -701,26 +781,26 @@ select:focus-visible,
 .summary-strip article {
   display: grid;
   gap: 6px;
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 12px;
   padding: 12px 14px;
-  background: #f8fbff;
+  background: #f8fafc;
 }
 
 .summary-strip span {
-  color: #617196;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
 
 .summary-strip strong {
-  color: #13203a;
+  color: #0f172a;
   font-size: 18px;
 }
 
 .filters {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .major-tabs {
@@ -730,26 +810,34 @@ select:focus-visible,
 }
 
 .major-tab {
-  display: grid;
-  gap: 4px;
-  border: 1px solid #dce7ff;
-  border-radius: 12px;
-  padding: 12px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border: 1px solid #e7e9ee;
+  border-radius: 10px;
+  padding: 8px 12px;
   background: #ffffff;
   color: #36507b;
   cursor: pointer;
   text-align: left;
 }
 
+.major-tab strong {
+  font-size: 13px;
+}
+
 .major-tab span {
-  color: #6c7a9f;
+  color: #64748b;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .major-tab--active {
-  border-color: #8eb4ff;
-  background: #edf4ff;
+  border-color: #a5b4fc;
+  background: #eef2ff;
 }
 
 .filter-grid {
@@ -765,7 +853,7 @@ select:focus-visible,
 }
 
 .filter-grid span {
-  color: #617196;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
@@ -775,16 +863,16 @@ select:focus-visible,
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  border: 1px solid #cfdcff;
+  border: 1px solid #e0e7ff;
   border-radius: 10px;
   padding: 10px 11px;
   background: #ffffff;
-  color: #13203a;
+  color: #0f172a;
   font-size: 13px;
 }
 
 .filter-grid input::placeholder {
-  color: #6c7a9f;
+  color: #64748b;
 }
 
 .filter-grid select:disabled {
@@ -800,11 +888,11 @@ select:focus-visible,
 }
 
 .active-filters span {
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 999px;
   padding: 6px 10px;
-  background: #f6f9ff;
-  color: #617196;
+  background: #f8fafc;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
@@ -812,7 +900,7 @@ select:focus-visible,
 .text-button {
   border: 0;
   background: transparent;
-  color: #2f6ff3;
+  color: #4f46e5;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -821,21 +909,33 @@ select:focus-visible,
 .audit-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
-  gap: 18px;
+  gap: 14px;
+  min-height: 0;
+  height: 100%;
 }
 
 .logs-ledger,
 .logs-detail {
-  padding: 18px;
+  padding: 16px;
   min-width: 0;
+  min-height: 0;
+}
+
+.logs-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logs-detail {
+  overflow-y: auto;
 }
 
 .ledger-headline {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 14px;
 }
 
 .state-banner {
@@ -851,17 +951,18 @@ select:focus-visible,
 }
 
 .state-banner--error {
-  border: 1px solid rgba(191, 79, 89, 0.28);
-  background: rgba(191, 79, 89, 0.08);
-  color: #bf4f59;
+  border: 1px solid rgba(220, 38, 38, 0.28);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
 }
 
 .table-shell {
   position: relative;
   overflow: hidden;
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 12px;
-  min-height: 480px;
+  flex: 1;
+  min-height: 0;
   background: #ffffff;
 }
 
@@ -873,24 +974,24 @@ select:focus-visible,
 
 .logs-table th,
 .logs-table td {
-  border-bottom: 1px solid #edf2ff;
-  padding: 12px 13px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 13px;
   text-align: left;
-  color: #13203a;
+  color: #0f172a;
   font-size: 13px;
   vertical-align: middle;
 }
 
 .logs-table th {
-  height: 42px;
-  background: #f6f9ff;
-  color: #617196;
+  height: 40px;
+  background: #f8fafc;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
 
 .logs-table tbody tr {
-  height: 43px;
+  height: 44px;
 }
 
 .logs-table th:nth-child(1),
@@ -923,11 +1024,11 @@ select:focus-visible,
 
 .logs-row:hover,
 .logs-row--active {
-  background: #f7faff;
+  background: #f8fafc;
 }
 
 .logs-row--active td {
-  box-shadow: inset 0 1px 0 #8eb4ff, inset 0 -1px 0 #8eb4ff;
+  box-shadow: inset 0 1px 0 #a5b4fc, inset 0 -1px 0 #a5b4fc;
 }
 
 .logs-table td {
@@ -949,43 +1050,43 @@ select:focus-visible,
 }
 
 .logs-badge--user {
-  background: #edf2ff;
+  background: #eef2ff;
   color: #4f67b5;
 }
 
 .logs-badge--doctor {
-  background: #dff5eb;
-  color: #1f8a61;
+  background: #ecfdf5;
+  color: #059669;
 }
 
 .logs-badge--warehouse {
-  background: #fff1d8;
-  color: #b57400;
+  background: #fffbeb;
+  color: #b45309;
 }
 
 .logs-badge--super {
-  background: #fff0da;
-  color: #b56a00;
+  background: #fffbeb;
+  color: #b45309;
 }
 
 .logs-badge--system {
-  background: #e7f7ff;
+  background: #eef2ff;
   color: #24759e;
 }
 
 .logs-status--success {
-  background: #dff5eb;
-  color: #1f8a61;
+  background: #ecfdf5;
+  color: #059669;
 }
 
 .logs-status--warning {
-  background: #fff1d8;
-  color: #b57400;
+  background: #fffbeb;
+  color: #b45309;
 }
 
 .logs-status--failed {
-  background: #fff0f1;
-  color: #bf4f59;
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 .empty-state {
@@ -993,17 +1094,17 @@ select:focus-visible,
   place-items: center;
   gap: 6px;
   min-height: 300px;
-  color: #617196;
+  color: #64748b;
   text-align: center;
 }
 
 .empty-state strong {
-  color: #13203a;
+  color: #0f172a;
   font-size: 15px;
 }
 
 .placeholder-row td {
-  height: 43px;
+  height: 44px;
   background: #ffffff;
 }
 
@@ -1013,7 +1114,7 @@ select:focus-visible,
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.72);
-  color: #2f6ff3;
+  color: #4f46e5;
   font-size: 13px;
   font-weight: 700;
 }
@@ -1024,7 +1125,7 @@ select:focus-visible,
   justify-content: space-between;
   gap: 16px;
   padding-top: 12px;
-  color: #617196;
+  color: #64748b;
   font-size: 13px;
 }
 
@@ -1052,9 +1153,9 @@ select:focus-visible,
 .detail-hero,
 .detail-grid article,
 .detail-trace article {
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 12px;
-  background: #f8fbff;
+  background: #f8fafc;
 }
 
 .detail-hero {
@@ -1064,7 +1165,7 @@ select:focus-visible,
 }
 
 .detail-hero strong {
-  color: #13203a;
+  color: #0f172a;
   font-size: 18px;
   overflow-wrap: anywhere;
 }
@@ -1072,7 +1173,7 @@ select:focus-visible,
 .detail-hero p,
 .detail-trace p {
   margin: 0;
-  color: #617196;
+  color: #64748b;
   font-size: 13px;
   line-height: 1.7;
   overflow-wrap: anywhere;
@@ -1094,13 +1195,13 @@ select:focus-visible,
 
 .detail-grid span,
 .detail-trace span {
-  color: #6c7a9f;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
 
 .detail-grid strong {
-  color: #13203a;
+  color: #0f172a;
   font-size: 13px;
   overflow-wrap: anywhere;
 }

@@ -346,7 +346,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 std::string date = "";
                 std::string time_slot = "";
                 std::string reservation_type = "";
-                std::string status = "预约成功";
+                std::string status = "scheduled";
 
                 auto readIntField = [&request_body](const std::string &snakeKey, const std::string &camelKey) -> int
                 {

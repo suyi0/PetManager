@@ -1,67 +1,67 @@
 <template>
   <section class="page">
-    <header class="ledger-head panel">
-      <div>
-        <p class="section-label">用户管理</p>
-        <h2>用户台账</h2>
-        <p class="ledger-head__copy">
-          按用户名称、邮箱、手机号检索，使用角色筛选快速定位需要处理的账号。
-        </p>
-      </div>
-      <div class="ledger-head__actions">
-        <button
-          type="button"
-          class="button button--ghost"
-          @click="refreshUsers"
-        >
-          刷新
-        </button>
-        <button type="button" class="button" @click="openCreateDialog">
-          新增普通用户
-        </button>
-      </div>
-    </header>
-
     <section class="panel ledger-panel">
-      <div class="toolbar">
-        <div class="toolbar__search">
-          <input
-            v-model.trim="keywordInput"
-            class="search-input"
-            type="text"
-            placeholder="按用户名 / 邮箱 / 手机号查询"
-            @keyup.enter="applySearch"
-          />
-          <span class="search-hint">Enter 搜索</span>
-          <button
-            v-if="keyword"
-            type="button"
-            class="button button--ghost toolbar__clear"
-            @click="clearSearch"
-          >
-            清除
-          </button>
+      <div class="lp-head">
+        <div class="lp-title">
+          用户台账 <span class="count-pill">共 {{ total }} 人</span>
         </div>
-
-        <div class="role-filters" aria-label="角色筛选">
+        <div class="lp-actions">
           <button
-            v-for="option in roleOptions"
-            :key="option.key"
             type="button"
-            class="role-filter"
-            :class="{ 'role-filter--active': activeRole === option.key }"
-            @click="setRole(option.key)"
+            class="button button--ghost"
+            @click="refreshUsers"
           >
-            <span>{{ option.label }}</span>
-            <strong>{{ roleCounts[option.key] }}</strong>
+            刷新
+          </button>
+          <button type="button" class="button" @click="openCreateDialog">
+            新增普通用户
           </button>
         </div>
       </div>
 
-      <div class="ledger-meta">
-        <span>共 {{ total }} 条记录</span>
-        <span v-if="keyword">当前搜索：{{ keyword }}</span>
-        <span>角色：{{ activeRoleLabel }}</span>
+      <div class="toolbar">
+        <div class="toolbar__row">
+          <div class="toolbar__search">
+            <input
+              v-model.trim="keywordInput"
+              class="search-input"
+              type="text"
+              placeholder="按用户名 / 邮箱 / 手机号查询"
+              @keyup.enter="applySearch"
+            />
+            <span class="search-hint">Enter 搜索</span>
+            <button
+              v-if="keyword"
+              type="button"
+              class="button button--ghost toolbar__clear"
+              @click="clearSearch"
+            >
+              清除
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar_bottom">
+          <div class="role-filters" aria-label="角色筛选">
+            <button
+              v-for="option in roleOptions"
+              :key="option.key"
+              type="button"
+              class="role-filter"
+              :class="{ 'role-filter--active': activeRole === option.key }"
+              @click="setRole(option.key)"
+            >
+              <span>{{ option.label }}</span>
+              <strong>{{ roleCounts[option.key] }}</strong>
+            </button>
+          </div>
+
+          <AppPager
+            :page="page"
+            :total-pages="totalPages"
+            @update:page="page = $event"
+          />
+        </div>
       </div>
 
       <div v-if="listError" class="state-banner state-banner--error">
@@ -71,7 +71,11 @@
         </button>
       </div>
 
-      <div class="table-shell" :class="{ 'table-shell--loading': loading }">
+      <div
+        ref="tableShellRef"
+        class="table-shell"
+        :class="{ 'table-shell--loading': loading }"
+      >
         <table class="user-table">
           <thead>
             <tr>
@@ -144,12 +148,6 @@
 
         <div v-if="loading" class="loading-layer">正在同步用户数据...</div>
       </div>
-
-      <AppPager
-        :page="page"
-        :total-pages="totalPages"
-        @update:page="page = $event"
-      />
     </section>
 
     <div
@@ -234,6 +232,8 @@
 import {
   computed,
   defineComponent,
+  nextTick,
+  onBeforeUnmount,
   onMounted,
   reactive,
   ref,
@@ -286,7 +286,8 @@ export default defineComponent({
     const users = ref<UserRow[]>([]);
     const total = ref(0);
     const page = ref(1);
-    const pageSize = 10;
+    const pageSize = ref(10);
+    const tableShellRef = ref<HTMLElement | null>(null);
     const loading = ref(false);
     const listError = ref("");
     const keywordInput = ref("");
@@ -319,7 +320,7 @@ export default defineComponent({
     const activeRoleLabel = computed(() => selectedRoleOption.value.label);
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(total.value / pageSize))
+      Math.max(1, Math.ceil(total.value / pageSize.value))
     );
 
     const placeholderRows = computed(() => {
@@ -327,8 +328,30 @@ export default defineComponent({
         return 0;
       }
 
-      return Math.max(0, pageSize - users.value.length);
+      return Math.max(0, pageSize.value - users.value.length);
     });
+
+    // 按表格可用高度反推每页行数，使列表恰好填满、页面不滚动。
+    const applyPageSize = () => {
+      const shell = tableShellRef.value;
+      if (!shell) return false;
+      const shellH = shell.clientHeight;
+      if (!shellH) return false;
+      const thead = shell.querySelector("thead");
+      const headerH = thead ? thead.getBoundingClientRect().height : 42;
+      const firstRow = shell.querySelector("tbody tr:not(.placeholder-row)");
+      const rowH = firstRow ? firstRow.getBoundingClientRect().height : 44;
+      const next = Math.max(4, Math.floor((shellH - headerH) / rowH));
+      if (Number.isFinite(next) && next !== pageSize.value) {
+        pageSize.value = next;
+        return true;
+      }
+      return false;
+    };
+
+    const onResize = () => {
+      if (applyPageSize()) void loadUsers();
+    };
 
     const formatRole = (user: UserRow) =>
       resolveRoleName(user.type_name, user.type_id) || "未知角色";
@@ -384,7 +407,7 @@ export default defineComponent({
             keyword: keyword.value,
             role: selectedRoleOption.value.role,
             page: page.value,
-            pageSize,
+            pageSize: pageSize.value,
           }),
           fetchRoleCounts(),
         ]);
@@ -398,7 +421,7 @@ export default defineComponent({
 
         const nextTotalPages = Math.max(
           1,
-          Math.ceil(listResult.total / pageSize)
+          Math.ceil(listResult.total / pageSize.value)
         );
         if (page.value > nextTotalPages) {
           page.value = nextTotalPages;
@@ -519,8 +542,22 @@ export default defineComponent({
       }
     };
 
+    let resizeObserver: ResizeObserver | null = null;
+
     onMounted(() => {
-      void loadUsers();
+      void nextTick(async () => {
+        applyPageSize();
+        await loadUsers();
+        // 监听表格容器尺寸（首屏 flex 高度稳定后会触发一次，自动校正每页行数）
+        if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => onResize());
+          resizeObserver.observe(tableShellRef.value);
+        }
+      });
+    });
+
+    onBeforeUnmount(() => {
+      resizeObserver?.disconnect();
     });
 
     return {
@@ -528,6 +565,7 @@ export default defineComponent({
       total,
       page,
       totalPages,
+      tableShellRef,
       loading,
       listError,
       keywordInput,
@@ -561,14 +599,48 @@ export default defineComponent({
 <style scoped>
 .page {
   display: grid;
-  gap: 18px;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
 }
 
 .panel {
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 18px 36px rgba(34, 64, 128, 0.06);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.lp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.lp-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f2f5;
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.lp-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .ledger-head {
@@ -581,7 +653,7 @@ export default defineComponent({
 
 .section-label {
   margin: 0 0 8px;
-  color: #617196;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
@@ -589,14 +661,14 @@ export default defineComponent({
 
 .ledger-head h2 {
   margin: 0;
-  color: #13203a;
+  color: #0f172a;
   font-size: 26px;
   line-height: 1.15;
 }
 
 .ledger-head__copy {
   margin: 8px 0 0;
-  color: #617196;
+  color: #64748b;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -609,10 +681,10 @@ export default defineComponent({
 }
 
 .button {
-  border: 1px solid #1f5fe8;
+  border: 1px solid #4338ca;
   border-radius: 10px;
   padding: 11px 16px;
-  background: #2f6ff3;
+  background: #4f46e5;
   color: #ffffff;
   cursor: pointer;
   font-size: 12px;
@@ -621,9 +693,9 @@ export default defineComponent({
 }
 
 .button--ghost {
-  border-color: #dce7ff;
-  background: #edf2ff;
-  color: #284181;
+  border-color: #e7e9ee;
+  background: #eef2ff;
+  color: #3730a3;
 }
 
 .button:disabled {
@@ -636,49 +708,67 @@ export default defineComponent({
 .role-filter:focus-visible,
 .table-action:focus-visible,
 .form input:focus-visible {
-  outline: 3px solid rgba(47, 111, 243, 0.18);
+  outline: 3px solid rgba(79, 70, 229, 0.18);
   outline-offset: 2px;
 }
 
 .ledger-panel {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   padding: 18px 22px 20px;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .toolbar {
   display: grid;
-  gap: 14px;
+  gap: 12px;
+}
+
+.toolbar__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .toolbar__search {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 1 420px;
+  max-width: 420px;
 }
 
 .search-input {
   min-width: 0;
   flex: 1;
-  border: 1px solid #cfdcff;
-  border-radius: 10px;
-  padding: 11px 12px;
+  height: 36px;
+  border: 1px solid #e0e7ff;
+  border-radius: 9px;
+  padding: 0 12px;
   background: #ffffff;
-  color: #13203a;
+  color: #0f172a;
   font-size: 13px;
 }
 
 .search-input::placeholder {
-  color: #6c7a9f;
+  color: #64748b;
 }
 
 .search-hint {
   flex-shrink: 0;
-  border: 1px solid #dce7ff;
-  border-radius: 10px;
-  padding: 9px 10px;
-  background: #edf2ff;
-  color: #617196;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  border: 1px solid #e7e9ee;
+  border-radius: 9px;
+  padding: 0 10px;
+  background: #eef2ff;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
@@ -687,21 +777,28 @@ export default defineComponent({
   flex-shrink: 0;
 }
 
+.toolbar_bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
 .role-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 15px;
 }
 
 .role-filter {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 10px;
   padding: 10px 12px;
   background: #ffffff;
-  color: #617196;
+  color: #64748b;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -713,8 +810,8 @@ export default defineComponent({
 }
 
 .role-filter--active {
-  border-color: #1f5fe8;
-  background: #2f6ff3;
+  border-color: #4338ca;
+  background: #4f46e5;
   color: #ffffff;
 }
 
@@ -722,16 +819,16 @@ export default defineComponent({
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  color: #617196;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
 
 .ledger-meta span {
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 999px;
   padding: 6px 10px;
-  background: #f6f9ff;
+  background: #f8fafc;
 }
 
 .state-banner {
@@ -746,22 +843,19 @@ export default defineComponent({
 }
 
 .state-banner--error {
-  border: 1px solid rgba(176, 68, 85, 0.28);
-  background: rgba(176, 68, 85, 0.08);
-  color: #b04455;
+  border: 1px solid rgba(220, 38, 38, 0.28);
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
 }
 
 .table-shell {
   position: relative;
   overflow: hidden;
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 12px;
-  min-height: 476px;
+  flex: 1;
+  min-height: 0;
   background: #ffffff;
-}
-
-.table-shell--loading {
-  min-height: 476px;
 }
 
 .user-table {
@@ -772,28 +866,28 @@ export default defineComponent({
 
 .user-table th,
 .user-table td {
-  border-bottom: 1px solid #edf2ff;
-  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 14px;
   text-align: left;
-  color: #13203a;
+  color: #0f172a;
   font-size: 13px;
   vertical-align: middle;
 }
 
 .user-table th {
-  height: 42px;
-  background: #f6f9ff;
-  color: #617196;
+  height: 40px;
+  background: #f8fafc;
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
 
 .user-table tbody tr {
-  height: 43px;
+  height: 48px;
 }
 
 .user-table tbody tr:hover:not(.placeholder-row) {
-  background: #f7faff;
+  background: #f8fafc;
 }
 
 .user-table th:nth-child(1),
@@ -847,7 +941,7 @@ export default defineComponent({
 }
 
 .user-cell span {
-  color: #6c7a9f;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -865,36 +959,36 @@ export default defineComponent({
 }
 
 .role-pill--normal {
-  background: #edf2ff;
-  color: #284181;
+  background: #eef2ff;
+  color: #3730a3;
 }
 
 .role-pill--medical {
-  background: #e8f7ff;
+  background: #eef2ff;
   color: #2863da;
 }
 
 .role-pill--admin {
   background: rgba(155, 104, 23, 0.12);
-  color: #9b6817;
+  color: #b45309;
 }
 
 .status-pill--online {
-  background: rgba(36, 123, 98, 0.1);
+  background: rgba(16, 185, 129, 0.1);
   color: #247b62;
 }
 
 .status-pill--offline {
-  background: #edf2ff;
-  color: #617196;
+  background: #eef2ff;
+  color: #64748b;
 }
 
 .table-action {
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 10px;
   padding: 8px 11px;
   background: #ffffff;
-  color: #284181;
+  color: #3730a3;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -905,17 +999,17 @@ export default defineComponent({
   place-items: center;
   gap: 6px;
   min-height: 300px;
-  color: #617196;
+  color: #64748b;
   text-align: center;
 }
 
 .empty-state strong {
-  color: #13203a;
+  color: #0f172a;
   font-size: 15px;
 }
 
 .placeholder-row td {
-  height: 43px;
+  height: 48px;
   background: #ffffff;
 }
 
@@ -925,7 +1019,7 @@ export default defineComponent({
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.72);
-  color: #2f6ff3;
+  color: #4f46e5;
   font-size: 13px;
   font-weight: 700;
 }
@@ -933,28 +1027,28 @@ export default defineComponent({
 :deep(.pager) {
   justify-content: flex-end;
   padding-top: 4px;
-  color: #617196;
+  color: #64748b;
 }
 
 :deep(.pager-button),
 :deep(.pager-button--ghost) {
-  border-color: #dce7ff;
+  border-color: #e7e9ee;
   border-radius: 10px;
-  background: #2f6ff3;
+  background: #4f46e5;
   box-shadow: none;
   color: #ffffff;
 }
 
 :deep(.pager-button--ghost) {
-  background: #edf2ff;
-  color: #284181;
+  background: #eef2ff;
+  color: #3730a3;
 }
 
 :deep(.pager-jump input) {
-  border-color: #cfdcff;
+  border-color: #e0e7ff;
   border-radius: 10px;
   background: #ffffff;
-  color: #13203a;
+  color: #0f172a;
 }
 
 .dialog-backdrop {
@@ -969,10 +1063,10 @@ export default defineComponent({
 
 .dialog {
   width: min(560px, 100%);
-  border: 1px solid #dce7ff;
+  border: 1px solid #e7e9ee;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 24px 60px rgba(25, 42, 92, 0.18);
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.18);
   padding: 22px;
 }
 
@@ -986,14 +1080,14 @@ export default defineComponent({
 
 .dialog__head h3 {
   margin: 0;
-  color: #13203a;
+  color: #0f172a;
   font-size: 20px;
 }
 
 .dialog__head span {
   display: block;
   margin-top: 6px;
-  color: #617196;
+  color: #64748b;
   font-size: 13px;
 }
 
@@ -1006,27 +1100,27 @@ export default defineComponent({
 .form label {
   display: grid;
   gap: 8px;
-  color: #13203a;
+  color: #0f172a;
   font-size: 12px;
   font-weight: 700;
 }
 
 .form input {
-  border: 1px solid #cfdcff;
+  border: 1px solid #e0e7ff;
   border-radius: 10px;
   padding: 11px 12px;
   background: #ffffff;
-  color: #13203a;
+  color: #0f172a;
   font-size: 13px;
 }
 
 .form input::placeholder {
-  color: #6c7a9f;
+  color: #64748b;
 }
 
 .form-error {
   margin: 0;
-  color: #b04455;
+  color: #dc2626;
   font-size: 13px;
   font-weight: 700;
 }

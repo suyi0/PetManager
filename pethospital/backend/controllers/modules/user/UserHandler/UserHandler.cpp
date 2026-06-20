@@ -3,6 +3,7 @@
 #include "../userPhoneSync/userPhoneSync.h"
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "roleTypeUtils/roleTypeUtils.h"
+#include "statusLabelUtils/StatusLabelUtils.h"
 #include <vector>
 
 // 在文件顶部添加常量定义
@@ -1590,10 +1591,6 @@ namespace
         return doctor;
     }
 
-    bool isValidReservationStatus(const std::string &status)
-    {
-        return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
-    }
 }
 
 // 创建预约表记录接口
@@ -1609,10 +1606,11 @@ crow::response userHandler::createReservation(const crow::request &req, int user
         }
 
         // 检查必要字段是否存在
-        if (!isValidReservationStatus(status))
+        if (!StatusLabelUtils::isValidReservationStatus(status))
         {
             return ResponseHelper::validation(req, "预约状态不合法");
         }
+        const std::string dbStatus = StatusLabelUtils::toDbReservationStatus(status);
 
         if (reservation_type.size() > 30)
         {
@@ -1636,7 +1634,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                 mysqlx::SqlResult slotResult = dbManager->getSession()
                                                    ->sql("SELECT id FROM reservations "
                                                          "WHERE doctor_id = ? AND date = ? AND time_slot = ? "
-                                                         "AND COALESCE(status, '预约成功') NOT IN ('已取消', '预约失败') "
+                                                         "AND COALESCE(status, 'scheduled') NOT IN ('cancelled', 'failed') "
                                                          "LIMIT 1")
                                                    .bind(doctor_id, date, time_slot)
                                                    .execute();
@@ -1648,7 +1646,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                 mysqlx::SqlResult insertResult = dbManager->getSession()
                                                      ->sql("INSERT INTO reservations (user_id, pet_id, doctor_id, reservation_type, date, time_slot, status) "
                                                            "VALUES (?, ?, ?, ?, ?, ?, ?)")
-                                                     .bind(user_id, pet_id, doctor_id, reservation_type, date, time_slot, status)
+                                                     .bind(user_id, pet_id, doctor_id, reservation_type, date, time_slot, dbStatus)
                                                      .execute();
 
                 uint64_t reservationId = insertResult.getAutoIncrementValue();
@@ -1665,7 +1663,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                 auto createdRow = createdResult.fetchOne();
 
                 nlohmann::json response;
-                response["reservation_status"] = status;
+                response["reservation_status"] = StatusLabelUtils::toDisplayReservationStatus(dbStatus);
                 response["message"] = "预约成功";
 
                 if (createdRow)
@@ -1682,7 +1680,7 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                     response["reservationType"] = createdReservationType;
                     response["date"] = createdDate;
                     response["time_slot"] = createdSlot;
-                    response["status"] = createdRow[8].isNull() ? status : createdRow[8].get<std::string>();
+                    response["status"] = StatusLabelUtils::toDisplayReservationStatus(createdRow[8].isNull() ? dbStatus : createdRow[8].get<std::string>());
                     response["created_at"] = createdRow[9].isNull() ? "" : createdRow[9].get<std::string>();
                     response["price"] = 0;
                 }
@@ -1784,7 +1782,7 @@ crow::response userHandler::cancelReservation(const crow::request &req, int user
             return ResponseHelper::validation(req, "Invalid reservation id");
         }
 
-        std::string status = "已取消";
+        std::string status = "cancelled";
 
         // 验证用户和预约记录是否匹配
         mysqlx::SqlResult reservation_result = dbManager->getSession()
@@ -1813,7 +1811,7 @@ crow::response userHandler::cancelReservation(const crow::request &req, int user
                 nlohmann::json response;
                 response["message"] = "取消成功";
                 response["reservation_id"] = reservationId;
-                response["status"] = status;
+                response["status"] = StatusLabelUtils::toDisplayReservationStatus(status);
                 return ResponseHelper::success(req, response);
             }
             else

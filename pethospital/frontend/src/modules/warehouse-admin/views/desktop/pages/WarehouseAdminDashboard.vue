@@ -736,7 +736,7 @@ export default defineComponent({
   min-height: 100%;
   box-sizing: border-box;
   gap: 14px;
-  color: #1e342b;
+  color: #0f172a;
 }
 
 .command-head {
@@ -744,11 +744,11 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  border: 1px solid #dfe7df;
-  border-radius: 12px;
+  border: 1px solid #e7e9ee;
+  border-radius: 14px;
   padding: 16px 18px;
   background: #ffffff;
-  box-shadow: 0 10px 24px rgba(32, 62, 45, 0.06);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .command-head p,
@@ -758,7 +758,7 @@ export default defineComponent({
 }
 
 .command-head p {
-  color: #6d7f72;
+  color: #64748b;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -768,11 +768,11 @@ export default defineComponent({
   margin: 4px 0;
   font-size: 26px;
   line-height: 1.15;
-  color: #1c3329;
+  color: #0f172a;
 }
 
 .command-head span {
-  color: #6a7a70;
+  color: #64748b;
   font-size: 13px;
 }
 
@@ -781,11 +781,11 @@ export default defineComponent({
   border: 0;
   border-radius: 8px;
   padding: 11px 16px;
-  background: #245849;
+  background: #4f46e5;
   color: #ffffff;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 20px rgba(36, 88, 73, 0.18);
+  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.18);
 }
 
 .status-message {
@@ -796,15 +796,15 @@ export default defineComponent({
 }
 
 .status-message--info {
-  color: #1f684b;
-  background: rgba(215, 242, 230, 0.9);
-  border: 1px solid rgba(74, 146, 105, 0.14);
+  color: #047857;
+  background: rgba(236, 253, 245, 0.9);
+  border: 1px solid rgba(16, 185, 129, 0.14);
 }
 
 .status-message--error {
-  color: #a23c4a;
-  background: rgba(255, 229, 234, 0.92);
-  border: 1px solid rgba(180, 65, 83, 0.16);
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.92);
+  border: 1px solid rgba(220, 38, 38, 0.16);
 }
 
 .stats-row {
@@ -818,9 +818,9 @@ export default defineComponent({
 .warning-panel,
 .delete-panel {
   border-radius: 12px;
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(35, 62, 46, 0.06);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.06);
 }
 
 .ledger-panel {
@@ -843,7 +843,7 @@ export default defineComponent({
 
 .section-title h3 {
   margin: 0 0 4px;
-  color: #1d3429;
+  color: #0f172a;
   font-size: 16px;
 }
 
@@ -851,20 +851,20 @@ export default defineComponent({
   flex: 0 0 auto;
   border-radius: 8px;
   padding: 6px 10px;
-  background: #eef5ef;
-  color: #3d735d;
+  background: #eef2ff;
+  color: #4338ca;
   font-size: 12px;
 }
 
 .delete-title {
   margin: 0;
   font-size: 16px;
-  color: #163d42;
+  color: #0f172a;
 }
 
 .section-title span,
 .delete-panel small {
-  color: #6d7b72;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -881,18 +881,18 @@ export default defineComponent({
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #d8e2da;
+  border: 1px solid #e7e9ee;
   border-radius: 8px;
   padding: 11px 12px;
   background: #ffffff;
-  color: #1d3429;
+  color: #0f172a;
   outline: none;
 }
 
 .toolbar input::placeholder,
 .inventory-drawer input::placeholder,
 .delete-panel input::placeholder {
-  color: #93a097;
+  color: #94a3b8;
 }
 
 .chips,
@@ -906,9 +906,9 @@ export default defineComponent({
 .chips button,
 .sort-strip span {
   border-radius: 8px;
-  border: 1px solid #d8e2da;
+  border: 1px solid #e7e9ee;
   background: #ffffff;
-  color: #5e7066;
+  color: #64748b;
   font-size: 12px;
   cursor: pointer;
 }
@@ -920,19 +920,19 @@ export default defineComponent({
 .chips button.active,
 .sort-strip span.active {
   color: #ffffff;
-  border-color: #245849;
-  background: #245849;
+  border-color: #4f46e5;
+  background: #4f46e5;
 }
 
 .sort-strip {
   margin-bottom: 12px;
   padding: 10px;
   border-radius: 10px;
-  background: #f4f7f4;
+  background: #f1f2f5;
 }
 
 .sort-strip small {
-  color: #6d7b72;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -941,7 +941,7 @@ export default defineComponent({
 }
 
 .grid-table {
-  border: 1px solid #dfe7df;
+  border: 1px solid #e7e9ee;
   border-radius: 10px;
   overflow: hidden;
   background: #ffffff;
@@ -957,21 +957,21 @@ export default defineComponent({
 }
 
 .grid-head {
-  color: #6b786e;
+  color: #64748b;
   font-size: 12px;
-  border-bottom: 1px solid #dfe7df;
-  background: #f4f7f4;
+  border-bottom: 1px solid #e7e9ee;
+  background: #f1f2f5;
 }
 
 .grid-row {
-  color: #20382d;
+  color: #0f172a;
   font-size: 13px;
-  border-top: 1px solid #edf2ee;
+  border-top: 1px solid #f1f2f4;
   transition: background 0.18s ease;
 }
 
 .grid-row:hover {
-  background: #f8fbf8;
+  background: #fafbff;
 }
 
 .grid-row--placeholder {
@@ -1000,7 +1000,7 @@ export default defineComponent({
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: #245849;
+  accent-color: #4f46e5;
   cursor: pointer;
 }
 
@@ -1009,7 +1009,7 @@ export default defineComponent({
 }
 
 .name-cell small {
-  color: #7a877e;
+  color: #94a3b8;
 }
 
 .status {
@@ -1024,18 +1024,18 @@ export default defineComponent({
 }
 
 .status.ok {
-  color: #247b62;
-  background: rgba(214, 242, 232, 0.9);
+  color: #059669;
+  background: rgba(236, 253, 245, 0.9);
 }
 
 .status.warn {
-  color: #9b6817;
-  background: rgba(255, 236, 202, 0.9);
+  color: #b45309;
+  background: rgba(255, 251, 235, 0.9);
 }
 
 .status.danger {
-  color: #b04455;
-  background: rgba(255, 224, 229, 0.95);
+  color: #dc2626;
+  background: rgba(254, 242, 242, 0.95);
 }
 
 .action-cell {
@@ -1046,11 +1046,11 @@ export default defineComponent({
 .panel-actions button,
 .danger-btn {
   width: 100%;
-  border: 1px solid #d8e2da;
+  border: 1px solid #e7e9ee;
   border-radius: 8px;
   padding: 10px 12px;
   background: #ffffff;
-  color: #245849;
+  color: #4f46e5;
   font-weight: 700;
   cursor: pointer;
 }
@@ -1062,12 +1062,12 @@ export default defineComponent({
 }
 
 .panel-actions .ghost {
-  background: #f4f7f4;
+  background: #f1f2f5;
 }
 
 .panel-actions button:last-child {
-  border-color: #245849;
-  background: #245849;
+  border-color: #4f46e5;
+  background: #4f46e5;
   color: #ffffff;
   font-weight: 700;
 }
@@ -1085,7 +1085,7 @@ export default defineComponent({
 }
 
 .form-grid label span {
-  color: #617268;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -1099,8 +1099,8 @@ export default defineComponent({
 .meta-strip span {
   padding: 8px 12px;
   border-radius: 8px;
-  background: #f4f7f4;
-  color: #617268;
+  background: #f1f2f5;
+  color: #64748b;
   font-size: 12px;
 }
 
@@ -1112,11 +1112,11 @@ export default defineComponent({
 }
 
 .movement-box button {
-  border: 1px solid #d8e2da;
+  border: 1px solid #e7e9ee;
   border-radius: 8px;
   padding: 0 14px;
-  background: #f8faf8;
-  color: #245849;
+  background: #fafbff;
+  color: #4f46e5;
   font-weight: 800;
   cursor: pointer;
 }
@@ -1143,11 +1143,11 @@ export default defineComponent({
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  border: 1px solid #ead8b5;
+  border: 1px solid #fde68a;
   border-radius: 10px;
   padding: 10px 12px;
-  background: #fffaf1;
-  color: #20382d;
+  background: #fffbeb;
+  color: #0f172a;
   text-align: left;
   cursor: pointer;
 }
@@ -1159,7 +1159,7 @@ export default defineComponent({
 
 .warning-row small {
   margin-top: 3px;
-  color: #8a7060;
+  color: #b45309;
   font-size: 12px;
 }
 
@@ -1167,24 +1167,24 @@ export default defineComponent({
   flex: 0 0 auto;
   border-radius: 999px;
   padding: 6px 9px;
-  background: rgba(255, 236, 202, 0.9);
-  color: #9b6817;
+  background: rgba(255, 251, 235, 0.9);
+  color: #b45309;
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
 }
 
 .empty-warning {
-  border: 1px dashed #cfdad2;
+  border: 1px dashed #e7e9ee;
   border-radius: 10px;
   padding: 18px;
-  color: #7a877e;
+  color: #94a3b8;
   text-align: center;
 }
 
 .delete-panel {
   margin-top: 16px;
-  background: #fffafa;
+  background: #fef2f2;
 }
 
 .delete-panel small {
@@ -1194,12 +1194,12 @@ export default defineComponent({
 
 .danger-btn {
   margin-top: 12px;
-  color: #b04455;
-  border-color: rgba(194, 77, 102, 0.24);
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.24);
   background: linear-gradient(
     180deg,
-    rgba(255, 236, 240, 0.86),
-    rgba(255, 225, 231, 0.92)
+    rgba(254, 242, 242, 0.86),
+    rgba(254, 242, 242, 0.92)
   );
 }
 
@@ -1240,14 +1240,14 @@ export default defineComponent({
 }
 
 .drawer-head small {
-  color: #6d7b72;
+  color: #64748b;
   font-size: 11px;
   letter-spacing: 0.12em;
 }
 
 .drawer-head h3 {
   margin: 4px 0 0;
-  color: #1d3429;
+  color: #0f172a;
   font-size: 20px;
 }
 
@@ -1256,10 +1256,10 @@ export default defineComponent({
   place-items: center;
   width: 34px;
   height: 34px;
-  border: 1px solid #d8e2da;
+  border: 1px solid #e7e9ee;
   border-radius: 8px;
   background: #ffffff;
-  color: #20382d;
+  color: #0f172a;
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -1360,7 +1360,7 @@ export default defineComponent({
 
   .grid-row > span::before {
     font-size: 11px;
-    color: #789093;
+    color: #94a3b8;
   }
 
   .grid-row > span:nth-child(1) {

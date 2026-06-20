@@ -1,6 +1,7 @@
 #include "doctorHandler.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+#include "statusLabelUtils/StatusLabelUtils.h"
 
 #include <unordered_map>
 #include <vector>
@@ -19,10 +20,6 @@ namespace
         return value.substr(start, end - start + 1);
     }
 
-    bool isValidDoctorReservationStatus(const std::string &status)
-    {
-        return status == "预约成功" || status == "预约失败" || status == "已取消" || status == "已到院";
-    }
 }
 
 crow::response doctorHandler::getDoctor(const crow::request &req)
@@ -123,10 +120,11 @@ crow::response doctorHandler::updateReservationStatus(const crow::request &req, 
         }
 
         const std::string status = request_body["status"].get<std::string>();
-        if (!isValidDoctorReservationStatus(status))
+        if (!StatusLabelUtils::isValidReservationStatus(status))
         {
             return ResponseHelper::validation(req, "预约状态不合法");
         }
+        const std::string dbStatus = StatusLabelUtils::toDbReservationStatus(status);
 
         if (!checkDbConnection())
         {
@@ -152,7 +150,7 @@ crow::response doctorHandler::updateReservationStatus(const crow::request &req, 
 
         mysqlx::SqlResult updateResult = dbManager->getSession()
                                              ->sql("UPDATE reservations SET status = ? WHERE id = ?")
-                                             .bind(status)
+                                             .bind(dbStatus)
                                              .bind(reservationId)
                                              .execute();
 
@@ -164,7 +162,7 @@ crow::response doctorHandler::updateReservationStatus(const crow::request &req, 
         nlohmann::json response;
         response["message"] = "预约状态更新成功";
         response["reservation_id"] = reservationId;
-        response["status"] = status;
+        response["status"] = StatusLabelUtils::toDisplayReservationStatus(dbStatus);
         return ResponseHelper::success(req, response);
     }
     catch (const std::exception &e)
@@ -207,7 +205,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         mysqlx::SqlResult ordersResult = session->sql("INSERT INTO orders ( "
                                                       "owner_id, pet_id, doctor_id, order_type, order_data, order_status, order_totalprice) "
                                                       "VALUES (?, ?, ?, ?, ?, ?, ?)")
-                                             .bind(ownerId, petId, doctorId, orderType, orderData, "待付款", orderTotalPrice)
+                                             .bind(ownerId, petId, doctorId, orderType, orderData, "pending_payment", orderTotalPrice)
                                              .execute();
 
         unsigned long long orderId = ordersResult.getAutoIncrementValue();
@@ -227,7 +225,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         // 获取刚刚创建的订单记录
         mysqlx::SqlResult createdOrderResult = session->sql("SELECT o.id, COALESCE(p.pet_name, ''), COALESCE(owner.name, ''), COALESCE(doctor.name, ''), "
                                                             "CAST(o.created_at AS CHAR), COALESCE(o.order_totalprice, 0.0), "
-                                                            "COALESCE(o.order_status, '待付款') "
+                                                            "COALESCE(o.order_status, 'pending_payment') "
                                                             "FROM orders AS o "
                                                             "LEFT JOIN pets AS p ON o.pet_id = p.id "
                                                             "LEFT JOIN users AS owner ON owner.id = o.owner_id "
@@ -253,7 +251,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         orderRecord["doctorName"] = createdOrderRow[3].isNull() ? "" : createdOrderRow[3].get<std::string>();
         orderRecord["createdAt"] = createdOrderRow[4].isNull() ? "" : createdOrderRow[4].get<std::string>();
         orderRecord["totalFee"] = createdOrderRow[5].isNull() ? 0.0 : createdOrderRow[5].get<double>();
-        orderRecord["status"] = createdOrderRow[6].isNull() ? "待付款" : createdOrderRow[6].get<std::string>();
+        orderRecord["status"] = StatusLabelUtils::toDisplayOrderStatus(createdOrderRow[6].isNull() ? "pending_payment" : createdOrderRow[6].get<std::string>());
         orderRecord["orderMedicines"] = medicines;
 
         FinanceHomeDataBroadcaster::instance().notifyHomeDataChanged();
@@ -501,7 +499,7 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
             auto orderQuery = dbManager->getSession()
                                   ->sql("SELECT o.id, o.owner_id, COALESCE(p.pet_name, ''), COALESCE(doctor.name, ''), "
                                         "COALESCE(o.order_type, ''), COALESCE(o.order_data, ''), "
-                                        "COALESCE(o.order_status, '待付款'), COALESCE(o.order_totalprice, 0.0) "
+                                        "COALESCE(o.order_status, 'pending_payment'), COALESCE(o.order_totalprice, 0.0) "
                                         "FROM orders AS o "
                                         "LEFT JOIN pets AS p ON o.pet_id = p.id "
                                         "LEFT JOIN users AS doctor ON doctor.id = o.doctor_id "
@@ -553,7 +551,7 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
                 order["doctor_name"] = row[3].isNull() ? "" : row[3].get<std::string>();
                 order["order_type"] = row[4].isNull() ? "" : row[4].get<std::string>();
                 order["order_data"] = row[5].isNull() ? "" : row[5].get<std::string>();
-                order["order_status"] = row[6].isNull() ? "待付款" : row[6].get<std::string>();
+                order["order_status"] = StatusLabelUtils::toDisplayOrderStatus(row[6].isNull() ? "pending_payment" : row[6].get<std::string>());
                 order["order_totalprice"] = row[7].isNull() ? 0.0 : row[7].get<double>();
 
                 response[userIndexIt->second]["orders"].push_back(order);
@@ -737,22 +735,22 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
                 const std::string workTime_date = row[1].isNull() ? "" : row[1].get<std::string>();
                 const std::string checkInTime = row[2].isNull() ? "" : row[2].get<std::string>();
                 const std::string checkOutTime = row[3].isNull() ? "" : row[3].get<std::string>();
-                std::string workTime_status = "正常";
+                std::string workTime_status = "normal";
                 if (checkInTime.empty() || checkOutTime.empty())
                 {
-                    workTime_status = "异常";
+                    workTime_status = "abnormal";
                 }
                 else if (checkInTime >= check_in_time_end)
                 {
-                    workTime_status = "迟到";
+                    workTime_status = "late";
                 }
                 else if (checkOutTime <= check_out_time_start)
                 {
-                    workTime_status = "早退";
+                    workTime_status = "early_leave";
                 }
                 else if (checkOutTime >= check_out_time_end)
                 {
-                    workTime_status = "加班";
+                    workTime_status = "overtime";
                 }
 
                 mysqlx::SqlResult workTimeLogs_result = dbManager->getSession()
@@ -809,7 +807,7 @@ nlohmann::json doctorHandler::getOrderData(const int &orderId)
             {"doctor_id", row[6].get<int>()},
             {"order_type", row[7].get<std::string>()},
             {"order_data", row[8].get<std::string>()},
-            {"order_status", row[9].get<std::string>()},
+            {"order_status", StatusLabelUtils::toDisplayOrderStatus(row[9].get<std::string>())},
             {"order_totalprice", row[10].get<double>()},
             {"created_at", row[11].get<std::string>()}};
     }
@@ -887,7 +885,13 @@ crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId
         {
             has_changes = true;
         }
-        if (DBorder_status != request_body["order_status"].get<std::string>())
+        const std::string requestOrderStatus = StatusLabelUtils::toDbOrderStatus(request_body["order_status"].get<std::string>());
+        if (!StatusLabelUtils::isValidOrderStatus(requestOrderStatus))
+        {
+            return ResponseHelper::validation(req, "订单状态不合法");
+        }
+
+        if (DBorder_status != requestOrderStatus)
         {
             has_changes = true;
         }
@@ -901,7 +905,7 @@ crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId
                     request_body["doctor_id"].get<int>(),
                     request_body["order_type"].get<std::string>(),
                     request_body["order_data"].get<std::string>(),
-                    request_body["order_status"].get<std::string>(),
+                    requestOrderStatus,
                     order_id)
                 .execute();
             std::cout << "Order updated successfully" << std::endl;
@@ -920,5 +924,78 @@ crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId
         std::cerr << "Error updating order: " << e.what() << std::endl;
         OperationLogger::LogExceptionOperation(dbManager, req, "订单", "修改订单", e.what());
         return ResponseHelper::error(req, e.what());
+    }
+}
+
+nlohmann::json doctorHandler::buildQueuesData(const int &doctorId)
+{
+    auto session = dbManager->getSession();
+    nlohmann::json queues = nlohmann::json::array();
+
+    mysqlx::SqlResult result = session->sql(
+                                       "SELECT q.id, q.queue_date, q.queue_number, q.owner_id, q.pet_id, "
+                                       "COALESCE(p.pet_name, ''), COALESCE(p.pet_sex, ''), "
+                                       "COALESCE(p.pet_breed, ''), COALESCE(p.pet_age, ''), "
+                                       "COALESCE(owner.name, ''), q.status, q.source, q.triage_level, "
+                                       "COALESCE(DATE_FORMAT(COALESCE(q.arrived_at, q.scheduled_at, q.created_at), '%Y-%m-%d %H:%i'), '') "
+                                       "FROM medicalQueues AS q "
+                                       "LEFT JOIN pets AS p ON q.pet_id = p.id "
+                                       "LEFT JOIN users AS owner ON q.owner_id = owner.id "
+                                       "WHERE q.doctor_id = ? "
+                                       "AND q.is_deleted = 0 "
+                                       "AND q.queue_date = CURRENT_DATE "
+                                       "AND q.status IN ('waiting', 'in_progress', 'skipped') "
+                                       "ORDER BY FIELD(q.triage_level, 'urgent', 'priority', 'normal'), "
+                                       "COALESCE(q.arrived_at, q.scheduled_at, q.created_at) ASC, q.id ASC")
+                                   .bind(doctorId)
+                                   .execute();
+
+    for (const auto &row : result)
+    {
+        nlohmann::json queue;
+        queue["id"] = row[0].get<int>();
+        queue["queueDate"] = row[1].isNull() ? "" : row[1].get<std::string>();
+        queue["queue_date"] = queue["queueDate"];
+        queue["queueNumber"] = row[2].isNull() ? "" : row[2].get<std::string>();
+        queue["queue_number"] = queue["queueNumber"];
+        queue["ownerId"] = row[3].get<int>();
+        queue["owner_id"] = queue["ownerId"];
+        queue["petId"] = row[4].get<int>();
+        queue["pet_id"] = queue["petId"];
+        queue["petName"] = row[5].isNull() ? "" : row[5].get<std::string>();
+        queue["pet_name"] = queue["petName"];
+        queue["sex"] = row[6].isNull() ? "" : row[6].get<std::string>();
+        queue["breed"] = row[7].isNull() ? "" : row[7].get<std::string>();
+        queue["age"] = row[8].isNull() ? "" : row[8].get<std::string>();
+        queue["ownerName"] = row[9].isNull() ? "" : row[9].get<std::string>();
+        queue["owner_name"] = queue["ownerName"];
+        queue["status"] = StatusLabelUtils::toDisplayMedicalQueueStatus(row[10].isNull() ? "waiting" : row[10].get<std::string>());
+        queue["source"] = StatusLabelUtils::toDisplayMedicalQueueSource(row[11].isNull() ? "walk_in" : row[11].get<std::string>());
+        queue["level"] = StatusLabelUtils::toDisplayTriageLevel(row[12].isNull() ? "normal" : row[12].get<std::string>());
+        queue["triageLevel"] = queue["level"];
+        queue["triage_level"] = queue["level"];
+        queue["arrivedAt"] = row[13].isNull() ? "" : row[13].get<std::string>();
+        queue["scheduledOrArrivedAt"] = queue["arrivedAt"];
+        queue["symptom"] = "";
+        queues.push_back(queue);
+    }
+
+    return queues;
+}
+
+crow::response doctorHandler::getQueues(const crow::request &req, const int doctorId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        return ResponseHelper::success(req, buildQueuesData(doctorId));
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
     }
 }
