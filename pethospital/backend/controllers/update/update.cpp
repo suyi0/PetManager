@@ -92,7 +92,7 @@ void update::updateWorkTimeRecord(int batch_size, int offset)
             }
             catch (const std::exception &e)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 std::cerr << "Batch migration failed: " << e.what() << std::endl;
                 break;
             }

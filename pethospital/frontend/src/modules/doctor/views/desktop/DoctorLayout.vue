@@ -123,13 +123,14 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, onMounted } from "vue";
+import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { authStorage } from "@/core/auth/utils/authStorage";
 import { useBossPortalReturn } from "@/core/auth/utils/bossPortalReturn";
 import PortalAccount from "@/shared/components/PortalAccount.vue";
+import { subscribeDoctorQueue } from "../../utils/doctorQueueStream";
 
 export default defineComponent({
   name: "DoctorLayout",
@@ -142,10 +143,26 @@ export default defineComponent({
     const basePath = computed(() => "/doctor");
     const adminBridge = computed(() => authStorage.loadAdminPortalBridge());
     const showAdminReturn = computed(() => Boolean(adminBridge.value));
+    let closeQueueStream: (() => void) | null = null;
 
     onMounted(() => {
       // 医生端进入任意页面时，先预热工作台高频依赖的基础缓存。
       void store.dispatch("doctor/ensureWorkbenchData");
+      closeQueueStream = subscribeDoctorQueue(
+        (queueItems) => {
+          store.commit("doctor/setQueueItems", queueItems);
+        },
+        {
+          onFallbackRefresh: () => {
+            void store.dispatch("doctor/ensureQueueItems", { force: true });
+          },
+        }
+      );
+    });
+
+    onBeforeUnmount(() => {
+      closeQueueStream?.();
+      closeQueueStream = null;
     });
 
     const logout = () => {

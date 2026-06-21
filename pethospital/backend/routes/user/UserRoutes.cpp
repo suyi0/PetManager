@@ -616,5 +616,30 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "搜索关键字获取对应记录", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
+    CROW_ROUTE(app, "/api/users/me/reservations/<int>/to-the-hospital")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int reservationId)
+                                                                    {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+
+                if(res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "到院签到");
+                    return;
+                }
+                
+                userHandler handler(dbManager);
+                crow::response response = handler.toTheHospital(req, userId, reservationId);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "到院签到", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "到院签到", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
     routes_setup = true;
 }

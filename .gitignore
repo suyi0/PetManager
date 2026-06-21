@@ -72,3 +72,6 @@ AGENTS.md
 MEMORY.md
 DESIGN.md
 CLAUDE.md
+
+# Claude Code 个人本地设置（不入库）
+.claude/settings.local.json

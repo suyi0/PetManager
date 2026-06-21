@@ -53,7 +53,9 @@ public:
 
     crow::response cancelReservation(const crow::request &req, int userId, int reservationId); // 对应 /api/users/me/reservations/<id>/cancellation
 
-    crow::response deleteReservation(const crow::request &req, int userId, int reservationId); // 对应 DELETE /api/users/me/reservations/<int>
+    crow::response deleteReservation(const crow::request &req, int userId, int reservationId); // 对应 /api/users/me/reservations/<int>
+
+    crow::response toTheHospital(const crow::request &req, int userId, int reservationId); // 对应 /api/users/me/reservations/<int>/to-the-hospital
 };
 
 #endif

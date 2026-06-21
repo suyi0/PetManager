@@ -4,7 +4,6 @@
       <div class="panel-head">
         <div class="panel-head__intro">
           <h3>预约订单</h3>
-          <p>以预约卡片快速处理预约成功、已取消和到院状态。</p>
         </div>
         <div class="panel-head__actions">
           <AppPager
@@ -15,79 +14,81 @@
         </div>
       </div>
 
-      <div class="search-bar">
-        <span class="search-type">预约</span>
-        <label class="search-field">
-          <span class="search-field__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none">
-              <circle
-                cx="11"
-                cy="11"
-                r="6.5"
-                stroke="currentColor"
-                stroke-width="2"
-              />
-              <path
-                d="M16 16L21 21"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-            </svg>
-          </span>
-          <input
-            v-model.trim="searchKeyword"
-            type="text"
-            placeholder="输入宠物名、医生名或联系人后按 Enter"
-            @keyup.enter="searchReservations"
-          />
-        </label>
-        <div class="search-meta">
-          <span class="search-meta__count">
-            {{ searchSummary }}
-          </span>
-          <button
-            v-if="searchKeyword"
-            type="button"
-            class="search-meta__reset"
-            @click="resetReservationSearch"
-          >
-            清空
-          </button>
-        </div>
-      </div>
-
-      <div class="filter-strip" aria-label="预约筛选">
-        <div class="filter-group">
-          <span class="filter-label">状态</span>
-          <button
-            v-for="option in statusFilterOptions"
-            :key="option.value"
-            type="button"
-            class="filter-chip"
-            :class="{ 'filter-chip--active': activeStatus === option.value }"
-            @click="activeStatus = option.value"
-          >
-            <span>{{ option.label }}</span>
-            <strong>{{ option.count }}</strong>
-          </button>
+      <div class="toolbar">
+        <div class="search-bar">
+          <span class="search-type">预约</span>
+          <label class="search-field">
+            <span class="search-field__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <circle
+                  cx="11"
+                  cy="11"
+                  r="6.5"
+                  stroke="currentColor"
+                  stroke-width="2"
+                />
+                <path
+                  d="M16 16L21 21"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </span>
+            <input
+              v-model.trim="searchKeyword"
+              type="text"
+              placeholder="输入宠物名、医生名或联系人后按 Enter"
+              @keyup.enter="searchReservations"
+            />
+          </label>
+          <div class="search-meta">
+            <span class="search-meta__count">
+              {{ searchSummary }}
+            </span>
+            <button
+              v-if="searchKeyword"
+              type="button"
+              class="search-meta__reset"
+              @click="resetReservationSearch"
+            >
+              清空
+            </button>
+          </div>
         </div>
 
-        <div class="filter-group">
-          <span class="filter-label">日期</span>
-          <button
-            v-for="option in dateFilterOptions"
-            :key="option.value"
-            type="button"
-            class="filter-chip"
-            :class="{
-              'filter-chip--active': activeDateFilter === option.value,
-            }"
-            @click="activeDateFilter = option.value"
-          >
-            <span>{{ option.label }}</span>
-            <strong>{{ option.count }}</strong>
-          </button>
+        <div class="filter-strip" aria-label="预约筛选">
+          <div class="filter-group">
+            <span class="filter-label">状态</span>
+            <button
+              v-for="option in statusFilterOptions"
+              :key="option.value"
+              type="button"
+              class="filter-chip"
+              :class="{ 'filter-chip--active': activeStatus === option.value }"
+              @click="activeStatus = option.value"
+            >
+              <span>{{ option.label }}</span>
+              <strong>{{ option.count }}</strong>
+            </button>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-label">日期</span>
+            <button
+              v-for="option in dateFilterOptions"
+              :key="option.value"
+              type="button"
+              class="filter-chip"
+              :class="{
+                'filter-chip--active': activeDateFilter === option.value,
+              }"
+              @click="activeDateFilter = option.value"
+            >
+              <span>{{ option.label }}</span>
+              <strong>{{ option.count }}</strong>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -102,30 +103,47 @@
       <div
         v-else
         ref="cardsRef"
-        class="cards"
+        class="table-shell"
         :style="{ '--reservation-page-size': pageSize }"
       >
-        <article
-          v-for="item in visibleItems"
-          :key="item.id"
-          class="card"
-          @click="selectReservation(item)"
-        >
-          <div class="card-top">
-            <strong>{{ item.pet_name || "预约记录" }}</strong>
-            <span class="status" :class="statusClassName(item.status)">
-              {{ item.status }}
-            </span>
-          </div>
-          <p>{{ item.reservation_type }}</p>
-          <p class="card-phone">预约编号 {{ item.id }}</p>
-          <small>{{ item.schedule }} · {{ item.doctor_name }}</small>
-        </article>
-        <article
-          v-for="placeholder in placeholderCards"
-          :key="`placeholder-${placeholder}`"
-          class="card card--placeholder"
-        ></article>
+        <table>
+          <thead>
+            <tr>
+              <th>预约编号</th>
+              <th>宠物</th>
+              <th>类型</th>
+              <th>医生</th>
+              <th>时间</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="item in visibleItems"
+              :key="item.id"
+              class="record-row"
+              @click="selectReservation(item)"
+            >
+              <td>{{ item.id }}</td>
+              <td>{{ item.pet_name || "预约记录" }}</td>
+              <td>{{ item.reservation_type || "—" }}</td>
+              <td>{{ item.doctor_name || "未分配" }}</td>
+              <td>{{ item.schedule || "待同步" }}</td>
+              <td>
+                <span class="status-pill" :class="statusClassName(item.status)">
+                  {{ item.status }}
+                </span>
+              </td>
+            </tr>
+            <tr
+              v-for="placeholder in placeholderCards"
+              :key="`placeholder-${placeholder}`"
+              class="placeholder-row"
+            >
+              <td colspan="6"></td>
+            </tr>
+          </tbody>
+        </table>
         <div v-if="visibleItems.length === 0" class="empty-state">
           {{ emptyStateText }}
         </div>
@@ -280,7 +298,7 @@ export default defineComponent({
     const searchKeyword = ref("");
     const activeStatus = ref("全部");
     const activeDateFilter = ref<"全部" | "今日" | "未来" | "过期">("全部");
-    const pageSize = ref(9);
+    const pageSize = ref(11);
     const cardsRef = ref<HTMLElement | null>(null);
     const openReservationDetail = ref(false);
     const selectedReservationId = ref<number | null>(null);
@@ -359,24 +377,23 @@ export default defineComponent({
       return filteredItems.value.slice(start, start + pageSize.value);
     });
 
+    // 始终把整页占位卡片补满（0 条也先铺好一整页排布）。
     const placeholderCards = computed(() =>
-      visibleItems.value.length === 0
-        ? []
-        : Array.from(
-            { length: Math.max(0, pageSize.value - visibleItems.value.length) },
-            (_, index) => index + 1
-          )
+      Array.from(
+        { length: Math.max(0, pageSize.value - visibleItems.value.length) },
+        (_, index) => index + 1
+      )
     );
 
     const updatePageSize = () => {
-      const cardsElement = cardsRef.value;
-      const height = cardsElement?.clientHeight ?? 0;
-      const width = cardsElement?.clientWidth ?? 0;
-      const gap = 12;
-      const rowHeight = 128;
-      const columns = width >= 900 ? 3 : 1;
-      const rows = Math.max(1, Math.floor((height + gap) / (rowHeight + gap)));
-      const nextPageSize = Math.max(columns, columns * rows);
+      const shell = cardsRef.value;
+      const height = shell?.clientHeight ?? 0;
+      if (!height) return;
+      const headerH =
+        shell?.querySelector("thead")?.getBoundingClientRect().height ?? 44;
+      const firstRow = shell?.querySelector("tbody tr:not(.placeholder-row)");
+      const rowH = firstRow ? firstRow.getBoundingClientRect().height : 36;
+      const nextPageSize = Math.max(4, Math.floor((height - headerH) / rowH));
 
       if (Number.isFinite(nextPageSize) && nextPageSize !== pageSize.value) {
         pageSize.value = nextPageSize;
@@ -658,9 +675,18 @@ export default defineComponent({
 
 .reservation-list-view {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
+}
+
+.toolbar {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: #ffffff;
 }
 
 .panel-head {
@@ -675,15 +701,8 @@ export default defineComponent({
   gap: 6px;
 }
 
-.panel-head h3,
-.panel-head p {
+.panel-head h3 {
   margin: 0;
-}
-
-.panel-head p {
-  margin-top: 4px;
-  color: #64748b;
-  line-height: 1.4;
 }
 
 .panel-head__actions {
@@ -697,25 +716,16 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: radial-gradient(
-      circle at left top,
-      rgba(238, 242, 255, 0.72),
-      transparent 55%
-    ),
-    linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(248, 250, 252, 0.88)
-    );
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 1px solid #eef2f6;
+  background: transparent;
 }
 
 .search-type {
   flex: 0 0 auto;
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 5px 10px;
   background: rgba(16, 24, 40, 0.1);
   color: #4f46e5;
   font-size: 12px;
@@ -732,9 +742,9 @@ export default defineComponent({
 }
 
 .search-field__icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   color: #64748b;
@@ -753,8 +763,8 @@ export default defineComponent({
   outline: none;
   background: transparent;
   color: #0f172a;
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .search-field input::placeholder {
@@ -784,11 +794,10 @@ export default defineComponent({
 
 .filter-strip {
   display: grid;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(255, 255, 255, 0.58);
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .filter-group {
@@ -830,7 +839,7 @@ export default defineComponent({
 
 .filter-chip--active {
   border-color: rgba(79, 70, 229, 0.28);
-  background: #245849;
+  background: #4f46e5;
   color: #fff;
 }
 
@@ -855,19 +864,15 @@ button:disabled {
   box-shadow: none;
 }
 
-.cards {
+.table-shell {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: minmax(var(--doctor-card-row-height, 132px), 1fr);
-  align-content: stretch;
-  gap: 12px;
   min-height: 0;
   height: 100%;
   overflow: hidden;
 }
 
-.cards::after {
+.table-shell::after {
   content: "";
   position: absolute;
   right: 0;
@@ -878,93 +883,101 @@ button:disabled {
   pointer-events: none;
 }
 
-.card {
-  position: relative;
-  min-height: 0;
-  padding: 14px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ffffff, #f8fafc);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  box-shadow: 0 16px 30px rgba(16, 24, 40, 0.05);
+table {
+  width: 100%;
+  height: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+th,
+td {
+  height: 36px;
+  padding: 0 14px;
+  text-align: left;
+  font-size: 13px;
+  border-bottom: 1px solid #e5e7eb;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 首列左缩进加大；其余列宽分配，状态列收窄 */
+th:nth-child(1),
+td:nth-child(1) {
+  width: 14%;
+  padding-left: 26px;
+}
+
+th:nth-child(2),
+td:nth-child(2),
+th:nth-child(3),
+td:nth-child(3),
+th:nth-child(4),
+td:nth-child(4) {
+  width: 17%;
+}
+
+th:nth-child(5),
+td:nth-child(5) {
+  width: 25%;
+}
+
+th:nth-child(6),
+td:nth-child(6) {
+  width: 10%;
+}
+
+th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+td {
+  color: #0f172a;
+}
+
+.record-row {
   cursor: pointer;
 }
 
-.card::after {
-  content: "";
-  position: absolute;
-  right: 14px;
-  top: 14px;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
-  background: rgba(215, 235, 227, 0.84);
+.record-row:hover {
+  background: #f8fafc;
 }
 
-.card-top {
-  display: flex;
-  justify-content: space-between;
+.status-pill {
+  display: inline-flex;
   align-items: center;
-  margin-bottom: 8px;
-  position: relative;
-  z-index: 1;
-  gap: 12px;
-}
-
-.card-top strong {
-  color: #0f172a;
-  font-size: 16px;
-}
-
-.status {
-  font-size: 12px;
-  color: #49645f;
-  padding: 5px 8px;
+  justify-content: center;
+  min-width: 64px;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(235, 245, 240, 0.94);
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .status--active {
-  color: #246563;
-  background: rgba(226, 242, 235, 0.96);
-  border-color: rgba(16, 24, 40, 0.24);
+  color: #0f172a;
+  background: rgba(248, 250, 252, 0.96);
+  border: 1px solid rgba(16, 24, 40, 0.24);
 }
 
 .status--arrived {
   color: #ffffff;
-  background: linear-gradient(135deg, #315f62, #64748b);
-  border-color: rgba(50, 95, 98, 0.28);
+  background: linear-gradient(135deg, #4f46e5, #64748b);
 }
 
 .status--cancelled {
   color: #dc2626;
-  background: rgba(255, 238, 234, 0.96);
-  border-color: rgba(178, 86, 73, 0.2);
+  background: rgba(254, 242, 242, 0.96);
+  border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
-.card p,
-.card small {
-  display: block;
-  margin: 0;
-  color: #5f7773;
-  position: relative;
-  z-index: 1;
-}
-
-.card-phone {
-  margin-top: 8px !important;
-  color: #355658 !important;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-.card small {
-  margin-top: 6px;
-}
-
-.card--placeholder {
-  visibility: hidden;
-  pointer-events: none;
+.placeholder-row td {
+  height: 40px;
+  background: #ffffff;
 }
 
 .empty-state {
@@ -974,10 +987,9 @@ button:disabled {
   grid-column: 1 / -1;
   place-items: center;
   min-height: 0;
-  border-radius: 12px;
-  border: 1px dashed rgba(160, 188, 181, 0.42);
   color: #64748b;
-  background: rgba(255, 255, 255, 0.42);
+  font-size: 13px;
+  pointer-events: none;
 }
 
 .reservation-detail {
@@ -1003,8 +1015,8 @@ button:disabled {
 }
 
 .back-button {
-  background: rgba(238, 247, 243, 0.92);
-  color: #31595b;
+  background: rgba(248, 250, 252, 0.92);
+  color: #0f172a;
   box-shadow: none;
 }
 
@@ -1017,7 +1029,7 @@ button:disabled {
 .reservation-hero__title p,
 .reservation-owner__head p {
   margin: 0;
-  color: #1c8584;
+  color: #4f46e5;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -1098,7 +1110,7 @@ button:disabled {
 
 .reservation-fact small,
 .reservation-owner__grid small {
-  color: #6c837d;
+  color: #64748b;
   font-size: 12px;
 }
 

@@ -121,11 +121,11 @@
           >
             <td colspan="6"></td>
           </tr>
-          <tr v-if="visibleItems.length === 0">
-            <td colspan="6" class="empty-cell">{{ emptyStateText }}</td>
-          </tr>
         </tbody>
       </table>
+      <div v-if="visibleItems.length === 0" class="empty-overlay">
+        {{ emptyStateText }}
+      </div>
     </div>
   </section>
 </template>
@@ -224,13 +224,12 @@ export default defineComponent({
       return visibleItems.value.slice(start, start + pageSize.value);
     });
 
+    // 始终把整页占位空行补满（即使 0 条记录也先铺好一整页 ledger 排布）。
     const placeholderRows = computed(() =>
-      pagedItems.value.length === 0
-        ? []
-        : Array.from(
-            { length: Math.max(0, pageSize.value - pagedItems.value.length) },
-            (_, index) => index + 1
-          )
+      Array.from(
+        { length: Math.max(0, pageSize.value - pagedItems.value.length) },
+        (_, index) => index + 1
+      )
     );
 
     const updatePageSize = () => {
@@ -551,16 +550,16 @@ export default defineComponent({
   gap: 4px;
   justify-items: start;
   padding: 10px 12px;
-  border: 1px solid rgba(155, 185, 177, 0.22);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
-  color: #24484b;
+  color: #0f172a;
   box-shadow: 0 12px 26px rgba(16, 24, 40, 0.06);
 }
 
 .status-filter span {
   font-size: 13px;
-  color: #69817d;
+  color: #64748b;
 }
 
 .status-filter strong {
@@ -635,7 +634,7 @@ td {
 }
 
 .record-row:hover {
-  background: rgba(238, 247, 242, 0.95);
+  background: rgba(248, 250, 252, 0.95);
 }
 
 .status-pill {
@@ -656,7 +655,7 @@ td {
 
 .status-pill--done {
   background: #ecfdf5;
-  color: #1f8960;
+  color: #16a34a;
 }
 
 .status-pill--cancelled {
@@ -664,11 +663,14 @@ td {
   color: #dc2626;
 }
 
-.empty-cell {
-  height: calc(48px * var(--record-page-size, 10));
+.empty-overlay {
+  position: absolute;
+  inset: 48px 0 0;
+  display: grid;
+  place-items: center;
   color: #64748b;
-  padding: 26px 12px;
-  text-align: center;
+  font-size: 13px;
+  pointer-events: none;
 }
 
 .placeholder-row td {

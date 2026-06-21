@@ -14,17 +14,6 @@ namespace
         return holder == kTotalHolder || holder == kRemainingHolder;
     }
 
-    void rollbackQuietly(mysqlx::Session &session)
-    {
-        try
-        {
-            session.sql("ROLLBACK").execute();
-        }
-        catch (...)
-        {
-        }
-    }
-
     std::string resolveStockItemType(const std::string &holder)
     {
         if (holder == kTotalHolder)
@@ -137,7 +126,7 @@ crow::response bossHandler::allocateTotalStock(const crow::request &req)
 
             if (totalResult.getAffectedItemsCount() != 1)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::operation_failed(req, shareType + "总份额分配失败");
             }
 
@@ -155,7 +144,7 @@ crow::response bossHandler::allocateTotalStock(const crow::request &req)
                 const long long newRemainingShare = oldRemainingShare + (share - oldTotalShare);
                 if (newRemainingShare < 0)
                 {
-                    rollbackQuietly(*session);
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::validation(req, "总份额不能小于已分配份额");
                 }
 
@@ -172,7 +161,7 @@ crow::response bossHandler::allocateTotalStock(const crow::request &req)
 
             if (remainingResult.getAffectedItemsCount() != 1)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::operation_failed(req, shareType + "剩余份额分配失败");
             }
 
@@ -181,7 +170,7 @@ crow::response bossHandler::allocateTotalStock(const crow::request &req)
         }
         catch (...)
         {
-            rollbackQuietly(*session);
+            rollbackTransactionQuietly(*session);
             throw;
         }
     }
@@ -231,7 +220,7 @@ crow::response bossHandler::allocateStock(const crow::request &req)
 
             if (!remainingRow)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::unavailable(req, "未初始化" + shareType + "剩余股份数据");
             }
 
@@ -239,7 +228,7 @@ crow::response bossHandler::allocateStock(const crow::request &req)
             const long long remainingShare = remainingRow[1].isNull() ? 0LL : remainingRow[1].get<long long>();
             if (remainingShare < share)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::validation(req, "剩余股份不足，无法继续分配");
             }
 
@@ -248,7 +237,7 @@ crow::response bossHandler::allocateStock(const crow::request &req)
                                                  .execute();
             if (insertResult.getAffectedItemsCount() != 1)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::operation_failed(req, "新增股东股份失败");
             }
 
@@ -257,7 +246,7 @@ crow::response bossHandler::allocateStock(const crow::request &req)
                                                           .execute();
             if (updateRemainingResult.getAffectedItemsCount() != 1)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::operation_failed(req, "扣减" + shareType + "剩余股份失败");
             }
 
@@ -266,7 +255,7 @@ crow::response bossHandler::allocateStock(const crow::request &req)
         }
         catch (...)
         {
-            rollbackQuietly(*session);
+            rollbackTransactionQuietly(*session);
             throw;
         }
     }
@@ -315,14 +304,14 @@ crow::response bossHandler::changeStock(const crow::request &req)
 
             if (!holderRow)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::notFound(req, "该股东不存在");
             }
 
             const std::string oldHolder = holderRow[0].get<std::string>();
             if (isReservedHolder(oldHolder))
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::validation(req, "系统保留记录不允许直接修改");
             }
 
@@ -347,7 +336,7 @@ crow::response bossHandler::changeStock(const crow::request &req)
 
                 if (!remainingRow)
                 {
-                    rollbackQuietly(*session);
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::unavailable(req, "未初始化剩余股份数据");
                 }
 
@@ -355,7 +344,7 @@ crow::response bossHandler::changeStock(const crow::request &req)
                 const long long remainingShare = remainingRow[1].isNull() ? 0LL : remainingRow[1].get<long long>();
                 if (delta > 0 && remainingShare < delta)
                 {
-                    rollbackQuietly(*session);
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::validation(req, "剩余股份不足，无法继续分配");
                 }
             }
@@ -365,7 +354,7 @@ crow::response bossHandler::changeStock(const crow::request &req)
                                                        .execute();
             if (changeHolderResult.getAffectedItemsCount() != 1)
             {
-                rollbackQuietly(*session);
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::operation_failed(req, "更新股东失败");
             }
 
@@ -377,7 +366,7 @@ crow::response bossHandler::changeStock(const crow::request &req)
 
                 if (updateRemainingResult.getAffectedItemsCount() != 1)
                 {
-                    rollbackQuietly(*session);
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::operation_failed(req, "更新剩余股份失败");
                 }
             }
@@ -387,7 +376,7 @@ crow::response bossHandler::changeStock(const crow::request &req)
         }
         catch (...)
         {
-            rollbackQuietly(*session);
+            rollbackTransactionQuietly(*session);
             throw;
         }
     }

@@ -1,189 +1,166 @@
 <template>
   <section class="order-page">
-    <aside class="order-sidebar">
-      <div class="order-sidebar__hero">
-        <p>Orders</p>
-        <h2>诊单中心</h2>
-        <span>统一查看普通诊单与预约记录，支持搜索、排序和批量整理。</span>
+    <div class="ord-head">
+      <h2>我的订单</h2>
+      <div class="seg">
+        <button
+          class="seg__btn"
+          :class="{ 'seg__btn--active': activeTab === 'order' }"
+          @click="switchTab('order')"
+        >
+          诊单
+        </button>
+        <button
+          class="seg__btn"
+          :class="{ 'seg__btn--active': activeTab === 'reservation' }"
+          @click="switchTab('reservation')"
+        >
+          预约记录
+        </button>
+      </div>
+    </div>
+
+    <section class="order-toolbar" ref="homeOrderTopRef">
+      <div
+        class="toolbar-search"
+        :class="{ 'toolbar-search--open': openSearch }"
+      >
+        <span>{{ currentSearchType }}</span>
+        <input
+          v-model.trim="searchQuery"
+          type="text"
+          :placeholder="searchPlaceholder"
+          @keyup.enter="confirmSearch"
+          @focus="openSearch = true"
+          @blur="handleInputBlur"
+        />
+        <button
+          type="button"
+          class="toolbar-search__button"
+          :disabled="searchLoading"
+          @mousedown.prevent
+          @click="confirmSearch"
+        >
+          {{ searchLoading ? "搜索中" : "搜索" }}
+        </button>
       </div>
 
-      <button
-        class="order-sidebar__item"
-        :class="{ 'order-sidebar__item--active': activeTab === 'order' }"
-        @click="switchTab('order')"
-      >
-        诊单
-      </button>
-      <button
-        class="order-sidebar__item"
-        :class="{ 'order-sidebar__item--active': activeTab === 'reservation' }"
-        @click="switchTab('reservation')"
-      >
-        预约记录
-      </button>
-    </aside>
-
-    <div class="order-stage">
-      <section class="order-stage__toolbar" ref="homeOrderTopRef">
-        <div
-          class="toolbar-search"
-          :class="{ 'toolbar-search--open': openSearch }"
-        >
-          <span>{{ currentSearchType }}</span>
-          <input
-            v-model.trim="searchQuery"
-            type="text"
-            :placeholder="searchPlaceholder"
-            @keyup.enter="confirmSearch"
-            @focus="openSearch = true"
-            @blur="handleInputBlur"
-          />
+      <div v-if="openSearch" class="search-popover">
+        <div class="search-popover__header">
+          <strong>搜索记录</strong>
           <button
-            type="button"
-            class="toolbar-search__button"
-            :disabled="searchLoading"
-            @mousedown.prevent
-            @click="confirmSearch"
+            v-if="historyOrders.length > 0"
+            class="search-popover__clear"
+            @click="clearSearchHistory"
           >
-            {{ searchLoading ? "搜索中" : "搜索" }}
+            清除历史
           </button>
         </div>
-
-        <div v-if="openSearch" class="search-popover">
-          <div class="search-popover__header">
-            <strong>搜索记录</strong>
-            <button
-              v-if="historyOrders.length > 0"
-              class="search-popover__clear"
-              @click="clearSearchHistory"
-            >
-              清除历史
-            </button>
-          </div>
-          <div v-if="historyOrders.length > 0" class="search-popover__history">
-            <button
-              v-for="order in historyOrders"
-              :key="order.id"
-              class="search-popover__chip"
-              @click="buttonClick(getItemDisplayName(order))"
-            >
-              {{ getItemDisplayName(order) }}
-            </button>
-          </div>
-          <p v-else class="search-popover__empty">还没有搜索记录。</p>
-        </div>
-
-        <div class="toolbar-actions">
-          <button class="toolbar-pill" @click="changeSort('time')">
-            时间 {{ sortKey === "time" ? sortLabel : "" }}
-          </button>
-          <button class="toolbar-pill" @click="changeSort('price')">
-            价格 {{ sortKey === "price" ? sortLabel : "" }}
-          </button>
-          <button class="toolbar-edit" @click="toggleEditMode">
-            {{ editTab ? "完成编辑" : "编辑模式" }}
-          </button>
-        </div>
-      </section>
-
-      <section class="order-summary">
-        <article>
-          <p>当前列表</p>
-          <strong>{{ activeTab === "order" ? "普通订单" : "预约记录" }}</strong>
-          <span>切换左侧标签可查看另一类记录。</span>
-        </article>
-        <article>
-          <p>结果数量</p>
-          <strong>{{ visibleItems.length }}</strong>
-          <span>搜索和排序会即时作用于当前页结果。</span>
-        </article>
-        <article>
-          <p>已选条数</p>
-          <strong>{{ selectedCount }}</strong>
-          <span>编辑模式下支持批量收藏与批量删除。</span>
-        </article>
-      </section>
-
-      <section
-        class="order-list-panel"
-        :class="{ 'order-list-panel--editing': editTab }"
-      >
-        <div class="order-list-panel__head">
-          <div>
-            <p>
-              {{ activeTab === "order" ? "Order Feed" : "Reservation Feed" }}
-            </p>
-            <h3>{{ activeTab === "order" ? "订单列表" : "预约记录列表" }}</h3>
-          </div>
-          <span>{{
-            searchQuery ? `关键词：${searchQuery}` : "未设置筛选关键词"
-          }}</span>
-        </div>
-
-        <AsyncViewState
-          v-if="pageLoading || pageErrorMessage"
-          :loading="pageLoading"
-          :error="pageErrorMessage"
-          loading-text="正在同步订单与预约记录"
-          @retry="loadOrderPageData"
-        />
-
-        <div v-else-if="visibleItems.length > 0" class="order-list">
-          <article
-            v-for="item in visibleItems"
-            :key="item.id"
-            class="order-item"
-            :class="{ 'order-item--editing': editTab }"
+        <div v-if="historyOrders.length > 0" class="search-popover__history">
+          <button
+            v-for="order in historyOrders"
+            :key="order.id"
+            class="search-popover__chip"
+            @click="buttonClick(getItemDisplayName(order))"
           >
-            <label v-if="editTab" class="order-item__checkbox">
-              <input
-                :checked="isSelected(item.id)"
-                type="checkbox"
-                @change="ordersButton(item.id)"
-              />
-            </label>
-
-            <button class="order-item__content" @click="goToDetail(item)">
-              <div class="order-item__main">
-                <strong>{{ getItemDisplayName(item) }}</strong>
-                <span>ID {{ item.id }}</span>
-              </div>
-              <div class="order-item__meta">
-                <div class="order-item_meta-Introduction">
-                  <small>简介</small>
-                  <span>{{ getItemDescription(item) }}</span>
-                </div>
-                <div>
-                  <small>时间</small>
-                  <span>{{ formatTimeValue(item) }}</span>
-                </div>
-                <div>
-                  <small>价格</small>
-                  <span>{{ formatPrice(getItemPrice(item)) }}</span>
-                </div>
-                <div class="order-item__tag">
-                  {{ activeTab === "order" ? "查看订单详情" : "查看预约详情" }}
-                </div>
-              </div>
-            </button>
-          </article>
+            {{ getItemDisplayName(order) }}
+          </button>
         </div>
+        <p v-else class="search-popover__empty">还没有搜索记录。</p>
+      </div>
 
-        <div v-else class="order-empty">
-          <strong>当前没有可展示的记录</strong>
-          <span>可以尝试切换标签、清空关键词，或等待新的预约与订单同步。</span>
+      <div class="toolbar-actions">
+        <button class="toolbar-pill" @click="changeSort('time')">
+          时间 {{ sortKey === "time" ? sortLabel : "" }}
+        </button>
+        <button class="toolbar-pill" @click="changeSort('price')">
+          价格 {{ sortKey === "price" ? sortLabel : "" }}
+        </button>
+        <button class="toolbar-edit" @click="toggleEditMode">
+          {{ editTab ? "完成编辑" : "编辑模式" }}
+        </button>
+      </div>
+    </section>
+
+    <section
+      class="order-list-panel"
+      :class="{ 'order-list-panel--editing': editTab }"
+    >
+      <div class="order-list-panel__head">
+        <div>
+          <p>
+            {{ activeTab === "order" ? "Order Feed" : "Reservation Feed" }}
+          </p>
+          <h3>{{ activeTab === "order" ? "订单列表" : "预约记录列表" }}</h3>
         </div>
-      </section>
+        <span>{{
+          searchQuery ? `关键词：${searchQuery}` : "未设置筛选关键词"
+        }}</span>
+      </div>
 
-      <section v-if="editTab" class="batch-actions">
-        <button class="batch-actions__ghost" @click="moveSelectedToFavorites">
-          移入收藏
-        </button>
-        <button class="batch-actions__danger" @click="deleteSelected">
-          删除所选
-        </button>
-      </section>
-    </div>
+      <AsyncViewState
+        v-if="pageLoading || pageErrorMessage"
+        :loading="pageLoading"
+        :error="pageErrorMessage"
+        loading-text="正在同步订单与预约记录"
+        @retry="loadOrderPageData"
+      />
+
+      <div v-else-if="visibleItems.length > 0" class="order-list">
+        <article
+          v-for="item in visibleItems"
+          :key="item.id"
+          class="order-item"
+          :class="{ 'order-item--editing': editTab }"
+        >
+          <label v-if="editTab" class="order-item__checkbox">
+            <input
+              :checked="isSelected(item.id)"
+              type="checkbox"
+              @change="ordersButton(item.id)"
+            />
+          </label>
+
+          <button class="order-item__content" @click="goToDetail(item)">
+            <div class="order-item__main">
+              <strong>{{ getItemDisplayName(item) }}</strong>
+              <span>ID {{ item.id }}</span>
+            </div>
+            <div class="order-item__meta">
+              <div class="order-item_meta-Introduction">
+                <small>简介</small>
+                <span>{{ getItemDescription(item) }}</span>
+              </div>
+              <div>
+                <small>时间</small>
+                <span>{{ formatTimeValue(item) }}</span>
+              </div>
+              <div>
+                <small>价格</small>
+                <span>{{ formatPrice(getItemPrice(item)) }}</span>
+              </div>
+              <div class="order-item__tag">
+                {{ activeTab === "order" ? "查看订单详情" : "查看预约详情" }}
+              </div>
+            </div>
+          </button>
+        </article>
+      </div>
+
+      <div v-else class="order-empty">
+        <strong>当前没有可展示的记录</strong>
+        <span>可以尝试切换标签、清空关键词，或等待新的预约与订单同步。</span>
+      </div>
+    </section>
+
+    <section v-if="editTab" class="batch-actions">
+      <button class="batch-actions__ghost" @click="moveSelectedToFavorites">
+        移入收藏
+      </button>
+      <button class="batch-actions__danger" @click="deleteSelected">
+        删除所选
+      </button>
+    </section>
   </section>
 </template>
 
@@ -283,10 +260,6 @@ const visibleItems = computed(() =>
         : getItemSortTimeValue(b);
     return sortDirection.value === "asc" ? left - right : right - left;
   })
-);
-
-const selectedCount = computed(
-  () => Object.values(choiceActive.value).filter(Boolean).length
 );
 
 const sortLabel = computed(() => (sortDirection.value === "asc" ? "↑" : "↓"));
@@ -557,107 +530,90 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .order-page {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 20px;
-  height: calc(100vh - 170px);
-  min-height: calc(100vh - 170px);
-  max-height: calc(100vh - 170px);
-  overflow: hidden;
+  gap: 14px;
+  position: relative;
 }
 
-.order-sidebar,
-.order-stage__toolbar,
-.order-summary article,
-.order-list-panel,
-.batch-actions {
-  border-radius: 30px;
-  border: 1px solid rgba(21, 91, 92, 0.1);
-  background: rgba(255, 250, 242, 0.82);
-  box-shadow: 0 24px 55px rgba(25, 92, 93, 0.08);
+.ord-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.order-sidebar {
-  position: sticky;
-  top: 128px;
-  align-self: start;
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-}
-
-.order-sidebar__hero {
-  display: grid;
-  gap: 6px;
-  padding: 10px 4px 14px;
-}
-
-.order-sidebar__hero p,
-.order-list-panel__head p {
+.ord-head h2 {
   margin: 0;
-  color: #1e8a88;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #1f3a36;
 }
 
-.order-sidebar__hero h2,
-.order-list-panel__head h3 {
-  margin: 0;
-  color: #143d40;
-  font-size: 25px;
+.seg {
+  display: inline-flex;
+  padding: 4px;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid #efe7dc;
+  border-radius: 12px;
 }
 
-.order-sidebar__hero span,
-.order-list-panel__head span,
-.order-empty span {
-  color: #607975;
-  line-height: 1.8;
-  font-size: 15px;
-}
-
-.order-sidebar__item {
-  padding: 14px 16px;
-  border: 1px solid transparent;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
-  color: #163f42;
-  text-align: left;
-  font-size: 15px;
+.seg__btn {
+  height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #6b7d77;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
 
-.order-sidebar__item--active {
-  border-color: rgba(29, 134, 135, 0.18);
-  background: linear-gradient(
-    135deg,
-    rgba(136, 214, 206, 0.28),
-    rgba(243, 197, 155, 0.22)
-  );
-  box-shadow: 0 16px 30px rgba(28, 98, 99, 0.1);
+.seg__btn--active {
+  background: #e7f5f1;
+  color: #1f7a6c;
 }
 
-.order-stage {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 22px;
-  min-width: 0;
-  min-height: 0;
-  max-height: 100%;
-  overflow: hidden;
+.order-toolbar,
+.order-list-panel,
+.batch-actions {
+  border-radius: 16px;
+  border: 1px solid #efe7dc;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(47, 158, 143, 0.06);
 }
 
-.order-stage__toolbar {
+.order-list-panel__head p {
+  margin: 0;
+  color: #2f9e8f;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.order-list-panel__head h3 {
+  margin: 0;
+  color: #1f3a36;
+  font-size: 16px;
+}
+
+.order-list-panel__head span,
+.order-empty span {
+  color: #6b7d77;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.order-toolbar {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
   align-items: center;
-  height: 80px;
-  min-height: 80px;
-  max-height: 80px;
-  padding: 0 22px;
+  padding: 12px 16px;
 }
 
 .toolbar-search {
@@ -668,7 +624,7 @@ onBeforeUnmount(() => {
   max-height: 56px;
   min-height: 56px;
   border-radius: 20px;
-  border: 1px solid rgba(29, 134, 135, 0.1);
+  border: 1px solid rgba(47, 158, 143, 0.1);
   background: rgba(255, 255, 255, 0.64);
   overflow: hidden;
 }
@@ -679,7 +635,7 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 12px;
   font-weight: 800;
-  color: #187f7d;
+  color: #2f9e8f;
 }
 
 .toolbar-search input {
@@ -689,7 +645,7 @@ onBeforeUnmount(() => {
   padding: 0 18px 0 8px;
   border: none;
   background: transparent;
-  color: #143d40;
+  color: #1f3a36;
   font-size: 16px;
   line-height: 46px;
   outline: none;
@@ -701,8 +657,8 @@ onBeforeUnmount(() => {
   padding: 0 16px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #268f90, #156b6b);
-  color: #fffdf7;
+  background: linear-gradient(135deg, #2f9e8f, #1f7a6c);
+  color: #fffdfa;
   font-weight: 800;
   cursor: pointer;
 }
@@ -718,10 +674,10 @@ onBeforeUnmount(() => {
   left: 22px;
   width: min(520px, calc(100% - 44px));
   padding: 16px;
-  border-radius: 24px;
-  border: 1px solid rgba(21, 91, 92, 0.1);
-  background: rgba(255, 250, 242, 0.96);
-  box-shadow: 0 18px 40px rgba(25, 92, 93, 0.1);
+  border-radius: 16px;
+  border: 1px solid rgba(47, 158, 143, 0.1);
+  background: rgba(255, 253, 250, 0.96);
+  box-shadow: 0 18px 40px rgba(47, 158, 143, 0.1);
   z-index: 5;
 }
 
@@ -734,13 +690,13 @@ onBeforeUnmount(() => {
 
 .search-popover__header strong {
   font-size: 14px;
-  color: #173f42;
+  color: #1f3a36;
 }
 
 .search-popover__clear {
   border: none;
   background: none;
-  color: #cf6d55;
+  color: #c2671b;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -756,14 +712,14 @@ onBeforeUnmount(() => {
   padding: 10px 14px;
   border: none;
   border-radius: 999px;
-  background: rgba(29, 134, 135, 0.08);
-  color: #155a5d;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f3a36;
   cursor: pointer;
 }
 
 .search-popover__empty {
   margin: 0;
-  color: #657d7b;
+  color: #6b7d77;
   font-size: 13px;
 }
 
@@ -793,16 +749,16 @@ onBeforeUnmount(() => {
 .toolbar-pill {
   min-height: 56px;
   height: 56px;
-  background: rgba(29, 134, 135, 0.08);
-  color: #155a5d;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f3a36;
   white-space: nowrap;
 }
 
 .toolbar-edit {
   min-height: 56px;
   height: 56px;
-  background: linear-gradient(135deg, #268f90, #156b6b);
-  color: #fffdf7;
+  background: linear-gradient(135deg, #2f9e8f, #1f7a6c);
+  color: #fffdfa;
   white-space: nowrap;
 }
 
@@ -819,7 +775,7 @@ onBeforeUnmount(() => {
 
 .order-summary p {
   margin: 0 0 8px;
-  color: #1e8a88;
+  color: #2f9e8f;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -830,23 +786,20 @@ onBeforeUnmount(() => {
   display: block;
   margin-bottom: 6px;
   font-size: 26px;
-  color: #143d40;
+  color: #1f3a36;
 }
 
 .order-summary span {
-  color: #607975;
+  color: #6b7d77;
   font-size: 13px;
   line-height: 1.65;
 }
 
 .order-list-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
   align-content: start;
-  padding: 22px;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
+  padding: 18px;
 }
 
 .order-list-panel__head {
@@ -854,22 +807,12 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  margin-bottom: 10px;
 }
 
 .order-list {
   display: grid;
   align-content: start;
-  gap: 14px;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: 6px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.order-list::-webkit-scrollbar {
-  display: none;
+  gap: 12px;
 }
 
 .order-item {
@@ -877,10 +820,10 @@ onBeforeUnmount(() => {
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: center;
-  padding: 16px;
-  border-radius: 24px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
-  background: rgba(255, 255, 255, 0.64);
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #efe7dc;
+  background: #fffdfa;
 }
 
 .order-item--editing {
@@ -895,7 +838,7 @@ onBeforeUnmount(() => {
 .order-item__checkbox input {
   width: 18px;
   height: 18px;
-  accent-color: #1b8585;
+  accent-color: #2f9e8f;
   cursor: pointer;
 }
 
@@ -915,12 +858,12 @@ onBeforeUnmount(() => {
   display: block;
   margin-bottom: 6px;
   font-size: 20px;
-  color: #153f42;
+  color: #1f3a36;
 }
 
 .order-item__main span,
 .order-item__meta small {
-  color: #69817e;
+  color: #6b7d77;
   font-size: 12px;
 }
 
@@ -937,7 +880,7 @@ onBeforeUnmount(() => {
   }
   span {
     font-size: 14px;
-    color: #173f42;
+    color: #1f3a36;
     font-weight: 700;
     text-align: center;
   }
@@ -953,15 +896,15 @@ onBeforeUnmount(() => {
 }
 
 .order-item__meta span {
-  color: #173f42;
+  color: #1f3a36;
   font-weight: 700;
 }
 
 .order-item__tag {
   padding: 10px 14px;
   border-radius: 999px;
-  background: rgba(29, 134, 135, 0.08);
-  color: #166968;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f7a6c;
   font-size: 12px;
   font-weight: 700;
 }
@@ -971,14 +914,14 @@ onBeforeUnmount(() => {
   justify-items: center;
   gap: 8px;
   padding: 34px 18px;
-  border-radius: 24px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.58);
   text-align: center;
 }
 
 .order-empty strong {
   font-size: 20px;
-  color: #163f42;
+  color: #1f3a36;
 }
 
 .batch-actions {
@@ -998,13 +941,13 @@ onBeforeUnmount(() => {
 }
 
 .batch-actions__ghost {
-  background: rgba(29, 134, 135, 0.08);
-  color: #166968;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f7a6c;
 }
 
 .batch-actions__danger {
-  background: linear-gradient(135deg, #e89a79, #d46f58);
-  color: #fffaf6;
+  background: linear-gradient(135deg, #c2671b, #c2671b);
+  color: #fffdfa;
 }
 
 @media (max-width: 1100px) {

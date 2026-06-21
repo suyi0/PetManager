@@ -63,6 +63,7 @@ export type OrderStatus =
  * 医生端创建订单记录时提交给后端的数据结构。
  */
 export interface CreateOrderRecordPayload {
+  queueId?: number;
   ownerId: number;
   petId: number;
   orderType: string;

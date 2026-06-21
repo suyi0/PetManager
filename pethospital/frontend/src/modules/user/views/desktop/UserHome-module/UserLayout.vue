@@ -1,110 +1,52 @@
 <template>
   <div class="user-shell">
-    <div class="user-shell__glow user-shell__glow--left"></div>
-    <div class="user-shell__glow user-shell__glow--right"></div>
-
-    <header class="user-topbar">
-      <div class="brand-block">
-        <p class="brand-block__eyebrow">Pet Wellness Center</p>
+    <aside class="user-side">
+      <div class="side-brand">
+        <div class="side-brand__logo">宠</div>
         <div>
-          <h1>PetManager 用户端</h1>
-          <span>预约、档案、订单整合在一个轻松易读的空间里。</span>
+          <b>宠物医院</b>
+          <small>用户端</small>
         </div>
       </div>
 
-      <nav class="topbar-nav">
+      <nav class="side-nav">
         <RouterLink
           v-for="item in navItems"
           :key="item.key"
           :to="item.to"
-          class="topbar-nav__link"
-          :class="{ 'topbar-nav__link--active': isRouteActive(item.key) }"
+          class="side-nav__link"
+          :class="{ 'side-nav__link--active': isActive(item) }"
         >
+          <span class="side-nav__ic">{{ item.icon }}</span>
           {{ item.label }}
         </RouterLink>
       </nav>
 
-      <div class="profile-panel" ref="personalMenu">
-        <button class="profile-trigger" @click.stop="togglePersonalMenu">
-          <div v-if="userAvatar" class="profile-trigger__avatar">
-            <img :src="userAvatar" alt="用户头像" />
-          </div>
-          <div
-            v-else
-            class="profile-trigger__avatar profile-trigger__avatar--fallback"
-          >
-            {{ userInitial }}
-          </div>
-
-          <div class="profile-trigger__copy">
-            <strong>{{ userDisplayName }}</strong>
-            <span>{{ userSubtitle }}</span>
-          </div>
-
-          <span class="profile-trigger__caret">⌄</span>
+      <div class="side-foot">
+        <button
+          v-if="showAdminReturn"
+          type="button"
+          class="side-return"
+          @click="returnToSuperAdmin"
+        >
+          ← 返回超级管理员
+        </button>
+        <button
+          v-if="showBossReturn"
+          type="button"
+          class="side-return"
+          @click="returnToBossPortal"
+        >
+          ← 返回总裁端
         </button>
 
-        <transition name="menu-fade">
-          <div v-if="personal" class="profile-menu">
-            <div class="profile-menu__hero">
-              <div
-                class="profile-menu__badge"
-                :class="{ 'profile-menu__badge--fallback': !userAvatar }"
-              >
-                <img v-if="userAvatar" :src="userAvatar" alt="用户头像" />
-                <span v-else>{{ userInitial }}</span>
-              </div>
-              <div>
-                <strong>{{ userDisplayName }}</strong>
-              </div>
-            </div>
-
-            <div class="profile-menu__actions">
-              <button
-                v-for="item in quickActions"
-                :key="item.label"
-                class="profile-menu__action"
-                @click="goTo(item.to)"
-              >
-                <span>{{ item.label }}</span>
-                <small>{{ item.hint }}</small>
-              </button>
-            </div>
-
-            <div class="profile-menu__footer">
-              <button class="profile-menu__ghost" @click="logout">
-                切换账号
-              </button>
-              <button class="profile-menu__danger" @click="logout">
-                退出登录
-              </button>
-            </div>
-          </div>
-        </transition>
+        <PortalAccount fallback-name="用户" @logout="logout" />
       </div>
-    </header>
+    </aside>
 
     <main class="user-stage">
       <RouterView />
     </main>
-
-    <button
-      v-if="showAdminReturn"
-      type="button"
-      class="admin-return-fab"
-      @click="returnToSuperAdmin"
-    >
-      返回超级管理员
-    </button>
-
-    <button
-      v-if="showBossReturn"
-      type="button"
-      class="boss-return-fab"
-      @click="returnToBossPortal"
-    >
-      返回总裁端
-    </button>
   </div>
 </template>
 
@@ -124,37 +66,33 @@ const { showBossReturn, returnToBossPortal } = useBossPortalReturn(router);
 const basePath = computed(() => "/user");
 
 const navItems = computed(() => [
-  { key: "home", label: "首页", to: `${basePath.value}/home` },
-  { key: "services", label: "服务预约", to: `${basePath.value}/services` },
-  { key: "order", label: "订单记录", to: `${basePath.value}/order` },
+  { key: "home", icon: "🏠", label: "首页", to: `${basePath.value}/home` },
+  {
+    key: "services",
+    icon: "📅",
+    label: "服务预约",
+    to: `${basePath.value}/services`,
+  },
+  {
+    key: "order",
+    icon: "🧾",
+    label: "我的订单",
+    to: `${basePath.value}/order`,
+  },
 ]);
 
-const quickActions = computed(() => [
-  {
-    label: "个人中心",
-    hint: "查看资料与地址",
-    to: `${basePath.value}/personal`,
-  },
-  {
-    label: "宠物档案",
-    hint: "维护宠物资料与护理备注",
-    to: `${basePath.value}/personal?tab=pet`,
-  },
-  { label: "我的订单", hint: "订单与预约记录", to: `${basePath.value}/order` },
-  {
-    label: "账号安全",
-    hint: "返回个人资料页维护信息",
-    to: `${basePath.value}/personal?tab=personal`,
-  },
-]);
+const isActive = (item: { key: string; to: string }) =>
+  route.path.startsWith(item.to.split("?")[0]);
+
+const goTo = (to: string) => {
+  closePersonal();
+  void router.push(to);
+};
 
 const personal = computed(() => store.state.ui.personal);
 const userAvatar = computed(() => store.state.currentUser.userHeadImage || "");
 const userDisplayName = computed(
   () => store.getters["auth/formattedUserName"] || "体验用户"
-);
-const userSubtitle = computed(
-  () => store.state.currentUser.userEmail || "未绑定邮箱"
 );
 const userInitial = computed(() =>
   String(userDisplayName.value || "U")
@@ -175,11 +113,6 @@ const closePersonal = () => {
   }
 };
 
-const goTo = (to: string) => {
-  closePersonal();
-  router.push(to);
-};
-
 const logout = () => {
   closePersonal();
   store.dispatch("auth/logout");
@@ -195,8 +128,6 @@ const returnToSuperAdmin = async () => {
   await store.dispatch("auth/restoreAdminPortalBridgeSession", bridge);
   await router.push(bridge.returnTo);
 };
-
-const isRouteActive = (key: string) => route.path.includes(`/${key}`);
 
 /**
  * 监听全局点击事件以关闭个人菜单。
@@ -231,306 +162,244 @@ watch(
 
 <style scoped lang="scss">
 .user-shell {
-  --shell-bg: #f7f4ea;
-  --shell-panel: rgba(255, 250, 239, 0.92);
-  --shell-border: rgba(22, 90, 94, 0.12);
-  --shell-shadow: 0 30px 70px rgba(29, 93, 95, 0.12);
-  --shell-text: #163f42;
-  --shell-muted: #5f7d7a;
-  --shell-accent: #1d8687;
-  --shell-accent-strong: #0f6868;
-  --shell-warm: #e38b63;
-  position: relative;
+  --shell-border: #efe7dc;
+  --shell-text: #1f3a36;
+  --shell-muted: #6b7d77;
+  --shell-faint: #94a3b8;
+  --shell-accent: #2f9e8f;
+  --shell-accent-strong: #1f7a6c;
+  --shell-accent-50: #e7f5f1;
+  --shell-warm: #c2671b;
+
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
   min-height: 100vh;
-  padding: 24px;
-  background: radial-gradient(
-      circle at 10% 10%,
-      rgba(126, 210, 205, 0.28),
-      transparent 20%
-    ),
-    radial-gradient(
-      circle at 85% 12%,
-      rgba(243, 196, 152, 0.28),
-      transparent 22%
-    ),
-    linear-gradient(180deg, #f4efe1 0%, #eef6f3 48%, #f3efe6 100%);
+  background: linear-gradient(180deg, #fbfaf7 0%, #f1f7f4 100%);
   color: var(--shell-text);
   font-family: "Noto Sans SC", "PingFang SC", "Segoe UI", sans-serif;
 }
 
-.user-shell__glow {
-  position: fixed;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  filter: blur(10px);
-  pointer-events: none;
-}
-
-.user-shell__glow--left {
-  left: -120px;
-  bottom: 120px;
-  background: rgba(117, 201, 190, 0.2);
-}
-
-.user-shell__glow--right {
-  right: -120px;
-  top: 84px;
-  background: rgba(241, 179, 144, 0.16);
-}
-
-.admin-return-fab {
-  position: fixed;
-  left: 24px;
-  bottom: 24px;
-  z-index: 30;
-  border: 1px solid rgba(29, 134, 135, 0.18);
-  border-radius: 999px;
-  padding: 12px 18px;
-  background: linear-gradient(135deg, #fff9ef, #e3f6f0);
-  color: #17494d;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 16px 34px rgba(22, 90, 94, 0.16);
-}
-
-.boss-return-fab {
-  position: fixed;
-  left: 24px;
-  bottom: 24px;
-  z-index: 30;
-  border: 1px solid rgba(29, 134, 135, 0.18);
-  border-radius: 999px;
-  padding: 12px 18px;
-  background: linear-gradient(135deg, #fff6e8, #e3f6f0);
-  color: #17494d;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 16px 34px rgba(22, 90, 94, 0.16);
-}
-
-.admin-return-fab + .boss-return-fab {
-  bottom: 76px;
-}
-
-.user-topbar {
+/* ===== 侧边栏 ===== */
+.user-side {
   position: sticky;
-  top: 16px;
-  z-index: 20;
-  display: grid;
-  grid-template-columns: minmax(240px, 1.1fr) auto minmax(240px, 320px);
-  align-items: center;
-  gap: 18px;
-  width: min(1320px, 100%);
-  margin: 0 auto 22px;
-  padding: 18px 22px;
-  border: 1px solid var(--shell-border);
-  border-radius: 28px;
-  background: rgba(255, 249, 238, 0.78);
-  backdrop-filter: blur(22px);
-  box-shadow: var(--shell-shadow);
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 14px;
+  background: #ffffff;
+  border-right: 1px solid var(--shell-border);
 }
 
-.brand-block {
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 16px;
+}
+
+.side-brand__logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #2f9e8f, #38b2a3);
+}
+
+.side-brand b {
+  font-size: 15px;
+}
+
+.side-brand small {
+  display: block;
+  font-size: 11px;
+  color: var(--shell-faint);
+}
+
+.side-nav {
   display: grid;
   gap: 4px;
 }
 
-.brand-block__eyebrow {
-  margin: 0;
-  color: var(--shell-accent);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.brand-block h1 {
-  margin: 0;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: clamp(28px, 3vw, 34px);
-  line-height: 1;
-}
-
-.brand-block span {
-  color: var(--shell-muted);
-  font-size: 13px;
-}
-
-.topbar-nav {
+.side-nav__link {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  align-items: center;
   gap: 10px;
-}
-
-.topbar-nav__link {
-  padding: 10px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(29, 134, 135, 0.12);
-  color: var(--shell-text);
-  text-decoration: none;
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 11px;
+  color: var(--shell-muted);
   font-size: 14px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.56);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.topbar-nav__link:hover,
-.topbar-nav__link--active {
-  transform: translateY(-1px);
-  background: linear-gradient(
-    135deg,
-    rgba(132, 214, 205, 0.28),
-    rgba(240, 195, 158, 0.24)
-  );
-  box-shadow: 0 12px 28px rgba(24, 95, 97, 0.1);
+.side-nav__ic {
+  width: 20px;
+  text-align: center;
+  font-size: 16px;
 }
 
+.side-nav__link:hover {
+  background: #f3f7f4;
+  color: var(--shell-text);
+}
+
+.side-nav__link--active {
+  background: var(--shell-accent-50);
+  color: var(--shell-accent-strong);
+}
+
+.side-foot {
+  margin-top: auto;
+  display: grid;
+  gap: 8px;
+}
+
+.side-return {
+  height: 38px;
+  border: 1px solid var(--shell-border);
+  border-radius: 10px;
+  background: #fffdfa;
+  color: var(--shell-accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.side-return:hover {
+  border-color: #cfe7e1;
+}
+
+/* 用户卡 + 菜单（与其他端 PortalAccount 同款设计） */
 .profile-panel {
   position: relative;
 }
 
-.profile-trigger {
+.acct-btn {
   width: 100%;
-  display: grid;
-  grid-template-columns: 52px 1fr 16px;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(29, 134, 135, 0.12);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.66);
-  color: inherit;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--shell-border);
+  border-radius: 12px;
+  background: #fffdfa;
   cursor: pointer;
+  text-align: left;
 }
 
-.profile-trigger__avatar,
-.profile-menu__badge {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
+.acct-btn:hover {
+  background: #f3f7f4;
+}
+
+.acct-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex: 0 0 auto;
   overflow: hidden;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #95ddd4, #f0c59c);
-  color: #114a4a;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: 24px;
-  font-weight: 700;
+  background: #ffe8d2;
+  color: var(--shell-warm);
+  font-weight: 800;
+  font-size: 14px;
 }
 
-.profile-trigger__avatar img,
-.profile-menu__badge img {
+.acct-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.profile-trigger__avatar--fallback,
-.profile-menu__badge--fallback {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+.acct-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--shell-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.profile-trigger__copy {
-  display: grid;
-  justify-items: start;
+.acct-chev {
+  width: 16px;
+  height: 16px;
+  color: var(--shell-faint);
+  flex: 0 0 auto;
 }
 
-.profile-trigger__copy strong,
-.profile-menu__hero strong {
-  font-size: 15px;
-}
-
-.profile-trigger__copy span,
-.profile-menu__hero span {
-  color: var(--shell-muted);
-  font-size: 12px;
-}
-
-.profile-trigger__caret {
-  color: var(--shell-accent);
-  font-size: 18px;
-}
-
-.profile-menu {
+.acct-menu {
   position: absolute;
+  left: 0;
   right: 0;
-  top: calc(100% + 10px);
-  width: min(320px, 92vw);
-  padding: 16px;
-  border-radius: 26px;
-  border: 1px solid rgba(29, 134, 135, 0.12);
-  background: var(--shell-panel);
-  box-shadow: 0 22px 48px rgba(27, 91, 92, 0.16);
+  bottom: calc(100% + 8px);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--shell-border);
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(27, 91, 92, 0.14);
+  z-index: 20;
 }
 
-.profile-menu__hero {
-  display: grid;
-  grid-template-columns: 52px 1fr;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
-.profile-menu__actions {
-  display: grid;
-  gap: 10px;
-}
-
-.profile-menu__action {
+.acct-mi {
   width: 100%;
-  display: grid;
-  justify-items: start;
-  gap: 2px;
-  padding: 12px 14px;
-  border: 1px solid rgba(29, 134, 135, 0.08);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.56);
-  color: inherit;
-  cursor: pointer;
-}
-
-.profile-menu__action span {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.profile-menu__action small {
-  color: var(--shell-muted);
-  font-size: 12px;
-}
-
-.profile-menu__footer {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  align-items: center;
   gap: 10px;
-  margin-top: 14px;
-}
-
-.profile-menu__ghost,
-.profile-menu__danger {
-  padding: 12px 14px;
-  border: none;
-  border-radius: 16px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--shell-text);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 700;
+  text-align: left;
 }
 
-.profile-menu__ghost {
-  background: rgba(29, 134, 135, 0.08);
-  color: var(--shell-accent-strong);
+.acct-mi:hover {
+  background: #f3f7f4;
 }
 
-.profile-menu__danger {
-  background: linear-gradient(135deg, #eb9f7f, #d87457);
-  color: #fffaf5;
+.acct-mi svg {
+  width: 16px;
+  height: 16px;
+  color: var(--shell-muted);
 }
 
+.acct-divider {
+  height: 1px;
+  background: var(--shell-border);
+  margin: 6px 4px;
+}
+
+.acct-mi--danger {
+  color: #be4b5b;
+}
+
+.acct-mi--danger svg {
+  color: #be4b5b;
+}
+
+.acct-mi--danger:hover {
+  background: #fdeef0;
+}
+
+/* ===== 内容区 ===== */
 .user-stage {
-  width: min(1320px, 100%);
-  margin: 0 auto;
-  min-height: 0;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 22px 26px 28px;
 }
 
 .menu-fade-enter-active,
@@ -541,37 +410,33 @@ watch(
 .menu-fade-enter-from,
 .menu-fade-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(6px);
 }
 
-@media (max-width: 1100px) {
-  .user-topbar {
+@media (max-width: 860px) {
+  .user-shell {
     grid-template-columns: 1fr;
   }
 
-  .topbar-nav {
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 720px) {
-  .user-shell {
-    padding: 14px;
+  .user-side {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
-  .user-topbar {
-    top: 10px;
-    padding: 16px;
-    border-radius: 22px;
+  .side-nav {
+    grid-auto-flow: column;
   }
 
-  .topbar-nav {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .side-foot {
+    margin-top: 0;
+    margin-left: auto;
   }
 
-  .topbar-nav__link {
-    text-align: center;
+  .user-stage {
+    height: auto;
   }
 }
 </style>

@@ -63,6 +63,7 @@ namespace DatabaseMigrations
         bool userSearch_exists = false;
         bool warehouse_exists = false;
         bool workTimeLogs_exists = false;
+        bool medicalQueueCounters_exists = false;
         bool medicalQueues_exists = false;
         bool system_operations_exists = false;
         bool user_operations_exists = false;
@@ -141,6 +142,10 @@ namespace DatabaseMigrations
             else if (table_name == "workTimeLogs")
             {
                 workTimeLogs_exists = true;
+            }
+            else if (table_name == "medicalQueueCounters")
+            {
+                medicalQueueCounters_exists = true;
             }
             else if (table_name == "medicalQueues")
             {
@@ -602,6 +607,25 @@ namespace DatabaseMigrations
                          ")")
                 .execute();
             std::cout << "workTimeLogs table created successfully." << std::endl;
+        }
+
+        if (medicalQueueCounters_exists)
+        {
+            std::cout << "medicalQueueCounters table is exists." << std::endl;
+        }
+        else
+        {
+            std::cout << "medicalQueueCounters table does not exist. Creating..." << std::endl;
+            session->sql("CREATE TABLE medicalQueueCounters( "
+                         "id INT AUTO_INCREMENT PRIMARY KEY, "
+                         "queue_date DATE NOT NULL COMMENT '队列日期', "
+                         "current_number INT NOT NULL DEFAULT 0 COMMENT '当天已分配的最大队列号', "
+                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+                         "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         "UNIQUE INDEX idx_medicalQueueCounters_queue_date (queue_date) "
+                         ")")
+                .execute();
+            std::cout << "medicalQueueCounters table created successfully." << std::endl;
         }
 
         if (medicalQueues_exists)

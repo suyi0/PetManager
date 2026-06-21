@@ -114,13 +114,11 @@
           >
             <td colspan="10"></td>
           </tr>
-          <tr v-if="visibleItems.length === 0">
-            <td colspan="10" class="empty-cell">
-              当前暂无可继续编辑的诊单草稿。
-            </td>
-          </tr>
         </tbody>
       </table>
+      <div v-if="visibleItems.length === 0" class="empty-overlay">
+        当前暂无可继续编辑的诊单草稿。
+      </div>
     </div>
   </section>
 </template>
@@ -218,13 +216,12 @@ export default defineComponent({
       return visibleItems.value.slice(start, start + pageSize.value);
     });
 
+    // 始终把整页占位空行补满（0 条也先铺好一整页 ledger 排布）。
     const placeholderRows = computed(() =>
-      pagedItems.value.length === 0
-        ? []
-        : Array.from(
-            { length: Math.max(0, pageSize.value - pagedItems.value.length) },
-            (_, index) => index + 1
-          )
+      Array.from(
+        { length: Math.max(0, pageSize.value - pagedItems.value.length) },
+        (_, index) => index + 1
+      )
     );
 
     const updatePageSize = () => {
@@ -495,9 +492,9 @@ button {
   gap: 10px;
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid rgba(160, 186, 178, 0.3);
+  border: 1px solid rgba(148, 163, 184, 0.3);
   background: rgba(255, 255, 255, 0.72);
-  color: #4e6762;
+  color: #64748b;
   box-shadow: none;
 }
 
@@ -513,7 +510,7 @@ button {
 .status-filter--active {
   border-color: rgba(16, 24, 40, 0.38);
   background: linear-gradient(135deg, #f8fafc, #eef2ff);
-  color: #21464b;
+  color: #0f172a;
 }
 
 .table-shell {
@@ -572,7 +569,7 @@ td {
 
 .source-pill--queue {
   background: #eef2ff;
-  color: #275b56;
+  color: #0f172a;
 }
 
 .source-pill--manual {
@@ -605,7 +602,7 @@ td {
 }
 
 .record-row--pending-delete {
-  background: rgba(250, 235, 228, 0.72);
+  background: rgba(254, 242, 242, 0.72);
 }
 
 .placeholder-row td {
@@ -613,9 +610,13 @@ td {
   background: #ffffff;
 }
 
-.empty-cell {
-  height: calc(48px * var(--record-page-size, 10));
+.empty-overlay {
+  position: absolute;
+  inset: 48px 0 0;
+  display: grid;
+  place-items: center;
   color: #64748b;
-  text-align: center;
+  font-size: 13px;
+  pointer-events: none;
 }
 </style>

@@ -154,10 +154,10 @@ onMounted(() => {
   display: grid;
   gap: 18px;
   padding: 24px;
-  border-radius: 30px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
+  border-radius: 16px;
+  border: 1px solid rgba(47, 158, 143, 0.08);
   background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
+  box-shadow: 0 18px 44px rgba(47, 158, 143, 0.06);
 }
 
 .address-editor__head {
@@ -169,7 +169,7 @@ onMounted(() => {
 
 .address-editor__head p {
   margin: 0;
-  color: #1f8e89;
+  color: #2f9e8f;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 11px;
@@ -178,14 +178,14 @@ onMounted(() => {
 
 .address-editor__head h3 {
   margin: 6px 0 0;
-  color: #133f42;
+  color: #1f3a36;
   font-size: 32px;
 }
 
 .address-editor__head span {
   display: block;
   margin-top: 10px;
-  color: #607975;
+  color: #6b7d77;
   line-height: 1.8;
   font-size: 14px;
 }
@@ -203,8 +203,8 @@ onMounted(() => {
 
 .address-editor__ghost,
 .address-form__ghost {
-  background: rgba(20, 82, 84, 0.08);
-  color: #154144;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f3a36;
 }
 
 .address-editor__hero {
@@ -218,13 +218,13 @@ onMounted(() => {
   border-radius: 18px;
   background: linear-gradient(
     135deg,
-    rgba(136, 214, 206, 0.18),
-    rgba(243, 197, 155, 0.14)
+    rgba(56, 178, 163, 0.18),
+    rgba(255, 217, 176, 0.14)
   );
 }
 
 .address-editor__hero small {
-  color: #1f8e89;
+  color: #2f9e8f;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 11px;
@@ -234,7 +234,7 @@ onMounted(() => {
 .address-editor__hero strong {
   display: block;
   margin-top: 8px;
-  color: #143f42;
+  color: #1f3a36;
   font-size: 22px;
   line-height: 1.4;
 }
@@ -242,15 +242,15 @@ onMounted(() => {
 .address-editor__hero span {
   display: block;
   margin-top: 8px;
-  color: #607975;
+  color: #6b7d77;
   line-height: 1.8;
   font-size: 14px;
 }
 
 .address-form__primary {
-  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  background: linear-gradient(135deg, #1f7a6c, #2f9e8f);
   color: #fff;
-  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+  box-shadow: 0 16px 30px rgba(47, 158, 143, 0.22);
 }
 
 .address-form {
@@ -265,7 +265,7 @@ onMounted(() => {
 }
 
 .address-form span {
-  color: #24484b;
+  color: #1f3a36;
   font-size: 13px;
   font-weight: 700;
 }
@@ -274,18 +274,18 @@ onMounted(() => {
 .address-form select {
   width: 100%;
   padding: 13px 14px;
-  border: 1px solid rgba(20, 82, 84, 0.12);
+  border: 1px solid rgba(47, 158, 143, 0.12);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
-  color: #173f42;
+  color: #1f3a36;
   font-size: 14px;
 }
 
 .address-form input:focus,
 .address-form select:focus {
   outline: none;
-  border-color: rgba(24, 128, 127, 0.5);
-  box-shadow: 0 0 0 4px rgba(141, 218, 210, 0.18);
+  border-color: rgba(47, 158, 143, 0.5);
+  box-shadow: 0 0 0 4px rgba(56, 178, 163, 0.18);
 }
 
 .address-form__wide,

@@ -83,13 +83,13 @@ crow::response personnelHandler::createUser(const crow::request &req)
 
             if (result.getAffectedItemsCount() == 0)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::system_error(req, "创建失败");
             }
 
             if (!UserPhoneSync::upsertUserPhone(*session, static_cast<int>(result.getAutoIncrementValue()), phone))
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::system_error(req, "用户创建失败，手机号同步未完成");
             }
 
@@ -98,7 +98,7 @@ crow::response personnelHandler::createUser(const crow::request &req)
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
 
@@ -220,7 +220,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
 
             if (result.getAffectedItemsCount() == 0)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::notFound(req);
             }
 
@@ -240,7 +240,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
                                                      .execute();
                 if (insertResult.getAffectedItemsCount() != 1)
                 {
-                    session->sql("ROLLBACK").execute();
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::operation_failed(req, "医生排班初始化失败");
                 }
             }
@@ -249,7 +249,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
 

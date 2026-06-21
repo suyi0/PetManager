@@ -237,7 +237,12 @@ const uploadImage = async (formData: FormData) => {
   try {
     const uploadResponse = await profileApi.uploadAvatar(formData);
 
-    const avatarUrl = uploadResponse.data.avatarUrl;
+    const avatarUrl =
+      uploadResponse.data?.data?.avatarUrl || uploadResponse.data?.avatarUrl;
+
+    if (!avatarUrl) {
+      throw new Error("Avatar upload response is missing avatarUrl");
+    }
 
     store.dispatch("currentUser/updateUserField", {
       field: "userHeadImage",
@@ -295,10 +300,10 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 18px;
   padding: 24px;
-  border-radius: 30px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
+  border-radius: 16px;
+  border: 1px solid rgba(47, 158, 143, 0.08);
   background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
+  box-shadow: 0 18px 44px rgba(47, 158, 143, 0.06);
 }
 
 .avatar-editor__head {
@@ -312,7 +317,7 @@ onBeforeUnmount(() => {
 .avatar-editor__copy small,
 .avatar-editor__preview small {
   margin: 0;
-  color: #1f8e89;
+  color: #2f9e8f;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 11px;
@@ -321,7 +326,7 @@ onBeforeUnmount(() => {
 
 .avatar-editor__head h3 {
   margin: 6px 0 0;
-  color: #133f42;
+  color: #1f3a36;
   font-size: 32px;
 }
 
@@ -331,7 +336,7 @@ onBeforeUnmount(() => {
 .avatar-editor__tip {
   display: block;
   margin-top: 10px;
-  color: #607975;
+  color: #6b7d77;
   line-height: 1.8;
   font-size: 14px;
 }
@@ -341,12 +346,12 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 18px;
   padding: 22px;
-  border-radius: 28px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
+  border-radius: 16px;
+  border: 1px solid rgba(47, 158, 143, 0.08);
   background: linear-gradient(
     135deg,
-    rgba(136, 214, 206, 0.18),
-    rgba(243, 197, 155, 0.14)
+    rgba(56, 178, 163, 0.18),
+    rgba(255, 217, 176, 0.14)
   );
 }
 
@@ -363,15 +368,15 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   border-radius: 42px;
-  background: linear-gradient(135deg, #91ddd2, #f0c29b);
-  box-shadow: 0 18px 34px rgba(28, 98, 99, 0.14);
+  background: linear-gradient(135deg, #cfe7e1, #ffd9b0);
+  box-shadow: 0 18px 34px rgba(47, 158, 143, 0.14);
 }
 
 .avatar-editor__current-image {
   width: 136px;
   height: 136px;
   object-fit: cover;
-  border-radius: 34px;
+  border-radius: 16px;
 }
 
 .avatar-editor__copy {
@@ -380,7 +385,7 @@ onBeforeUnmount(() => {
 }
 
 .avatar-editor__copy strong {
-  color: #143f42;
+  color: #1f3a36;
   font-size: 28px;
 }
 
@@ -402,7 +407,7 @@ onBeforeUnmount(() => {
 .cropper-wrapper {
   min-height: 360px;
   padding: 18px;
-  border-radius: 24px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.74);
 }
 
@@ -416,7 +421,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 10px;
   padding: 20px;
-  border-radius: 24px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.74);
   text-align: center;
 }
@@ -427,7 +432,7 @@ onBeforeUnmount(() => {
   justify-self: center;
   object-fit: cover;
   border-radius: 50%;
-  box-shadow: 0 18px 34px rgba(24, 90, 91, 0.1);
+  box-shadow: 0 18px 34px rgba(47, 158, 143, 0.1);
 }
 
 .avatar-editor__bottom {
@@ -455,14 +460,14 @@ onBeforeUnmount(() => {
 }
 
 .avatar-editor__ghost {
-  background: rgba(20, 82, 84, 0.08);
-  color: #154144;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f3a36;
 }
 
 .avatar-editor__primary {
-  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  background: linear-gradient(135deg, #1f7a6c, #2f9e8f);
   color: #fff;
-  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+  box-shadow: 0 16px 30px rgba(47, 158, 143, 0.22);
 }
 
 @media (max-width: 960px) {
@@ -476,13 +481,13 @@ onBeforeUnmount(() => {
   .avatar-editor__current {
     width: 124px;
     height: 124px;
-    border-radius: 30px;
+    border-radius: 16px;
   }
 
   .avatar-editor__current-image {
     width: 104px;
     height: 104px;
-    border-radius: 24px;
+    border-radius: 16px;
   }
 
   .cropper-wrapper {

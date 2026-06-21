@@ -49,6 +49,12 @@ namespace
         return isTruthyEnv(std::getenv("DB_AUTO_RUN_MIGRATIONS"));
     }
 
+    // 每个 MySQL session 都固定为 UTC，避免 TIMESTAMP 字段受数据库默认时区影响。
+    void configureSessionTimeZone(mysqlx::Session &session)
+    {
+        session.sql("SET SESSION time_zone = '+00:00'").execute();
+    }
+
     // 获取数据库SSL模式
     mysqlx::SSLMode parseSslMode(const char *ssl_mode_env)
     {
@@ -240,6 +246,7 @@ bool DatabaseManager::ensureThreadConnection()
         
         // 使用std::make_unique来创建一个mysqlx::Session对象的独占指针
         auto session = std::make_unique<mysqlx::Session>(full_uri);
+        configureSessionTimeZone(*session);
         auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
         thread_session_ = std::move(session);
         thread_schema_ = std::move(schema);
@@ -264,6 +271,7 @@ bool DatabaseManager::ensureThreadConnection()
                 mysqlx::SessionOption::PWD, db_pass_.c_str(),
                 mysqlx::SessionOption::DB, db_name_.c_str(),
                 mysqlx::SessionOption::SSL_MODE, ssl_mode_);
+            configureSessionTimeZone(*session);
             auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
             thread_session_ = std::move(session);
             thread_schema_ = std::move(schema);
@@ -295,6 +303,7 @@ bool DatabaseManager::ensureThreadConnection()
                 mysqlx::SessionOption::USER, db_user_.c_str(),
                 mysqlx::SessionOption::PWD, db_pass_.c_str(),
                 mysqlx::SessionOption::SSL_MODE, ssl_mode_);
+            configureSessionTimeZone(temp_session);
 
             auto result = temp_session
                               .sql("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?")
@@ -318,6 +327,7 @@ bool DatabaseManager::ensureThreadConnection()
                 mysqlx::SessionOption::PWD, db_pass_.c_str(),
                 mysqlx::SessionOption::DB, db_name_.c_str(),
                 mysqlx::SessionOption::SSL_MODE, ssl_mode_);
+            configureSessionTimeZone(*session);
             auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
             thread_session_ = std::move(session);
             thread_schema_ = std::move(schema);
@@ -340,6 +350,7 @@ bool DatabaseManager::ensureThreadConnection()
                 ("mysqlx://" + db_user_ + ":" + db_pass_ + "@" + host_and_port +
                  "/" + db_name_ + "?ssl-mode=" + std::string(sslModeToUriValue(ssl_mode_)))
                     .c_str());
+            configureSessionTimeZone(*session);
             auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
             thread_session_ = std::move(session);
             thread_schema_ = std::move(schema);

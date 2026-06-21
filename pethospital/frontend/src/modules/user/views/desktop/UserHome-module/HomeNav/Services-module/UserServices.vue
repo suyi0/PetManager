@@ -1,102 +1,78 @@
 <template>
   <section class="services-page">
-    <aside class="services-sidebar">
-      <button
-        class="services-sidebar__item"
-        :class="{
-          'services-sidebar__item--active': isReservationTab(activeTab),
-        }"
-        @click="switchTab('reservation')"
-      >
-        <span>预约服务</span>
-        <small>医生、日期与时段统一预约</small>
-      </button>
-      <button
-        class="services-sidebar__item"
-        :class="{ 'services-sidebar__item--active': activeTab === 'afterSale' }"
-        @click="switchTab('afterSale')"
-      >
-        <span>复诊服务</span>
-        <small>复诊说明、护理建议与咨询入口</small>
-      </button>
-    </aside>
-
-    <div class="services-stage">
-      <section class="services-hero">
-        <div class="services-hero__copy">
-          <p>Services</p>
-          <h2>把高频服务整理成容易看懂、能直接预约的入口。</h2>
-          <span>
-            现在保留原有预约能力，并把服务类型、预约流程和下层弹窗排在同一条阅读路径里。
-          </span>
-        </div>
-        <div class="services-hero__metrics">
-          <article>
-            <strong>4</strong>
-            <span>当前可预约服务类型</span>
-          </article>
-          <article>
-            <strong>7</strong>
-            <span>连续日期时段支持选择</span>
-          </article>
-          <article>
-            <strong>1</strong>
-            <span>预约成功后自动回到服务首页</span>
-          </article>
-        </div>
-      </section>
-
-      <section v-if="activeTab === 'reservation'" class="service-grid">
+    <div class="svc-head">
+      <div class="svc-head__title">
+        <h2>服务预约</h2>
+        <p>选服务 → 选医生 → 选时段，预约成功后自动回到这里。</p>
+      </div>
+      <div class="seg">
         <button
-          v-for="service in serviceCards"
-          :key="service.key"
-          class="service-card"
-          @click="selectService(service)"
+          class="seg__btn"
+          :class="{ 'seg__btn--active': isReservationTab(activeTab) }"
+          @click="switchTab('reservation')"
         >
-          <div class="service-card__badge">{{ service.label }}</div>
-          <strong>{{ service.title }}</strong>
-          <span>{{ service.description }}</span>
+          预约服务
         </button>
-      </section>
-
-      <section v-else-if="activeTab === 'afterSale'" class="after-sale-panel">
-        <article v-for="item in afterSaleCards" :key="item.title">
-          <p>{{ item.label }}</p>
-          <strong>{{ item.title }}</strong>
-          <span>{{ item.description }}</span>
-        </article>
-      </section>
-
-      <section
-        v-if="
-          activeTab === 'reservation-treatSlots' ||
-          activeTab === 'showSlots' ||
-          activeTab === 'reservation-sterilizateSlots' ||
-          activeTab === 'reservation-beautySlots' ||
-          activeTab === 'reservation-SPASlots'
-        "
-        class="slot-shell"
-      >
-        <div class="slot-shell__header">
-          <div>
-            <p>预约流程</p>
-            <h3>{{ activeServiceTitle }}</h3>
-          </div>
-          <span>选择医生后进入时段选择，成功提交后会给出结果提示。</span>
-        </div>
-        <treatSlots
-          :active-tab="normalizedSlotTab"
-          :doctor-data="doctorData"
-          :pet-profiles="petProfiles"
-          :service-type="serviceType"
-          :schedule-data="scheduleData"
-          :switchTab="switchTab"
-          @close="close"
-          @cancle="cancel"
-          @submit-success="handleSubmitSuccess"
-        />
-      </section>
+        <button
+          class="seg__btn"
+          :class="{ 'seg__btn--active': activeTab === 'afterSale' }"
+          @click="switchTab('afterSale')"
+        >
+          复诊服务
+        </button>
+      </div>
     </div>
+
+    <section v-if="activeTab === 'reservation'" class="service-grid">
+      <button
+        v-for="service in serviceCards"
+        :key="service.key"
+        class="service-card"
+        @click="selectService(service)"
+      >
+        <div class="service-card__badge">{{ service.label }}</div>
+        <strong>{{ service.title }}</strong>
+        <span>{{ service.description }}</span>
+      </button>
+    </section>
+
+    <section v-else-if="activeTab === 'afterSale'" class="after-sale-panel">
+      <article v-for="item in afterSaleCards" :key="item.title">
+        <p>{{ item.label }}</p>
+        <strong>{{ item.title }}</strong>
+        <span>{{ item.description }}</span>
+      </article>
+    </section>
+
+    <section
+      v-if="
+        activeTab === 'reservation-treatSlots' ||
+        activeTab === 'showSlots' ||
+        activeTab === 'reservation-sterilizateSlots' ||
+        activeTab === 'reservation-beautySlots' ||
+        activeTab === 'reservation-SPASlots'
+      "
+      class="slot-shell"
+    >
+      <div class="slot-shell__header">
+        <div>
+          <p>预约流程</p>
+          <h3>{{ activeServiceTitle }}</h3>
+        </div>
+        <span>选择医生后进入时段选择，成功提交后会给出结果提示。</span>
+      </div>
+      <treatSlots
+        :active-tab="normalizedSlotTab"
+        :doctor-data="doctorData"
+        :pet-profiles="petProfiles"
+        :service-type="serviceType"
+        :schedule-data="scheduleData"
+        :switchTab="switchTab"
+        @close="close"
+        @cancle="cancel"
+        @submit-success="handleSubmitSuccess"
+      />
+    </section>
 
     <div v-if="submitAfter" class="submit-mask"></div>
   </section>
@@ -255,158 +231,99 @@ onMounted(async () => {
 <style scoped lang="scss">
 .services-page {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  gap: 20px;
-  min-height: 0;
-  align-items: start;
+  gap: 16px;
   position: relative;
-}
-
-.services-sidebar {
-  position: sticky;
-  top: 128px;
-  align-self: start;
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 30px;
-  border: 1px solid rgba(21, 91, 92, 0.1);
-  background: rgba(255, 250, 242, 0.8);
-  box-shadow: 0 22px 50px rgba(29, 93, 95, 0.08);
-}
-
-.services-sidebar__item {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  padding: 14px 16px;
-  border: 1px solid transparent;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.58);
-  color: #163f42;
-  cursor: pointer;
-  text-align: left;
-}
-
-.services-sidebar__item span {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.services-sidebar__item small {
-  color: #67817d;
-  font-size: 12px;
-}
-
-.services-sidebar__item--active {
-  border-color: rgba(29, 134, 135, 0.18);
-  background: linear-gradient(
-    135deg,
-    rgba(136, 214, 206, 0.28),
-    rgba(243, 197, 155, 0.22)
-  );
-  box-shadow: 0 16px 30px rgba(28, 98, 99, 0.1);
-}
-
-.services-stage {
-  display: grid;
-  gap: 18px;
-  min-width: 0;
   min-height: 0;
 }
 
-.services-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 18px;
-  padding: 26px;
-  border-radius: 34px;
-  border: 1px solid rgba(21, 91, 92, 0.1);
-  background: rgba(255, 250, 242, 0.82);
-  box-shadow: 0 24px 55px rgba(25, 92, 93, 0.08);
+.svc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.services-hero__copy p,
-.slot-shell__header p {
-  margin: 0 0 8px;
-  color: #1e8a88;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-weight: 700;
+.svc-head__title h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #1f3a36;
 }
 
-.services-hero__copy h2 {
-  margin: 0 0 10px;
-  font-family: "ZCOOL XiaoWei", "Noto Serif SC", serif;
-  font-size: clamp(34px, 4vw, 48px);
-  line-height: 1.12;
-  color: #143d40;
-}
-
-.services-hero__copy span,
-.slot-shell__header span {
-  color: #5d7875;
-  font-size: 15px;
-  line-height: 1.8;
-}
-
-.services-hero__metrics {
-  display: grid;
-  gap: 12px;
-}
-
-.services-hero__metrics article,
-.service-card,
-.after-sale-panel article,
-.slot-shell {
-  border-radius: 28px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
-  background: rgba(255, 255, 255, 0.62);
-  box-shadow: 0 20px 45px rgba(25, 92, 93, 0.07);
-}
-
-.services-hero__metrics article {
-  padding: 18px 20px;
-}
-
-.services-hero__metrics strong {
-  display: block;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: 34px;
-  color: #166a69;
-}
-
-.services-hero__metrics span {
-  color: #617a77;
+.svc-head__title p {
+  margin: 4px 0 0;
+  color: #6b7d77;
   font-size: 13px;
+}
+
+.seg {
+  display: inline-flex;
+  padding: 4px;
+  gap: 2px;
+  background: #ffffff;
+  border: 1px solid #efe7dc;
+  border-radius: 12px;
+}
+
+.seg__btn {
+  height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #6b7d77;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.seg__btn--active {
+  background: #e7f5f1;
+  color: #1f7a6c;
 }
 
 .service-grid,
 .after-sale-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
+}
+
+.service-card,
+.after-sale-panel article,
+.slot-shell {
+  border-radius: 16px;
+  border: 1px solid #efe7dc;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(47, 158, 143, 0.06);
 }
 
 .service-card,
 .after-sale-panel article {
-  padding: 22px;
+  padding: 18px;
   text-align: left;
 }
 
 .service-card {
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.service-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(47, 158, 143, 0.1);
 }
 
 .service-card__badge,
 .after-sale-panel p {
   display: inline-flex;
-  margin-bottom: 12px;
-  padding: 6px 10px;
+  margin-bottom: 10px;
+  padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(29, 134, 135, 0.08);
-  color: #177170;
+  background: #e7f5f1;
+  color: #1f7a6c;
   font-size: 12px;
   font-weight: 700;
 }
@@ -415,20 +332,20 @@ onMounted(async () => {
 .after-sale-panel strong,
 .slot-shell__header h3 {
   display: block;
-  margin-bottom: 10px;
-  color: #163f42;
-  font-size: 24px;
+  margin-bottom: 6px;
+  color: #1f3a36;
+  font-size: 18px;
 }
 
 .service-card span,
 .after-sale-panel span {
-  color: #607975;
-  line-height: 1.8;
-  font-size: 14px;
+  color: #6b7d77;
+  line-height: 1.6;
+  font-size: 13px;
 }
 
 .slot-shell {
-  padding: 22px;
+  padding: 20px;
   overflow: visible;
 }
 
@@ -438,6 +355,21 @@ onMounted(async () => {
   align-items: flex-start;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.slot-shell__header p {
+  margin: 0 0 6px;
+  color: #2f9e8f;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.slot-shell__header span {
+  color: #6b7d77;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .slot-shell :deep(.reservation-slots) {
@@ -451,20 +383,19 @@ onMounted(async () => {
 .submit-mask {
   position: absolute;
   inset: 0;
-  background: rgba(17, 56, 57, 0.08);
+  background: rgba(31, 58, 54, 0.08);
   pointer-events: none;
 }
 
 @media (max-width: 1100px) {
-  .services-page,
-  .services-hero,
   .service-grid,
   .after-sale-panel {
     grid-template-columns: 1fr;
   }
 
-  .services-sidebar {
-    position: static;
+  .svc-head {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

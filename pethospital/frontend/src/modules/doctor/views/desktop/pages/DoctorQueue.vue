@@ -58,11 +58,11 @@
             >
               <td colspan="6"></td>
             </tr>
-            <tr v-if="visibleItems.length === 0">
-              <td colspan="6" class="empty-cell">当前页暂无待接诊记录。</td>
-            </tr>
           </tbody>
         </table>
+        <div v-if="visibleItems.length === 0" class="empty-overlay">
+          当前页暂无待接诊记录。
+        </div>
       </div>
     </div>
   </section>
@@ -133,13 +133,12 @@ export default defineComponent({
       return queueItems.value.slice(start, start + pageSize.value);
     });
 
+    // 始终把整页占位空行补满（0 条也先铺好一整页 ledger 排布）。
     const placeholderRows = computed(() =>
-      visibleItems.value.length === 0
-        ? []
-        : Array.from(
-            { length: Math.max(0, pageSize.value - visibleItems.value.length) },
-            (_, index) => index + 1
-          )
+      Array.from(
+        { length: Math.max(0, pageSize.value - visibleItems.value.length) },
+        (_, index) => index + 1
+      )
     );
 
     // 按表格可用高度反推每页行数（与管理端一致），用占位空行补满。
@@ -266,6 +265,7 @@ button:disabled {
 }
 
 .table-shell {
+  position: relative;
   min-height: 0;
   height: 100%;
   overflow: hidden;
@@ -314,10 +314,14 @@ td {
   background: #ffffff;
 }
 
-.empty-cell {
-  height: calc(48px * var(--record-page-size, 10));
+.empty-overlay {
+  position: absolute;
+  inset: 48px 0 0;
+  display: grid;
+  place-items: center;
   color: #64748b;
-  text-align: center;
+  font-size: 13px;
+  pointer-events: none;
 }
 
 .tag {
@@ -330,7 +334,7 @@ td {
 
 .tag.普通 {
   background: #f8fafc;
-  color: #355a53;
+  color: #0f172a;
 }
 
 .tag.优先 {

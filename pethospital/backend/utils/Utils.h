@@ -1,5 +1,6 @@
 #pragma once
 #include <crow.h>
+#include <ctime>
 #include <optional>
 #include <string>
 #include <vector>
@@ -30,6 +31,7 @@ std::string getRequestStringWithFallback(const nlohmann::json &request_body, con
 double getRequestDouble(const nlohmann::json &request_body, const std::string &key, double defaultValue = 0.0);
 double getRequestDoubleWithFallback(const nlohmann::json &request_body, const std::string &primaryKey, const std::string &fallbackKey, double defaultValue = 0.0);
 bool constantTimeEquals(const std::string &left, const std::string &right);
+void rollbackTransactionQuietly(mysqlx::Session &session);
 
 std::string formatDateTime(const boost::posix_time::ptime &pt);
 std::string formatDateOnly(const boost::posix_time::ptime &pt); // 只提取日期部分

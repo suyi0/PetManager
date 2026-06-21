@@ -188,10 +188,10 @@ onMounted(() => {
   display: grid;
   gap: 18px;
   padding: 24px;
-  border-radius: 30px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
+  border-radius: 16px;
+  border: 1px solid rgba(47, 158, 143, 0.08);
   background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
+  box-shadow: 0 18px 44px rgba(47, 158, 143, 0.06);
 }
 
 .birthday-editor__head {
@@ -205,7 +205,7 @@ onMounted(() => {
 .birthday-editor__summary small,
 .birthday-editor__tips small {
   margin: 0;
-  color: #1f8e89;
+  color: #2f9e8f;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 11px;
@@ -214,7 +214,7 @@ onMounted(() => {
 
 .birthday-editor__head h3 {
   margin: 6px 0 0;
-  color: #133f42;
+  color: #1f3a36;
   font-size: 32px;
 }
 
@@ -223,7 +223,7 @@ onMounted(() => {
 .birthday-editor__tips span {
   display: block;
   margin-top: 10px;
-  color: #607975;
+  color: #6b7d77;
   line-height: 1.8;
   font-size: 14px;
 }
@@ -233,11 +233,11 @@ onMounted(() => {
   grid-template-columns: 130px minmax(0, 1fr);
   gap: 18px;
   padding: 22px;
-  border-radius: 28px;
+  border-radius: 16px;
   background: linear-gradient(
     135deg,
-    rgba(136, 214, 206, 0.24),
-    rgba(243, 197, 155, 0.18)
+    rgba(56, 178, 163, 0.24),
+    rgba(255, 217, 176, 0.18)
   );
 }
 
@@ -247,16 +247,16 @@ onMounted(() => {
   align-content: center;
   gap: 6px;
   padding: 16px;
-  border-radius: 28px;
-  background: linear-gradient(135deg, #91ddd2, #f0c29b);
-  color: #15474a;
-  box-shadow: 0 18px 34px rgba(28, 98, 99, 0.14);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #cfe7e1, #ffd9b0);
+  color: #1f3a36;
+  box-shadow: 0 18px 34px rgba(47, 158, 143, 0.14);
 }
 
 .birthday-editor__calendar span,
 .birthday-editor__calendar small {
   margin: 0;
-  color: #15474a;
+  color: #1f3a36;
   line-height: 1;
 }
 
@@ -284,7 +284,7 @@ onMounted(() => {
 
 .birthday-editor__summary strong,
 .birthday-editor__tips strong {
-  color: #143f42;
+  color: #1f3a36;
   font-size: 26px;
 }
 
@@ -299,7 +299,7 @@ onMounted(() => {
 }
 
 .editor-field span {
-  color: #24484b;
+  color: #1f3a36;
   font-size: 13px;
   font-weight: 700;
 }
@@ -307,17 +307,17 @@ onMounted(() => {
 .editor-field select {
   width: 100%;
   padding: 13px 14px;
-  border: 1px solid rgba(20, 82, 84, 0.12);
+  border: 1px solid rgba(47, 158, 143, 0.12);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
-  color: #173f42;
+  color: #1f3a36;
   font-size: 14px;
 }
 
 .editor-field select:focus {
   outline: none;
-  border-color: rgba(24, 128, 127, 0.5);
-  box-shadow: 0 0 0 4px rgba(141, 218, 210, 0.18);
+  border-color: rgba(47, 158, 143, 0.5);
+  box-shadow: 0 0 0 4px rgba(56, 178, 163, 0.18);
 }
 
 .birthday-editor__tips {
@@ -329,7 +329,7 @@ onMounted(() => {
 .birthday-editor__tips article {
   padding: 16px 18px;
   border-radius: 18px;
-  background: rgba(255, 249, 242, 0.95);
+  background: rgba(255, 253, 250, 0.95);
 }
 
 .birthday-editor__actions {
@@ -350,14 +350,14 @@ onMounted(() => {
 }
 
 .birthday-editor__ghost {
-  background: rgba(20, 82, 84, 0.08);
-  color: #154144;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f3a36;
 }
 
 .birthday-editor__primary {
-  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  background: linear-gradient(135deg, #1f7a6c, #2f9e8f);
   color: #fff;
-  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+  box-shadow: 0 16px 30px rgba(47, 158, 143, 0.22);
 }
 
 @media (max-width: 900px) {

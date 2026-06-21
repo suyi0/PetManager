@@ -171,7 +171,7 @@ export const profileApi = {
     address?: string | null;
     headImage?: string | null | undefined;
   }) {
-    return http.put("/api/users/me/profile", payload);
+    return http.patch("/api/users/me/profile", payload);
   },
 
   /**

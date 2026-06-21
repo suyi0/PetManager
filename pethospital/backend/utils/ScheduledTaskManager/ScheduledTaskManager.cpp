@@ -483,7 +483,7 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
 
@@ -572,7 +572,7 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
                 }
                 catch (...)
                 {
-                    session->sql("ROLLBACK").execute();
+                    rollbackTransactionQuietly(*session);
                     throw;
                 }
             }

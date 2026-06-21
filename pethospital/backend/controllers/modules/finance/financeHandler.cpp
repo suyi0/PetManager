@@ -200,7 +200,7 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
             auto employeeRow = employeeResult.fetchOne();
             if (!employeeRow)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::notFound(req, "员工不存在");
             }
 
@@ -208,7 +208,7 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
             const std::string employeeType = employeeRow[1].isNull() ? "" : employeeRow[1].get<std::string>();
             if (RoleTypeUtils::isNormalUserRole(employeeType)) // 普通用户没有工资
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::validation(req, "普通用户不能创建员工工资记录");
             }
 
@@ -227,7 +227,7 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
                 !std::isfinite(rawPB_Award) ||
                 rawBaseSalary < 0 || rawPA_Award < 0 || rawPB_Award < 0)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::validation(req, "工资金额必须为大于或等于零的有效数字");
             }
 
@@ -238,7 +238,7 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
 
             if (!std::isfinite(totalSalary))
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::validation(req, "工资总额超出有效范围");
             }
 
@@ -263,7 +263,7 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
 
                 if (insertResult.getAffectedItemsCount() != 1)
                 {
-                    session->sql("ROLLBACK").execute();
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::error(req, "给新员工添加工资失败");
                 }
                 savedSalaryId = static_cast<int>(insertResult.getAutoIncrementValue());
@@ -278,7 +278,7 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
 
                 if (updateResult.getAffectedItemsCount() != 1)
                 {
-                    session->sql("ROLLBACK").execute();
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::error(req, "更新员工工资失败");
                 }
             }
@@ -308,12 +308,12 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
         }
         catch (const std::invalid_argument &e)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             return ResponseHelper::validation(req, e.what());
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
     }

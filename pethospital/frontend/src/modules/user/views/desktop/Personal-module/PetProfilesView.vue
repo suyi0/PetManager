@@ -1,29 +1,16 @@
 <template>
   <div class="pet-board">
-    <section class="pet-board__hero">
-      <div>
-        <p class="pet-board__eyebrow">Pet Archive</p>
-        <h3>宠物档案总览</h3>
-        <span>
-          先把每只宠物的基础资料整理出来，后续预约、订单和护理提醒都会更顺畅。
-        </span>
-      </div>
-
-      <div class="pet-board__summary">
-        <article>
-          <strong>{{ pets.length }}</strong>
-          <span>当前档案</span>
-        </article>
-        <article>
-          <strong>{{ catCount }}</strong>
-          <span>猫咪数量</span>
-        </article>
-        <article>
-          <strong>{{ dogCount }}</strong>
-          <span>狗狗数量</span>
-        </article>
-      </div>
-    </section>
+    <div class="pet-stats">
+      <span class="pet-stat"
+        ><b>{{ pets.length }}</b> 当前档案</span
+      >
+      <span class="pet-stat"
+        ><b>{{ catCount }}</b> 猫咪</span
+      >
+      <span class="pet-stat"
+        ><b>{{ dogCount }}</b> 狗狗</span
+      >
+    </div>
 
     <section class="pet-board__content">
       <div class="pet-board__list">
@@ -419,77 +406,58 @@ onMounted(async () => {
   gap: 20px;
 }
 
-.pet-board__hero,
 .pet-board__list,
 .pet-board__detail {
-  border-radius: 30px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 18px 44px rgba(24, 90, 91, 0.06);
+  border-radius: 16px;
+  border: 1px solid #efe7dc;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(47, 158, 143, 0.06);
 }
 
-.pet-board__hero {
+.pet-stats {
   display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 24px 26px;
-  background: linear-gradient(
-    135deg,
-    rgba(140, 220, 210, 0.2),
-    rgba(245, 203, 164, 0.2)
-  );
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.pet-board__eyebrow,
+.pet-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #efe7dc;
+  background: #fff;
+  color: #6b7d77;
+  font-size: 13px;
+}
+
+.pet-stat b {
+  color: #1f3a36;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
 .pet-spotlight__headline small,
 .pet-form-shell__head small {
   margin: 0;
-  color: #1f8e89;
+  color: #2f9e8f;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 11px;
   font-weight: 700;
 }
 
-.pet-board__hero h3,
 .pet-spotlight__headline h4,
 .pet-form-shell__head h4 {
   margin: 0;
-  color: #133f42;
-  font-size: 32px;
+  color: #1f3a36;
+  font-size: 18px;
 }
 
-.pet-board__hero span,
 .pet-spotlight__headline p {
-  color: #5d7974;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.pet-board__summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  min-width: 320px;
-}
-
-.pet-board__summary article {
-  display: grid;
-  align-content: center;
-  gap: 4px;
-  padding: 16px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.76);
-}
-
-.pet-board__summary strong {
-  color: #134043;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: 32px;
-}
-
-.pet-board__summary span {
-  color: #6c8682;
+  color: #6b7d77;
+  line-height: 1.6;
   font-size: 13px;
 }
 
@@ -512,9 +480,9 @@ onMounted(async () => {
   gap: 6px;
   justify-items: start;
   padding: 18px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
-  border-radius: 24px;
-  background: rgba(255, 252, 247, 0.95);
+  border: 1px solid rgba(47, 158, 143, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 253, 250, 0.95);
   text-align: left;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -528,7 +496,7 @@ onMounted(async () => {
 
 .pet-create-card small,
 .pet-card__header span {
-  color: #1f8e89;
+  color: #2f9e8f;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   font-size: 10px;
@@ -537,25 +505,25 @@ onMounted(async () => {
 
 .pet-create-card strong,
 .pet-card strong {
-  color: #133f42;
+  color: #1f3a36;
   font-size: 20px;
 }
 
 .pet-create-card span,
 .pet-card p {
   margin: 0;
-  color: #617975;
+  color: #6b7d77;
   line-height: 1.7;
   font-size: 13px;
 }
 
 .pet-card--active,
 .pet-create-card--active {
-  border-color: rgba(29, 134, 135, 0.18);
+  border-color: rgba(47, 158, 143, 0.18);
   background: linear-gradient(
     135deg,
-    rgba(136, 214, 206, 0.22),
-    rgba(243, 197, 155, 0.18)
+    rgba(56, 178, 163, 0.22),
+    rgba(255, 217, 176, 0.18)
   );
 }
 
@@ -572,8 +540,8 @@ onMounted(async () => {
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: linear-gradient(135deg, #8fd9cf, #f1c49c);
-  color: #173f42;
+  background: linear-gradient(135deg, #cfe7e1, #ffd9b0);
+  color: #1f3a36;
   font-family: "Rajdhani", "Noto Sans SC", sans-serif;
   font-size: 22px;
   font-weight: 700;
@@ -588,8 +556,8 @@ onMounted(async () => {
 .pet-card__meta span {
   padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(20, 82, 84, 0.08);
-  color: #55716d;
+  background: rgba(47, 158, 143, 0.08);
+  color: #6b7d77;
   font-size: 12px;
 }
 
@@ -603,9 +571,9 @@ onMounted(async () => {
 .pet-form-shell,
 .pet-empty-state {
   padding: 22px;
-  border-radius: 26px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.76);
-  border: 1px solid rgba(21, 91, 92, 0.08);
+  border: 1px solid rgba(47, 158, 143, 0.08);
 }
 
 .pet-spotlight__headline {
@@ -634,19 +602,19 @@ onMounted(async () => {
 }
 
 .pet-ghost {
-  background: rgba(20, 82, 84, 0.08);
-  color: #154144;
+  background: rgba(47, 158, 143, 0.08);
+  color: #1f3a36;
 }
 
 .pet-danger {
   background: rgba(214, 116, 116, 0.12);
-  color: #9c4141;
+  color: #be4b5b;
 }
 
 .pet-primary {
-  background: linear-gradient(135deg, #167f80, #2ca7a4);
+  background: linear-gradient(135deg, #1f7a6c, #2f9e8f);
   color: #fff;
-  box-shadow: 0 16px 30px rgba(23, 104, 105, 0.22);
+  box-shadow: 0 16px 30px rgba(47, 158, 143, 0.22);
 }
 
 .pet-spotlight__grid {
@@ -661,17 +629,17 @@ onMounted(async () => {
   gap: 8px;
   padding: 16px;
   border-radius: 18px;
-  background: rgba(255, 249, 242, 0.95);
+  background: rgba(255, 253, 250, 0.95);
 }
 
 .pet-spotlight__grid span,
 .pet-notes small {
-  color: #6a847f;
+  color: #6b7d77;
   font-size: 12px;
 }
 
 .pet-spotlight__grid strong {
-  color: #143f42;
+  color: #1f3a36;
   font-size: 18px;
 }
 
@@ -691,7 +659,7 @@ onMounted(async () => {
 .pet-notes p,
 .pet-empty-state span {
   margin: 8px 0 0;
-  color: #5d7974;
+  color: #6b7d77;
   line-height: 1.8;
   font-size: 14px;
 }
@@ -703,7 +671,7 @@ onMounted(async () => {
 }
 
 .pet-empty-state strong {
-  color: #143f42;
+  color: #1f3a36;
   font-size: 22px;
 }
 
@@ -738,12 +706,12 @@ onMounted(async () => {
   gap: 12px;
   padding: 18px;
   border-radius: 22px;
-  background: rgba(255, 249, 242, 0.7);
-  border: 1px solid rgba(21, 91, 92, 0.06);
+  background: rgba(255, 253, 250, 0.7);
+  border: 1px solid rgba(47, 158, 143, 0.06);
 }
 
 .pet-form__section small {
-  color: #1f8e89;
+  color: #2f9e8f;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-size: 11px;
@@ -762,7 +730,7 @@ onMounted(async () => {
 }
 
 .pet-form label span {
-  color: #24484b;
+  color: #1f3a36;
   font-size: 13px;
   font-weight: 700;
 }
@@ -772,10 +740,10 @@ onMounted(async () => {
 .pet-form textarea {
   width: 100%;
   padding: 13px 14px;
-  border: 1px solid rgba(20, 82, 84, 0.12);
+  border: 1px solid rgba(47, 158, 143, 0.12);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
-  color: #173f42;
+  color: #1f3a36;
   font-size: 14px;
 }
 
@@ -783,8 +751,8 @@ onMounted(async () => {
 .pet-form select:focus,
 .pet-form textarea:focus {
   outline: none;
-  border-color: rgba(24, 128, 127, 0.5);
-  box-shadow: 0 0 0 4px rgba(141, 218, 210, 0.18);
+  border-color: rgba(47, 158, 143, 0.5);
+  box-shadow: 0 0 0 4px rgba(56, 178, 163, 0.18);
 }
 
 .pet-form textarea {

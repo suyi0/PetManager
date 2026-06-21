@@ -24,20 +24,26 @@
       </div>
 
       <div class="duty__actions">
-        <button
-          class="btn btn--primary"
-          :disabled="!dutyStatusLoaded || dutyActionLoading || isDoctorOnline"
-          @click="online"
-        >
-          {{ dutyActionLoading && !isDoctorOnline ? "签到中..." : "打卡上线" }}
-        </button>
-        <button
-          class="btn btn--danger"
-          :disabled="!dutyStatusLoaded || dutyActionLoading || !isDoctorOnline"
-          @click="offline"
-        >
-          {{ dutyActionLoading && isDoctorOnline ? "签退中..." : "结束接诊" }}
-        </button>
+        <div class="duty__actions__btns">
+          <button
+            class="btn btn--primary"
+            :disabled="!dutyStatusLoaded || dutyActionLoading || isDoctorOnline"
+            @click="online"
+          >
+            {{
+              dutyActionLoading && !isDoctorOnline ? "签到中..." : "打卡上线"
+            }}
+          </button>
+          <button
+            class="btn btn--danger"
+            :disabled="
+              !dutyStatusLoaded || dutyActionLoading || !isDoctorOnline
+            "
+            @click="offline"
+          >
+            {{ dutyActionLoading && isDoctorOnline ? "签退中..." : "结束接诊" }}
+          </button>
+        </div>
         <p
           v-if="dutyMessage"
           class="duty__msg"
@@ -624,6 +630,13 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-direction: column;
+}
+
+.duty__actions__btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -631,7 +644,6 @@ export default defineComponent({
   margin: 0;
   font-size: 12px;
   font-weight: 600;
-  width: 100%;
 }
 
 .duty__msg--success {

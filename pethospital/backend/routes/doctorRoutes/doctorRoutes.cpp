@@ -1,5 +1,8 @@
 #include "doctorRoutes.h"
 #include "../../services/logger/operationLogger.h"
+#include "../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
+
+#include <iostream>
 
 void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
@@ -179,6 +182,54 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取待接诊队列", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
+    // 医生端待接诊队列实时通道。
+    CROW_WEBSOCKET_ROUTE(app, "/realtime/doctors/queues")
+        .onaccept([dbManager](const crow::request &req, void **userdata)
+                  {
+            const char *tokenParam = req.url_params.get("token");
+            if (tokenParam == nullptr || std::string(tokenParam).empty())
+            {
+                return false;
+            }
+
+            auto claims = JwtUtils::getTokenClaims(tokenParam);
+            if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            std::string identifier = claims->identifier;
+            if (!JwtUtils::isUserAuthorizedForMedicalStaffForm(
+                    claims->userId,
+                    identifier,
+                    claims->isEmailLogin,
+                    dbManager))
+            {
+                return false;
+            }
+
+            *userdata = new int(claims->userId);
+            return true; })
+        .onopen([](crow::websocket::connection &conn)
+                {
+            auto *doctorId = static_cast<int *>(conn.userdata());
+            if (!doctorId || *doctorId <= 0)
+            {
+                conn.close("invalid_doctor_queue_session");
+                return;
+            }
+
+            DoctorQueueBroadcaster::instance().addConnection(&conn, *doctorId);
+            delete doctorId;
+            conn.userdata(nullptr); })
+        .onclose([](crow::websocket::connection &conn, const std::string &, uint16_t)
+                 {
+            DoctorQueueBroadcaster::instance().removeConnection(&conn); })
+        .onerror([](crow::websocket::connection &conn, const std::string &reason)
+                 {
+            std::cerr << "Doctor queue WebSocket error: " << reason << std::endl;
+            DoctorQueueBroadcaster::instance().removeConnection(&conn); });
 
     // 获取预约摘要路由.
     CROW_ROUTE(app, "/api/doctors/reservation-summaries")

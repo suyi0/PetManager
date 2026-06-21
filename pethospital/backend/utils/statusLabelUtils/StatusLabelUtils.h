@@ -5,6 +5,11 @@
 
 namespace StatusLabelUtils
 {
+// 通用映射函数。
+// 用于在数据库英文枚举值和前端中文展示文案之间转换：
+// - 命中 mapping 时返回映射值。
+// - 未命中且传入 fallback 时返回 fallback。
+// - 未命中且没有 fallback 时原样返回，方便兼容已经是目标格式的值。
 inline std::string mapValue(
     const std::string &value,
     const std::unordered_map<std::string, std::string> &mapping,
@@ -18,6 +23,8 @@ inline std::string mapValue(
     return fallback.empty() ? value : fallback;
 }
 
+// 预约状态：前端展示文案 -> 数据库存储枚举。
+// 数据库统一存英文，避免业务判断依赖中文文案。
 inline std::string toDbReservationStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -33,6 +40,8 @@ inline std::string toDbReservationStatus(const std::string &status)
     return mapValue(status, mapping);
 }
 
+// 预约状态：数据库枚举 -> 前端展示文案。
+// 默认回退到“预约成功”，用于旧数据、空值或未知状态的展示兜底。
 inline std::string toDisplayReservationStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -48,6 +57,7 @@ inline std::string toDisplayReservationStatus(const std::string &status)
     return mapValue(status, mapping, "预约成功");
 }
 
+// 校验预约状态是否属于允许写入数据库的枚举集合。
 inline bool isValidReservationStatus(const std::string &status)
 {
     const std::string dbStatus = toDbReservationStatus(status);
@@ -55,6 +65,7 @@ inline bool isValidReservationStatus(const std::string &status)
            dbStatus == "cancelled" || dbStatus == "arrived";
 }
 
+// 订单状态：前端展示文案 -> 数据库存储枚举。
 inline std::string toDbOrderStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -72,6 +83,8 @@ inline std::string toDbOrderStatus(const std::string &status)
     return mapValue(status, mapping);
 }
 
+// 订单状态：数据库枚举 -> 前端展示文案。
+// 默认回退到“待付款”，符合订单创建后的初始状态。
 inline std::string toDisplayOrderStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -89,6 +102,7 @@ inline std::string toDisplayOrderStatus(const std::string &status)
     return mapValue(status, mapping, "待付款");
 }
 
+// 校验订单状态是否属于允许写入数据库的枚举集合。
 inline bool isValidOrderStatus(const std::string &status)
 {
     const std::string dbStatus = toDbOrderStatus(status);
@@ -97,6 +111,7 @@ inline bool isValidOrderStatus(const std::string &status)
            dbStatus == "partial_refund";
 }
 
+// 工时状态：前端展示文案 -> 数据库存储枚举。
 inline std::string toDbWorkTimeStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -114,6 +129,8 @@ inline std::string toDbWorkTimeStatus(const std::string &status)
     return mapValue(status, mapping);
 }
 
+// 工时状态：数据库枚举 -> 前端展示文案。
+// 默认回退到“正常”，用于缺省工时记录展示。
 inline std::string toDisplayWorkTimeStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -131,6 +148,7 @@ inline std::string toDisplayWorkTimeStatus(const std::string &status)
     return mapValue(status, mapping, "正常");
 }
 
+// 待就诊队列状态：前端展示文案 -> 数据库存储枚举。
 inline std::string toDbMedicalQueueStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -148,6 +166,8 @@ inline std::string toDbMedicalQueueStatus(const std::string &status)
     return mapValue(status, mapping);
 }
 
+// 待就诊队列状态：数据库枚举 -> 前端展示文案。
+// 默认回退到“待接诊”，符合新入队记录的初始状态。
 inline std::string toDisplayMedicalQueueStatus(const std::string &status)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -165,6 +185,7 @@ inline std::string toDisplayMedicalQueueStatus(const std::string &status)
     return mapValue(status, mapping, "待接诊");
 }
 
+// 待就诊队列来源：前端展示文案 -> 数据库存储枚举。
 inline std::string toDbMedicalQueueSource(const std::string &source)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -180,6 +201,8 @@ inline std::string toDbMedicalQueueSource(const std::string &source)
     return mapValue(source, mapping);
 }
 
+// 待就诊队列来源：数据库枚举 -> 前端展示文案。
+// 默认回退到“现场”，符合没有预约来源时的普通到院场景。
 inline std::string toDisplayMedicalQueueSource(const std::string &source)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -195,6 +218,7 @@ inline std::string toDisplayMedicalQueueSource(const std::string &source)
     return mapValue(source, mapping, "现场");
 }
 
+// 分诊等级：前端展示文案 -> 数据库存储枚举。
 inline std::string toDbTriageLevel(const std::string &level)
 {
     static const std::unordered_map<std::string, std::string> mapping = {
@@ -208,6 +232,8 @@ inline std::string toDbTriageLevel(const std::string &level)
     return mapValue(level, mapping);
 }
 
+// 分诊等级：数据库枚举 -> 前端展示文案。
+// 默认回退到“普通”，避免未知等级在列表中显示空值。
 inline std::string toDisplayTriageLevel(const std::string &level)
 {
     static const std::unordered_map<std::string, std::string> mapping = {

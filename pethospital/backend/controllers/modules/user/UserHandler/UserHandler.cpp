@@ -2,6 +2,7 @@
 #include "../../../../utils/AuthIdentifierUtils.h"
 #include "../userPhoneSync/userPhoneSync.h"
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include <vector>
@@ -418,7 +419,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
                 // 用户注册过程中，若手机号同步失败，则回滚整个事务，确保数据一致性
                 if (!UserPhoneSync::upsertUserPhone(*session, static_cast<int>(result.getAutoIncrementValue()), phone))
                 {
-                    session->sql("ROLLBACK").execute();
+                    rollbackTransactionQuietly(*session);
                     return ResponseHelper::error(req, "用户注册失败，手机号同步未完成");
                 }
 
@@ -427,7 +428,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
             }
             catch (...)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 throw;
             }
 
@@ -513,7 +514,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         }
         catch (const mysqlx::Error &e)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             return ResponseHelper::database_error(req, "Failed to update user data", e.what());
         }
 
@@ -690,7 +691,7 @@ crow::response userHandler::updateEmail(const crow::request &req, int userId)
 
             if (result3.getAffectedItemsCount() == 0)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::database_error(req, "更新邮箱失败");
             }
 
@@ -698,7 +699,7 @@ crow::response userHandler::updateEmail(const crow::request &req, int userId)
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
 
@@ -801,7 +802,7 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         {
             if (!UserPhoneSync::upsertUserPhone(*session, userId, phone)) // 同步手机号
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::system_error(req, "手机号更新失败，手机号同步未完成");
             }
 
@@ -809,7 +810,7 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
 
@@ -1197,7 +1198,7 @@ crow::response userHandler::addNewAddress(const crow::request &req, int userId)
 
             if (insert_result.getAffectedItemsCount() == 0)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::operation_failed(req, "Failed to insert new address");
             }
 
@@ -1241,7 +1242,7 @@ crow::response userHandler::addNewAddress(const crow::request &req, int userId)
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
     }
@@ -1374,7 +1375,7 @@ crow::response userHandler::addressUpdate(const crow::request &req, int userId, 
 
             if (updateResult.getAffectedItemsCount() == 0)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::notFound(req, "Address not found");
             }
 
@@ -1387,7 +1388,7 @@ crow::response userHandler::addressUpdate(const crow::request &req, int userId, 
             auto updatedRow = updatedResult.fetchOne();
             if (!updatedRow)
             {
-                session->sql("ROLLBACK").execute();
+                rollbackTransactionQuietly(*session);
                 return ResponseHelper::notFound(req, "Address not found after update");
             }
 
@@ -1414,7 +1415,7 @@ crow::response userHandler::addressUpdate(const crow::request &req, int userId, 
         }
         catch (...)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             throw;
         }
     }
@@ -1571,7 +1572,7 @@ crow::response userHandler::upload(const crow::request &req, const std::string &
 
 namespace
 {
-    // 获取今天日期
+    // 获取今天日期，格式（YYYY-MM-DD）
     std::string getTodayDate()
     {
         const boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
@@ -1753,12 +1754,6 @@ crow::response userHandler::getDoctorList(const crow::request &req)
 
         return ResponseHelper::success(req, doctorList);
     }
-    catch (const mysqlx::Error &e)
-    {
-        std::cerr << "Database error: " << e.what() << std::endl;
-        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", e.what());
-        return ResponseHelper::database_error(req, "Failed to fetch doctor list", e.what());
-    }
     catch (const std::exception &e)
     {
         OperationLogger::LogExceptionOperation(dbManager, req, "预约", "获取医生列表", e.what());
@@ -1779,7 +1774,7 @@ crow::response userHandler::cancelReservation(const crow::request &req, int user
 
         if (userId <= 0 || reservationId <= 0)
         {
-            return ResponseHelper::validation(req, "Invalid reservation id");
+            return ResponseHelper::unauthorized(req, "缺少权限验证结果/订单ID");
         }
 
         std::string status = "cancelled";
@@ -1846,6 +1841,11 @@ crow::response userHandler::deleteReservation(const crow::request &req, int user
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
+        if (userId <= 0 || reservationId <= 0)
+        {
+            return ResponseHelper::unauthorized(req, "缺少权限验证结果/订单ID");
+        }
+
         mysqlx::SqlResult reservation_result = dbManager->getSession()
                                                    ->sql("SELECT user_id FROM reservations WHERE id = ?")
                                                    .bind(reservationId)
@@ -1895,5 +1895,142 @@ crow::response userHandler::deleteReservation(const crow::request &req, int user
     {
         OperationLogger::LogExceptionOperation(dbManager, req, "预约", "删除预约记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
         return ResponseHelper::operation_failed(req, "Failed to delete reservation", e.what());
+    }
+}
+
+crow::response userHandler::toTheHospital(const crow::request &req, int userId, int reservationId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "预约到院", "database connection failed", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        if (userId <= 0 || reservationId <= 0)
+        {
+            return ResponseHelper::unauthorized(req, "缺少权限验证结果/订单ID");
+        }
+
+        auto session = dbManager->getSession();
+        session->sql("START TRANSACTION").execute();
+
+        try
+        {
+            mysqlx::SqlResult reservationResult = session->sql("SELECT id, user_id, doctor_id, pet_id, reservation_type, CAST(date AS CHAR), COALESCE(time_slot, '') "
+                                                               "FROM reservations "
+                                                               "WHERE id = ? AND user_id = ? AND is_deleted = 0 AND status = 'scheduled' "
+                                                               "LIMIT 1 FOR UPDATE")
+                                                      .bind(reservationId, userId)
+                                                      .execute();
+            auto reservationRow = reservationResult.fetchOne();
+            if (!reservationRow)
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::notFound(req, "未找到可到院签到的预约记录");
+            }
+
+            const int ownerId = reservationRow[1].isNull() ? 0 : reservationRow[1].get<int>();
+            const int doctorId = reservationRow[2].isNull() ? 0 : reservationRow[2].get<int>();
+            const int petId = reservationRow[3].isNull() ? 0 : reservationRow[3].get<int>();
+            const std::string reservationDate = reservationRow[5].isNull() ? "" : reservationRow[5].get<std::string>();
+            const std::string timeSlot = reservationRow[6].isNull() ? "" : reservationRow[6].get<std::string>();
+            
+            if (ownerId != userId)
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::permission_denied(req, "预约记录不匹配", "预约记录不属于当前用户");
+            }
+            if (doctorId <= 0 || petId <= 0)
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::validation(req, "预约记录缺少医生或宠物信息");
+            }
+            if (reservationDate.empty())
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::validation(req, "预约记录日期数据错误");
+            }
+            
+            const std::string queueDate = getTodayDate();
+            std::string scheduledAt = reservationDate + " 00:00:00";
+            // 获取预约时间格式（YYYY-MM-DD HH:mm:ss）
+            if (timeSlot.size() >= 5 && timeSlot[2] == ':')
+            {
+                scheduledAt = reservationDate + " " + timeSlot.substr(0, 5) + ":00";
+            }
+
+            // 同一天的队列编号由计数表生成，避免并发签到时 MAX(queue_number)+1 撞号。
+            session->sql("INSERT INTO medicalQueueCounters(queue_date, current_number) "
+                         "SELECT ?, COALESCE(MAX(CAST(queue_number AS UNSIGNED)), 0) "
+                         "FROM medicalQueues "
+                         "WHERE queue_date = ? "
+                         "ON DUPLICATE KEY UPDATE current_number = current_number")
+                .bind(queueDate, queueDate)
+                .execute();
+
+            session->sql("UPDATE medicalQueueCounters "
+                         "SET current_number = LAST_INSERT_ID(current_number + 1) "
+                         "WHERE queue_date = ?")
+                .bind(queueDate)
+                .execute();
+
+            mysqlx::SqlResult queueNumberResult = session->sql("SELECT LAST_INSERT_ID()").execute();
+            auto queueNumberRow = queueNumberResult.fetchOne();
+            const int nextQueueNumber = queueNumberRow && !queueNumberRow[0].isNull() ? queueNumberRow[0].get<int>() : 0;
+            if (nextQueueNumber <= 0)
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::operation_failed(req, "Failed to create queue number", "未能生成待就诊队列编号");
+            }
+            const std::string queueNumber = std::to_string(nextQueueNumber);
+
+            // 创建待就诊队列
+            mysqlx::SqlResult queueInsertResult = session->sql("INSERT INTO medicalQueues(queue_date, queue_number, doctor_id, pet_id, owner_id, status, source, triage_level, scheduled_at, arrived_at) "
+                                                               "VALUES (?, ?, ?, ?, ?, 'waiting', 'appointment', 'normal', ?, ?)")
+                                                      .bind(queueDate, queueNumber, doctorId, petId, userId, scheduledAt, getCreateTime())
+                                                      .execute();
+
+            if (queueInsertResult.getAffectedItemsCount() == 0)
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::operation_failed(req, "Failed to create medical queue", "未能创建待就诊队列记录");
+            }
+
+            mysqlx::SqlResult reservationUpdateResult = session->sql("UPDATE reservations "
+                                                                     "SET status = 'arrived', is_deleted = 1, deleted_at = NOW(), deleted_by = ? "
+                                                                     "WHERE id = ? AND user_id = ? AND is_deleted = 0 AND status = 'scheduled'")
+                                                            .bind(userId, reservationId, userId)
+                                                            .execute();
+
+            if (reservationUpdateResult.getAffectedItemsCount() == 0)
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::operation_failed(req, "Failed to update reservation status", "未能更新预约到院状态");
+            }
+
+            session->sql("COMMIT").execute();
+            DoctorQueueBroadcaster::instance().notifyQueueChanged(doctorId);
+
+            nlohmann::json response;
+            response["message"] = "签到成功";
+            response["reservation_id"] = reservationId;
+            response["queue_id"] = queueInsertResult.getAutoIncrementValue();
+            response["queue_number"] = queueNumber;
+            response["status"] = StatusLabelUtils::toDisplayReservationStatus("arrived");
+            return ResponseHelper::success(req, response);
+        }
+        catch (const std::exception &e)
+        {
+            rollbackTransactionQuietly(*session);
+            OperationLogger::LogExceptionOperation(dbManager, req, "预约", "预约到院", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            return ResponseHelper::operation_failed(req, "Failed to to the hospital", e.what());
+        }
+    }
+    catch (const std::exception &e)
+    {
+        OperationLogger::LogExceptionOperation(dbManager, req, "预约", "预约到院", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        return ResponseHelper::operation_failed(req, "Failed to to the hospital", e.what());
     }
 }

@@ -96,13 +96,13 @@ const userInitial = computed(() =>
   grid-template-columns: minmax(0, 1fr) 150px;
   gap: 18px;
   padding: 26px;
-  border-radius: 30px;
+  border-radius: 16px;
   background: linear-gradient(
     135deg,
     rgba(132, 214, 206, 0.22),
-    rgba(243, 197, 155, 0.18)
+    rgba(255, 217, 176, 0.18)
   );
-  border: 1px solid rgba(29, 134, 135, 0.08);
+  border: 1px solid rgba(47, 158, 143, 0.08);
 }
 
 .hero-copy {
@@ -114,7 +114,7 @@ const userInitial = computed(() =>
 .hero-copy p,
 .profile-card__eyebrow {
   margin: 0;
-  color: #1e8a88;
+  color: #2f9e8f;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-size: 11px;
@@ -125,11 +125,11 @@ const userInitial = computed(() =>
   margin: 0;
   font-size: clamp(32px, 3vw, 46px);
   line-height: 1.05;
-  color: #153f42;
+  color: #1f3a36;
 }
 
 .hero-copy span {
-  color: #607975;
+  color: #6b7d77;
   line-height: 1.8;
   font-size: 14px;
 }
@@ -145,7 +145,7 @@ const userInitial = computed(() =>
   padding: 8px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.68);
-  color: #254f51;
+  color: #1f3a36;
   font-size: 12px;
   line-height: 1;
 }
@@ -158,10 +158,10 @@ const userInitial = computed(() =>
   place-items: center;
   border: none;
   border-radius: 40px;
-  background: linear-gradient(135deg, #91ddd2, #f0c29b);
-  color: #15474a;
+  background: linear-gradient(135deg, #cfe7e1, #ffd9b0);
+  color: #1f3a36;
   cursor: pointer;
-  box-shadow: 0 20px 40px rgba(28, 98, 99, 0.14);
+  box-shadow: 0 20px 40px rgba(47, 158, 143, 0.14);
   font-family: "Rajdhani", "Noto Sans SC", sans-serif;
   font-size: 54px;
   font-weight: 700;
@@ -185,20 +185,20 @@ const userInitial = computed(() =>
   justify-items: start;
   gap: 10px;
   padding: 22px;
-  border: 1px solid rgba(21, 91, 92, 0.08);
-  border-radius: 26px;
+  border: 1px solid rgba(47, 158, 143, 0.08);
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.74);
-  color: #163f42;
+  color: #1f3a36;
   text-align: left;
   cursor: pointer;
-  box-shadow: 0 18px 40px rgba(25, 92, 93, 0.06);
+  box-shadow: 0 18px 40px rgba(47, 158, 143, 0.06);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .profile-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(21, 91, 92, 0.12);
-  box-shadow: 0 22px 44px rgba(25, 92, 93, 0.08);
+  border-color: rgba(47, 158, 143, 0.12);
+  box-shadow: 0 22px 44px rgba(47, 158, 143, 0.08);
 }
 
 .profile-card--accent {
@@ -215,7 +215,7 @@ const userInitial = computed(() =>
 }
 
 .profile-card span {
-  color: #607975;
+  color: #6b7d77;
   line-height: 1.8;
   font-size: 14px;
 }
@@ -234,12 +234,12 @@ const userInitial = computed(() =>
     width: 110px;
     height: 110px;
     justify-self: start;
-    border-radius: 28px;
+    border-radius: 16px;
     font-size: 42px;
   }
 
   .hero-avatar__img {
-    border-radius: 28px;
+    border-radius: 16px;
   }
 }
 </style>

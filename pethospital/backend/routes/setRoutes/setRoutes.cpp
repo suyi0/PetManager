@@ -1,5 +1,6 @@
 #include "setRoutes.h"
 #include "../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 
 #ifdef _WIN32
@@ -67,6 +68,7 @@ void WebSocketServer::start()
     startCodeCleanupTask(); // 启动定时任务
     AdminHomeDataBroadcaster::instance().start(DatabaseManager::getInstance()); // 启动超级管理员首页实时广播任务
     FinanceHomeDataBroadcaster::instance().start(DatabaseManager::getInstance()); // 启动财务端首页实时广播任务
+    DoctorQueueBroadcaster::instance().start(DatabaseManager::getInstance()); // 启动医生端待接诊队列实时广播任务
     shutdown_requested = false;
     server_stopped = false;
 
@@ -116,6 +118,8 @@ void WebSocketServer::gracefulShutdown()
     AdminHomeDataBroadcaster::instance().closeAllConnections("server_shutdown");
     FinanceHomeDataBroadcaster::instance().stop();
     FinanceHomeDataBroadcaster::instance().closeAllConnections("server_shutdown");
+    DoctorQueueBroadcaster::instance().stop();
+    DoctorQueueBroadcaster::instance().closeAllConnections("server_shutdown");
 
     // 停止服务器
     app_ptr_->stop();

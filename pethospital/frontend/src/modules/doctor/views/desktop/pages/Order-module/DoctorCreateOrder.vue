@@ -466,10 +466,13 @@ export default defineComponent({
       formMessage.value = null;
       submitting.value = true;
       try {
+        const queueId = Number(route.params.queueId || 0);
         const normalizedRecord = await store.dispatch(
           "doctor/createOrderRecord",
           {
             order: {
+              queueId:
+                Number.isFinite(queueId) && queueId > 0 ? queueId : undefined,
               ownerId: ownerId.value,
               petId: petId.value,
               orderType: "诊疗",

@@ -1,5 +1,6 @@
 #include "doctorHandler.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
@@ -183,6 +184,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
 
         int ownerId = request_body.value("ownerId", 0);
         int petId = request_body.value("petId", 0);
+        int queueId = request_body.value("queueId", 0);
         std::string orderType = request_body.value("orderType", "");
         std::string orderData = request_body.value("orderData", "");
         double orderTotalPrice = request_body.value("orderTotalPrice", 0.0);
@@ -222,6 +224,22 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
                                   .execute();
         }
 
+        if (queueId > 0)
+        {
+            auto queueUpdateResult = session->sql("UPDATE medicalQueues "
+                                                  "SET status = 'completed' "
+                                                  "WHERE id = ? AND doctor_id = ? AND owner_id = ? AND pet_id = ? "
+                                                  "AND is_deleted = 0 AND status IN ('waiting', 'in_progress')")
+                                         .bind(queueId, doctorId, ownerId, petId)
+                                         .execute();
+
+            if (queueUpdateResult.getAffectedItemsCount() == 0)
+            {
+                rollbackTransactionQuietly(*session);
+                return ResponseHelper::validation(req, "队列记录不存在或已完成，请刷新待接诊队列后重试");
+            }
+        }
+
         // 获取刚刚创建的订单记录
         mysqlx::SqlResult createdOrderResult = session->sql("SELECT o.id, COALESCE(p.pet_name, ''), COALESCE(owner.name, ''), COALESCE(doctor.name, ''), "
                                                             "CAST(o.created_at AS CHAR), COALESCE(o.order_totalprice, 0.0), "
@@ -238,7 +256,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         auto createdOrderRow = createdOrderResult.fetchOne();
         if (!createdOrderRow)
         {
-            session->sql("ROLLBACK").execute();
+            rollbackTransactionQuietly(*session);
             return ResponseHelper::system_error(req, "订单创建后查询失败");
         }
 
@@ -256,6 +274,10 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
 
         FinanceHomeDataBroadcaster::instance().notifyHomeDataChanged();
         AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
+        if (queueId > 0)
+        {
+            DoctorQueueBroadcaster::instance().notifyQueueChanged(doctorId);
+        }
         return ResponseHelper::success(req, orderRecord);
     }
     catch (const std::exception &e)
@@ -954,28 +976,19 @@ nlohmann::json doctorHandler::buildQueuesData(const int &doctorId)
     {
         nlohmann::json queue;
         queue["id"] = row[0].get<int>();
-        queue["queueDate"] = row[1].isNull() ? "" : row[1].get<std::string>();
-        queue["queue_date"] = queue["queueDate"];
-        queue["queueNumber"] = row[2].isNull() ? "" : row[2].get<std::string>();
-        queue["queue_number"] = queue["queueNumber"];
-        queue["ownerId"] = row[3].get<int>();
-        queue["owner_id"] = queue["ownerId"];
-        queue["petId"] = row[4].get<int>();
-        queue["pet_id"] = queue["petId"];
-        queue["petName"] = row[5].isNull() ? "" : row[5].get<std::string>();
-        queue["pet_name"] = queue["petName"];
+        queue["queue_date"] = row[1].isNull() ? "" : row[1].get<std::string>();
+        queue["queue_number"] = row[2].isNull() ? "" : row[2].get<std::string>();
+        queue["owner_id"] = row[3].get<int>();
+        queue["pet_id"] = row[4].get<int>();
+        queue["pet_name"] = row[5].isNull() ? "" : row[5].get<std::string>();
         queue["sex"] = row[6].isNull() ? "" : row[6].get<std::string>();
         queue["breed"] = row[7].isNull() ? "" : row[7].get<std::string>();
         queue["age"] = row[8].isNull() ? "" : row[8].get<std::string>();
-        queue["ownerName"] = row[9].isNull() ? "" : row[9].get<std::string>();
-        queue["owner_name"] = queue["ownerName"];
+        queue["owner_name"] = row[9].isNull() ? "" : row[9].get<std::string>();
         queue["status"] = StatusLabelUtils::toDisplayMedicalQueueStatus(row[10].isNull() ? "waiting" : row[10].get<std::string>());
         queue["source"] = StatusLabelUtils::toDisplayMedicalQueueSource(row[11].isNull() ? "walk_in" : row[11].get<std::string>());
-        queue["level"] = StatusLabelUtils::toDisplayTriageLevel(row[12].isNull() ? "normal" : row[12].get<std::string>());
-        queue["triageLevel"] = queue["level"];
-        queue["triage_level"] = queue["level"];
+        queue["triage_level"] = StatusLabelUtils::toDisplayTriageLevel(row[12].isNull() ? "normal" : row[12].get<std::string>());
         queue["arrivedAt"] = row[13].isNull() ? "" : row[13].get<std::string>();
-        queue["scheduledOrArrivedAt"] = queue["arrivedAt"];
         queue["symptom"] = "";
         queues.push_back(queue);
     }
@@ -990,6 +1003,11 @@ crow::response doctorHandler::getQueues(const crow::request &req, const int doct
         if (!checkDbConnection())
         {
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+
+        if (doctorId <= 0)
+        {
+            return ResponseHelper::unauthorized(req, "权限验证失败");
         }
 
         return ResponseHelper::success(req, buildQueuesData(doctorId));

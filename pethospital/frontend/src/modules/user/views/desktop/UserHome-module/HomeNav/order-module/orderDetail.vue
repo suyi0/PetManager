@@ -1,49 +1,28 @@
 <template>
   <section class="detail-page">
-    <header class="detail-hero">
-      <div class="detail-hero__media">
-        <button class="detail-hero__media-button" @click="changeImg('magnify')">
-          <div class="detail-hero__media-art">
-            <span>{{ detailTag }}</span>
-            <strong>{{ detail.title }}</strong>
-          </div>
-        </button>
-      </div>
+    <button class="back" @click="goBack">← 返回</button>
 
-      <div class="detail-hero__copy">
-        <div class="detail-hero__topline">
-          <p>{{ detailTag }}</p>
-          <button
-            v-if="tabValue === 'reservation'"
-            type="button"
-            class="detail-cancel-button"
-            :disabled="cancelLoading"
-            @click="cancelReservation"
-          >
-            {{ cancelLoading ? "取消中" : "取消预约" }}
-          </button>
-        </div>
+    <div class="detail-head">
+      <div class="detail-head__title">
+        <span class="tag">{{
+          tabValue === "reservation" ? "预约详情" : "订单详情"
+        }}</span>
         <h2>{{ detail.title }}</h2>
-        <span>{{ detail.description }}</span>
-
-        <div class="detail-hero__chips">
-          <span>{{ detail.status }}</span>
-          <span>{{ detail.price }}</span>
-          <span>{{ detail.reference }}</span>
+        <div class="chips">
+          <span class="chip">{{ detail.status }}</span>
+          <span class="chip">{{ detail.price }}</span>
+          <span class="chip chip--muted">{{ detail.reference }}</span>
         </div>
       </div>
-    </header>
-
-    <div
-      v-if="orderImg === 'magnify'"
-      class="detail-lightbox"
-      @click="changeImg('reduce')"
-    >
-      <div class="detail-lightbox__card">
-        <span>{{ detailTag }}</span>
-        <strong>{{ detail.title }}</strong>
-        <p>{{ detail.description }}</p>
-      </div>
+      <button
+        v-if="tabValue === 'reservation'"
+        type="button"
+        class="cancel-btn"
+        :disabled="cancelLoading"
+        @click="cancelReservation"
+      >
+        {{ cancelLoading ? "取消中…" : "取消预约" }}
+      </button>
     </div>
 
     <section class="detail-grid">
@@ -128,7 +107,6 @@ const route = useRoute();
 const router = useRouter();
 
 const tabValue = ref<string>("order");
-const orderImg = ref("reduce");
 const detailRecord = ref<OrderDetail | OrderSummary | null>(null);
 const reservationRecord = ref<ReservationOrderRecordItem | null>(null);
 const cancelLoading = ref(false);
@@ -195,13 +173,9 @@ const detail = computed(() => {
   };
 });
 
-const detailTag = computed(() =>
-  tabValue.value === "reservation" ? "Reservation Detail" : "Order Detail"
-);
-
-function changeImg(type: string) {
-  orderImg.value = type === "magnify" ? "magnify" : "reduce";
-}
+const goBack = () => {
+  void router.push("/user/order");
+};
 
 const cancelReservation = async () => {
   const reservationId = currentReservationId.value;
@@ -273,202 +247,140 @@ onMounted(async () => {
 <style scoped lang="scss">
 .detail-page {
   display: grid;
-  gap: 18px;
-  min-height: calc(100vh - 170px);
+  gap: 14px;
+  align-content: start;
 }
 
-.detail-hero,
 .detail-card,
 .detail-panel {
-  border-radius: 30px;
-  border: 1px solid rgba(21, 91, 92, 0.1);
-  background: rgba(255, 250, 242, 0.82);
-  box-shadow: 0 24px 55px rgba(25, 92, 93, 0.08);
+  border-radius: 16px;
+  border: 1px solid #efe7dc;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(47, 158, 143, 0.06);
 }
 
-.detail-hero {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 20px;
-  padding: 24px;
-}
-
-.detail-hero__media-button {
-  width: 100%;
-  border: none;
+.back {
+  justify-self: start;
+  border: 0;
+  padding: 4px 6px;
   background: transparent;
+  color: #6b7d77;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.detail-hero__media-art {
-  display: grid;
-  align-content: end;
-  min-height: 260px;
-  padding: 22px;
-  border-radius: 26px;
-  background: linear-gradient(145deg, #9ee0d8, #1a7777);
-  color: #fffdf8;
+.back:hover {
+  color: #2f9e8f;
 }
 
-.detail-hero__media-art span,
-.detail-panel__header p {
-  margin: 0 0 8px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.detail-hero__media-art strong {
-  font-size: 34px;
-  line-height: 1.1;
-}
-
-.detail-hero__copy {
-  display: grid;
-  align-content: center;
-  gap: 12px;
-}
-
-.detail-hero__topline {
+/* 头部 */
+.detail-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  border: 1px solid #efe7dc;
+  background: linear-gradient(135deg, #fff4e6, #eafaf5);
 }
 
-.detail-hero__copy p {
-  margin: 0;
-  color: #1e8a88;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+.tag {
+  display: inline-flex;
+  color: #c2671b;
+  letter-spacing: 0.06em;
   font-size: 12px;
   font-weight: 700;
 }
 
-.detail-cancel-button {
-  min-width: 176px;
-  min-height: 56px;
-  padding: 16px 28px;
-  border: 1px solid rgba(191, 72, 72, 0.24);
-  border-radius: 999px;
-  background: rgba(255, 241, 238, 0.9);
-  color: #b94747;
-  cursor: pointer;
-  font-size: 16px;
+.detail-head__title h2 {
+  margin: 6px 0 10px;
+  color: #1f3a36;
+  font-size: 22px;
   font-weight: 800;
-  box-shadow: 0 18px 36px rgba(147, 58, 58, 0.12);
-  transition: transform 0.18s ease, border-color 0.18s ease,
-    background 0.18s ease;
+  letter-spacing: -0.01em;
 }
 
-.detail-cancel-button:hover:not(:disabled) {
-  border-color: rgba(191, 72, 72, 0.36);
-  background: #ffe7e3;
-  transform: translateY(-1px);
-}
-
-.detail-cancel-button:disabled {
-  cursor: wait;
-  opacity: 0.68;
-}
-
-.detail-hero__copy h2 {
-  margin: 0;
-  color: #143d40;
-  font-size: clamp(32px, 4vw, 46px);
-}
-
-.detail-hero__copy span,
-.detail-panel__header span,
-.detail-card span {
-  color: #607975;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.detail-hero__chips {
+.chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
-.detail-hero__chips span {
-  padding: 10px 14px;
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
   border-radius: 999px;
-  background: rgba(29, 134, 135, 0.08);
-  color: #176867;
-  font-weight: 700;
-}
-
-.detail-lightbox {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(20, 61, 64, 0.26);
-  z-index: 40;
-}
-
-.detail-lightbox__card {
-  width: min(520px, calc(100vw - 32px));
-  padding: 28px;
-  border-radius: 28px;
-  background: rgba(255, 250, 242, 0.96);
-  box-shadow: 0 24px 55px rgba(25, 92, 93, 0.2);
-}
-
-.detail-lightbox__card span {
-  display: block;
-  margin-bottom: 10px;
-  color: #1e8a88;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  background: #e7f5f1;
+  color: #1f7a6c;
   font-size: 12px;
   font-weight: 700;
 }
 
-.detail-lightbox__card strong {
-  display: block;
-  margin-bottom: 10px;
-  color: #143d40;
-  font-size: 30px;
+.chip--muted {
+  background: #f1f2f4;
+  color: #6b7d77;
 }
 
-.detail-lightbox__card p {
-  margin: 0;
-  color: #607975;
-  line-height: 1.8;
+.cancel-btn {
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 18px;
+  border: 1px solid #f3c9cd;
+  border-radius: 9px;
+  background: #fff;
+  color: #be4b5b;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
 }
 
+.cancel-btn:hover:not(:disabled) {
+  background: #fdeef0;
+}
+
+.cancel-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+/* 信息卡 */
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
 }
 
 .detail-card {
-  padding: 20px;
+  padding: 16px 18px;
 }
 
 .detail-card p {
-  margin: 0 0 10px;
-  color: #1d8b89;
+  margin: 0 0 6px;
+  color: #c2671b;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-.detail-card strong,
-.detail-panel__content strong {
+.detail-card strong {
   display: block;
-  color: #143d40;
-  font-size: 22px;
+  color: #1f3a36;
+  font-size: 17px;
 }
 
+.detail-card span {
+  color: #6b7d77;
+  line-height: 1.6;
+  font-size: 12px;
+}
+
+/* 说明面板 */
 .detail-panel {
-  padding: 24px;
+  padding: 18px 20px;
 }
 
 .detail-panel__header {
@@ -476,38 +388,60 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+}
+
+.detail-panel__header p {
+  margin: 0 0 4px;
+  color: #2f9e8f;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .detail-panel__header h3 {
   margin: 0;
-  color: #143d40;
-  font-size: 30px;
+  color: #1f3a36;
+  font-size: 16px;
+}
+
+.detail-panel__header span {
+  color: #6b7d77;
+  font-size: 13px;
 }
 
 .detail-panel__content {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .detail-panel__content div {
-  padding: 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.62);
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #f4f1ec;
+  background: #fffdfa;
 }
 
 .detail-panel__content small {
   display: block;
-  margin-bottom: 8px;
-  color: #69817e;
+  margin-bottom: 6px;
+  color: #6b7d77;
   font-size: 12px;
 }
 
+.detail-panel__content strong {
+  display: block;
+  color: #1f3a36;
+  font-size: 15px;
+}
+
 @media (max-width: 1100px) {
-  .detail-hero,
+  .detail-head,
   .detail-grid,
   .detail-panel__content {
+    flex-direction: column;
     grid-template-columns: 1fr;
   }
 

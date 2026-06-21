@@ -51,7 +51,7 @@ const toNumber = (value: unknown) => {
 /**
  * 兼容后端可能返回的 snake_case 字段，统一成前端队列项需要的 camelCase。
  */
-const normalizeQueueItems = (items: QueueItem[]) =>
+export const normalizeQueueItems = (items: QueueItem[]) =>
   items.map((item) => {
     const source = item as QueueItem & Record<string, unknown>;
 
@@ -59,6 +59,16 @@ const normalizeQueueItems = (items: QueueItem[]) =>
       ...item,
       ownerId: toNumber(source.ownerId ?? source.owner_id ?? source.userId),
       petId: toNumber(source.petId ?? source.pet_id),
+      petName: String(source.petName ?? source.pet_name ?? ""),
+      ownerName: String(source.ownerName ?? source.owner_name ?? ""),
+      symptom: String(source.symptom ?? ""),
+      level: String(
+        source.level ?? source.triage_level ?? "普通"
+      ) as QueueItem["level"],
+      arrivedAt: String(source.arrivedAt ?? source.arrived_at ?? ""),
+      sex: String(source.sex ?? ""),
+      breed: String(source.breed ?? ""),
+      age: String(source.age ?? ""),
     };
   });
 
