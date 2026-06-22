@@ -18,139 +18,151 @@
               <span>{{ chart.subtitle }}</span>
             </div>
 
-            <div class="chart-card">
-              <svg
-                class="stock-chart"
-                viewBox="0 0 560 560"
-                :aria-label="chart.title"
-              >
-                <circle
-                  cx="280"
-                  cy="280"
-                  :r="chartRadius"
-                  class="chart-track"
-                />
+            <template v-if="chart.hasData">
+              <div class="chart-card">
+                <svg
+                  class="stock-chart"
+                  viewBox="0 0 560 560"
+                  :aria-label="chart.title"
+                >
+                  <circle
+                    cx="280"
+                    cy="280"
+                    :r="chartRadius"
+                    class="chart-track"
+                  />
 
-                <circle
-                  v-for="segment in chart.segments"
-                  :key="segment.key"
-                  cx="280"
-                  cy="280"
-                  :r="chartRadius"
-                  class="chart-ring"
-                  :stroke="segment.color"
-                  :stroke-dasharray="`${segment.length} ${
-                    circumference - segment.length
-                  }`"
-                  :stroke-dashoffset="segment.offset"
-                  transform="rotate(-90 280 280)"
-                  @mouseenter="openHolderCard(chart.id, segment, $event)"
-                  @mousemove="moveHolderCard(chart.id, $event)"
-                  @mouseleave="closeHolderCard"
-                />
+                  <circle
+                    v-for="segment in chart.segments"
+                    :key="segment.key"
+                    cx="280"
+                    cy="280"
+                    :r="chartRadius"
+                    class="chart-ring"
+                    :stroke="segment.color"
+                    :stroke-dasharray="`${segment.length} ${
+                      circumference - segment.length
+                    }`"
+                    :stroke-dashoffset="segment.offset"
+                    transform="rotate(-90 280 280)"
+                    @mouseenter="openHolderCard(chart.id, segment, $event)"
+                    @mousemove="moveHolderCard(chart.id, $event)"
+                    @mouseleave="closeHolderCard"
+                  />
 
-                <circle cx="280" cy="280" r="132" class="chart-core" />
-                <text
-                  x="280"
-                  y="255"
-                  text-anchor="middle"
-                  class="chart-core__label"
-                >
-                  已分配股份
-                </text>
-                <text
-                  x="280"
-                  y="312"
-                  text-anchor="middle"
-                  class="chart-core__value"
-                >
-                  {{ chart.allocatedPercentDisplay }}
-                </text>
-                <text
-                  x="280"
-                  y="346"
-                  text-anchor="middle"
-                  class="chart-core__sub"
-                >
-                  剩余 {{ chart.remainingPercentDisplay }}
-                </text>
-              </svg>
+                  <circle cx="280" cy="280" r="132" class="chart-core" />
+                  <text
+                    x="280"
+                    y="255"
+                    text-anchor="middle"
+                    class="chart-core__label"
+                  >
+                    已分配股份
+                  </text>
+                  <text
+                    x="280"
+                    y="312"
+                    text-anchor="middle"
+                    class="chart-core__value"
+                  >
+                    {{ chart.allocatedPercentDisplay }}
+                  </text>
+                  <text
+                    x="280"
+                    y="346"
+                    text-anchor="middle"
+                    class="chart-core__sub"
+                  >
+                    剩余 {{ chart.remainingPercentDisplay }}
+                  </text>
+                </svg>
 
-              <transition name="holder-fade">
-                <div
-                  v-if="activeHolderCard && activeChartId === chart.id"
-                  class="holder-card"
-                  :style="holderCardStyle"
-                >
+                <transition name="holder-fade">
                   <div
-                    class="holder-card__swatch"
-                    :style="{ background: activeHolderCard.color }"
-                  />
-                  <div class="holder-card__eyebrow">
-                    {{ activeHolderCard.typeLabel }}
+                    v-if="activeHolderCard && activeChartId === chart.id"
+                    class="holder-card"
+                    :style="holderCardStyle"
+                  >
+                    <div
+                      class="holder-card__swatch"
+                      :style="{ background: activeHolderCard.color }"
+                    />
+                    <div class="holder-card__eyebrow">
+                      {{ activeHolderCard.typeLabel }}
+                    </div>
+                    <h4>{{ activeHolderCard.holder }}</h4>
+                    <div class="holder-card__grid">
+                      <div>
+                        <span>股份编号</span>
+                        <strong>#{{ activeHolderCard.id ?? "--" }}</strong>
+                      </div>
+                      <div>
+                        <span>持股份额</span>
+                        <strong
+                          >{{
+                            activeHolderCard.share.toLocaleString("zh-CN")
+                          }}
+                          股</strong
+                        >
+                      </div>
+                      <div>
+                        <span>当前占比</span>
+                        <strong
+                          >{{ activeHolderCard.percentage.toFixed(2) }}%</strong
+                        >
+                      </div>
+                      <div>
+                        <span>基础说明</span>
+                        <strong>{{ activeHolderCard.summary }}</strong>
+                      </div>
+                    </div>
                   </div>
-                  <h4>{{ activeHolderCard.holder }}</h4>
-                  <div class="holder-card__grid">
-                    <div>
-                      <span>股份编号</span>
-                      <strong>#{{ activeHolderCard.id ?? "--" }}</strong>
-                    </div>
-                    <div>
-                      <span>持股份额</span>
-                      <strong
-                        >{{
-                          activeHolderCard.share.toLocaleString("zh-CN")
-                        }}
-                        股</strong
-                      >
-                    </div>
-                    <div>
-                      <span>当前占比</span>
-                      <strong
-                        >{{ activeHolderCard.percentage.toFixed(2) }}%</strong
-                      >
-                    </div>
-                    <div>
-                      <span>基础说明</span>
-                      <strong>{{ activeHolderCard.summary }}</strong>
-                    </div>
-                  </div>
-                </div>
-              </transition>
-            </div>
+                </transition>
+              </div>
 
-            <div class="summary-row">
-              <div class="summary-pill">
-                <span>总份额</span>
-                <strong>{{ chart.totalShareDisplay }}</strong>
+              <div class="summary-row">
+                <div class="summary-pill">
+                  <span>总份额</span>
+                  <strong>{{ chart.totalShareDisplay }}</strong>
+                </div>
+                <div class="summary-pill">
+                  <span>剩余份额</span>
+                  <strong>{{ chart.remainingShareDisplay }}</strong>
+                </div>
               </div>
-              <div class="summary-pill">
-                <span>剩余份额</span>
-                <strong>{{ chart.remainingShareDisplay }}</strong>
-              </div>
-            </div>
 
-            <div class="legend-list">
-              <div
-                v-for="item in chart.stocks"
-                :key="item.key"
-                class="legend-item"
-              >
-                <div class="legend-item__identity">
-                  <span
-                    class="legend-item__dot"
-                    :style="{ background: item.color }"
-                  />
-                  <div>
-                    <strong>{{ item.holder }}</strong>
-                    <small>{{ item.typeLabel }}</small>
+              <div class="legend-list">
+                <div
+                  v-for="item in chart.stocks"
+                  :key="item.key"
+                  class="legend-item"
+                >
+                  <div class="legend-item__identity">
+                    <span
+                      class="legend-item__dot"
+                      :style="{ background: item.color }"
+                    />
+                    <div>
+                      <strong>{{ item.holder }}</strong>
+                      <small>{{ item.typeLabel }}</small>
+                    </div>
+                  </div>
+                  <div class="legend-item__meta">
+                    <strong>{{ item.percentage.toFixed(2) }}%</strong>
+                    <span>{{ item.share.toLocaleString("zh-CN") }} 股</span>
                   </div>
                 </div>
-                <div class="legend-item__meta">
-                  <strong>{{ item.percentage.toFixed(2) }}%</strong>
-                  <span>{{ item.share.toLocaleString("zh-CN") }} 股</span>
-                </div>
               </div>
+            </template>
+
+            <div v-else class="chart-empty">
+              <div class="chart-empty__icon">📊</div>
+              <strong class="chart-empty__title">暂无股份数据</strong>
+              <p class="chart-empty__text">
+                尚未登记{{
+                  chart.title.replace("分布图", "")
+                }}股本，录入后这里将展示持股结构与占比。
+              </p>
             </div>
           </div>
         </div>
@@ -187,6 +199,7 @@ type BossChartPanel = {
   remainingShareDisplay: string;
   remainingPercentDisplay: string;
   allocatedPercentDisplay: string;
+  hasData: boolean;
 };
 
 const createFallbackStockItem = (): BossOverviewStockItem => ({
@@ -296,6 +309,8 @@ export default defineComponent({
 
       const remainingPercent = remainingItem?.percentage || 0;
       const allocatedPercent = 100 - remainingPercent;
+      // 总股本为 0 视为暂无股份数据：此时百分比是 0/0 退化结果，不应展示「已分配 100%」
+      const hasData = Math.round(totalItem.share) > 0;
 
       return {
         id,
@@ -303,6 +318,7 @@ export default defineComponent({
         subtitle,
         stocks: stockSource,
         segments,
+        hasData,
         totalShareDisplay: `${Math.round(totalItem.share).toLocaleString(
           "zh-CN"
         )} 股`,
@@ -492,6 +508,38 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   min-height: 560px;
+}
+
+.chart-empty {
+  min-height: 360px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 32px 24px;
+  text-align: center;
+  border: 1px dashed #e3d8c6;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.chart-empty__icon {
+  font-size: 34px;
+  opacity: 0.6;
+}
+
+.chart-empty__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d3429;
+}
+
+.chart-empty__text {
+  margin: 0;
+  max-width: 320px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6d7b72;
 }
 
 .stock-chart {

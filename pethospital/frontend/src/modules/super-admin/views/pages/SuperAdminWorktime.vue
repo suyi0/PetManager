@@ -47,8 +47,12 @@
               <td>{{ item.date }}</td>
               <td>{{ item.check_in_time }}</td>
               <td>{{ item.check_out_time }}</td>
-              <td>{{ item.source }}</td>
-              <td>{{ item.status }}</td>
+              <td>{{ sourceLabel(item.source) }}</td>
+              <td>
+                <span class="tag" :class="statusTone(item.status)">{{
+                  statusLabel(item.status)
+                }}</span>
+              </td>
             </tr>
 
             <tr v-if="records.length === 0">
@@ -116,10 +120,17 @@ export default defineComponent({
      * 优先复用考勤缓存。
      */
     const loadRecords = async () => {
-      await store.dispatch("superAdmin/ensureWorkTimeRecords", {
-        force: true,
-      });
-      void nextTick(measureCapacity);
+      try {
+        await store.dispatch("superAdmin/ensureWorkTimeRecords", {
+          force: true,
+        });
+        message.value = "等待操作";
+        void nextTick(measureCapacity);
+      } catch (error) {
+        // 兜底：请求失败时优雅提示，避免未处理的 promise 异常触发整页错误。
+        message.value = "考勤记录加载失败，请点击「刷新列表」重试";
+        console.error("加载考勤记录失败：", error);
+      }
     };
 
     const changeTime = async () => {
@@ -140,6 +151,33 @@ export default defineComponent({
           (err as Error).message || err
         )}`;
       }
+    };
+
+    // 来源中文化：online_doctors 来自实时在线表，work_records 来自考勤补录表
+    const sourceLabel = (source: string) => {
+      if (source === "online_doctors") return "实时在线";
+      if (source === "work_records") return "考勤记录";
+      return source || "—";
+    };
+
+    // 状态中文化：online_doctors 源返回 online/offline，work_records 源已是中文
+    const statusLabel = (status: string) => {
+      if (status === "online") return "在线";
+      if (status === "offline") return "离线";
+      return status || "—";
+    };
+
+    // 状态着色：离线/异常类标红，便于一眼定位；在线/正常标绿，其余中性
+    const statusTone = (status: string) => {
+      if (
+        ["offline", "离线", "迟到", "早退", "缺勤", "异常"].includes(status)
+      ) {
+        return "tag--danger";
+      }
+      if (["online", "在线", "正常"].includes(status)) {
+        return "tag--ok";
+      }
+      return "tag--muted";
     };
 
     let resizeObserver: ResizeObserver | null = null;
@@ -169,6 +207,9 @@ export default defineComponent({
       placeholderRows,
       changeTime,
       loadRecords,
+      sourceLabel,
+      statusLabel,
+      statusTone,
     };
   },
 });
@@ -318,5 +359,30 @@ tbody td {
 
 .placeholder-row td {
   height: 44px;
+}
+
+/* 状态胶囊：离线/异常红、在线/正常绿，便于一眼定位 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tag--danger {
+  background: #fdeef0;
+  color: #b04455;
+}
+
+.tag--ok {
+  background: #e7f5ef;
+  color: #247b62;
+}
+
+.tag--muted {
+  background: #f1f5f9;
+  color: #64748b;
 }
 </style>

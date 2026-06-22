@@ -258,6 +258,7 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 
 # 排除build目录中的文件
 list(FILTER SOURCES EXCLUDE REGEX ".*/build/.*")
+list(FILTER SOURCES EXCLUDE REGEX ".*/tests/.*")
 
 # 创建可执行文件
 add_executable(main ${SOURCES})
@@ -315,6 +316,21 @@ target_link_libraries(main
 # 只有当通过 FetchContent 下载时才链接 nlohmann_json
 if(TARGET nlohmann_json::nlohmann_json)
     target_link_libraries(main nlohmann_json::nlohmann_json)
+endif()
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(static_file_handler_tests
+        tests/static_file_handler_tests.cpp
+        utils/staticFileHandler.cpp
+    )
+    add_test(NAME static_file_handler_tests COMMAND static_file_handler_tests)
+
+    add_executable(rate_limit_middleware_tests
+        tests/rate_limit_middleware_tests.cpp
+        middleware/rateLimitMiddleware/rateLimitMiddleware.cpp
+    )
+    add_test(NAME rate_limit_middleware_tests COMMAND rate_limit_middleware_tests)
 endif()
 
 # 如果是header-only的system库，添加编译定义

@@ -5,8 +5,13 @@ import { authStorage } from "@/core/auth/utils/authStorage";
 /**
  * 全局 HTTP 客户端：统一复用超时、鉴权头和登录失效处理逻辑。
  */
+const isDesktopClient = process.env.VUE_APP_DESKTOP_CLIENT === "true";
+const apiBaseURL =
+  process.env.VUE_APP_API_BASE_URL ||
+  (isDesktopClient ? "http://localhost:8081" : "");
+
 const http = axios.create({
-  baseURL: "",
+  baseURL: apiBaseURL,
   timeout: 12000,
 });
 

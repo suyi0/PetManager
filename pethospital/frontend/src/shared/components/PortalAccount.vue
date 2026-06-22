@@ -1,7 +1,11 @@
 <template>
-  <div class="portal-account">
-    <div class="portal-account__menu" role="menu">
-      <button type="button" class="portal-account__mi" @click="comingSoon">
+  <div class="portal-account" @mouseleave="suppressed = false">
+    <div
+      class="portal-account__menu"
+      :class="{ 'portal-account__menu--hidden': suppressed }"
+      role="menu"
+    >
+      <button type="button" class="portal-account__mi" @click="goProfile">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -43,7 +47,7 @@
       <button
         type="button"
         class="portal-account__mi portal-account__mi--danger"
-        @click="$emit('logout')"
+        @click="onLogout"
       >
         <svg
           viewBox="0 0 24 24"
@@ -83,8 +87,9 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, ref } from "vue";
 import { useStore } from "vuex";
+import { useRouter } from "vue-router";
 import { storeKey } from "@/app/store";
 
 export default defineComponent({
@@ -92,10 +97,20 @@ export default defineComponent({
   props: {
     // 无姓名信息时的兜底显示（通常传角色名）
     fallbackName: { type: String, default: "账号" },
+    // 传入则「个人资料」跳转到该路由；不传则显示「开发中」（默认行为）
+    profileTo: { type: String, default: "" },
   },
   emits: ["logout"],
-  setup(props) {
+  setup(props, { emit }) {
     const store = useStore(storeKey);
+    const router = useRouter();
+
+    // 菜单是 hover/focus 控制；点选项后用此开关立即收起，鼠标移开复位。
+    const suppressed = ref(false);
+    const closeMenu = () => {
+      suppressed.value = true;
+      (document.activeElement as HTMLElement | null)?.blur();
+    };
 
     // 展示名：姓+名（跳过中间名）→ userName 去掉中间分隔符 → 兜底
     const accountName = computed(() => {
@@ -119,10 +134,33 @@ export default defineComponent({
     );
 
     const comingSoon = () => {
+      closeMenu();
       window.alert("该功能开发中");
     };
 
-    return { accountName, accountInitial, accountHeadImage, comingSoon };
+    const goProfile = () => {
+      closeMenu();
+      if (props.profileTo) {
+        void router.push(props.profileTo);
+      } else {
+        window.alert("该功能开发中");
+      }
+    };
+
+    const onLogout = () => {
+      closeMenu();
+      emit("logout");
+    };
+
+    return {
+      accountName,
+      accountInitial,
+      accountHeadImage,
+      suppressed,
+      comingSoon,
+      goProfile,
+      onLogout,
+    };
   },
 });
 </script>
@@ -165,6 +203,16 @@ export default defineComponent({
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
+}
+
+/* 点选项后立即收起，优先级高于 hover/focus 展开 */
+.portal-account__menu--hidden,
+.portal-account:hover .portal-account__menu--hidden,
+.portal-account:focus-within .portal-account__menu--hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  pointer-events: none;
 }
 
 .portal-account__mi {

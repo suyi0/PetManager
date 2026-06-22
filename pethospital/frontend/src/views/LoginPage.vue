@@ -1,278 +1,154 @@
 <template>
-  <div v-show="!isLoggedIn" class="login-container">
-    <div v-show="LoginGrade != 1" class="login-back">
-      <button @click="back" class="login-back-button">
-        <img src="@/assets/photo/上一步.svg" alt="上一步" />
+  <!-- 仅渲染登录卡：左侧品牌与整页布局由 App.vue 的 guest-shell 提供 -->
+  <div v-show="!isLoggedIn" class="login-card">
+    <h2 class="login-card__title">登录</h2>
+
+    <!-- 方式分段选择 -->
+    <div class="login-methods" role="tablist" aria-label="登录方式">
+      <button
+        v-for="method in methods"
+        :key="method.key"
+        type="button"
+        role="tab"
+        class="login-methods__tab"
+        :class="{
+          'login-methods__tab--active': activeMethod === method.key,
+        }"
+        :aria-selected="activeMethod === method.key"
+        @click="activeMethod = method.key"
+      >
+        {{ method.label }}
       </button>
     </div>
-    <div v-show="LoginGrade === 1" class="login-init-container">
-      <span class="init-login-title">登录</span>
-      <div class="init-login-Acount">
-        <button class="init-login-Acount-button" @click="setAcountLoginClick">
-          <span>账号登录</span>
-        </button>
-      </div>
-      <div class="init-login-WeChat">
-        <button class="init-login-WeChat-button" @click="setWeChatLoginClick">
-          <span>微信登录</span>
-        </button>
-      </div>
-      <div class="init-login-Phone">
-        <button class="init-login-Phone-button" @click="setPhoneLoginClick">
-          <span>手机登录</span>
-        </button>
-      </div>
-      <div class="init-login-line-container">
-        <div class="init-login-line">
-          <div class="init-login-line-button-container">
-            <button class="init-login-line-button" @click="setChoiceActive">
-              <img v-if="choiceActive" src="@/assets/photo/钩.svg" alt="钩" />
-              <img v-else src="@/assets/photo/未选中.svg" alt="未选中" />
-            </button>
-          </div>
-          <span
-            class="init-login-line-text"
-            style="font-size: 14px; max-width: 380px"
-            >同意
-            <a
-              href="https://rule.tencent.com/rule/399ab3d0-4989-4f34-9d7b-99c579b4cbdf"
-              target="_blank"
-              >《服务协议》
-            </a>
-            、
-            <a
-              href="https://privacy.qq.com/document/priview/3fab9c7fc1424ebda42c3ce488322c8a"
-              target="_blank"
-              >《隐私政策》
-            </a>
-            、
-            <a
-              href="https://privacy.qq.com/mb/policy/kids-privacypolicy"
-              target="_blank"
-              >《儿童隐私保护声明》
-            </a>
-            和
-            <a
-              href="https://privacy.qq.com/document/preview/ba4294dc9d4a45a89f3d682eb07a489b"
-              target="_blank"
-              >《第三方信息共享清单》
-            </a>
-          </span>
-          <div v-show="isAllowButtonActive" class="login-line-tip-mask">
-            <div class="login-line-tip">
-              <span
-                class="login-line-tip-text"
-                style="font-size: 21px; max-width: 380px"
-                >同意
-                <a
-                  href="https://rule.tencent.com/rule/399ab3d0-4989-4f34-9d7b-99c579b4cbdf"
-                  target="_blank"
-                  >《服务协议》
-                </a>
-                、
-                <a
-                  href="https://privacy.qq.com/document/priview/3fab9c7fc1424ebda42c3ce488322c8a"
-                  target="_blank"
-                  >《隐私政策》
-                </a>
-                、
-                <a
-                  href="https://privacy.qq.com/mb/policy/kids-privacypolicy"
-                  target="_blank"
-                  >《儿童隐私保护声明》
-                </a>
-                和
-                <a
-                  href="https://privacy.qq.com/document/preview/ba4294dc9d4a45a89f3d682eb07a489b"
-                  target="_blank"
-                  >《第三方信息共享清单》
-                </a>
-              </span>
-              <button class="login-line-tip-allow-button" @click="allow">
-                同意并继续
-              </button>
-              <button class="login-line-tip-cancel-button" @click="cancel">
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      v-if="isAcountLoginButtonActive && LoginGrade === 2 && choiceActive"
-      class="login-Acount-container"
+
+    <!-- 账号登录 -->
+    <form
+      v-if="activeMethod === 'account'"
+      class="login-form"
+      @submit.prevent="handleLogin"
     >
-      <div class="login-acount">
-        <div class="login-container-header">
-          <span class="login-container-title">账号登录</span>
-        </div>
-        <div class="login-form">
-          <div class="login-form-title-container">
-            <div class="login-form-title">
-              <span>密码登录</span>
-            </div>
-            <div class="login-form-tips">
-              <span>推荐使用快捷登录，防止盗号。</span>
-            </div>
-          </div>
-          <form @submit.prevent="handleLogin">
-            <!-- 当表单提交时（用户点击提交按钮或按回车）
-            首先阻止表单的默认提交行为（页面不会刷新或跳转）
-            然后调用组件中的 handleLogin 方法来处理登录逻辑 -->
-            <div class="login-form-UserName">
-              <input
-                placeholder="Email || Phone"
-                v-model="Account"
-                :name="'emailAddress_' + Math.random()"
-                type="text"
-                class="login-form-UserName-input"
-                autocomplete="new-password"
-              />
-            </div>
-            <div class="login-form-Password">
-              <input
-                :type="inputType"
-                v-model="Password"
-                placeholder="Password"
-                class="login-form-Password-input"
-              />
-              <div class="login-form-Password-eye">
-                <svg
-                  @click="togglePasswordVisibility"
-                  data-v-1a96ced4=""
-                  width="20"
-                  height="20"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <!-- 闭眼图标（隐藏状态） -->
-                  <path
-                    v-show="!showPassword"
-                    id="eye-closed"
-                    data-v-1a96ced4=""
-                    fill-rule="evenodd"
-                    clip-rule="evenodd"
-                    d="M17.5753 6.85456C17.7122 6.71896 17.8939 6.63806 18.0866 6.63806C18.7321 6.63806 19.0436 7.42626 18.5748 7.87006C18.1144 8.30554 17.457 8.69885 16.6478 9.03168L18.1457 10.5296C18.2101 10.5941 18.2613 10.6706 18.2962 10.7548C18.331 10.839 18.349 10.9293 18.349 11.0204C18.349 11.1116 18.331 11.2019 18.2962 11.2861C18.2613 11.3703 18.2101 11.4468 18.1457 11.5113C18.0812 11.5757 18.0047 11.6269 17.9205 11.6618C17.8363 11.6967 17.746 11.7146 17.6548 11.7146C17.5637 11.7146 17.4734 11.6967 17.3892 11.6618C17.305 11.6269 17.2284 11.5757 17.164 11.5113L15.3409 9.68819C15.2898 9.63708 15.247 9.57838 15.2141 9.51428C14.4874 9.71293 13.6876 9.87122 12.8344 9.98119C12.8363 9.99011 12.8381 9.99908 12.8397 10.0081L13.2874 12.5472C13.315 12.7266 13.2713 12.9098 13.1656 13.0573C13.0598 13.2049 12.9005 13.3052 12.7217 13.3367C12.5429 13.3683 12.3589 13.3285 12.2091 13.2259C12.0592 13.1234 11.9555 12.9663 11.9202 12.7882L11.4725 10.2491C11.4645 10.2039 11.4611 10.1581 11.4621 10.1125C10.9858 10.1428 10.4976 10.1586 10.0002 10.1586C9.57059 10.1586 9.14778 10.1468 8.73362 10.1241C8.73477 10.1656 8.7322 10.2074 8.72578 10.249L8.27808 12.7881C8.24612 12.9694 8.14345 13.1306 7.99265 13.2362C7.84186 13.3418 7.65528 13.3831 7.47398 13.3512C7.29268 13.3192 7.1315 13.2166 7.0259 13.0658C6.9203 12.915 6.87892 12.7284 6.91088 12.5471L7.35858 10.008C7.35877 10.007 7.35896 10.0061 7.35915 10.0052C6.50085 9.90284 5.6941 9.75191 4.95838 9.56025C4.93012 9.60634 4.89634 9.64933 4.85748 9.68819L3.03438 11.5113C2.96992 11.5757 2.8934 11.6269 2.80918 11.6618C2.72496 11.6967 2.63469 11.7146 2.54353 11.7146C2.45237 11.7146 2.36211 11.6967 2.27789 11.6618C2.19367 11.6269 2.11714 11.5757 2.05268 11.5113C1.98822 11.4468 1.93709 11.3703 1.90221 11.2861C1.86732 11.2019 1.84937 11.1116 1.84937 11.0204C1.84937 10.9293 1.86732 10.839 1.90221 10.7548C1.93709 10.6706 1.98822 10.5941 2.05268 10.5296L3.49373 9.08855C2.6197 8.744 1.91247 8.33062 1.42559 7.87006C0.956591 7.42636 1.26799 6.63816 1.91359 6.63816C2.10629 6.63816 2.28789 6.71896 2.42489 6.85456C2.70009 7.12696 3.19529 7.45886 3.98459 7.77796C5.54429 8.40856 7.73699 8.77016 10.0001 8.77016C12.2632 8.77016 14.4558 8.40856 16.0156 7.77796C16.8049 7.45886 17.3001 7.12696 17.5753 6.85456Z"
-                    fill="#9499A0"
-                  ></path>
-                  <!-- 睁眼图标（可见状态） -->
-                  <path
-                    v-show="showPassword"
-                    id="eye-open"
-                    data-v-1a96ced4=""
-                    fill-rule="evenodd"
-                    clip-rule="evenodd"
-                    d="M2.11069 9.43732C3.21647 7.77542 5.87904 4.58331 9.89458 4.58331C13.8801 4.58331 16.6483 7.72502 17.8345 9.4049C18.0905 9.76747 18.0905 10.2325 17.8345 10.5951C16.6483 12.2749 13.8801 15.4166 9.89458 15.4166C5.87904 15.4166 3.21647 12.2245 2.11069 10.5626C1.88009 10.2161 1.88009 9.7839 2.11069 9.43732ZM9.89458 3.33331C5.19832 3.33331 2.20919 7.03277 1.07001 8.74489C0.560324 9.51091 0.560323 10.4891 1.07001 11.2551C2.20919 12.9672 5.19832 16.6666 9.89458 16.6666C14.5412 16.6666 17.6368 13.0422 18.8556 11.3161C19.4168 10.5213 19.4168 9.4787 18.8556 8.68391C17.6368 6.95774 14.5412 3.33331 9.89458 3.33331ZM7.29165 9.99998C7.29165 8.50421 8.50421 7.29165 9.99998 7.29165C11.4958 7.29165 12.7083 8.50421 12.7083 9.99998C12.7083 11.4958 11.4958 12.7083 9.99998 12.7083C8.50421 12.7083 7.29165 11.4958 7.29165 9.99998ZM9.99998 6.04165C7.81385 6.04165 6.04165 7.81385 6.04165 9.99998C6.04165 12.1861 7.81385 13.9583 9.99998 13.9583C12.1861 13.9583 13.9583 12.1861 13.9583 9.99998C13.9583 7.81385 12.1861 6.04165 9.99998 6.04165Z"
-                    fill="#9499A0"
-                  ></path>
-                </svg>
-              </div>
-            </div>
-            <div class="login-form-LoginButton">
-              <button type="submit" class="login-form-LoginButton-button">
-                登录
-              </button>
-            </div>
-          </form>
-          <div>
-            <router-link to="/find/password">
-              <span class="login-form-fpw">找回密码</span>
-            </router-link>
-            <router-link to="/register/account">
-              <span @click="changeRegister" class="login-form-register"
-                >注册账号
-              </span>
-            </router-link>
-            <router-link to="/feedback">
-              <span class="login-form-feedback">意见反馈</span>
-            </router-link>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div
-      v-else-if="isWeChatLoginButtonActive && LoginGrade === 2 && choiceActive"
-      class="login-WeChat-container"
-    >
-      <div class="login-WeChat-title-header">
-        <span class="login-WeChat-title">微信登录</span>
-      </div>
-      <div class="login-WeChat-container-img">
-        <div class="login-WeChat-qr-slot">
-          <img src="" alt="微信登录二维码" />
-        </div>
-        <div class="login-WeChat-tips">
-          <span>请使用微信扫一扫登录</span>
-        </div>
-      </div>
-      <button class="login-form-line">
-        <div class="login-form-line-img">
-          <img src="@/assets/photo/刷新.svg" alt="刷新" />
-        </div>
-        <span class="login-form-line-text">刷新</span>
-      </button>
-    </div>
-    <div
-      v-else-if="isPhoneLoginButtonActive && LoginGrade === 2 && choiceActive"
-      class="login-Phone-container"
-    >
-      <div class="login-Phone-title-header">
-        <span class="login-Phone-title">手机登录</span>
-      </div>
-      <div class="login-Phone-container">
-        <div class="login-Phone-container-input">
-          <div
-            class="login-Phone-container-input-number"
-            :class="{ 'is-active': isPhoneInputActive }"
+      <label class="login-field">
+        <span class="login-field__label">账号</span>
+        <input
+          v-model="Account"
+          :name="'emailAddress_' + randomSuffix"
+          type="text"
+          class="login-field__input"
+          placeholder="邮箱 / 手机号"
+          autocomplete="new-password"
+        />
+      </label>
+
+      <label class="login-field">
+        <span class="login-field__label">密码</span>
+        <span class="login-field__control">
+          <input
+            v-model="Password"
+            :type="inputType"
+            class="login-field__input"
+            placeholder="请输入密码"
+          />
+          <button
+            type="button"
+            class="login-field__eye"
+            :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+            @click="togglePasswordVisibility"
           >
-            <!-- 动态绑定类 -->
-            <button
-              type="button"
-              class="login-Phone-container-input-number-button"
-              @click="activatePhonePrefix"
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
             >
-              <span class="login-Phone-container-input-number-button-text">
-                +86
-              </span>
-              <img src="@/assets/photo/下拉.svg" alt="下拉" />
-            </button>
-            <input
-              ref="phoneNumberInputRef"
-              type="text"
-              placeholder="请输入手机号"
-              @focus="setPhoneInputActive"
-              @blur="isPhoneInputActive = false"
-              class="login-Phone-container-input-number-input"
-              pattern="[0-9]*"
-              inputmode="numeric"
-              style="color: rgb(128, 128, 128)"
-              maxlength="11"
-            />
-          </div>
-          <div
-            class="login-Phone-container-input-Verification"
-            :class="{ 'is-active': isVerificationCodeValidActive }"
-          >
-            <input
-              type="text"
-              placeholder="请输入验证码"
-              @focus="setVerificationCodeValidActive"
-              @blur="isVerificationCodeValidActive = false"
-              class="login-Phone-container-input-number-input"
-              pattern="[0-9]*"
-              style="color: rgb(128, 128, 128)"
-              maxlength="6"
-              autocomplete="new-password"
-            />
-            <button class="login-Phone-container-input-Verification-button">
-              验证码
-            </button>
-          </div>
-          <button class="login-Phone-container-input-button">登录</button>
-        </div>
+              <path
+                v-show="!showPassword"
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M17.5753 6.85456C17.7122 6.71896 17.8939 6.63806 18.0866 6.63806C18.7321 6.63806 19.0436 7.42626 18.5748 7.87006C18.1144 8.30554 17.457 8.69885 16.6478 9.03168L18.1457 10.5296C18.2746 10.6585 18.349 10.8359 18.349 11.0204C18.349 11.2049 18.2746 11.3823 18.1457 11.5113C18.0167 11.6402 17.8393 11.7146 17.6548 11.7146C17.4703 11.7146 17.2929 11.6402 17.164 11.5113L15.3409 9.68819C15.2898 9.63708 15.247 9.57838 15.2141 9.51428C14.4874 9.71293 13.6876 9.87122 12.8344 9.98119L13.2874 12.5472C13.3427 12.9061 13.0966 13.2434 12.7217 13.3367C12.5429 13.3683 12.3589 13.3285 12.2091 13.2259C12.0592 13.1234 11.9555 12.9663 11.9202 12.7882L11.4725 10.2491C11.4645 10.2039 11.4611 10.1581 11.4621 10.1125C10.9858 10.1428 10.4976 10.1586 10.0002 10.1586C9.57059 10.1586 9.14778 10.1468 8.73362 10.1241L8.27808 12.7881C8.21416 13.1507 7.86864 13.3939 7.47398 13.3512C7.29268 13.3192 7.1315 13.2166 7.0259 13.0658C6.9203 12.915 6.87892 12.7284 6.91088 12.5471L7.35858 10.008C6.50085 9.90284 5.6941 9.75191 4.95838 9.56025C4.93012 9.60634 4.89634 9.64933 4.85748 9.68819L3.03438 11.5113C2.90543 11.6402 2.72803 11.7146 2.54353 11.7146C2.35903 11.7146 2.18163 11.6402 2.05268 11.5113C1.92373 11.3823 1.84937 11.2049 1.84937 11.0204C1.84937 10.8359 1.92373 10.6585 2.05268 10.5296L3.49373 9.08855C2.6197 8.744 1.91247 8.33062 1.42559 7.87006C0.956591 7.42636 1.26799 6.63816 1.91359 6.63816C2.10629 6.63816 2.28789 6.71896 2.42489 6.85456C2.70009 7.12696 3.19529 7.45886 3.98459 7.77796C5.54429 8.40856 7.73699 8.77016 10.0001 8.77016C12.2632 8.77016 14.4558 8.40856 16.0156 7.77796C16.8049 7.45886 17.3001 7.12696 17.5753 6.85456Z"
+                fill="#9499A0"
+              />
+              <path
+                v-show="showPassword"
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M2.11069 9.43732C3.21647 7.77542 5.87904 4.58331 9.89458 4.58331C13.8801 4.58331 16.6483 7.72502 17.8345 9.4049C18.0905 9.76747 18.0905 10.2325 17.8345 10.5951C16.6483 12.2749 13.8801 15.4166 9.89458 15.4166C5.87904 15.4166 3.21647 12.2245 2.11069 10.5626C1.88009 10.2161 1.88009 9.7839 2.11069 9.43732ZM9.89458 3.33331C5.19832 3.33331 2.20919 7.03277 1.07001 8.74489C0.560324 9.51091 0.560323 10.4891 1.07001 11.2551C2.20919 12.9672 5.19832 16.6666 9.89458 16.6666C14.5412 16.6666 17.6368 13.0422 18.8556 11.3161C19.4168 10.5213 19.4168 9.4787 18.8556 8.68391C17.6368 6.95774 14.5412 3.33331 9.89458 3.33331ZM7.29165 9.99998C7.29165 8.50421 8.50421 7.29165 9.99998 7.29165C11.4958 7.29165 12.7083 8.50421 12.7083 9.99998C12.7083 11.4958 11.4958 12.7083 9.99998 12.7083C8.50421 12.7083 7.29165 11.4958 7.29165 9.99998ZM9.99998 6.04165C7.81385 6.04165 6.04165 7.81385 6.04165 9.99998C6.04165 12.1861 7.81385 13.9583 9.99998 13.9583C12.1861 13.9583 13.9583 12.1861 13.9583 9.99998C13.9583 7.81385 12.1861 6.04165 9.99998 6.04165Z"
+                fill="#9499A0"
+              />
+            </svg>
+          </button>
+        </span>
+      </label>
+
+      <button type="submit" class="login-submit">登录</button>
+    </form>
+
+    <!-- 微信登录 -->
+    <div v-else-if="activeMethod === 'wechat'" class="login-wechat">
+      <div class="login-wechat__qr">
+        <span>二维码</span>
       </div>
+      <p class="login-wechat__tip">请使用微信扫一扫登录</p>
+      <button type="button" class="login-secondary">刷新二维码</button>
+    </div>
+
+    <!-- 手机登录 -->
+    <div v-else class="login-form">
+      <label class="login-field">
+        <span class="login-field__label">手机号</span>
+        <span class="login-field__control">
+          <span class="login-field__prefix">+86</span>
+          <input
+            ref="phoneNumberInputRef"
+            type="text"
+            class="login-field__input"
+            placeholder="请输入手机号"
+            pattern="[0-9]*"
+            inputmode="numeric"
+            maxlength="11"
+          />
+        </span>
+      </label>
+      <label class="login-field">
+        <span class="login-field__label">验证码</span>
+        <span class="login-field__control">
+          <input
+            type="text"
+            class="login-field__input"
+            placeholder="请输入验证码"
+            pattern="[0-9]*"
+            maxlength="6"
+            autocomplete="new-password"
+          />
+          <button type="button" class="login-field__code">获取验证码</button>
+        </span>
+      </label>
+      <button type="button" class="login-submit">登录</button>
+    </div>
+
+    <!-- 协议同意 -->
+    <label class="login-agree" :class="{ 'login-agree--error': agreeError }">
+      <input v-model="agreed" type="checkbox" class="login-agree__box" />
+      <span class="login-agree__text">
+        同意
+        <a :href="agreementLinks.service" target="_blank">《服务协议》</a>、
+        <a :href="agreementLinks.privacy" target="_blank">《隐私政策》</a>、
+        <a :href="agreementLinks.kids" target="_blank">《儿童隐私保护声明》</a>
+        和
+        <a :href="agreementLinks.thirdParty" target="_blank"
+          >《第三方信息共享清单》</a
+        >
+      </span>
+    </label>
+    <p v-if="agreeError" class="login-agree__hint">请先阅读并同意相关协议</p>
+
+    <!-- 辅助入口 -->
+    <div class="login-links">
+      <router-link to="/find/password">找回密码</router-link>
+      <router-link to="/register/account" @click="goRegister"
+        >注册账号</router-link
+      >
+      <router-link to="/feedback">意见反馈</router-link>
     </div>
   </div>
 </template>
@@ -281,48 +157,50 @@
 import { ref, computed, onUnmounted } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
+import { AppHttpError } from "@/api/httpError";
 import { getHomeRouteByUserType } from "@/core/auth/utils/authRedirect";
 import { isEmail, isPhone } from "@/core/auth/utils/authValidators";
 
-// 使用 store 和 router
 const store = useStore();
 const router = useRouter();
 
-// 响应式数据
+type LoginMethod = "account" | "wechat" | "phone";
+
+const methods: Array<{ key: LoginMethod; label: string }> = [
+  { key: "account", label: "账号登录" },
+  { key: "wechat", label: "微信登录" },
+  { key: "phone", label: "手机登录" },
+];
+
+const agreementLinks = {
+  service: "https://rule.tencent.com/rule/399ab3d0-4989-4f34-9d7b-99c579b4cbdf",
+  privacy:
+    "https://privacy.qq.com/document/priview/3fab9c7fc1424ebda42c3ce488322c8a",
+  kids: "https://privacy.qq.com/mb/policy/kids-privacypolicy",
+  thirdParty:
+    "https://privacy.qq.com/document/preview/ba4294dc9d4a45a89f3d682eb07a489b",
+};
+
+// 本地表单状态（登录方式、协议等只属于本页，无需进 Vuex）
+const activeMethod = ref<LoginMethod>("account");
+const agreed = ref(false);
+const agreeError = ref(false);
 const Account = ref("");
-const inputTypeValue = ref(""); // 标记输入类型 ("email" 或 "phone")
 const Password = ref("");
-const showPassword = ref(false); // 控制密码可见性
-const isPhoneInputActive = ref(false); // 添加手机输入框状态
+const showPassword = ref(false);
 const phoneNumberInputRef = ref<HTMLInputElement | null>(null);
-const isVerificationCodeValidActive = ref(false); // 验证码输入框状态
-const isAllowButtonActive = ref(false); // 控制同意按钮状态
+const randomSuffix = Math.random().toString(36).slice(2);
 
 let loginInProgress = false;
 
-// 计算属性
 const inputType = computed(() => (showPassword.value ? "text" : "password"));
-const isAcountLoginButtonActive = computed(
-  () => store.state.ui.isAcountLoginButtonActive
-);
-const isWeChatLoginButtonActive = computed(
-  () => store.state.ui.isWeChatLoginButtonActive
-);
-const isPhoneLoginButtonActive = computed(
-  () => store.state.ui.isPhoneLoginButtonActive
-);
 const isLoggedIn = computed(() => store.state.auth.isLoggedIn);
-const LoginGrade = computed(() => store.state.ui.LoginGrade);
-const choiceActive = computed(() => store.state.ui.choiceActive);
 
 const resolveLoginIdentifier = (rawValue: string) => {
   const value = rawValue.trim();
 
   if (isEmail(value)) {
-    return {
-      type: "email" as const,
-      identifier: value,
-    };
+    return { type: "email" as const, identifier: value };
   }
 
   if (isPhone(value)) {
@@ -337,33 +215,51 @@ const resolveLoginIdentifier = (rawValue: string) => {
   return null;
 };
 
-const resetLocalFormState = () => {
-  Account.value = "";
-  inputTypeValue.value = "";
-  Password.value = "";
-  showPassword.value = false;
-  isPhoneInputActive.value = false;
-  isVerificationCodeValidActive.value = false;
-  isAllowButtonActive.value = false;
-  loginInProgress = false;
+const togglePasswordVisibility = () => {
+  showPassword.value = !showPassword.value;
 };
 
-const resetToInitLoginView = () => {
-  store.commit("ui/upDataLoginButtonActive", {
-    isinitLoginActive: true,
-    isAcountLoginButtonActive: false,
-    isWeChatLoginButtonActive: false,
-    isPhoneLoginButtonActive: false,
-  });
-  store.commit("ui/setLoginGradeActive", 1);
+const getLoginErrorMessage = (error: unknown) => {
+  if (error instanceof AppHttpError) {
+    switch (error.kind) {
+      case "unauthorized":
+      case "validation":
+        return "账号或密码错误，请检查后重试";
+      case "rate-limited":
+        return "请求过于频繁，请稍等一分钟后再试";
+      case "network":
+      case "timeout":
+        return "无法连接后端服务，请确认 PetManager 后端正在运行";
+      case "server":
+        return "服务器处理登录失败，请稍后重试";
+      default:
+        return error.message || "登录失败，请稍后重试";
+    }
+  }
+
+  if (error instanceof Error && error.message.includes("缺少 user 字段")) {
+    return "登录返回数据异常，请稍后重试";
+  }
+
+  return "登录请求出错，请稍后重试";
 };
 
-// 方法
+// 进入注册页：App.vue 的 guest-shell 依据 showRegister 切换到注册路由视图
+const goRegister = () => {
+  store.commit("ui/upDataLoginButtonActive", { showRegister: true });
+};
+
 const handleLogin = () => {
   if (loginInProgress) {
-    alert("请等待");
     return;
   }
+
+  // 未同意协议时就近提示，不再用全屏弹层打断
+  if (!agreed.value) {
+    agreeError.value = true;
+    return;
+  }
+  agreeError.value = false;
 
   const resolvedIdentifier = resolveLoginIdentifier(Account.value);
   if (!resolvedIdentifier) {
@@ -376,7 +272,6 @@ const handleLogin = () => {
     return;
   }
 
-  inputTypeValue.value = resolvedIdentifier.type;
   Account.value = resolvedIdentifier.identifier;
   loginInProgress = true;
 
@@ -398,174 +293,281 @@ const handleLogin = () => {
       }
     })
     .catch((error) => {
-      const status = error?.response?.status;
-
-      if (status === 400 || status === 401) {
-        console.error("Login error:", error.response?.data);
-        alert("账号或密码错误");
-      } else if (status === 500) {
-        console.error("Server error:", error.response?.data);
-        alert("服务器错误");
-      } else if (error?.request) {
-        console.error("No response received:", error.request);
-        alert("无法连接到服务器，请检查网络连接");
-      } else {
-        console.error("Login request failed:", error);
-        alert("登录请求出错，请稍后重试");
-      }
+      console.error("Login request failed:", error);
+      alert(getLoginErrorMessage(error));
     })
     .finally(() => {
       loginInProgress = false;
     });
 };
 
-const togglePasswordVisibility = () => {
-  showPassword.value = !showPassword.value;
-};
-
-const back = () => {
-  if (store.state.ui.LoginGrade === 2) {
-    resetToInitLoginView();
-    resetLocalFormState();
-  }
-};
-
-const setAcountLoginClick = () => {
-  if (choiceActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isinitLoginActive: false,
-    });
-    // 设置登录等级为2
-    store.commit("ui/setLoginGradeActive", 2);
-  } else {
-    isAllowButtonActive.value = true; // 激活同意按钮状态
-  }
-  store.commit("ui/upDataLoginButtonActive", {
-    isAcountLoginButtonActive: true,
-  });
-};
-
-const setWeChatLoginClick = () => {
-  if (choiceActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isinitLoginActive: false,
-    });
-    // 设置登录等级为2
-    store.commit("ui/setLoginGradeActive", 2);
-  } else {
-    isAllowButtonActive.value = true; // 激活同意按钮状态
-  }
-  store.commit("ui/upDataLoginButtonActive", {
-    isWeChatLoginButtonActive: true,
-  });
-};
-
-const setPhoneLoginClick = () => {
-  if (choiceActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isinitLoginActive: false,
-    });
-    // 设置登录等级为2
-    store.commit("ui/setLoginGradeActive", 2);
-  } else {
-    isAllowButtonActive.value = true; // 激活同意按钮状态
-  }
-  store.commit("ui/upDataLoginButtonActive", {
-    isPhoneLoginButtonActive: true,
-  });
-};
-
-const setPhoneInputActive = () => {
-  isPhoneInputActive.value = true; // 设置手机输入框为活动状态
-};
-
-const activatePhonePrefix = () => {
-  isPhoneInputActive.value = true;
-  phoneNumberInputRef.value?.focus();
-};
-
-const setVerificationCodeValidActive = () => {
-  isVerificationCodeValidActive.value = true; // 设置手机输入框为活动状态
-};
-
-const setChoiceActive = () => {
-  if (!choiceActive.value) {
-    store.commit("ui/upDataLoginButtonActive", {
-      choiceActive: true,
-    });
-  } else {
-    store.commit("ui/upDataLoginButtonActive", {
-      choiceActive: false,
-    });
-  }
-};
-
-const allow = () => {
-  setChoiceActive();
-  isAllowButtonActive.value = false;
-  if (isAcountLoginButtonActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isinitLoginActive: false,
-    });
-    // 设置登录等级为2
-    store.commit("ui/setLoginGradeActive", 2);
-  } else if (isWeChatLoginButtonActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isinitLoginActive: false,
-    });
-    // 添加微信登录等级为2
-    store.commit("ui/setLoginGradeActive", 2);
-  } else if (isPhoneLoginButtonActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isinitLoginActive: false,
-    });
-    // 添加手机登录等级为2
-    store.commit("ui/setLoginGradeActive", 2);
-  }
-};
-
-const cancel = () => {
-  if (isAcountLoginButtonActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isAcountLoginButtonActive: false,
-    });
-  } else if (isWeChatLoginButtonActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isWeChatLoginButtonActive: false,
-    });
-  } else if (isPhoneLoginButtonActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isPhoneLoginButtonActive: false,
-    });
-  }
-  isAllowButtonActive.value = false;
-};
-
-const changeRegister = () => {
-  if (choiceActive.value == true) {
-    store.commit("ui/upDataLoginButtonActive", {
-      isAcountLoginButtonActive: false,
-    });
-    // 设置登录等级为3
-    store.commit("ui/setLoginGradeActive", 3);
-  } else {
-    isAllowButtonActive.value = true; // 激活同意按钮状态
-  }
-  store.commit("ui/upDataLoginButtonActive", {
-    showRegister: true,
-  });
-};
-
-// 组件卸载时重置登录状态
 onUnmounted(() => {
-  resetLocalFormState();
-  resetToInitLoginView();
-  store.commit("ui/upDataLoginButtonActive", {
-    choiceActive: false,
-  });
+  Account.value = "";
+  Password.value = "";
+  showPassword.value = false;
+  agreed.value = false;
+  agreeError.value = false;
+  loginInProgress = false;
 });
 </script>
 
 <style scoped>
-@import "@/assets/styles/Login.css";
+/* 登录卡：宽度交给 App.vue 的 .login-panel 容器居中，这里只管卡片本身 */
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: #ffffff;
+  border: 1px solid #d4ddd9;
+  border-radius: 18px;
+  box-shadow: 0 22px 48px rgba(28, 50, 80, 0.16);
+  padding: 28px 26px 22px;
+  box-sizing: border-box;
+  font-family: "PingFang SC", "Noto Sans SC", "Segoe UI", system-ui, sans-serif;
+}
+
+.login-card__title {
+  margin: 0 0 18px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #18373a;
+}
+
+/* 分段方式选择 */
+.login-methods {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f4f7f4;
+  margin-bottom: 20px;
+}
+
+.login-methods__tab {
+  height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6d7b72;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.login-methods__tab--active {
+  background: #1e5eff;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(30, 94, 255, 0.24);
+}
+
+/* 表单 */
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-field {
+  display: grid;
+  gap: 6px;
+}
+
+.login-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6d7b72;
+}
+
+.login-field__control {
+  display: flex;
+  align-items: center;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.login-field__control:focus-within {
+  border-color: #1e5eff;
+  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.12);
+}
+
+.login-field__input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 13px;
+  color: #1d3429;
+  background: #ffffff;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.login-field__input:focus {
+  border-color: #1e5eff;
+  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.12);
+}
+
+/* 控件组合内的 input 去掉自身边框，由外层 control 统一描边 */
+.login-field__control .login-field__input {
+  border: 0;
+  box-shadow: none;
+}
+
+.login-field__prefix {
+  padding: 0 10px;
+  font-size: 13px;
+  color: #6d7b72;
+  border-right: 1px solid #dfe7df;
+}
+
+.login-field__eye {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.login-field__code {
+  flex: 0 0 auto;
+  height: 30px;
+  margin-right: 6px;
+  padding: 0 12px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  background: #f4f7f4;
+  color: #1e5eff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-submit {
+  margin-top: 4px;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: #1e5eff;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-submit:hover {
+  background: #1850e0;
+  box-shadow: 0 10px 20px rgba(30, 94, 255, 0.22);
+}
+
+/* 微信 */
+.login-wechat {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.login-wechat__qr {
+  width: 168px;
+  height: 168px;
+  border-radius: 12px;
+  border: 1px solid #dfe7df;
+  background: #f4f7f4;
+  display: grid;
+  place-items: center;
+  color: #6d7b72;
+  font-size: 13px;
+}
+
+.login-wechat__tip {
+  margin: 0;
+  font-size: 13px;
+  color: #6d7b72;
+}
+
+.login-secondary {
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  background: #f4f7f4;
+  color: #1e5eff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 协议 */
+.login-agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 18px;
+  cursor: pointer;
+}
+
+.login-agree__box {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: #1e5eff;
+  flex: 0 0 auto;
+}
+
+.login-agree__text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6d7b72;
+}
+
+.login-agree__text a {
+  color: #1e5eff;
+  text-decoration: none;
+}
+
+.login-agree__text a:hover {
+  text-decoration: underline;
+}
+
+.login-agree--error .login-agree__text {
+  color: #b04455;
+}
+
+.login-agree__hint {
+  margin: 6px 0 0 24px;
+  font-size: 12px;
+  color: #b04455;
+}
+
+/* 辅助入口 */
+.login-links {
+  display: flex;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #eef1ee;
+}
+
+.login-links a {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  color: #6d7b72;
+  text-decoration: none;
+}
+
+/* 相邻链接之间的竖线分隔符 */
+.login-links a + a {
+  border-left: 1px solid #e3e6e3;
+}
+
+.login-links a:hover {
+  color: #1e5eff;
+}
 </style>

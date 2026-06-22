@@ -2,6 +2,7 @@
 #include "../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+#include "../../utils/staticFileHandler.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -12,8 +13,22 @@
 #include <unistd.h>
 #endif
 
+#include <cstdlib>
+#include <filesystem>
+
 namespace
 {
+std::filesystem::path getFrontendDistPath()
+{
+    const char *configuredPath = std::getenv("PETMANAGER_FRONTEND_DIST");
+    if (configuredPath && configuredPath[0] != '\0')
+    {
+        return configuredPath;
+    }
+
+    return std::filesystem::current_path() / "pethospital" / "frontend" / "dist";
+}
+
 bool isPortAvailable(int port)
 {
 #ifdef _WIN32
@@ -177,6 +192,17 @@ void WebSocketServer::setupRoutes()
 
     // 注册总裁端路由
     bossRoutes::setupBossRoutes(*app_ptr_, DatabaseManager::getInstance());
+
+    const auto frontendDistPath = getFrontendDistPath();
+    CROW_ROUTE((*app_ptr_), "/")
+    ([frontendDistPath](const crow::request &req) {
+        return StaticFileHandler::handleRequest(req, frontendDistPath);
+    });
+
+    app_ptr_->catchall_route()
+    ([frontendDistPath](const crow::request &req) {
+        return StaticFileHandler::handleRequest(req, frontendDistPath);
+    });
 }
 
 // 设置信号处理函数

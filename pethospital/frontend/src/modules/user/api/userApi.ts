@@ -156,6 +156,9 @@ const updateSearchHistoryResponse = (searchText: string) =>
 const fetchReservationInformationResponse = (reservationId: number) =>
   http.get(`/api/users/me/reservations/${reservationId}`);
 
+const toTheHospitalResponse = (reservationId: number) =>
+  http.post(`/api/users/me/reservations/${reservationId}/to-the-hospital`);
+
 /**
  * 用户档案相关接口函数集合，包含保存用户基础资料和上传用户头像等功能。
  */
@@ -325,6 +328,13 @@ export const reservationApi = {
     await http.delete(
       `/api/users/me/reservations/${reservationId}/cancellation`
     );
+  },
+
+  /**
+   * 当前用户预约到院签到。
+   */
+  async toTheHospital(reservationId: number): Promise<void> {
+    await toTheHospitalResponse(reservationId);
   },
 };
 

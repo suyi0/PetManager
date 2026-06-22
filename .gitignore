@@ -58,8 +58,19 @@ build/
 *.exe
 *.out
 main
+!desktop/main/
+!desktop/main/**
 RunServe
 skills
+
+# Electron package outputs
+release/
+out/
+dist-electron/
+electron-dist/
+desktop/dist/
+desktop/out/
+desktop/release/
 
 # AI agent context and local tool state
 .agents/

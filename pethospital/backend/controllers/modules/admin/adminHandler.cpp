@@ -235,6 +235,9 @@ crow::response adminHandler::searchUsers(const crow::request &req, const nlohman
 
         const std::string keyword = getJsonString(requestBody, "keyword");
         const std::string role = getJsonString(requestBody, "role", "all");
+        const bool includeCounts = requestBody.contains("includeCounts") && requestBody["includeCounts"].is_boolean()
+                                       ? requestBody["includeCounts"].get<bool>()
+                                       : true;
         const std::string likeKeyword = "%" + keyword + "%";
         const int page = normalizePage(getJsonInt(requestBody, "page", 1));
         const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
@@ -303,6 +306,31 @@ crow::response adminHandler::searchUsers(const crow::request &req, const nlohman
             {"total", countResult.fetchOne()[0].get<int>()},
             {"page", page},
             {"pageSize", pageSize}};
+
+        // 各角色计数只随 keyword/数据变化，与翻页、切角色标签无关；仅在前端明确请求
+        // includeCounts 时才执行这条聚合，避免每次翻页都重算、徒增数据库负担。
+        if (includeCounts)
+        {
+            auto roleCountQuery = dbManager->getSession()
+                                      ->sql("SELECT "
+                                            "COUNT(DISTINCT u.id), "
+                                            "COUNT(DISTINCT CASE WHEN COALESCE(t.type, '') IN ('医生', '护士') THEN u.id END), "
+                                            "COUNT(DISTINCT CASE WHEN COALESCE(t.type, '') IN ('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') THEN u.id END), "
+                                            "COUNT(DISTINCT CASE WHEN COALESCE(t.type, '') NOT IN ('医生', '护士', '总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') THEN u.id END) "
+                                            "FROM users AS u "
+                                            "LEFT JOIN types AS t ON u.type_id = t.id "
+                                            "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                            "WHERE u.is_deleted = 0 "
+                                            "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) ")
+                                      .bind(keyword, likeKeyword, likeKeyword, likeKeyword);
+            mysqlx::Row roleCountRow = roleCountQuery.execute().fetchOne();
+            data["roleCounts"] = {
+                {"all", roleCountRow[0].get<int>()},
+                {"medical", roleCountRow[1].get<int>()},
+                {"admin", roleCountRow[2].get<int>()},
+                {"normal", roleCountRow[3].get<int>()},
+            };
+        }
 
         return ResponseHelper::success(req, data);
     }
@@ -460,8 +488,9 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
             {
                 mysqlx::SqlResult onlinedoctors_result =
                     dbManager->getSession()
-                        ->sql("SELECT od.doctor_id, u.name, od.date, od.check_in_time, "
-                              "od.check_out_time, od.status "
+                        ->sql("SELECT od.doctor_id, u.name, CAST(od.date AS CHAR), "
+                              "CAST(od.check_in_time AS CHAR), "
+                              "CAST(od.check_out_time AS CHAR), od.status "
                               "FROM onlineDoctors AS od "
                               "JOIN users AS u ON od.doctor_id = u.id "
                               "WHERE od.date = ? "
@@ -498,9 +527,10 @@ crow::response adminHandler::getWorkTimeRecord(const crow::request &req)
         {
             mysqlx::SqlResult workTimeLogs_result =
                 dbManager->getSession()
-                    ->sql("SELECT wtr.id, wtr.doctor_id, u.name, wtr.date, "
-                          "wtr.check_in_time, wtr.check_out_time, wtr.status, "
-                          "wtr.notes, wtr.created_at, wtr.updated_at "
+                    ->sql("SELECT wtr.id, wtr.doctor_id, u.name, CAST(wtr.date AS CHAR), "
+                          "CAST(wtr.check_in_time AS CHAR), CAST(wtr.check_out_time AS CHAR), "
+                          "wtr.status, wtr.notes, CAST(wtr.created_at AS CHAR), "
+                          "CAST(wtr.updated_at AS CHAR) "
                           "FROM workTimeLogs AS wtr "
                           "JOIN users AS u ON wtr.doctor_id = u.id "
                           "ORDER BY wtr.date DESC, u.name ASC")
@@ -832,6 +862,9 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
 
         const std::string majorTab = getJsonString(requestBody, "majorTab", "user");
         const std::string role = getJsonString(requestBody, "role", "all");
+        const bool includeCounts = requestBody.contains("includeCounts") && requestBody["includeCounts"].is_boolean()
+                                       ? requestBody["includeCounts"].get<bool>()
+                                       : true;
         const std::string keyword = getJsonString(requestBody, "keyword");
         const std::string module = getJsonString(requestBody, "module");
         const std::string resultFilter = getJsonString(requestBody, "result", "all");
@@ -965,6 +998,22 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
             {"total", countResult.fetchOne()[0].get<int>()},
             {"page", page},
             {"pageSize", pageSize}};
+
+        // 两类日志全局总数与筛选/翻页无关，操作表会持续增长，COUNT(*) 较重；
+        // 仅在前端明确请求 includeCounts（通常只在进页面时）才统计。
+        if (includeCounts)
+        {
+            mysqlx::Row userLogCountRow = dbManager->getSession()
+                                              ->sql("SELECT COUNT(*) FROM user_operations")
+                                              .execute()
+                                              .fetchOne();
+            mysqlx::Row systemLogCountRow = dbManager->getSession()
+                                                ->sql("SELECT COUNT(*) FROM system_operations")
+                                                .execute()
+                                                .fetchOne();
+            data["userLogCount"] = userLogCountRow[0].get<int>();
+            data["systemLogCount"] = systemLogCountRow[0].get<int>();
+        }
 
         return ResponseHelper::success(req, data);
     }

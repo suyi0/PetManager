@@ -85,6 +85,24 @@ export interface OnlineDoctorsSearchResult extends PagedList<UserRow> {
   records: WorkTimeRecord[];
 }
 
+export interface UserRoleCounts {
+  all: number;
+  normal: number;
+  medical: number;
+  admin: number;
+}
+
+export interface UserSearchResult extends PagedList<UserRow> {
+  // 仅在请求 includeCounts 时返回；翻页/切角色等场景为 undefined，前端复用缓存。
+  roleCounts?: UserRoleCounts;
+}
+
+export interface LogSearchResult extends PagedList<AuditLogItem> {
+  // 仅在请求 includeCounts 时返回；否则为 undefined，前端复用缓存。
+  userLogCount?: number;
+  systemLogCount?: number;
+}
+
 /**
  * 超级管理员首页摘要数据。
  */

@@ -1,4 +1,9 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
+import {
+  createRouter,
+  createWebHashHistory,
+  createWebHistory,
+  RouteRecordRaw,
+} from "vue-router";
 import userRouters from "@/modules/user/router/UserRouter"; // 引入用户模块的路由
 import adminRouters from "@/modules/super-admin/router/superAdminRouter"; // 引入管理员模块的路由
 import warehouseAdminRouters from "@/modules/warehouse-admin/router/warehouseAdminRouter";
@@ -33,7 +38,10 @@ const routes: Array<RouteRecordRaw> = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history:
+    process.env.VUE_APP_DESKTOP_CLIENT === "true"
+      ? createWebHashHistory()
+      : createWebHistory(process.env.BASE_URL),
   routes,
 });
 

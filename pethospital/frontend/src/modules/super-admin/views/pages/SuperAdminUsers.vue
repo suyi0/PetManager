@@ -89,7 +89,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in users" :key="item.id">
+            <tr v-for="item in users" :key="item.id" class="user-row">
               <td>
                 <div class="user-cell">
                   <strong>{{ item.name || "未命名用户" }}</strong>
@@ -299,6 +299,9 @@ export default defineComponent({
       medical: 0,
       admin: 0,
     });
+    // 计数缓存控制：记录上次统计所用 keyword；数据增删后置脏，强制下次重新统计。
+    const lastCountsKeyword = ref<string | null>(null);
+    const countsDirty = ref(true);
     const showCreateDialog = ref(false);
     const creating = ref(false);
     const formError = ref("");
@@ -338,9 +341,10 @@ export default defineComponent({
       const shellH = shell.clientHeight;
       if (!shellH) return false;
       const thead = shell.querySelector("thead");
-      const headerH = thead ? thead.getBoundingClientRect().height : 42;
-      const firstRow = shell.querySelector("tbody tr:not(.placeholder-row)");
-      const rowH = firstRow ? firstRow.getBoundingClientRect().height : 44;
+      const headerH = thead ? thead.getBoundingClientRect().height : 40;
+      // 只量真实数据行，避免空态行（撑满整高）污染行高测量。
+      const firstRow = shell.querySelector("tbody tr.user-row");
+      const rowH = firstRow ? firstRow.getBoundingClientRect().height : 48;
       const next = Math.max(4, Math.floor((shellH - headerH) / rowH));
       if (Number.isFinite(next) && next !== pageSize.value) {
         pageSize.value = next;
@@ -378,39 +382,25 @@ export default defineComponent({
       return "role-pill--normal";
     };
 
-    const fetchRoleCounts = async () => {
-      const results = await Promise.all(
-        roleOptions.map((option) =>
-          superAdminApi.searchUsers({
-            keyword: keyword.value,
-            role: option.role,
-            page: 1,
-            pageSize: 1,
-          })
-        )
-      );
-
-      roleOptions.forEach((option, index) => {
-        roleCounts[option.key] = results[index].total;
-      });
-    };
-
     const loadUsers = async () => {
       const currentRequestId = requestId.value + 1;
       requestId.value = currentRequestId;
       loading.value = true;
       listError.value = "";
 
+      // 角色计数只跟 keyword/数据变化有关，与翻页、切角色标签无关；
+      // 只有计数可能变化时才让后端统计，其余请求复用上次缓存。
+      const needCounts =
+        countsDirty.value || lastCountsKeyword.value !== keyword.value;
+
       try {
-        const [listResult] = await Promise.all([
-          superAdminApi.searchUsers({
-            keyword: keyword.value,
-            role: selectedRoleOption.value.role,
-            page: page.value,
-            pageSize: pageSize.value,
-          }),
-          fetchRoleCounts(),
-        ]);
+        const listResult = await superAdminApi.searchUsers({
+          keyword: keyword.value,
+          role: selectedRoleOption.value.role,
+          page: page.value,
+          pageSize: pageSize.value,
+          includeCounts: needCounts,
+        });
 
         if (currentRequestId !== requestId.value) {
           return;
@@ -418,6 +408,14 @@ export default defineComponent({
 
         users.value = listResult.items;
         total.value = listResult.total;
+        if (listResult.roleCounts) {
+          roleCounts.all = listResult.roleCounts.all;
+          roleCounts.normal = listResult.roleCounts.normal;
+          roleCounts.medical = listResult.roleCounts.medical;
+          roleCounts.admin = listResult.roleCounts.admin;
+          lastCountsKeyword.value = keyword.value;
+          countsDirty.value = false;
+        }
 
         const nextTotalPages = Math.max(
           1,
@@ -529,6 +527,8 @@ export default defineComponent({
           birthday: form.birthday || undefined,
         });
         closeCreateDialog();
+        // 新增用户改变了各角色计数，置脏强制下次重新统计。
+        countsDirty.value = true;
         if (page.value === 1) {
           await loadUsers();
           return;
@@ -545,15 +545,28 @@ export default defineComponent({
     let resizeObserver: ResizeObserver | null = null;
 
     onMounted(() => {
-      void nextTick(async () => {
-        applyPageSize();
-        await loadUsers();
-        // 监听表格容器尺寸（首屏 flex 高度稳定后会触发一次，自动校正每页行数）
-        if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
-          resizeObserver = new ResizeObserver(() => onResize());
-          resizeObserver.observe(tableShellRef.value);
-        }
-      });
+      // 首次加载由 ResizeObserver 的首帧驱动：此时表格高度已完成布局，applyPageSize
+      // 能算出正确的每页行数，保证「进入页面即拉到并填满第一页」，且只发一次请求。
+      // 后续真实尺寸变化才在行数变化时重新拉取。
+      if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
+        let initialized = false;
+        resizeObserver = new ResizeObserver(() => {
+          if (!initialized) {
+            initialized = true;
+            applyPageSize();
+            void loadUsers();
+          } else {
+            onResize();
+          }
+        });
+        resizeObserver.observe(tableShellRef.value);
+      } else {
+        // 不支持 ResizeObserver 时退化为下一帧测量后加载。
+        void nextTick(async () => {
+          applyPageSize();
+          await loadUsers();
+        });
+      }
     });
 
     onBeforeUnmount(() => {

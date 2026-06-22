@@ -20,6 +20,8 @@ public:
         RateLimitMiddleware::window_seconds_global_ = window_seconds;
     }
 
+    static bool shouldRateLimitPath(const std::string &path, const std::string &method);
+
     void before_handle(crow::request &req, crow::response &res, context &ctx);
     void after_handle(crow::request &req, crow::response &res, context &ctx);
 

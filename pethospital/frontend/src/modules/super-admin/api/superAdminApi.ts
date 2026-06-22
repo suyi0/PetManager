@@ -10,6 +10,9 @@ import {
   AuditLogItem,
   OnlineDoctorsSearchResult,
   PagedList,
+  UserSearchResult,
+  UserRoleCounts,
+  LogSearchResult,
 } from "./types";
 
 const unwrapPagedList = <T>(
@@ -81,9 +84,24 @@ export const superAdminApi = {
     role?: string;
     page: number;
     pageSize: number;
-  }): Promise<PagedList<UserRow>> {
+    includeCounts?: boolean;
+  }): Promise<UserSearchResult> {
     const { data } = await http.post("/api/admins/users/search", params);
-    return unwrapPagedList<UserRow>(data, params.page, params.pageSize);
+    const paged = unwrapPagedList<UserRow>(data, params.page, params.pageSize);
+    const source = (data as { data?: unknown })?.data ?? data;
+    const rc = (source as { roleCounts?: Partial<UserRoleCounts> })?.roleCounts;
+
+    return {
+      ...paged,
+      roleCounts: rc
+        ? {
+            all: Number(rc.all ?? paged.total),
+            normal: Number(rc.normal ?? 0),
+            medical: Number(rc.medical ?? 0),
+            admin: Number(rc.admin ?? 0),
+          }
+        : undefined,
+    };
   },
 
   async searchOnlineDoctors(params: {
@@ -136,9 +154,31 @@ export const superAdminApi = {
     endDate?: string;
     page: number;
     pageSize: number;
-  }): Promise<PagedList<AuditLogItem>> {
+    includeCounts?: boolean;
+  }): Promise<LogSearchResult> {
     const { data } = await http.post("/api/admins/logs/search", params);
-    return unwrapPagedList<AuditLogItem>(data, params.page, params.pageSize);
+    const paged = unwrapPagedList<AuditLogItem>(
+      data,
+      params.page,
+      params.pageSize
+    );
+    const source = (data as { data?: unknown })?.data ?? data;
+    const counts = source as {
+      userLogCount?: unknown;
+      systemLogCount?: unknown;
+    };
+
+    return {
+      ...paged,
+      userLogCount:
+        counts?.userLogCount === undefined
+          ? undefined
+          : Number(counts.userLogCount),
+      systemLogCount:
+        counts?.systemLogCount === undefined
+          ? undefined
+          : Number(counts.systemLogCount),
+    };
   },
 
   /**

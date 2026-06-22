@@ -1970,14 +1970,19 @@ crow::response userHandler::toTheHospital(const crow::request &req, int userId, 
                 .bind(queueDate, queueDate)
                 .execute();
 
+            // 更新 medicalQueueCounters.current_number = LAST_INSERT_ID(current_number + 1)
             session->sql("UPDATE medicalQueueCounters "
                          "SET current_number = LAST_INSERT_ID(current_number + 1) "
                          "WHERE queue_date = ?")
                 .bind(queueDate)
                 .execute();
 
+            // SELECT LAST_INSERT_ID() 返回 当前连接最近一次​ 由以下方式产生的值：
+            // AUTO_INCREMENT / LAST_INSERT_ID(expr)
             mysqlx::SqlResult queueNumberResult = session->sql("SELECT LAST_INSERT_ID()").execute();
+
             auto queueNumberRow = queueNumberResult.fetchOne();
+            // 获取下一个待就诊队列编号
             const int nextQueueNumber = queueNumberRow && !queueNumberRow[0].isNull() ? queueNumberRow[0].get<int>() : 0;
             if (nextQueueNumber <= 0)
             {
@@ -1998,6 +2003,7 @@ crow::response userHandler::toTheHospital(const crow::request &req, int userId, 
                 return ResponseHelper::operation_failed(req, "Failed to create medical queue", "未能创建待就诊队列记录");
             }
 
+            // 更新预约记录表软删除和到院状态
             mysqlx::SqlResult reservationUpdateResult = session->sql("UPDATE reservations "
                                                                      "SET status = 'arrived', is_deleted = 1, deleted_at = NOW(), deleted_by = ? "
                                                                      "WHERE id = ? AND user_id = ? AND is_deleted = 0 AND status = 'scheduled'")
@@ -2013,13 +2019,7 @@ crow::response userHandler::toTheHospital(const crow::request &req, int userId, 
             session->sql("COMMIT").execute();
             DoctorQueueBroadcaster::instance().notifyQueueChanged(doctorId);
 
-            nlohmann::json response;
-            response["message"] = "签到成功";
-            response["reservation_id"] = reservationId;
-            response["queue_id"] = queueInsertResult.getAutoIncrementValue();
-            response["queue_number"] = queueNumber;
-            response["status"] = StatusLabelUtils::toDisplayReservationStatus("arrived");
-            return ResponseHelper::success(req, response);
+            return ResponseHelper::success(req, "签到成功");
         }
         catch (const std::exception &e)
         {

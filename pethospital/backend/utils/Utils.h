@@ -183,7 +183,11 @@ private:
             {"error", error.is_null() ? nlohmann::json(nullptr) : error},
         };
 
-        crow::response res(httpStatus, payload.dump());
+        // 用 replace 容错：DB 里若存在非法 UTF-8 字节（如 0x0F），用替换符代替而非抛出
+        // json type_error.316，避免整个响应序列化失败导致接口 500、前端整页报错。
+        crow::response res(
+            httpStatus,
+            payload.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
         res.set_header("Content-Type", "application/json");
         return res;
     }

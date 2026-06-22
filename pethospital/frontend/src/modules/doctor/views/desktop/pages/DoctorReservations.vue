@@ -667,7 +667,7 @@ export default defineComponent({
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), #f8fafc);
-  padding: 22px;
+  padding: 18px 18px 22px;
   box-shadow: 0 20px 38px rgba(16, 24, 40, 0.06);
   box-sizing: border-box;
   overflow: hidden;

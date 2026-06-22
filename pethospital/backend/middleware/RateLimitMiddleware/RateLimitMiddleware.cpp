@@ -3,8 +3,25 @@
 // 静态成员定义
 int RateLimitMiddleware::max_requests_global_ = 50;
 int RateLimitMiddleware::window_seconds_global_ = 60;
+
+bool RateLimitMiddleware::shouldRateLimitPath(const std::string &path, const std::string &method)
+{
+    if (method == "OPTIONS")
+    {
+        return false;
+    }
+
+    return path == "/api" || path.rfind("/api/", 0) == 0 ||
+           path == "/realtime" || path.rfind("/realtime/", 0) == 0;
+}
+
 void RateLimitMiddleware::before_handle(crow::request &req, crow::response &res, context &ctx)
 {
+    if (!shouldRateLimitPath(req.url, crow::method_name(req.method)))
+    {
+        return;
+    }
+
     // 获取客户端IP
     std::string client_ip = getClientIP(req);
 
@@ -74,6 +91,11 @@ void RateLimitMiddleware::before_handle(crow::request &req, crow::response &res,
 
 void RateLimitMiddleware::after_handle(crow::request &req, crow::response &res, context &ctx)
 {
+    if (!shouldRateLimitPath(req.url, crow::method_name(req.method)))
+    {
+        return;
+    }
+
     // 只有当请求未被限流时才记录(判断rate_limited标志)
     if (ctx.rate_limited)
     {

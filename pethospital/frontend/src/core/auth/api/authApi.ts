@@ -65,6 +65,10 @@ type UnknownSocketMessage =
   | LoginStatusResponse
   | { type?: string; [key: string]: unknown };
 
+const loginStatusWebSocketUrl =
+  process.env.VUE_APP_LOGIN_STATUS_WS_URL ||
+  "ws://localhost:18080/ws/login-status";
+
 const isLoginStatusPayload = (value: unknown): value is LoginStatusPayload => {
   if (!value || typeof value !== "object") {
     return false;
@@ -194,7 +198,7 @@ export const authApi = {
    */
   checkLoginStatus(username: string): Promise<LoginStatusPayload | null> {
     return new Promise((resolve) => {
-      const socket = new WebSocket("ws://localhost:18080/ws/login-status");
+      const socket = new WebSocket(loginStatusWebSocketUrl);
 
       socket.onopen = () => {
         socket.send(

@@ -7,6 +7,7 @@ export type HttpErrorKind =
   | "forbidden"
   | "not-found"
   | "validation"
+  | "rate-limited"
   | "server"
   | "timeout"
   | "network"
@@ -65,6 +66,7 @@ const getResponseMessage = (payload: unknown): string => {
   return (
     readStringField(source, "message") ||
     readStringField(source, "details") ||
+    readStringField(source, "error") ||
     readStringField(errorPayload, "message") ||
     readStringField(errorPayload, "details") ||
     readStringField(dataPayload, "message") ||
@@ -85,6 +87,7 @@ const getErrorKind = (status?: number, code?: string): HttpErrorKind => {
   if (status === 403) return "forbidden";
   if (status === 404) return "not-found";
   if (status === 400 || status === 422) return "validation";
+  if (status === 429) return "rate-limited";
   if (status >= 500) return "server";
 
   return "unknown";
@@ -100,6 +103,8 @@ const getDefaultMessage = (kind: HttpErrorKind) => {
       return "请求的数据不存在或接口路径不正确";
     case "validation":
       return "提交的数据不符合要求，请检查后重试";
+    case "rate-limited":
+      return "请求过于频繁，请稍后再试";
     case "server":
       return "服务端处理失败，请稍后重试";
     case "timeout":

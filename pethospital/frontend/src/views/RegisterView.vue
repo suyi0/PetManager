@@ -752,52 +752,43 @@ button {
   top: 0;
   left: 0;
   z-index: 1000;
-  background: radial-gradient(
-      circle at top left,
-      rgba(84, 153, 255, 0.28),
-      transparent 32%
-    ),
-    radial-gradient(
-      circle at bottom right,
-      rgba(35, 185, 125, 0.2),
-      transparent 28%
-    ),
-    rgba(8, 15, 27, 0.52);
-  backdrop-filter: blur(10px);
+  box-sizing: border-box;
+  background: linear-gradient(155deg, #cbd9f0 0%, #dde7f3 52%, #cfe0e2 100%);
+  font-family: "PingFang SC", "Noto Sans SC", "Segoe UI", system-ui, sans-serif;
 }
 
 .RegisterView {
   position: relative;
   display: grid;
-  grid-template-columns: 0.92fr 1.08fr;
-  width: min(1080px, 100%);
-  min-height: 720px;
-  border-radius: 30px;
+  grid-template-columns: 0.9fr 1.1fr;
+  width: min(960px, 100%);
+  min-height: 620px;
+  border-radius: 18px;
   overflow: hidden;
-  background: #f6f8fb;
-  box-shadow: 0 26px 70px rgba(9, 20, 45, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: #ffffff;
+  border: 1px solid #d4ddd9;
+  box-shadow: 0 22px 48px rgba(28, 50, 80, 0.16);
 }
 
 .floating-action {
   position: absolute;
-  top: 18px;
+  top: 16px;
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 12px 24px rgba(21, 36, 66, 0.12);
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid #dfe7df;
+  background: #ffffff;
   cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .floating-action:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.92);
+  background: #f4f7f4;
+  border-color: #cdd8cd;
 }
 
 .back-button {
@@ -810,130 +801,100 @@ button {
 
 .Register-hero {
   position: relative;
-  padding: 92px 44px 44px;
-  color: #f9fbff;
-  background: linear-gradient(
-      180deg,
-      rgba(15, 39, 87, 0.2),
-      rgba(15, 39, 87, 0.2)
-    ),
-    linear-gradient(145deg, #0f2b5b 0%, #1d447d 42%, #2f7e8a 100%);
-}
-
-.Register-hero::before {
-  content: "";
-  position: absolute;
-  inset: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 24px;
-}
-
-.Register-hero::after {
-  content: "";
-  position: absolute;
-  right: -72px;
-  bottom: -84px;
-  width: 240px;
-  height: 240px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.32),
-    transparent 66%
-  );
-}
-
-.Register-hero-badge,
-.Register-hero-title,
-.Register-hero-text,
-.Register-hero-points {
-  position: relative;
-  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 56px 40px;
+  color: #1d3429;
+  background: linear-gradient(180deg, #f3f7ff 0%, #eef6f3 100%);
+  border-right: 1px solid #e7eef0;
 }
 
 .Register-hero-badge {
   display: inline-flex;
   align-items: center;
-  padding: 8px 14px;
+  width: fit-content;
+  padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  font-size: 13px;
-  letter-spacing: 0.18em;
+  background: #e7eeff;
+  color: #1e5eff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .Register-hero-title {
-  margin: 26px 0 14px;
-  font-size: clamp(34px, 4vw, 48px);
-  line-height: 1.15;
-  font-family: "STSong", "Songti SC", serif;
+  margin: 20px 0 12px;
+  font-size: 28px;
+  line-height: 1.25;
   font-weight: 700;
+  color: #103b73;
 }
 
 .Register-hero-text {
   margin: 0;
-  max-width: 360px;
-  color: rgba(245, 249, 255, 0.82);
-  font-size: 16px;
-  line-height: 1.8;
+  max-width: 320px;
+  color: #6d7b72;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .Register-hero-points {
   display: grid;
-  gap: 14px;
-  margin-top: 42px;
+  gap: 10px;
+  margin-top: 32px;
 }
 
 .Register-hero-point {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(250, 252, 255, 0.92);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #e1e9ec;
+  background: #ffffff;
+  color: #1d3429;
+  font-size: 13px;
 }
 
 .Register-hero-point-index {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.14);
+  min-width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #e7eeff;
+  color: #1e5eff;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .Register-form-container {
   display: flex;
   flex-direction: column;
-  padding: 92px 44px 44px;
-  background: linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(247, 250, 255, 0.98)
-    ),
-    #ffffff;
+  justify-content: center;
+  padding: 48px 44px;
+  background: #ffffff;
 }
 
 .Register-form-header {
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .Register-form-title {
   display: block;
-  color: #122033;
-  font-size: 32px;
+  color: #18373a;
+  font-size: 22px;
   font-weight: 700;
-  font-family: "STSong", "Songti SC", serif;
 }
 
 .Register-form-subtitle {
   display: inline-block;
-  margin-top: 10px;
-  color: #6b7a90;
-  font-size: 14px;
+  margin-top: 6px;
+  color: #6d7b72;
+  font-size: 13px;
 }
 
 .Register-form {
@@ -943,57 +904,54 @@ button {
 .Register-form-div {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .Register-form-minContainser {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .Register-form-minContainser-first {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
   align-items: center;
 }
 
 .Register-form-minContainser-first-left-icon {
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: #344258;
-  font-size: 15px;
+  gap: 4px;
+  color: #6d7b72;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .rq {
-  color: #ef5350;
+  color: #b04455;
 }
 
 .Register-input-shell {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 58px;
-  padding: 0 16px;
-  border: 1px solid #d7e1f0;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .Register-input-shell:focus-within {
-  border-color: #6ca9ff;
-  box-shadow: 0 0 0 4px rgba(108, 169, 255, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  transform: translateY(-1px);
+  border-color: #1e5eff;
+  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.12);
 }
 
 .Register-input-shell-password {
-  padding-right: 84px;
+  padding-right: 72px;
 }
 
 .Register-form-minContainser-first-input {
@@ -1001,9 +959,9 @@ button {
   border: none;
   outline: none;
   background: transparent;
-  color: #14243b;
-  font-size: 16px;
-  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #1d3429;
+  font-size: 13px;
+  font-family: "PingFang SC", "Noto Sans SC", "Segoe UI", system-ui, sans-serif;
 }
 
 .Register-form-minContainser-first-input::placeholder {
@@ -1013,7 +971,7 @@ button {
 .Register-form-minContainser-first-right,
 .Register-form-minContainser-first-right-password2 {
   position: absolute;
-  right: 16px;
+  right: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1021,25 +979,25 @@ button {
 
 .Register-form-minContainser-first-right-img,
 .Register-form-minContainser-first-right-password2-img {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 
 .Register-form-Password-eye {
   position: absolute;
-  right: 50px;
+  right: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   cursor: pointer;
 }
 
 .Register-form-minContainser-second {
-  margin-left: 114px;
-  color: #ef5350;
-  font-size: 13px;
+  margin-left: 84px;
+  color: #b04455;
+  font-size: 12px;
 }
 
 .Register-form-minContainser-second-span {
@@ -1049,7 +1007,7 @@ button {
 
 .Register-form-minContainser-second-ul {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1059,25 +1017,25 @@ button {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  min-width: 250px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #fff3f1;
-  color: #c04b3d;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #fdeef0;
+  color: #b04455;
+  font-size: 12px;
   line-height: 1.4;
 }
 
 .Register-form-minContainser-second-ul-li.nospace,
 .Register-form-minContainser-second-ul-li.specialChar,
 .Register-form-minContainser-second-ul-li.passwordLength {
-  background: #edf9f0;
-  color: #1b8f52;
+  background: #e7f5ef;
+  color: #247b62;
 }
 
 .Register-code-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 148px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 10px;
   align-items: center;
 }
 
@@ -1086,74 +1044,72 @@ button {
 }
 
 .Register-form-minContainser-first-right-button-wrap {
-  width: 148px;
+  width: 120px;
 }
 
 .Register-form-minContainser-first-right-button {
   width: 100%;
-  min-height: 52px;
-  padding: 0 14px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #123f84, #2f8fa2);
-  color: #ffffff;
-  font-size: 14px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dfe7df;
+  border-radius: 8px;
+  background: #f4f7f4;
+  color: #1e5eff;
+  font-size: 13px;
   font-weight: 600;
-  box-shadow: 0 12px 24px rgba(27, 66, 125, 0.22);
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
 .Register-form-minContainser-first-right-button.after {
-  font-size: 13px;
+  font-size: 12px;
+  color: #6d7b72;
 }
 
 .Register-form-minContainser-first-right-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(27, 66, 125, 0.28);
+  background: #eef2ee;
 }
 
 .Register-form-minContainser-first-right-button:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 .Register-form-submit {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  margin-top: 8px;
-  margin-left: 114px;
-  gap: 10px;
+  margin-top: 6px;
+  margin-left: 84px;
+  gap: 8px;
 }
 
 .Register-form-submit-button {
-  min-height: 58px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #0f2f6d, #2a7e90);
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: #1e5eff;
   color: #ffffff;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  box-shadow: 0 16px 28px rgba(17, 48, 103, 0.2);
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
 .Register-form-submit-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 20px 32px rgba(17, 48, 103, 0.25);
+  background: #1850e0;
+  box-shadow: 0 10px 20px rgba(30, 94, 255, 0.22);
 }
 
 .Register-form-submit-button:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;
 }
 
 .Register-form-submit-tip {
-  color: #7d8aa0;
-  font-size: 13px;
+  color: #93a1b5;
+  font-size: 12px;
 }
 
 @media (max-width: 960px) {

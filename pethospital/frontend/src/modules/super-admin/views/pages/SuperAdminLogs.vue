@@ -330,6 +330,8 @@ export default defineComponent({
     const total = ref(0);
     const userLogCount = ref(0);
     const systemLogCount = ref(0);
+    // 全局日志计数只在首次加载时统计一次，之后翻页/筛选复用。
+    const countsLoaded = ref(false);
     const logs = ref<AuditLogItem[]>([]);
     const loading = ref(false);
     const listError = ref("");
@@ -386,8 +388,9 @@ export default defineComponent({
       const shellH = shell.clientHeight;
       if (!shellH) return false;
       const thead = shell.querySelector("thead");
-      const headerH = thead ? thead.getBoundingClientRect().height : 42;
-      const firstRow = shell.querySelector("tbody tr:not(.placeholder-row)");
+      const headerH = thead ? thead.getBoundingClientRect().height : 40;
+      // 只量真实数据行（.logs-row），避免空态/占位行（会撑满整高）污染行高测量。
+      const firstRow = shell.querySelector("tbody tr.logs-row");
       const rowH = firstRow ? firstRow.getBoundingClientRect().height : 44;
       const next = Math.max(4, Math.floor((shellH - headerH) / rowH));
       if (Number.isFinite(next) && next !== pageSize.value) {
@@ -481,6 +484,9 @@ export default defineComponent({
       loading.value = true;
       listError.value = "";
 
+      // 两类日志全局计数与筛选/翻页无关，整个页面生命周期只统计一次。
+      const needCounts = !countsLoaded.value;
+
       try {
         const result = await superAdminApi.searchLogs({
           majorTab: activeMajorTab.value,
@@ -493,6 +499,7 @@ export default defineComponent({
           endDate: endDate.value,
           page: page.value,
           pageSize: pageSize.value,
+          includeCounts: needCounts,
         });
 
         if (currentRequestId !== requestId.value) {
@@ -501,6 +508,14 @@ export default defineComponent({
 
         logs.value = result.items;
         total.value = result.total;
+        if (
+          result.userLogCount !== undefined &&
+          result.systemLogCount !== undefined
+        ) {
+          userLogCount.value = result.userLogCount;
+          systemLogCount.value = result.systemLogCount;
+          countsLoaded.value = true;
+        }
         selectedLogId.value = result.items[0]?.id ?? "";
 
         const nextTotalPages = Math.max(
@@ -521,12 +536,6 @@ export default defineComponent({
           loading.value = false;
         }
       }
-    };
-
-    const loadLogMetrics = async () => {
-      const summary = await superAdminApi.homePageGetData();
-      userLogCount.value = summary.userLogCount;
-      systemLogCount.value = summary.systemLogCount;
     };
 
     const resetPageAndLoad = () => {
@@ -592,15 +601,28 @@ export default defineComponent({
     let resizeObserver: ResizeObserver | null = null;
 
     onMounted(() => {
-      void loadLogMetrics();
-      void nextTick(async () => {
-        applyPageSize();
-        await loadLogs();
-        if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
-          resizeObserver = new ResizeObserver(() => onResize());
-          resizeObserver.observe(tableShellRef.value);
-        }
-      });
+      // 首次加载由 ResizeObserver 的首帧驱动：此时表格高度已完成布局，applyPageSize
+      // 能算出正确的每页行数，保证「进入页面即拉到并填满第一页」，且只发一次请求。
+      // 后续真实尺寸变化才在行数变化时重新拉取。
+      if (tableShellRef.value && typeof ResizeObserver !== "undefined") {
+        let initialized = false;
+        resizeObserver = new ResizeObserver(() => {
+          if (!initialized) {
+            initialized = true;
+            applyPageSize();
+            void loadLogs();
+          } else {
+            onResize();
+          }
+        });
+        resizeObserver.observe(tableShellRef.value);
+      } else {
+        // 不支持 ResizeObserver 时退化为下一帧测量后加载。
+        void nextTick(async () => {
+          applyPageSize();
+          await loadLogs();
+        });
+      }
     });
 
     onBeforeUnmount(() => {
@@ -909,6 +931,9 @@ select:focus-visible,
 .audit-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  /* 显式定义行高，否则隐式行是 auto（内容高），左右两列不会填满整高，
+     导致表格容器测高偏小、每页行数被夹到最小值。 */
+  grid-template-rows: minmax(0, 1fr);
   gap: 14px;
   min-height: 0;
   height: 100%;
@@ -925,6 +950,7 @@ select:focus-visible,
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
 }
 
 .logs-detail {
