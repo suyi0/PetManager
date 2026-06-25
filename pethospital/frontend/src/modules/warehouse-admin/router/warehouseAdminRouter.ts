@@ -50,6 +50,15 @@ const routes: Array<RouteRecordRaw> = [
             "@/modules/warehouse-admin/views/desktop/pages/WarehouseAdminLogs.vue"
           ),
       },
+      {
+        path: "personal",
+        name: "warehouseAdminPersonal",
+        component: () =>
+          import(
+            "@/modules/user/views/desktop/Personal-module/UserPersonalView.vue"
+          ),
+        props: { roleBadge: "仓库端" },
+      },
     ],
   },
 ];

@@ -113,7 +113,11 @@
         返回超级管理员
       </button>
 
-      <PortalAccount fallback-name="医生" @logout="logout" />
+      <PortalAccount
+        fallback-name="医生"
+        profile-to="/doctor/personal"
+        @logout="logout"
+      />
     </aside>
 
     <main class="content">

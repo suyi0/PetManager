@@ -1,73 +1,63 @@
 <template>
-  <div class="birthday-editor">
-    <div class="birthday-editor__head">
+  <div class="pc-panel">
+    <div class="pc-panel__head">
       <div>
-        <p>Birthday Studio</p>
         <h3>更新出生日期</h3>
-        <span>
-          生日信息会出现在个人资料里，也能帮助系统在服务推荐和资料完整度上给出更准确的提示。
-        </span>
+        <p>
+          生日会展示在个人资料中，并用于服务推荐与资料完整度提示。保存后以
+          YYYY-MM-DD 形式存储。
+        </p>
       </div>
-      <button class="birthday-editor__ghost" @click="close">关闭</button>
+      <button type="button" class="pc-btn pc-btn--ghost" @click="close">
+        关闭
+      </button>
     </div>
 
-    <section class="birthday-editor__hero">
-      <div class="birthday-editor__calendar">
-        <span>{{ monthLabel }}</span>
-        <strong>{{ dayLabel }}</strong>
-        <small>{{ yearLabel }}</small>
-      </div>
-      <div class="birthday-editor__summary">
-        <small>当前日期预览</small>
-        <strong>{{ birthdayPreview }}</strong>
-        <span>建议按实际生日填写，保存后会自动同步回个人中心总览卡片。</span>
-      </div>
-    </section>
+    <div class="pc-current">
+      <span class="pc-current__lbl">当前日期</span>
+      <span class="pc-current__val">{{ birthdayPreview }}</span>
+    </div>
 
-    <form class="birthday-editor__form" @submit.prevent="saveBirthday">
-      <label class="editor-field">
-        <span>年份</span>
-        <select v-model="year" @change="isButtonActive = true">
-          <option v-for="y in years" :key="y" :value="String(y)">
-            {{ y }}
-          </option>
-        </select>
-      </label>
+    <form class="pc-form" @submit.prevent="saveBirthday">
+      <div class="bd-grid">
+        <label class="pc-field">
+          <span>年份</span>
+          <select v-model="year" @change="isButtonActive = true">
+            <option v-for="y in years" :key="y" :value="String(y)">
+              {{ y }}
+            </option>
+          </select>
+        </label>
 
-      <label class="editor-field">
-        <span>月份</span>
-        <select v-model="month" @change="isButtonActive = true">
-          <option v-for="m in months" :key="m" :value="String(m)">
-            {{ m }}
-          </option>
-        </select>
-      </label>
+        <label class="pc-field">
+          <span>月份</span>
+          <select v-model="month" @change="isButtonActive = true">
+            <option v-for="m in months" :key="m" :value="String(m)">
+              {{ m }}
+            </option>
+          </select>
+        </label>
 
-      <label class="editor-field">
-        <span>日期</span>
-        <select v-model="day" @change="isButtonActive = true">
-          <option v-for="d in days" :key="d" :value="String(d)">
-            {{ d }}
-          </option>
-        </select>
-      </label>
-
-      <div class="birthday-editor__tips">
-        <article>
-          <small>ISO 格式</small>
-          <strong>{{ birthdayPreview }}</strong>
-        </article>
-        <article>
-          <small>备注</small>
-          <span>月份和日期会自动补零，提交后会以 `YYYY-MM-DD` 形式存储。</span>
-        </article>
+        <label class="pc-field">
+          <span>日期</span>
+          <select v-model="day" @change="isButtonActive = true">
+            <option v-for="d in days" :key="d" :value="String(d)">
+              {{ d }}
+            </option>
+          </select>
+        </label>
       </div>
 
-      <div v-if="isButtonActive" class="birthday-editor__actions">
-        <button type="button" class="birthday-editor__ghost" @click="cancel">
+      <div class="pc-helper">
+        <span class="pc-dot"></span>
+        将保存为：{{ birthdayPreview }}
+      </div>
+
+      <div v-if="isButtonActive" class="pc-actions">
+        <button type="button" class="pc-btn pc-btn--secondary" @click="cancel">
           取消
         </button>
-        <button type="submit" class="birthday-editor__primary">保存生日</button>
+        <button type="submit" class="pc-btn pc-btn--primary">保存生日</button>
       </div>
     </form>
   </div>
@@ -91,11 +81,6 @@ const days = ref<number[]>([]);
 
 const currentYear = computed(() => new Date().getFullYear());
 
-const monthLabel = computed(() => {
-  return `${String(month.value || "--").padStart(2, "0")} 月`;
-});
-const dayLabel = computed(() => String(day.value || "--").padStart(2, "0"));
-const yearLabel = computed(() => `${year.value || "----"} 年`);
 const birthdayPreview = computed(() => {
   const y = year.value || "----";
   const m = String(month.value || "--").padStart(2, "0");
@@ -183,189 +168,15 @@ onMounted(() => {
 });
 </script>
 
-<style scoped lang="scss">
-.birthday-editor {
+<style scoped>
+.bd-grid {
   display: grid;
-  gap: 18px;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid rgba(47, 158, 143, 0.08);
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 18px 44px rgba(47, 158, 143, 0.06);
-}
-
-.birthday-editor__head {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.birthday-editor__head p,
-.birthday-editor__summary small,
-.birthday-editor__tips small {
-  margin: 0;
-  color: #2f9e8f;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.birthday-editor__head h3 {
-  margin: 6px 0 0;
-  color: #1f3a36;
-  font-size: 32px;
-}
-
-.birthday-editor__head span,
-.birthday-editor__summary span,
-.birthday-editor__tips span {
-  display: block;
-  margin-top: 10px;
-  color: #6b7d77;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.birthday-editor__hero {
-  display: grid;
-  grid-template-columns: 130px minmax(0, 1fr);
-  gap: 18px;
-  padding: 22px;
-  border-radius: 16px;
-  background: linear-gradient(
-    135deg,
-    rgba(56, 178, 163, 0.24),
-    rgba(255, 217, 176, 0.18)
-  );
-}
-
-.birthday-editor__calendar {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #cfe7e1, #ffd9b0);
-  color: #1f3a36;
-  box-shadow: 0 18px 34px rgba(47, 158, 143, 0.14);
-}
-
-.birthday-editor__calendar span,
-.birthday-editor__calendar small {
-  margin: 0;
-  color: #1f3a36;
-  line-height: 1;
-}
-
-.birthday-editor__calendar span {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.birthday-editor__calendar strong {
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: 54px;
-  line-height: 1;
-}
-
-.birthday-editor__calendar small {
-  font-size: 12px;
-  opacity: 0.9;
-}
-
-.birthday-editor__summary {
-  display: grid;
-  align-content: center;
-  gap: 6px;
-}
-
-.birthday-editor__summary strong,
-.birthday-editor__tips strong {
-  color: #1f3a36;
-  font-size: 26px;
-}
-
-.birthday-editor__form {
-  display: grid;
-  gap: 14px;
-}
-
-.editor-field {
-  display: grid;
-  gap: 8px;
-}
-
-.editor-field span {
-  color: #1f3a36;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.editor-field select {
-  width: 100%;
-  padding: 13px 14px;
-  border: 1px solid rgba(47, 158, 143, 0.12);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #1f3a36;
-  font-size: 14px;
-}
-
-.editor-field select:focus {
-  outline: none;
-  border-color: rgba(47, 158, 143, 0.5);
-  box-shadow: 0 0 0 4px rgba(56, 178, 163, 0.18);
-}
-
-.birthday-editor__tips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
-
-.birthday-editor__tips article {
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(255, 253, 250, 0.95);
-}
-
-.birthday-editor__actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.birthday-editor__ghost,
-.birthday-editor__primary {
-  border: none;
-  border-radius: 999px;
-  padding: 12px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.birthday-editor__ghost {
-  background: rgba(47, 158, 143, 0.08);
-  color: #1f3a36;
-}
-
-.birthday-editor__primary {
-  background: linear-gradient(135deg, #1f7a6c, #2f9e8f);
-  color: #fff;
-  box-shadow: 0 16px 30px rgba(47, 158, 143, 0.22);
-}
-
-@media (max-width: 900px) {
-  .birthday-editor__head,
-  .birthday-editor__hero,
-  .birthday-editor__tips {
+@media (max-width: 560px) {
+  .bd-grid {
     grid-template-columns: 1fr;
-    display: grid;
   }
 }
 </style>

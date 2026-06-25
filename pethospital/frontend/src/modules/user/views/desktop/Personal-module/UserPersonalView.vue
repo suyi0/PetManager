@@ -1,13 +1,13 @@
 <template>
   <section class="personal-page">
-    <div class="pp-head">
-      <h2>个人中心</h2>
-      <div class="seg">
+    <div class="pc-head">
+      <h2 class="pc-head__title">个人中心</h2>
+      <div class="pc-seg">
         <button
           v-for="item in navItems"
           :key="item.key"
-          class="seg__btn"
-          :class="{ 'seg__btn--active': segActive(item.key) }"
+          class="pc-seg__btn"
+          :class="{ 'pc-seg__btn--active': segActive(item.key) }"
           @click="switchTab(item.key)"
         >
           {{ item.label }}
@@ -18,6 +18,7 @@
     <section class="personal-content">
       <PersonalRightView
         v-if="activeTab === 'personal'"
+        :role-badge="roleBadge"
         @switchTab="switchTab"
       />
       <PetProfilesView
@@ -89,6 +90,9 @@ interface SubmitData {
   email?: string;
   address?: string;
 }
+
+// roleBadge：其他角色端复用本页时通过路由 props 传入（如「医生端」），用户端默认不显示
+withDefaults(defineProps<{ roleBadge?: string }>(), { roleBadge: "" });
 
 const store = useStore(storeKey);
 const route = useRoute();
@@ -224,48 +228,6 @@ watch(
 .personal-page {
   display: grid;
   gap: 14px;
-}
-
-.pp-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.pp-head h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: #1f3a36;
-}
-
-.seg {
-  display: inline-flex;
-  padding: 4px;
-  gap: 2px;
-  background: #ffffff;
-  border: 1px solid #efe7dc;
-  border-radius: 12px;
-}
-
-.seg__btn {
-  height: 36px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: #6b7d77;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.seg__btn--active {
-  background: #e7f5f1;
-  color: #1f7a6c;
 }
 
 .personal-content {

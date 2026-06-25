@@ -331,6 +331,12 @@ if(BUILD_TESTING)
         middleware/rateLimitMiddleware/rateLimitMiddleware.cpp
     )
     add_test(NAME rate_limit_middleware_tests COMMAND rate_limit_middleware_tests)
+
+    add_executable(sms_script_runner_tests
+        tests/sms_script_runner_tests.cpp
+        controllers/auth/smsScriptRunner.cpp
+    )
+    add_test(NAME sms_script_runner_tests COMMAND sms_script_runner_tests)
 endif()
 
 # 如果是header-only的system库，添加编译定义

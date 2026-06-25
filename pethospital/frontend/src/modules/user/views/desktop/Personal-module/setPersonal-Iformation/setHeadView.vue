@@ -1,42 +1,41 @@
 <template>
-  <div class="avatar-editor">
-    <div class="avatar-editor__head">
+  <div class="pc-panel">
+    <div class="pc-panel__head">
       <div>
-        <p>Avatar Studio</p>
         <h3>{{ imageSrc ? "裁剪新的头像" : "更新个人头像" }}</h3>
-        <span>
+        <p>
           {{
             imageSrc
-              ? "拖入的图片会先进入裁剪区，确认后再上传到服务器。"
-              : "支持拖拽或选择图片，建议使用清晰的人像或宠物陪伴照。"
+              ? "拖入的图片会先进入裁剪区，确认后再上传。"
+              : "支持拖拽或选择图片，建议使用清晰的人像或宠物陪伴照。支持 JPG、PNG，不超过 5MB。"
           }}
-        </span>
+        </p>
       </div>
-      <button class="avatar-editor__ghost" @click="close">关闭</button>
+      <button type="button" class="pc-btn pc-btn--ghost" @click="close">
+        关闭
+      </button>
     </div>
 
     <section
       v-if="!imageSrc"
-      class="avatar-editor__dropzone"
+      class="avatar-drop"
       @dragover.prevent
       @drop.prevent="handleDrop"
     >
-      <div class="avatar-editor__hero">
-        <div class="avatar-editor__current">
-          <img :src="headImage" class="avatar-editor__current-image" />
-        </div>
-        <div class="avatar-editor__copy">
-          <small>当前头像</small>
-          <strong>{{ displayName }}</strong>
-          <span>拖拽一张图片到这里，或者点击下方按钮从本地相册中选择。</span>
-        </div>
+      <div class="avatar-current">
+        <img v-if="headImage" :src="headImage" alt="当前头像" />
+        <span v-else>{{ displayName.charAt(0) }}</span>
       </div>
-
-      <div class="avatar-editor__actions">
-        <button class="avatar-editor__primary" @click="triggerFileInput">
+      <div class="avatar-drop__copy">
+        <div class="avatar-drop__name">{{ displayName }}</div>
+        <p>拖拽一张图片到这里，或点击下方按钮从本地选择。</p>
+        <button
+          type="button"
+          class="pc-btn pc-btn--primary"
+          @click="triggerFileInput"
+        >
           选择图片
         </button>
-        <span>支持 JPG、PNG 格式，大小不超过 5MB。</span>
       </div>
 
       <input
@@ -48,8 +47,8 @@
       />
     </section>
 
-    <section v-else class="avatar-editor__cropper">
-      <div class="avatar-editor__workspace">
+    <section v-else>
+      <div class="avatar-workspace">
         <div class="cropper-wrapper">
           <img
             ref="cropperImage"
@@ -59,29 +58,24 @@
           />
         </div>
 
-        <div class="avatar-editor__preview">
-          <small>上传预览</small>
-          <img
-            :src="previewImage || headImage"
-            class="avatar-editor__preview-image"
-          />
-          <span>裁剪区域会自动限制为头像比例，方便直接使用。</span>
+        <div class="avatar-preview">
+          <span class="avatar-preview__lbl">上传预览</span>
+          <img :src="previewImage || headImage" alt="预览" />
+          <p>裁剪区域已锁定为头像比例。</p>
         </div>
       </div>
 
-      <div class="avatar-editor__bottom">
-        <p class="avatar-editor__tip">
-          确认后会立即上传新头像，并自动同步到个人中心和顶部菜单。
-        </p>
-        <div class="avatar-editor__button-row">
-          <button class="avatar-editor__ghost" @click="cancel">取消</button>
-          <button
-            class="avatar-editor__primary"
-            @click="getcroppedImage('upload')"
-          >
-            确认上传
-          </button>
-        </div>
+      <div class="pc-actions">
+        <button type="button" class="pc-btn pc-btn--secondary" @click="cancel">
+          取消
+        </button>
+        <button
+          type="button"
+          class="pc-btn pc-btn--primary"
+          @click="getcroppedImage('upload')"
+        >
+          确认上传
+        </button>
       </div>
     </section>
   </div>
@@ -295,203 +289,111 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped lang="scss">
-.avatar-editor {
+<style scoped>
+.avatar-drop {
   display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: 18px;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid rgba(47, 158, 143, 0.08);
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 18px 44px rgba(47, 158, 143, 0.06);
+  align-items: center;
+  padding: 20px;
+  border: 1px dashed var(--pc-border, #dfe7df);
+  border-radius: 10px;
+  background: var(--pc-panel, #f4f7f4);
 }
 
-.avatar-editor__head {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.avatar-editor__head p,
-.avatar-editor__copy small,
-.avatar-editor__preview small {
-  margin: 0;
-  color: #2f9e8f;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 11px;
+.avatar-current {
+  width: 96px;
+  height: 96px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px solid var(--pc-border, #dfe7df);
+  color: var(--pc-primary, #245849);
+  font-size: 34px;
   font-weight: 700;
 }
 
-.avatar-editor__head h3 {
-  margin: 6px 0 0;
-  color: #1f3a36;
-  font-size: 32px;
-}
-
-.avatar-editor__head span,
-.avatar-editor__copy span,
-.avatar-editor__preview span,
-.avatar-editor__tip {
-  display: block;
-  margin-top: 10px;
-  color: #6b7d77;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.avatar-editor__dropzone,
-.avatar-editor__cropper {
-  display: grid;
-  gap: 18px;
-  padding: 22px;
-  border-radius: 16px;
-  border: 1px solid rgba(47, 158, 143, 0.08);
-  background: linear-gradient(
-    135deg,
-    rgba(56, 178, 163, 0.18),
-    rgba(255, 217, 176, 0.14)
-  );
-}
-
-.avatar-editor__hero {
-  display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-  gap: 18px;
-  align-items: center;
-}
-
-.avatar-editor__current {
-  width: 160px;
-  height: 160px;
-  display: grid;
-  place-items: center;
-  border-radius: 42px;
-  background: linear-gradient(135deg, #cfe7e1, #ffd9b0);
-  box-shadow: 0 18px 34px rgba(47, 158, 143, 0.14);
-}
-
-.avatar-editor__current-image {
-  width: 136px;
-  height: 136px;
+.avatar-current img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 16px;
 }
 
-.avatar-editor__copy {
+.avatar-drop__copy {
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  justify-items: start;
 }
 
-.avatar-editor__copy strong {
-  color: #1f3a36;
-  font-size: 28px;
+.avatar-drop__name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--pc-primary-deep, #18373a);
 }
 
-.avatar-editor__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
+.avatar-drop__copy p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pc-muted, #6d7b72);
 }
 
-.avatar-editor__workspace {
+.avatar-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 16px;
   align-items: start;
 }
 
 .cropper-wrapper {
-  min-height: 360px;
-  padding: 18px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.74);
+  min-height: 340px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--pc-border, #dfe7df);
+  background: #fff;
 }
 
 .cropper-image {
   width: 100%;
-  max-height: 520px;
+  max-height: 480px;
   object-fit: contain;
 }
 
-.avatar-editor__preview {
+.avatar-preview {
   display: grid;
   gap: 10px;
-  padding: 20px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.74);
+  padding: 18px;
+  border-radius: 10px;
+  border: 1px solid var(--pc-border, #dfe7df);
+  background: var(--pc-panel, #f4f7f4);
   text-align: center;
 }
 
-.avatar-editor__preview-image {
-  width: 148px;
-  height: 148px;
+.avatar-preview__lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pc-muted, #6d7b72);
+}
+
+.avatar-preview img {
+  width: 132px;
+  height: 132px;
   justify-self: center;
   object-fit: cover;
   border-radius: 50%;
-  box-shadow: 0 18px 34px rgba(47, 158, 143, 0.1);
+  border: 1px solid var(--pc-border, #dfe7df);
 }
 
-.avatar-editor__bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
+.avatar-preview p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pc-muted, #6d7b72);
 }
 
-.avatar-editor__button-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.avatar-editor__ghost,
-.avatar-editor__primary {
-  border: none;
-  border-radius: 999px;
-  padding: 12px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.avatar-editor__ghost {
-  background: rgba(47, 158, 143, 0.08);
-  color: #1f3a36;
-}
-
-.avatar-editor__primary {
-  background: linear-gradient(135deg, #1f7a6c, #2f9e8f);
-  color: #fff;
-  box-shadow: 0 16px 30px rgba(47, 158, 143, 0.22);
-}
-
-@media (max-width: 960px) {
-  .avatar-editor__head,
-  .avatar-editor__hero,
-  .avatar-editor__workspace {
+@media (max-width: 760px) {
+  .avatar-workspace {
     grid-template-columns: 1fr;
-    display: grid;
-  }
-
-  .avatar-editor__current {
-    width: 124px;
-    height: 124px;
-    border-radius: 16px;
-  }
-
-  .avatar-editor__current-image {
-    width: 104px;
-    height: 104px;
-    border-radius: 16px;
-  }
-
-  .cropper-wrapper {
-    min-height: 280px;
   }
 }
 </style>

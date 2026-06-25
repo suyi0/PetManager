@@ -102,7 +102,11 @@
         返回总裁端
       </button>
 
-      <PortalAccount :fallback-name="currentRoleLabel" @logout="logout" />
+      <PortalAccount
+        :fallback-name="currentRoleLabel"
+        profile-to="/super-admin/personal"
+        @logout="logout"
+      />
     </aside>
 
     <main class="saas-content">

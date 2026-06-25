@@ -1,115 +1,115 @@
 <template>
-  <div class="email-editor">
-    <div class="email-editor__head">
+  <div class="pc-panel">
+    <div class="pc-panel__head">
       <div>
-        <p>Email Studio</p>
         <h3>{{ showChangeEmailModal ? "更换邮箱地址" : "维护登录邮箱" }}</h3>
-        <span>
+        <p>
           {{
             showChangeEmailModal
-              ? "系统会先检查新邮箱是否可用，再通过验证码完成替换。"
-              : "邮箱会用于登录、账单回执和服务通知，建议保持为常用地址。"
+              ? "先检查新邮箱是否可用，再通过验证码完成替换。"
+              : "邮箱用于登录、账单回执与服务通知，建议保持为常用地址。"
           }}
-        </span>
+        </p>
       </div>
-      <button class="email-editor__ghost" @click="close">关闭</button>
+      <button type="button" class="pc-btn pc-btn--ghost" @click="close">
+        关闭
+      </button>
     </div>
 
-    <section v-if="!showChangeEmailModal" class="email-editor__hero">
-      <div class="email-editor__badge">@</div>
-      <div class="email-editor__summary">
-        <small>当前绑定邮箱</small>
-        <strong>{{ userEmail || "暂未绑定" }}</strong>
-        <span
-          >如果你希望接收预约提醒、订单回执和资料通知，建议绑定一个长期使用的邮箱。</span
-        >
-      </div>
-      <button class="email-editor__primary" @click="changeEmailModal">
+    <div class="pc-current">
+      <span class="pc-current__lbl">当前绑定</span>
+      <span
+        class="pc-current__val"
+        :class="{ 'pc-current__val--empty': !userEmail }"
+      >
+        {{ userEmail || "暂未绑定" }}
+      </span>
+      <span
+        v-if="userEmail"
+        class="pc-pill pc-pill--ok"
+        style="margin-left: auto"
+        >已绑定</span
+      >
+    </div>
+
+    <div
+      v-if="!showChangeEmailModal"
+      class="pc-actions"
+      style="border-top: 0; padding-top: 0"
+    >
+      <button
+        type="button"
+        class="pc-btn pc-btn--primary"
+        @click="changeEmailModal"
+      >
         更换邮箱
       </button>
-    </section>
+    </div>
 
-    <section v-else class="email-editor__panel">
-      <div class="email-editor__preview">
-        <article>
-          <small>当前邮箱</small>
-          <strong>{{ userEmail || "暂未绑定" }}</strong>
-        </article>
-        <article>
-          <small>目标邮箱</small>
-          <strong>{{ newUserEmail || "等待输入" }}</strong>
-        </article>
-      </div>
+    <form v-else class="pc-form" @submit.prevent="changeEmail">
+      <label class="pc-field">
+        <span>新邮箱地址</span>
+        <input
+          v-model.trim="newUserEmail"
+          type="email"
+          placeholder="请输入新的电子邮箱地址"
+          @keyup.enter="changeEmail"
+          @input="checkEmail"
+        />
+      </label>
 
-      <form class="email-editor__form" @submit.prevent="changeEmail">
-        <label class="editor-field">
-          <span>新邮箱地址</span>
+      <p v-if="!newEmailEffect && ischeckEmail" class="pc-error">
+        该邮箱已存在，当前无法继续使用。
+      </p>
+
+      <div class="pc-code-row">
+        <label class="pc-field">
+          <span>邮箱验证码</span>
           <input
-            v-model.trim="newUserEmail"
-            type="email"
-            placeholder="请输入新的电子邮箱地址"
-            @keyup.enter="changeEmail"
-            @input="checkEmail"
+            id="VerificationCode"
+            v-model.trim="VerificationCode"
+            type="text"
+            placeholder="请输入验证码"
           />
         </label>
+        <button
+          type="button"
+          class="pc-btn pc-btn--ghost"
+          style="height: 40px"
+          :disabled="isgetVerificationCode || !isEmailValid || !newEmailEffect"
+          @click="getVerificationCode"
+        >
+          {{ isgetVerificationCode ? `${count} 秒后重发` : "获取验证码" }}
+        </button>
+      </div>
 
-        <p v-if="!newEmailEffect && ischeckEmail" class="editor-error">
-          该邮箱已存在，当前无法继续使用。
-        </p>
+      <div
+        class="pc-helper"
+        :class="{ 'pc-helper--ok': isEmailValid && newEmailEffect }"
+      >
+        <span class="pc-dot"></span>
+        {{
+          !newUserEmail
+            ? "请输入新邮箱，系统会自动校验是否可用"
+            : isEmailValid && newEmailEffect
+            ? "邮箱可用，可发送验证码完成替换"
+            : "正在校验邮箱，请稍候…"
+        }}
+      </div>
 
-        <div class="verification-strip">
-          <label class="editor-field">
-            <span>邮箱验证码</span>
-            <input
-              id="VerificationCode"
-              v-model.trim="VerificationCode"
-              type="text"
-              placeholder="请输入验证码"
-            />
-          </label>
-          <button
-            type="button"
-            class="email-editor__ghost"
-            :disabled="
-              isgetVerificationCode || !isEmailValid || !newEmailEffect
-            "
-            @click="getVerificationCode"
-          >
-            {{ isgetVerificationCode ? `${count} 秒后重发` : "获取验证码" }}
-          </button>
-        </div>
-
-        <div class="email-editor__tips">
-          <article>
-            <small>校验状态</small>
-            <strong>{{
-              !newUserEmail
-                ? "等待输入"
-                : isEmailValid && newEmailEffect
-                ? "邮箱可用"
-                : "请先完成校验"
-            }}</strong>
-          </article>
-          <article>
-            <small>提交流程</small>
-            <span>验证码会发送到新邮箱，输入正确后保存即可完成替换。</span>
-          </article>
-        </div>
-
-        <div v-if="isButtonActive" class="email-editor__actions">
-          <button type="button" class="email-editor__ghost" @click="cancel">
-            取消
-          </button>
-          <button
-            type="submit"
-            class="email-editor__primary"
-            :disabled="!newEmailEffect"
-          >
-            保存邮箱
-          </button>
-        </div>
-      </form>
-    </section>
+      <div v-if="isButtonActive" class="pc-actions">
+        <button type="button" class="pc-btn pc-btn--secondary" @click="cancel">
+          取消
+        </button>
+        <button
+          type="submit"
+          class="pc-btn pc-btn--primary"
+          :disabled="!newEmailEffect"
+        >
+          保存邮箱
+        </button>
+      </div>
+    </form>
   </div>
 </template>
 
@@ -335,211 +335,3 @@ function close() {
   emit("close");
 }
 </script>
-
-<style scoped lang="scss">
-.email-editor {
-  display: grid;
-  gap: 18px;
-  padding: 24px;
-  border-radius: 16px;
-  border: 1px solid rgba(47, 158, 143, 0.08);
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 18px 44px rgba(47, 158, 143, 0.06);
-}
-
-.email-editor__head {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.email-editor__head p,
-.email-editor__summary small,
-.email-editor__tips small,
-.email-editor__preview small {
-  margin: 0;
-  color: #2f9e8f;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.email-editor__head h3 {
-  margin: 6px 0 0;
-  color: #1f3a36;
-  font-size: 32px;
-}
-
-.email-editor__head span,
-.email-editor__summary span,
-.email-editor__tips span {
-  display: block;
-  margin-top: 10px;
-  color: #6b7d77;
-  line-height: 1.8;
-  font-size: 14px;
-}
-
-.email-editor__hero,
-.email-editor__panel {
-  padding: 22px;
-  border-radius: 16px;
-  border: 1px solid rgba(47, 158, 143, 0.08);
-  background: linear-gradient(
-    135deg,
-    rgba(56, 178, 163, 0.18),
-    rgba(255, 217, 176, 0.14)
-  );
-}
-
-.email-editor__hero {
-  display: grid;
-  grid-template-columns: 104px minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: center;
-}
-
-.email-editor__badge {
-  width: 104px;
-  height: 104px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #cfe7e1, #ffd9b0);
-  color: #1f3a36;
-  font-family: "Rajdhani", "Noto Sans SC", sans-serif;
-  font-size: 40px;
-  font-weight: 700;
-  box-shadow: 0 18px 34px rgba(47, 158, 143, 0.14);
-}
-
-.email-editor__summary {
-  display: grid;
-  gap: 6px;
-}
-
-.email-editor__summary strong,
-.email-editor__preview strong,
-.email-editor__tips strong {
-  color: #1f3a36;
-  font-size: 24px;
-}
-
-.email-editor__preview {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.email-editor__preview article,
-.email-editor__tips article {
-  padding: 16px 18px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.74);
-}
-
-.email-editor__form {
-  display: grid;
-  gap: 14px;
-}
-
-.editor-field {
-  display: grid;
-  gap: 8px;
-}
-
-.editor-field span {
-  color: #1f3a36;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.editor-field input {
-  width: 100%;
-  padding: 13px 14px;
-  border: 1px solid rgba(47, 158, 143, 0.12);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #1f3a36;
-  font-size: 14px;
-}
-
-.editor-field input:focus {
-  outline: none;
-  border-color: rgba(47, 158, 143, 0.5);
-  box-shadow: 0 0 0 4px rgba(56, 178, 163, 0.18);
-}
-
-.editor-error {
-  margin: -2px 0 0;
-  color: #be4b5b;
-  font-size: 13px;
-}
-
-.verification-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: end;
-}
-
-.email-editor__tips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.email-editor__actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.email-editor__ghost,
-.email-editor__primary {
-  border: none;
-  border-radius: 999px;
-  padding: 12px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.email-editor__ghost {
-  background: rgba(47, 158, 143, 0.08);
-  color: #1f3a36;
-}
-
-.email-editor__ghost:disabled,
-.email-editor__primary:disabled {
-  cursor: not-allowed;
-  opacity: 0.56;
-}
-
-.email-editor__primary {
-  background: linear-gradient(135deg, #1f7a6c, #2f9e8f);
-  color: #fff;
-  box-shadow: 0 16px 30px rgba(47, 158, 143, 0.22);
-}
-
-@media (max-width: 900px) {
-  .email-editor__head,
-  .email-editor__hero,
-  .email-editor__preview,
-  .verification-strip,
-  .email-editor__tips {
-    grid-template-columns: 1fr;
-    display: grid;
-  }
-
-  .email-editor__badge {
-    width: 88px;
-    height: 88px;
-    border-radius: 16px;
-  }
-}
-</style>

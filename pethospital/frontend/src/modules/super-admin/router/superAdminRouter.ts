@@ -41,6 +41,15 @@ const routes: Array<RouteRecordRaw> = [
         name: "superAdminLogs",
         component: () => import("../views/pages/SuperAdminLogs.vue"),
       },
+      {
+        path: "personal",
+        name: "superAdminPersonal",
+        component: () =>
+          import(
+            "@/modules/user/views/desktop/Personal-module/UserPersonalView.vue"
+          ),
+        props: { roleBadge: "管理员端" },
+      },
     ],
   },
 ];

@@ -16,6 +16,15 @@ const routes: Array<RouteRecordRaw> = [
         name: "financeSalary",
         component: () => import("../views/pages/FinanceSalary.vue"),
       },
+      {
+        path: "personal",
+        name: "financePersonal",
+        component: () =>
+          import(
+            "@/modules/user/views/desktop/Personal-module/UserPersonalView.vue"
+          ),
+        props: { roleBadge: "财务端" },
+      },
     ],
   },
 ];

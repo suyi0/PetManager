@@ -16,6 +16,15 @@ const routes: Array<RouteRecordRaw> = [
         name: "personnelAccess",
         component: () => import("../views/pages/PersonnelRoleAccess.vue"),
       },
+      {
+        path: "personal",
+        name: "personnelPersonal",
+        component: () =>
+          import(
+            "@/modules/user/views/desktop/Personal-module/UserPersonalView.vue"
+          ),
+        props: { roleBadge: "人事端" },
+      },
     ],
   },
 ];

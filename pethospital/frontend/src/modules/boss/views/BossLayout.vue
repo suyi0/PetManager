@@ -38,7 +38,11 @@
         </button>
       </section>
 
-      <PortalAccount fallback-name="总裁" @logout="logout" />
+      <PortalAccount
+        fallback-name="总裁"
+        profile-to="/boss/personal"
+        @logout="logout"
+      />
     </aside>
 
     <main class="saas-content">

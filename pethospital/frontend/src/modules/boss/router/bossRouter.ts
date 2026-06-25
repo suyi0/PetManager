@@ -16,6 +16,15 @@ const routes: Array<RouteRecordRaw> = [
         name: "bossOverview",
         component: () => import("../views/pages/BossOverview.vue"),
       },
+      {
+        path: "personal",
+        name: "bossPersonal",
+        component: () =>
+          import(
+            "@/modules/user/views/desktop/Personal-module/UserPersonalView.vue"
+          ),
+        props: { roleBadge: "总裁端" },
+      },
     ],
   },
 ];

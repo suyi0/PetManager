@@ -1,4 +1,5 @@
 #include "authHandler.h"
+#include "../smsScriptRunner.h"
 
 crow::response authHandler::authCheckName(const crow::request &req)
 {
@@ -440,55 +441,6 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
     }
 }
 
-// 执行Python脚本发送短信验证码
-std::pair<bool, std::string> executePythonScript(const std::string &phone, const std::string &code)
-{
-    // 获取Python脚本路径
-    std::string script_path = "/Users/yanghang/Code/PetManager/pethospital/backend/services/verification/sendSmsVerifyCode.py";
-
-    // 构建命令
-    std::string command = "python3 \"" + script_path + "\" \"" + phone + "\" \"" + code + "\" --json 2>&1";
-
-    std::cout << "Executing command: " << command << std::endl;
-
-    // 执行命令
-    std::array<char, 128> buffer;
-    std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
-
-    if (!pipe)
-    {
-        std::cout << "Failed to execute python script: popen() failed" << std::endl;
-        return std::make_pair(false, "Failed to execute python script");
-    }
-
-    // 读取输出
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
-    {
-        result += buffer.data();
-    }
-
-    pclose(pipe.release());
-
-    // 解析JSON结果
-    try
-    {
-        auto json_result = nlohmann::json::parse(result);
-        bool success = json_result.value("success", false);
-        std::string message = json_result.value("message", "");
-
-        std::cout << "[INFO] Python script result - Success: " + std::to_string(success) + ", Message: " + message << std::endl;
-
-        return std::make_pair(success, message);
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "[ERROR] Failed to parse JSON result: " + std::string(e.what()) << std::endl;
-        std::cerr << "[ERROR] Raw result: " + result << std::endl;
-        return std::make_pair(false, "Failed to parse script result: " + result);
-    }
-}
-
 // 手机号验证码发送函数
 crow::response authHandler::sendSmsVerification(const crow::request &req)
 {
@@ -545,7 +497,7 @@ crow::response authHandler::sendSmsVerification(const crow::request &req)
                            {
             try 
             {
-                auto result = executePythonScript(*phone_ptr, *code_ptr);
+                auto result = SmsScriptRunner::execute(*phone_ptr, *code_ptr);
                 promise_ptr->set_value(result);
             } 
             catch (const std::exception& e) 

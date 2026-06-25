@@ -44,7 +44,11 @@
         返回总裁端
       </button>
 
-      <PortalAccount :fallback-name="currentRoleLabel" @logout="logout" />
+      <PortalAccount
+        :fallback-name="currentRoleLabel"
+        profile-to="/personnel/personal"
+        @logout="logout"
+      />
     </aside>
 
     <main class="content">

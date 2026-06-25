@@ -77,6 +77,15 @@ const doctorRoutes: Array<RouteRecordRaw> = [
             "@/modules/doctor/views/desktop/pages/Order-module/DoctorOrderDetail.vue"
           ),
       },
+      {
+        path: "personal",
+        name: "doctorPersonal",
+        component: () =>
+          import(
+            "@/modules/user/views/desktop/Personal-module/UserPersonalView.vue"
+          ),
+        props: { roleBadge: "医生端" },
+      },
     ],
   },
 ];

@@ -103,7 +103,11 @@
         返回超级管理员
       </button>
 
-      <PortalAccount fallback-name="仓库管理员" @logout="logout" />
+      <PortalAccount
+        fallback-name="仓库管理员"
+        profile-to="/warehouse-admin/personal"
+        @logout="logout"
+      />
     </aside>
 
     <main class="saas-content">
