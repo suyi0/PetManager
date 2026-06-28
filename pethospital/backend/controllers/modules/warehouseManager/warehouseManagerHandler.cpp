@@ -1,4 +1,6 @@
 #include "warehouseManagerHandler.h"
+#include "../../../services/redis/MedicineRedisCache.h"
+#include "../../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 
 namespace
 {
@@ -143,6 +145,8 @@ crow::response warehouseManagerHandler::upload(const crow::request &req)
                                 
         if(result.getAffectedItemsCount() > 0)
         {
+            MedicineRedisCache::invalidateMedicineCache();
+            MedicineStockBroadcaster::instance().notifyMedicineStockChanged();
             return ResponseHelper::success(req, "上传数据成功");
         }
         else
@@ -479,6 +483,8 @@ crow::response warehouseManagerHandler::updata(const crow::request &req, const i
 
         if(result.getAffectedItemsCount() > 0)
         {
+            MedicineRedisCache::invalidateMedicineCache();
+            MedicineStockBroadcaster::instance().notifyMedicineStockChanged();
             return ResponseHelper::success(req, "库存更新成功");
         }
 
@@ -516,6 +522,8 @@ crow::response warehouseManagerHandler::deleteData(const crow::request &req, int
         
         if(result.getAffectedItemsCount() > 0)
         {
+            MedicineRedisCache::invalidateMedicineCache();
+            MedicineStockBroadcaster::instance().notifyMedicineStockChanged();
             return ResponseHelper::success(req, "删除数据成功");
         }
         else

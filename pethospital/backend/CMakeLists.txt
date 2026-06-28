@@ -377,6 +377,16 @@ if(BUILD_TESTING)
         target_link_libraries(auth_session_store_tests ${HIREDIS_LIBRARIES})
     endif()
     add_test(NAME auth_session_store_tests COMMAND auth_session_store_tests)
+
+    add_executable(doctor_medicine_cache_tests
+        tests/doctor_medicine_cache_tests.cpp
+        services/redis/MedicineRedisCache.cpp
+        services/redis/RedisClient.cpp
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(doctor_medicine_cache_tests ${HIREDIS_LIBRARIES})
+    endif()
+    add_test(NAME doctor_medicine_cache_tests COMMAND doctor_medicine_cache_tests)
 endif()
 
 # 如果是header-only的system库，添加编译定义

@@ -25,6 +25,8 @@ public:
 
     crow::response getUserProfiles(const crow::request& req, int userId);                 // 获取医生端用户详细档案 对应 /api/doctors/user-profiles/<int>
 
+    crow::response getMedicineList(const crow::request& req);   // 获取药品列表 对应 /api/doctors/medicines
+
     crow::response searchMedicines(const crow::request& req, const std::string& keyword); // 搜索可开单药品 对应 /api/doctors/medicine-search
 
     crow::response handleDutyAction(const crow::request& req, int userId, bool requireDoctorId = false);   // 根据状态执行签到或签退 对应 /api/doctors/duty-status-changes

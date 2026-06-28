@@ -2,6 +2,8 @@
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+#include "../../../services/redis/MedicineRedisCache.h"
+#include "../../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
 #include <unordered_map>
@@ -21,6 +23,57 @@ namespace
         return value.substr(start, end - start + 1);
     }
 
+    nlohmann::json buildDoctorMedicineJson(const mysqlx::Row &row)
+    {
+        const std::string expirationDate = row[5].isNull() ? "" : row[5].get<std::string>();
+
+        nlohmann::json medicine;
+        medicine["id"] = row[0].isNull() ? 0 : row[0].get<int>();
+        medicine["name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
+        medicine["type"] = row[2].isNull() ? "" : row[2].get<std::string>();
+        medicine["price"] = row[3].isNull() ? 0.0 : row[3].get<double>();
+        medicine["stock"] = row[4].isNull() ? 0 : row[4].get<int>();
+        medicine["spec"] = expirationDate.empty() ? "库存药品" : "有效期至 " + expirationDate;
+        return medicine;
+    }
+
+    class TransactionGuard
+    {
+    public:
+        explicit TransactionGuard(mysqlx::Session &session) : session_(session)
+        {
+            session_.sql("START TRANSACTION").execute();
+            active_ = true;
+        }
+
+        ~TransactionGuard()
+        {
+            if (active_)
+            {
+                rollbackTransactionQuietly(session_);
+            }
+        }
+
+        void commit()
+        {
+            session_.sql("COMMIT").execute();
+            active_ = false;
+        }
+
+    private:
+        mysqlx::Session &session_;
+        bool active_ = false;
+    };
+
+    bool hasValidMedicineOrderFields(const nlohmann::json &medicine)
+    {
+        return medicine.is_object() &&
+               medicine.contains("medicineId") && medicine["medicineId"].is_number_integer() &&
+               medicine.contains("medicineName") && medicine["medicineName"].is_string() &&
+               medicine.contains("quantity") && medicine["quantity"].is_number_integer() &&
+               medicine.contains("price") && medicine["price"].is_number() &&
+               medicine.contains("totalPrice") && medicine["totalPrice"].is_number();
+    }
 }
 
 crow::response doctorHandler::getDoctor(const crow::request &req)
@@ -201,7 +254,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         }
 
         auto session = dbManager->getSession();
-        session->sql("START TRANSACTION").execute();
+        TransactionGuard transaction(*session);
 
         // 写入订单记录
         mysqlx::SqlResult ordersResult = session->sql("INSERT INTO orders ( "
@@ -212,16 +265,37 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
 
         unsigned long long orderId = ordersResult.getAutoIncrementValue();
 
-        mysqlx::SqlResult medicinesResult;
-
         // 写入订单药品记录
         for (auto row : medicines)
         {
-            medicinesResult = session->sql("INSERT INTO orderMedicines ( "
-                                           "order_id, medicine_id, medicine_name, quantity, price, total_price) "
-                                           "VALUES (?, ?, ?, ?, ?, ?)")
-                                  .bind(orderId, row["medicineId"].get<int>(), row["medicineName"].get<std::string>(), row["quantity"].get<int>(), row["price"].get<double>(), row["totalPrice"].get<double>())
-                                  .execute();
+            if (!hasValidMedicineOrderFields(row))
+            {
+                return ResponseHelper::validation(req, "药品数据不完整或格式不正确");
+            }
+
+            const int medicineId = row.value("medicineId", 0);
+            const int quantity = row.value("quantity", 0);
+            if (medicineId <= 0 || quantity <= 0)
+            {
+                return ResponseHelper::validation(req, "药品ID和数量必须有效");
+            }
+
+            // 更新仓库库存
+            mysqlx::SqlResult stockResult = session->sql("UPDATE warehouse "
+                                                         "SET item_number = item_number - ? "
+                                                         "WHERE id = ? AND is_deleted = 0 AND item_number >= ?")
+                                                .bind(quantity, medicineId, quantity)
+                                                .execute();
+            if (stockResult.getAffectedItemsCount() == 0)
+            {
+                return ResponseHelper::validation(req, "药品库存不足或不存在，请刷新药品列表后重试");
+            }
+
+            session->sql("INSERT INTO orderMedicines ( "
+                         "order_id, medicine_id, medicine_name, quantity, price, total_price) "
+                         "VALUES (?, ?, ?, ?, ?, ?)")
+                .bind(orderId, medicineId, row["medicineName"].get<std::string>(), quantity, row["price"].get<double>(), row["totalPrice"].get<double>())
+                .execute();
         }
 
         if (queueId > 0)
@@ -235,7 +309,6 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
 
             if (queueUpdateResult.getAffectedItemsCount() == 0)
             {
-                rollbackTransactionQuietly(*session);
                 return ResponseHelper::validation(req, "队列记录不存在或已完成，请刷新待接诊队列后重试");
             }
         }
@@ -256,11 +329,12 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         auto createdOrderRow = createdOrderResult.fetchOne();
         if (!createdOrderRow)
         {
-            rollbackTransactionQuietly(*session);
             return ResponseHelper::system_error(req, "订单创建后查询失败");
         }
 
-        session->sql("COMMIT").execute();
+        transaction.commit();
+        MedicineRedisCache::invalidateMedicineCache();
+        MedicineStockBroadcaster::instance().notifyMedicineStockChanged();
 
         nlohmann::json orderRecord;
         orderRecord["id"] = createdOrderRow[0].isNull() ? 0 : createdOrderRow[0].get<int>();
@@ -407,6 +481,52 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
     }
 }
 
+crow::response doctorHandler::getMedicineList(const crow::request &req)
+{
+    try
+    {
+        // 在读缓存/查库之前抓一次版本，读与写都用它——避免写缓存时重读版本造成的 TOCTOU。
+        std::optional<long long> cacheVersion = MedicineRedisCache::currentCacheVersion();
+        if (cacheVersion.has_value())
+        {
+            std::optional<nlohmann::json> cachedMedicines = MedicineRedisCache::readMedicineListCache(cacheVersion.value());
+            if (cachedMedicines.has_value())
+            {
+                return ResponseHelper::success(req, cachedMedicines.value());
+            }
+        }
+
+        if (!checkDbConnection())
+        {
+            return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
+        }
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT id, item_name, item_type, item_price, item_number, CAST(item_expirationdate AS CHAR) "
+                                             "FROM warehouse "
+                                             "WHERE is_deleted = 0 AND item_number > 0 "
+                                             "ORDER BY item_name ASC, id DESC "
+                                             "LIMIT 200")
+                                       .execute();
+
+        nlohmann::json response = nlohmann::json::array();
+        for (auto row : result)
+        {
+            response.push_back(buildDoctorMedicineJson(row));
+        }
+
+        if (cacheVersion.has_value())
+        {
+            MedicineRedisCache::writeMedicineListCache(cacheVersion.value(), response);
+        }
+
+        return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, "获取药品列表失败: " + std::string(e.what()));
+    }
+}
+
 crow::response doctorHandler::searchMedicines(const crow::request &req, const std::string &keyword)
 {
     try
@@ -417,6 +537,16 @@ crow::response doctorHandler::searchMedicines(const crow::request &req, const st
         }
 
         const std::string normalizedKeyword = trimString(keyword); // trimString() 函数用于去除字符串首尾的空白字符
+        std::optional<long long> cacheVersion = MedicineRedisCache::currentCacheVersion();
+        if (cacheVersion.has_value())
+        {
+            std::optional<nlohmann::json> cachedMedicines = MedicineRedisCache::readMedicineSearchCache(normalizedKeyword, cacheVersion.value());
+            if (cachedMedicines.has_value())
+            {
+                return ResponseHelper::success(req, cachedMedicines.value());
+            }
+        }
+
         const std::string likeKeyword = "%" + normalizedKeyword + "%";
 
         mysqlx::SqlResult result = dbManager->getSession()
@@ -432,16 +562,12 @@ crow::response doctorHandler::searchMedicines(const crow::request &req, const st
         nlohmann::json response = nlohmann::json::array();
         for (auto row : result)
         {
-            const std::string expirationDate = row[5].isNull() ? "" : row[5].get<std::string>();
+            response.push_back(buildDoctorMedicineJson(row));
+        }
 
-            nlohmann::json medicine;
-            medicine["id"] = row[0].isNull() ? 0 : row[0].get<int>();
-            medicine["name"] = row[1].isNull() ? "" : clean_string(row[1].get<std::string>());
-            medicine["type"] = row[2].isNull() ? "" : row[2].get<std::string>();
-            medicine["price"] = row[3].isNull() ? 0.0 : row[3].get<double>();
-            medicine["stock"] = row[4].isNull() ? 0 : row[4].get<int>();
-            medicine["spec"] = expirationDate.empty() ? "库存药品" : "有效期至 " + expirationDate;
-            response.push_back(medicine);
+        if (cacheVersion.has_value())
+        {
+            MedicineRedisCache::writeMedicineSearchCache(normalizedKeyword, cacheVersion.value(), response);
         }
 
         return ResponseHelper::success(req, response);

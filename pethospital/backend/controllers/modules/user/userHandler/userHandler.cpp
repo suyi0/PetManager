@@ -938,6 +938,7 @@ crow::response userHandler::userLogin(const crow::request &req)
             return ResponseHelper::error(req, "尝试次数过多，请稍后再试");
         }
 
+        // 手机号登录需要把手机号前缀去掉
         const auto stripChinaCountryCode = [](const std::string &value)
         {
             return value.rfind("+86", 0) == 0 ? value.substr(3) : value;

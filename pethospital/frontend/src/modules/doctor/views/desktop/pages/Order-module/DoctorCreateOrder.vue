@@ -185,6 +185,7 @@
 import {
   computed,
   defineComponent,
+  onBeforeUnmount,
   onMounted,
   reactive,
   ref,
@@ -202,6 +203,7 @@ import {
   DoctorOrderDraft,
   buildDoctorOrderDraftKey,
 } from "@/modules/doctor/utils/orderDrafts";
+import { subscribeMedicineStock } from "@/modules/doctor/utils/medicineStockStream";
 
 export default defineComponent({
   name: "DoctorCreateOrder",
@@ -515,9 +517,21 @@ export default defineComponent({
       }
     };
 
+    let unsubscribeMedicineStock: (() => void) | null = null;
+
     onMounted(() => {
       void searchMedicines();
       void restoreDraft();
+      // 订阅药品库存实时变更：别处改库存（开单 / 仓库增改删）后服务端推信号，这里重拉当前药品列表，
+      // 让停在开单页的医生也能看到最新库存，而不必离开重进。
+      unsubscribeMedicineStock = subscribeMedicineStock(() => {
+        void searchMedicines();
+      });
+    });
+
+    onBeforeUnmount(() => {
+      unsubscribeMedicineStock?.();
+      unsubscribeMedicineStock = null;
     });
 
     watch(

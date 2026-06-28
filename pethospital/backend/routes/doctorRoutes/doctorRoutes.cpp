@@ -1,6 +1,7 @@
 #include "doctorRoutes.h"
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
+#include "../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "../../services/auth/AuthSessionStore.h"
 
 #include <iostream>
@@ -72,6 +73,31 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取用户列表", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    // 获取可开单药品列表路由.
+    CROW_ROUTE(app, "/api/doctors/medicines")
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::OPTIONS)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+                int userId = -1;
+                try
+                {
+                    userId = isValidMedicalStaffToken(req, res, dbManager);
+
+                    if(res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "获取药品列表");
+                        return;
+                    }
+
+                    doctorHandler doctorHandler(dbManager);
+                    crow::response response = doctorHandler.getMedicineList(req);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e) {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "医生", "获取药品列表", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "获取药品列表", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     // 搜索可开单药品路由.
     CROW_ROUTE(app, "/api/doctors/medicine-search")
@@ -237,6 +263,45 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
                  {
             std::cerr << "Doctor queue WebSocket error: " << reason << std::endl;
             DoctorQueueBroadcaster::instance().removeConnection(&conn); });
+
+    // 医生端药品库存实时通道：任一处库存变更后广播刷新信号，前端据此重拉药品列表。
+    CROW_WEBSOCKET_ROUTE(app, "/realtime/doctors/medicine-stock")
+        .onaccept([dbManager](const crow::request &req, void **)
+                  {
+            const char *tokenParam = req.url_params.get("token");
+            if (tokenParam == nullptr || std::string(tokenParam).empty())
+            {
+                return false;
+            }
+
+            auto claims = JwtUtils::getTokenClaims(tokenParam);
+            if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            // 与其它实时通道一致：失效会话不再建立连接。
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+            {
+                return false;
+            }
+
+            std::string identifier = claims->identifier;
+            return JwtUtils::isUserAuthorizedForMedicalStaffForm(
+                claims->userId,
+                identifier,
+                claims->isEmailLogin,
+                dbManager); })
+        .onopen([](crow::websocket::connection &conn)
+                {
+            MedicineStockBroadcaster::instance().addConnection(&conn); })
+        .onclose([](crow::websocket::connection &conn, const std::string &, uint16_t)
+                 {
+            MedicineStockBroadcaster::instance().removeConnection(&conn); })
+        .onerror([](crow::websocket::connection &conn, const std::string &reason)
+                 {
+            std::cerr << "Medicine stock WebSocket error: " << reason << std::endl;
+            MedicineStockBroadcaster::instance().removeConnection(&conn); });
 
     // 获取预约摘要路由.
     CROW_ROUTE(app, "/api/doctors/reservation-summaries")
