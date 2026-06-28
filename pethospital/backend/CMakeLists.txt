@@ -206,6 +206,17 @@ if(NOT CROW_FOUND)
     message(STATUS "Try: brew install crow")
 endif()
 
+# 查找 hiredis（Redis 内存中转站客户端）
+# 传空 pkg-config 名以走 find_library 全路径解析（与 MYSQLX 一致），
+# 避免 pkg-config 分支只给库名、不给 -L 目录导致链接期找不到库。
+find_library_automatic(HIREDIS "hiredis/hiredis.h" "" "hiredis")
+
+if(NOT HIREDIS_FOUND)
+    # RedisClient.cpp 始终参与编译且硬用 hiredis，缺它必然编译/链接失败；
+    # 因此把 hiredis 作为硬依赖，在配置期就明确失败并给指引，而不是拖到链接期报晦涩错误。
+    message(FATAL_ERROR "hiredis not found. It is a required dependency. Try: brew install hiredis")
+endif()
+
 # 处理 nlohmann/json - 优先使用本地文件，否则尝试下载
 find_path(JSON_INCLUDE_DIR 
     NAMES nlohmann/json.hpp
@@ -237,6 +248,9 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${Boost_INCLUDE_DIRS})
 if(CROW_FOUND)
     include_directories(${CROW_INCLUDE_DIRS})
+endif()
+if(HIREDIS_FOUND)
+    include_directories(${HIREDIS_INCLUDE_DIRS})
 endif()
 
 # 添加必要的包含目录（现代项目结构）
@@ -307,11 +321,16 @@ endif()
 # 链接库
 target_link_libraries(main
     ${Boost_LIBRARIES}
-    pthread 
+    pthread
     ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY} # 添加 OpenSSL 库
     ${MYSQLX_LIBRARIES}
     ${EXTRA_LIBS}
 )
+
+# 链接 hiredis（Redis 客户端）
+if(HIREDIS_FOUND)
+    target_link_libraries(main ${HIREDIS_LIBRARIES})
+endif()
 
 # 只有当通过 FetchContent 下载时才链接 nlohmann_json
 if(TARGET nlohmann_json::nlohmann_json)
@@ -329,7 +348,11 @@ if(BUILD_TESTING)
     add_executable(rate_limit_middleware_tests
         tests/rate_limit_middleware_tests.cpp
         middleware/rateLimitMiddleware/rateLimitMiddleware.cpp
+        services/redis/RedisClient.cpp
     )
+    if(HIREDIS_FOUND)
+        target_link_libraries(rate_limit_middleware_tests ${HIREDIS_LIBRARIES})
+    endif()
     add_test(NAME rate_limit_middleware_tests COMMAND rate_limit_middleware_tests)
 
     add_executable(sms_script_runner_tests
@@ -337,6 +360,23 @@ if(BUILD_TESTING)
         controllers/auth/smsScriptRunner.cpp
     )
     add_test(NAME sms_script_runner_tests COMMAND sms_script_runner_tests)
+
+    add_executable(auth_session_store_tests
+        tests/auth_session_store_tests.cpp
+        controllers/auth/jwtUtils/jwtUtils.cpp
+        services/auth/AuthSessionStore.cpp
+        services/redis/RedisClient.cpp
+        utils/Utils.cpp
+        utils/roleTypeUtils/roleTypeUtils.cpp
+    )
+    target_link_libraries(auth_session_store_tests
+        ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}
+        ${MYSQLX_LIBRARIES}
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(auth_session_store_tests ${HIREDIS_LIBRARIES})
+    endif()
+    add_test(NAME auth_session_store_tests COMMAND auth_session_store_tests)
 endif()
 
 # 如果是header-only的system库，添加编译定义

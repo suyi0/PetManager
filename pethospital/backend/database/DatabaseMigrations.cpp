@@ -3,11 +3,14 @@
 #include "migrations/backfills/RelationBackfills.h"
 #include "migrations/columns/ColumnMigrations.h"
 #include "migrations/foreign_keys/ForeignKeyMigrations.h"
+#include "../services/redis/RedisClient.h"
 
+#include <chrono>
 #include <exception>
 #include <iostream>
 #include <mutex>
 #include <string>
+#include <thread>
 
 namespace DatabaseMigrations
 {
@@ -35,6 +38,52 @@ namespace DatabaseMigrations
             std::cerr << "Database schema is null, cannot run migrations." << std::endl;
             return;
         }
+
+        // 跨实例启动迁移锁：多实例同时启动时避免并发 DDL / 回填。
+        // 抢到锁的实例先迁移，其余实例阻塞等待；迁移本身幂等，等到后各自再跑也只是重复的存在性检查。
+        // Redis 不可用时退回原行为（各实例直接迁移），绝不阻断启动。
+        const std::string kMigrationLockKey = "migration:startup:lock";
+        RedisClient &migrationRedis = RedisClient::instance();
+        bool holdsMigrationLock = false;
+        if (migrationRedis.enabled())
+        {
+            const int lockTtlSeconds = 600; // 安全网：迁移正常仅数秒，远小于此，避免持锁实例崩溃后死锁
+            const auto waitDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(600);
+            while (true)
+            {
+                auto lockResult = migrationRedis.setNxEx(kMigrationLockKey, lockTtlSeconds, "1");
+                if (!lockResult.has_value())
+                {
+                    // Redis 出错：降级，直接迁移，不空等到超时。
+                    std::cout << "Migration startup lock unavailable (Redis error); proceeding." << std::endl;
+                    break;
+                }
+                if (lockResult.value())
+                {
+                    holdsMigrationLock = true;
+                    break;
+                }
+                if (std::chrono::steady_clock::now() >= waitDeadline)
+                {
+                    std::cout << "Migration startup lock wait timed out; proceeding without it." << std::endl;
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        }
+        struct MigrationLockGuard
+        {
+            RedisClient &redis;
+            const std::string &key;
+            bool &held;
+            ~MigrationLockGuard()
+            {
+                if (held)
+                {
+                    redis.del(key);
+                }
+            }
+        } migrationLockGuard{migrationRedis, kMigrationLockKey, holdsMigrationLock};
 
         try
         {
@@ -509,12 +558,20 @@ namespace DatabaseMigrations
                          "deleted_by INT NULL COMMENT '执行删除的用户ID', "
                          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+                         // 有效预约唯一键：仅当预约占位(status 非 cancelled/failed、未软删、有日期与时段)时取非 NULL 值，
+                         // 否则为 NULL(NULL 不参与唯一性)，从而实现"同医生同日同时段仅一笔有效预约"且取消/软删后可重订。
+                         // 用 VIRTUAL 生成列：避免 STORED 重建整表时与具名外键撞名(ERROR 1215)。
+                         "active_slot_key VARCHAR(80) GENERATED ALWAYS AS ("
+                         "CASE WHEN COALESCE(status,'scheduled') NOT IN ('cancelled','failed') "
+                         "AND is_deleted = 0 AND date IS NOT NULL AND time_slot IS NOT NULL "
+                         "THEN CONCAT(doctor_id, '|', date, '|', time_slot) ELSE NULL END) VIRTUAL, "
                          "CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE, "
                          "CONSTRAINT fk_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE, "
                          "INDEX idx_user_deleted (user_id, is_deleted), "
                          "INDEX idx_doctorId_date_slot (doctor_id, date, time_slot), "
-                         "INDEX idx_petId_date (pet_id, date) "
+                         "INDEX idx_petId_date (pet_id, date), "
+                         "UNIQUE INDEX uq_active_slot (active_slot_key) "
                          ")")
                 .execute();
             std::cout << "reservations table created successfully." << std::endl;

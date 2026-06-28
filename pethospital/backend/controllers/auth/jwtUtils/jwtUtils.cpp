@@ -1,4 +1,5 @@
 #include "jwtUtils.h"
+#include "../../../services/auth/AuthSessionStore.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 #include <cstring>
 
@@ -264,18 +265,22 @@ std::string get_jwt_secret()
 }
 
 // 生成JWT
-std::string JwtUtils::createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail)
+std::string JwtUtils::createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail, int sessionVersion)
 {
     try
     {
 
         time_t now = time(nullptr);
+        const int resolvedSessionVersion = sessionVersion >= 0
+                                               ? sessionVersion
+                                               : AuthSessionStore::issueVersionForRole(userId, type_name);
         nlohmann::json payload_json;
         payload_json["sub"] = userId; // JWT 标准主体字段
         payload_json["type_id"] = type_id;
         payload_json["type_name"] = type_name;
         payload_json["identifier"] = identifier;
         payload_json["login_type"] = isEmail ? "email" : "phone";
+        payload_json["session_version"] = resolvedSessionVersion;
         payload_json["iat"] = now; // 签发时间
         payload_json["exp"] = now + (RoleTypeUtils::isManagementRole(type_name)
                                          ? kManagementTokenTtlSeconds
@@ -408,7 +413,10 @@ std::optional<JwtUtils::TokenClaims> JwtUtils::getTokenClaims(const std::string 
             payload_json.contains("type_id") && payload_json["type_id"].is_number_integer() ? payload_json["type_id"].get<int>() : 0,
             payload_json.contains("type_name") && payload_json["type_name"].is_string() ? payload_json["type_name"].get<std::string>() : "",
             "",
-            false};
+            false,
+            payload_json.contains("session_version") && payload_json["session_version"].is_number_integer()
+                ? payload_json["session_version"].get<int>()
+                : AuthSessionStore::kDefaultSessionVersion};
 
         if (payload_json.contains("identifier") && payload_json["identifier"].is_string())
         {

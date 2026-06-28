@@ -170,7 +170,14 @@ export const authActions: ActionTree<AuthState, State> = {
       });
   }, 300),
 
-  logout({ commit }: AuthActionContext) {
+  async logout({ commit }: AuthActionContext) {
+    // 服务端吊销：先通知后端 bump session-version（管理端旧 token 立即失效），best-effort。
+    // 必须在清本地状态前调用——清理会移除 token，之后请求就带不上 Bearer 了。失败不阻断本地登出。
+    try {
+      await authApi.logout();
+    } catch {
+      // 忽略：网络/服务端异常不应阻止用户登出。
+    }
     clearAllPortalSessionState(commit);
     commit("logout");
   },

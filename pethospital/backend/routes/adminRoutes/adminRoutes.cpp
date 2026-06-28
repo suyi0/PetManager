@@ -4,6 +4,7 @@
 #include "../../controllers/modules/personnel/personnelHandler.h"
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../services/auth/AuthSessionStore.h"
 
 #include <iostream>
 
@@ -58,6 +59,12 @@ void adminRoutes::setupAdminRoutes(
 
             auto claims = JwtUtils::getTokenClaims(tokenParam);
             if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            // 管理端会话失效：被 bump 过的旧 token（改密码/失效后）不能继续建立实时连接。
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
             {
                 return false;
             }

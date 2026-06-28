@@ -1,11 +1,21 @@
 #include "verification.h"
 #include "../../utils/Utils.h"
+#include "../redis/RedisClient.h"
 #include <algorithm>
 #include <cstring>
 
 namespace
 {
-    struct SmtpConfig   // SMTP服务器配置
+    // 验证码在 Redis 中的键前缀；email 参数实际承载邮箱或手机号标识。
+    inline std::string verifyCodeKey(const std::string &identifier)
+    {
+        return "verify:code:" + identifier;
+    }
+}
+
+namespace
+{
+    struct SmtpConfig // SMTP服务器配置
     {
         std::string host;
         int port = 0;
@@ -66,8 +76,8 @@ static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp);
 // 初始化静态成员
 // 使用unordered_map存储验证码, <std::string : 索引键>, <CodeInfo : 索引值>
 std::unordered_map<std::string, Verify::CodeInfo> Verify::code_storage;
-std::mutex Verify::storage_mutex;                                       // 用于保护code_storage的互斥锁
-int Verify::expiration_seconds = 300;                                   // 默认5分钟过期时间
+std::mutex Verify::storage_mutex;     // 用于保护code_storage的互斥锁
+int Verify::expiration_seconds = 300; // 默认5分钟过期时间
 
 // 添加获取当前日期的辅助函数
 std::string Verify::getCurrentDate()
@@ -168,7 +178,7 @@ std::string Verify::CreatePhoneVerify(const std::string &phone)
 // 发送邮箱验证码
 void Verify::SendEmailVerify(const std::string &emailaddress, const std::string &code, std::promise<bool> *promise)
 {
-    auto finish = [promise](bool success)   // 定义一个lambda函数，用于处理发送邮件的完成情况
+    auto finish = [promise](bool success) // 定义一个lambda函数，用于处理发送邮件的完成情况
     {
         if (promise)
         {
@@ -322,6 +332,16 @@ static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp)
 // 存储验证码
 void Verify::StoreCode(const std::string &email, const std::string &code)
 {
+    // 优先写入 Redis（原生 TTL、多实例共享）；写入成功即返回。
+    if (RedisClient::instance().enabled())
+    {
+        if (RedisClient::instance().setEx(verifyCodeKey(email), expiration_seconds, code))
+        {
+            return;
+        }
+        // 写入失败（Redis 临时不可用）→ 落到本地内存兜底。
+    }
+
     std::lock_guard<std::mutex> lock(storage_mutex);
     CodeInfo info;
     info.code = code;
@@ -332,6 +352,23 @@ void Verify::StoreCode(const std::string &email, const std::string &code)
 // 验证验证码
 bool Verify::ValidateCode(const std::string &email, const std::string &input_code)
 {
+    // 先查 Redis；命中即在此完成校验与一次性消费。
+    if (RedisClient::instance().enabled())
+    {
+        std::optional<std::string> stored = RedisClient::instance().get(verifyCodeKey(email));
+        if (stored.has_value())
+        {
+            if (constantTimeEquals(stored.value(), input_code))
+            {
+                RedisClient::instance().del(verifyCodeKey(email)); // 一次性使用
+                return true;
+            }
+            return false;
+        }
+        // 未命中：可能是过期/不存在，也可能是 Redis 临时不可用导致写入走了本地兜底。
+        // 继续向下回退检查本地内存，避免极端抖动时把用户挡在门外。
+    }
+
     std::lock_guard<std::mutex> lock(storage_mutex);
     // lock_guard是一个 RAII（Resource Acquisition Is Initialization）风格的锁管理器，它在构造时自动获取锁，在析构时自动释放锁。
 

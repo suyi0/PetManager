@@ -12,6 +12,8 @@
 
 #include "../../../database/DatabaseManager.h"
 
+class RedisSubscription; // Redis 订阅句柄（跨实例广播）
+
 class FinanceHomeDataBroadcaster
 {
 public:
@@ -29,8 +31,10 @@ private:
 
     void run();
     void pushHomeData();
+    void triggerLocalPush(); // 仅唤醒本实例广播线程（不再次发布，避免回环）
 
     std::shared_ptr<DatabaseManagerInterface> dbManager_;
+    std::shared_ptr<RedisSubscription> subscription_; // 跨实例广播订阅
     std::thread broadcast_thread_;
     std::atomic<bool> running_{false};
     bool pending_update_{false};

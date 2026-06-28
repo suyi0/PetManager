@@ -6,6 +6,13 @@
 
 #include "../../../controllers/modules/admin/adminHandler.h"
 #include "../../../utils/Utils.h"
+#include "../../redis/RedisClient.h"
+
+namespace
+{
+    // 超管首页变更的跨实例广播频道。
+    constexpr const char *kAdminHomeChannel = "realtime:admin-home";
+}
 
 // 获取超级管理员首页实时广播器单例，保证整个服务只维护一个广播线程和连接池。
 AdminHomeDataBroadcaster &AdminHomeDataBroadcaster::instance()
@@ -26,11 +33,22 @@ void AdminHomeDataBroadcaster::start(std::shared_ptr<DatabaseManagerInterface> d
     }
 
     broadcast_thread_ = std::thread([this]() { run(); });
+
+    // 订阅跨实例广播：任一实例发布变更，本实例也会触发一次本地推送。
+    // Redis 未启用时 subscribe 返回 nullptr，自动退化为单实例本地通知。
+    subscription_ = RedisClient::instance().subscribe(
+        kAdminHomeChannel, [this](const std::string &) { triggerLocalPush(); });
 }
 
 // 停止广播线程；唤醒等待中的线程后等待其安全退出。
 void AdminHomeDataBroadcaster::stop()
 {
+    if (subscription_)
+    {
+        subscription_->stop();
+        subscription_.reset();
+    }
+
     running_ = false;
     broadcast_cv_.notify_all();
 
@@ -92,8 +110,19 @@ void AdminHomeDataBroadcaster::closeAllConnections(const std::string &reason)
     }
 }
 
-// 业务数据发生变化时调用，只唤醒广播线程，不在请求线程里同步查询和推送。
+// 业务数据发生变化时调用。多实例下先发布到 Redis 频道，让所有实例（含本实例）
+// 都收到并各自推送给本地连接；单实例或 Redis 不可用时直接触发本地推送。
 void AdminHomeDataBroadcaster::notifyHomeDataChanged()
+{
+    if (subscription_ && RedisClient::instance().publish(kAdminHomeChannel, "1"))
+    {
+        return; // 本实例会通过自身订阅收到消息并触发本地推送
+    }
+    triggerLocalPush();
+}
+
+// 仅唤醒本实例广播线程做一次推送，不再发布，避免订阅回环。
+void AdminHomeDataBroadcaster::triggerLocalPush()
 {
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);

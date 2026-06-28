@@ -1,5 +1,6 @@
 #include "operationLogger.h"
 #include "../realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../utils/requestUtils/RequestUtils.h"
 
 namespace
 {
@@ -13,29 +14,6 @@ namespace
     std::string fallbackSource(const std::string &source)
     {
         return source.empty() ? "api" : source;
-    }
-
-    // 这里复用常见代理头获取真实客户端 IP，避免日志里只看到网关地址。
-    std::string getRequestClientIp(const crow::request &req)
-    {
-        static const std::array<const char *, 5> headers = {
-            "X-Forwarded-For",
-            "X-Real-IP",
-            "CF-Connecting-IP",
-            "X-Original-For",
-            "X-Cluster-Client-IP"};
-
-        for (const char *header : headers)
-        {
-            std::string value = req.get_header_value(header);
-            if (!value.empty())
-            {
-                const size_t pos = value.find(',');
-                return pos == std::string::npos ? value : value.substr(0, pos);
-            }
-        }
-
-        return "unknown";
     }
 
     // 将 Crow 的枚举方法转成稳定字符串，便于直接写入日志详情和来源。
@@ -155,7 +133,7 @@ namespace
             {"method", getMethodName(req.method)},
             {"path", req.url},
             {"httpStatus", res.code},
-            {"clientIp", getRequestClientIp(req)},
+            {"clientIp", RequestUtils::getClientIp(req)},
             {"response", responseBody}};
 
         return details.dump();
@@ -369,7 +347,7 @@ void OperationLogger::LogAuthorizationFailure(std::shared_ptr<DatabaseManagerInt
         {"method", getMethodName(req.method)},
         {"path", req.url},
         {"httpStatus", res.code},
-        {"clientIp", getRequestClientIp(req)},
+        {"clientIp", RequestUtils::getClientIp(req)},
         {"stage", stage},
         {"errorType", errorType},
         {"attemptedUserId", actorUserId.has_value() ? nlohmann::json(actorUserId.value()) : nlohmann::json(nullptr)},
@@ -458,7 +436,7 @@ void OperationLogger::LogExceptionOperation(std::shared_ptr<DatabaseManagerInter
     nlohmann::json details = {
         {"method", getMethodName(req.method)},
         {"path", req.url},
-        {"clientIp", getRequestClientIp(req)},
+        {"clientIp", RequestUtils::getClientIp(req)},
         {"stage", resolvedStage},
         {"errorType", resolvedErrorType},
         {"exception", exceptionMessage}};

@@ -1,7 +1,10 @@
 #include "scheduledTaskManager.h"
 #include "../roleTypeUtils/roleTypeUtils.h"
+#include "../../services/redis/RedisClient.h"
 #include <iostream>
 #include <sstream>
+#include <cstdio>
+#include <unistd.h>
 #ifdef __linux__
 #include <sys/sysinfo.h>
 #include <unistd.h>
@@ -212,20 +215,50 @@ void ScheduledTaskManager::workerLoop()
                 if (scheduledMinute > task.lastExecutedMinute &&
                     scheduledMinute % 30 == 0)
                 {
-                    try
+                    // 多实例分布式锁：同一任务、同一时间节点只允许一个实例执行。
+                    // 锁键含日期+时段，天然每个时段唯一；抢不到说明别的实例已执行该时段。
+                    // Redis 不可用时 acquireSlot=true，退化为单实例直接执行（不阻断业务）。
+                    bool acquireSlot = true;
+                    if (RedisClient::instance().enabled())
                     {
-                        task.taskFunction();
-                        task.lastExecution = now;
-                        task.lastExecutedMinute = scheduledMinute;
+                        char slotKey[160];
+                        std::snprintf(slotKey, sizeof(slotKey),
+                                      "schedlock:%s:%04d%02d%02d:%d",
+                                      task.taskName.c_str(),
+                                      local_tm.tm_year + 1900, local_tm.tm_mon + 1,
+                                      local_tm.tm_mday, scheduledMinute);
+                        // TTL 1 小时：键按时段唯一，TTL 仅用于自动回收，不影响下一时段。
+                        // 三态降级：抢到=执行；明确被占=跳过；Redis 出错(nullopt)→执行（退化单实例，不漏跑任务）。
+                        auto slotLock = RedisClient::instance().setNxEx(
+                            slotKey, 3600, std::to_string(::getpid()));
+                        acquireSlot = slotLock.value_or(true);
+                    }
 
-                        std::cout << "[定时任务] 执行完成：" << task.taskName
+                    if (acquireSlot)
+                    {
+                        try
+                        {
+                            task.taskFunction();
+
+                            std::cout << "[定时任务] 执行完成：" << task.taskName
+                                      << " (时间节点：" << (scheduledMinute / 60) << ":"
+                                      << (scheduledMinute % 60 == 0 ? "00" : "30") << ")" << std::endl;
+                        }
+                        catch (const std::exception &e)
+                        {
+                            std::cerr << "执行定时任务 " << task.taskName << " 失败: " << e.what() << std::endl;
+                        }
+                    }
+                    else
+                    {
+                        std::cout << "[定时任务] 跳过（其他实例已执行该时段）：" << task.taskName
                                   << " (时间节点：" << (scheduledMinute / 60) << ":"
                                   << (scheduledMinute % 60 == 0 ? "00" : "30") << ")" << std::endl;
                     }
-                    catch (const std::exception &e)
-                    {
-                        std::cerr << "执行定时任务 " << task.taskName << " 失败: " << e.what() << std::endl;
-                    }
+
+                    // 无论本实例是否执行，都推进本地标记，避免下个循环重复尝试。
+                    task.lastExecution = now;
+                    task.lastExecutedMinute = scheduledMinute;
                 }
             }
         }

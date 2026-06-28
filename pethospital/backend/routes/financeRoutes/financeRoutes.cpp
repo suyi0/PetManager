@@ -1,6 +1,7 @@
 #include "financeRoutes.h"
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+#include "../../services/auth/AuthSessionStore.h"
 
 #include <iostream>
 
@@ -51,6 +52,12 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
 
             auto claims = JwtUtils::getTokenClaims(tokenParam);
             if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            // 管理端会话失效：被 bump 过的旧 token（改密码/失效后）不能继续建立实时连接。
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
             {
                 return false;
             }

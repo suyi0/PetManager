@@ -1,4 +1,5 @@
 #include "authHandler.h"
+#include "../../../services/auth/AuthSessionStore.h"
 #include "../smsScriptRunner.h"
 
 crow::response authHandler::authCheckName(const crow::request &req)
@@ -388,6 +389,12 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
             return ResponseHelper::unauthorized(req, "Token expired or invalid");
         }
 
+        // 失效的管理端会话不能靠刷新续命：被 bump 过的旧 token 直接拒绝，否则等于绕过会话失效。
+        if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+        {
+            return ResponseHelper::unauthorized(req, "Session expired");
+        }
+
         int userId = claims->userId;
         const std::string &identifier = claims->identifier;
 
@@ -438,6 +445,32 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
     {
         std::cerr << "[ERROR] Failed to refresh admin token: " << e.what() << std::endl;
         return ResponseHelper::system_error(req);
+    }
+}
+
+crow::response authHandler::logout(const crow::request &req)
+{
+    try
+    {
+        std::string authHeader = req.get_header_value("Authorization");
+        if (authHeader.size() > 7 && authHeader.substr(0, 7) == "Bearer ")
+        {
+            std::string token = authHeader.substr(7);
+            auto claims = JwtUtils::getTokenClaims(token);
+            // 管理端登出：bump session-version，让该用户所有已签发的管理端 token 立即失效（服务端吊销）。
+            // 普通角色 session-version 为 no-op，登出仍返回成功，由前端清理本地状态。
+            if (claims && claims->userId > 0 && RoleTypeUtils::isManagementRole(claims->typeName))
+            {
+                AuthSessionStore::bumpSessionVersionForUser(claims->userId);
+            }
+        }
+        // 登出始终返回成功：即便 token 缺失/过期/非管理角色，也不阻断前端登出流程。
+        return ResponseHelper::success(req, "Logged out");
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "[ERROR] logout failed: " << e.what() << std::endl;
+        return ResponseHelper::success(req, "Logged out");
     }
 }
 

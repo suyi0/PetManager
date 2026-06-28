@@ -1,6 +1,9 @@
 #include "userHandler.h"
 #include "../../../../utils/AuthIdentifierUtils.h"
 #include "../userPhoneSync/userPhoneSync.h"
+#include "../../../../services/auth/AuthSessionStore.h"
+#include "../../../../services/redis/RedisClient.h"
+#include "../../../../utils/requestUtils/RequestUtils.h"
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "roleTypeUtils/roleTypeUtils.h"
@@ -555,8 +558,10 @@ crow::response userHandler::updatePassword(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT password FROM users "
-                                             "WHERE id = ? AND is_deleted = 0 "
+                                       ->sql("SELECT u.password, t.type "
+                                             "FROM users AS u "
+                                             "JOIN types AS t ON t.id = u.type_id "
+                                             "WHERE u.id = ? AND u.is_deleted = 0 "
                                              "LIMIT 1")
                                        .bind(userId)
                                        .execute();
@@ -567,6 +572,7 @@ crow::response userHandler::updatePassword(const crow::request &req, int userId)
         }
 
         const std::string DBpassword = row[0].isNull() ? "" : row[0].get<std::string>();
+        const std::string roleName = row[1].isNull() ? "" : row[1].get<std::string>();
         bool password_matches = false; // 密码匹配标志
         try
         {
@@ -599,6 +605,11 @@ crow::response userHandler::updatePassword(const crow::request &req, int userId)
             ->sql("UPDATE users SET password = ? WHERE id = ?")
             .bind(hash_password(password), userId)
             .execute();
+
+        if (RoleTypeUtils::isManagementRole(roleName))
+        {
+            AuthSessionStore::bumpSessionVersionForUser(userId);
+        }
 
         return ResponseHelper::success(req, "密码更新成功");
     }
@@ -914,6 +925,19 @@ crow::response userHandler::userLogin(const crow::request &req)
             }
         }
 
+        // 登录失败锁定：用「客户端 IP + 标识符」组合键。避免攻击者拿受害者标识符把对方账号锁死（DoS）——
+        // 只有同一 IP 对同一标识符反复失败才会被锁，受害者从自己 IP 登录不受影响。
+        // 多实例共享；Redis 不可用则整段跳过，绝不阻断登录。
+        const std::string loginIdentifier = !email.empty() ? email : phone;
+        const std::string loginClientIp = RequestUtils::getClientIp(req);
+        const std::string loginFailKey = "auth:login-fail:" + loginClientIp + ":" + loginIdentifier;
+        const std::string loginLockKey = "auth:login-lock:" + loginClientIp + ":" + loginIdentifier;
+        RedisClient &loginRedis = RedisClient::instance();
+        if (loginRedis.enabled() && loginRedis.get(loginLockKey).has_value())
+        {
+            return ResponseHelper::error(req, "尝试次数过多，请稍后再试");
+        }
+
         const auto stripChinaCountryCode = [](const std::string &value)
         {
             return value.rfind("+86", 0) == 0 ? value.substr(3) : value;
@@ -1074,11 +1098,33 @@ crow::response userHandler::userLogin(const crow::request &req)
         nlohmann::json response;
         if (!user || !verify_password_hash(password, user->getPassword()))
         {
+            // 失败计数 + 达阈值锁定（5 次 / 15 分钟；对不存在的标识符同样计数，避免账号枚举）。
+            if (loginRedis.enabled())
+            {
+                std::optional<long long> fails = loginRedis.incr(loginFailKey);
+                if (fails.has_value())
+                {
+                    if (fails.value() == 1)
+                    {
+                        loginRedis.expire(loginFailKey, 900);
+                    }
+                    if (fails.value() >= 5)
+                    {
+                        loginRedis.setEx(loginLockKey, 900, "1");
+                    }
+                }
+            }
             // 不区分用户不存在和密码错误，统一返回相同错误信息
             return ResponseHelper::error(req, "Invalid username or password");
         }
         else
         {
+            // 登录成功：清掉失败计数与锁定。
+            if (loginRedis.enabled())
+            {
+                loginRedis.del(loginFailKey);
+                loginRedis.del(loginLockKey);
+            }
             if (password_hash_needs_upgrade(user->getPassword()))
             {
                 try
@@ -1632,10 +1678,44 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                     return ResponseHelper::validation(req, "宠物不存在或不属于当前用户");
                 }
 
+                // 槽位短锁：现有"查重后插入"在多实例并发 / 双击下可能两笔都查不到、都插入，
+                // 导致同医生同时段被重复预约。这里用 Redis 锁把同一槽位的创建串行化，缩小竞态窗口。
+                // 注意：这是配角，真正的 durable 修复是给 reservations 加"有效预约唯一约束"（见交接说明）。
+                // Redis 不可用时退回原有 DB 查重逻辑，不阻断下单。
+                const std::string slotLockKey =
+                    "reservation:slot:" + std::to_string(doctor_id) + ":" + date + ":" + time_slot;
+                RedisClient &reservationRedis = RedisClient::instance();
+                bool holdsSlotLock = false;
+                if (reservationRedis.enabled())
+                {
+                    auto slotLock = reservationRedis.setNxEx(slotLockKey, 30, "1");
+                    if (slotLock.has_value() && !slotLock.value())
+                    {
+                        // 明确被占用：同槽位另一笔预约正在处理 → 拒绝。
+                        return ResponseHelper::validation(req, "该医生当前时间段已被预约");
+                    }
+                    // Redis 出错(nullopt)→不持锁，继续走下面的 DB 查重 + 唯一约束兜底，不误拒合法预约。
+                    holdsSlotLock = slotLock.value_or(false);
+                }
+                struct SlotLockGuard
+                {
+                    RedisClient &redis;
+                    const std::string &key;
+                    bool &held;
+                    ~SlotLockGuard()
+                    {
+                        if (held)
+                        {
+                            redis.del(key);
+                        }
+                    }
+                } slotLockGuard{reservationRedis, slotLockKey, holdsSlotLock};
+
                 mysqlx::SqlResult slotResult = dbManager->getSession()
                                                    ->sql("SELECT id FROM reservations "
                                                          "WHERE doctor_id = ? AND date = ? AND time_slot = ? "
                                                          "AND COALESCE(status, 'scheduled') NOT IN ('cancelled', 'failed') "
+                                                         "AND is_deleted = 0 "
                                                          "LIMIT 1")
                                                    .bind(doctor_id, date, time_slot)
                                                    .execute();
@@ -1690,6 +1770,13 @@ crow::response userHandler::createReservation(const crow::request &req, int user
             }
             catch (const mysqlx::Error &e)
             {
+                // 命中"有效预约唯一约束"(DB 层 uq_active_slot)的重复键 → 并发竞态的输家。
+                // 这让 DB 唯一约束成为真正的守门人：即便 Redis 槽位锁失效(Redis 不可用或锁过期)，
+                // 并发下也只有一笔 INSERT 成功，另一笔在此被识别为"已被预约"，而不是抛 500。
+                if (std::string(e.what()).find("Duplicate") != std::string::npos)
+                {
+                    return ResponseHelper::validation(req, "该医生当前时间段已被预约");
+                }
                 std::cerr << "Database error: " << e.what() << std::endl;
                 OperationLogger::LogExceptionOperation(dbManager, req, "预约", "创建预约", e.what(), user_id > 0 ? std::optional<int>(user_id) : std::nullopt);
                 return ResponseHelper::database_error(req, "Failed to create reservation", e.what());

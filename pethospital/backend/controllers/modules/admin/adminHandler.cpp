@@ -2,11 +2,42 @@
 #include "../user/userPhoneSync/userPhoneSync.h"
 #include "../../../services/logger/operationLogger.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../../services/redis/RedisClient.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
+#include <functional>
+
 namespace
 {
+    // 读穿透缓存：持续增长的全局 COUNT(*) 用短 TTL 缓存，命中直接返回，
+    // 未命中才查库并回填。Redis 不可用时退化为直接查库（无副作用）。
+    // 计数作为筛选页徽章，几十秒的轻微滞后完全可接受。
+    int cachedCount(const std::string &cacheKey, int ttlSeconds,
+                    const std::function<int()> &compute)
+    {
+        RedisClient &redis = RedisClient::instance();
+        if (redis.enabled())
+        {
+            std::optional<std::string> hit = redis.get(cacheKey);
+            if (hit.has_value())
+            {
+                try
+                {
+                    return std::stoi(hit.value());
+                }
+                catch (...)
+                {
+                    // 缓存值异常：当作未命中，继续查库覆盖。
+                }
+            }
+            int value = compute();
+            redis.setEx(cacheKey, ttlSeconds, std::to_string(value));
+            return value;
+        }
+        return compute();
+    }
+
     std::string getJsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
     {
         return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : fallback;
@@ -103,39 +134,42 @@ int adminHandler::calculateLogsCount()
 
 int adminHandler::calculateUserLogsCount()
 {
-    try
-    {
-        const int userLogsCount = dbManager->getSession()
-                                      ->sql("SELECT COUNT(*) "
-                                            "FROM user_operations ")
-                                      .execute()
-                                      .fetchOne()[0]
-                                      .get<int>();
-        return userLogsCount;
-    }
-    catch (const std::exception &e)
-    {
-        throw std::runtime_error("Failed to get userLogsCount: " + std::string(e.what()));
-    }
+    // 30s 短 TTL 缓存；user_operations 持续增长，COUNT(*) 较重。
+    return cachedCount("count:user_operations", 30, [this]()
+                       {
+        try
+        {
+            return dbManager->getSession()
+                ->sql("SELECT COUNT(*) "
+                      "FROM user_operations ")
+                .execute()
+                .fetchOne()[0]
+                .get<int>();
+        }
+        catch (const std::exception &e)
+        {
+            throw std::runtime_error("Failed to get userLogsCount: " + std::string(e.what()));
+        } });
 }
 
 int adminHandler::calculateSystemLogsCount()
 {
-    try
-    {
-        const int systemLogsCount = dbManager->getSession()
-                                        ->sql("SELECT COUNT(*) "
-                                              "FROM system_operations ")
-                                        .execute()
-                                        .fetchOne()[0]
-                                        .get<int>();
-
-        return systemLogsCount;
-    }
-    catch (const std::exception &e)
-    {
-        throw std::runtime_error("Failed to get systemLogsCount: " + std::string(e.what()));
-    }
+    // 30s 短 TTL 缓存；system_operations 持续增长，COUNT(*) 较重。
+    return cachedCount("count:system_operations", 30, [this]()
+                       {
+        try
+        {
+            return dbManager->getSession()
+                ->sql("SELECT COUNT(*) "
+                      "FROM system_operations ")
+                .execute()
+                .fetchOne()[0]
+                .get<int>();
+        }
+        catch (const std::exception &e)
+        {
+            throw std::runtime_error("Failed to get systemLogsCount: " + std::string(e.what()));
+        } });
 }
 
 nlohmann::json adminHandler::buildHomeData()
@@ -1003,16 +1037,9 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
         // 仅在前端明确请求 includeCounts（通常只在进页面时）才统计。
         if (includeCounts)
         {
-            mysqlx::Row userLogCountRow = dbManager->getSession()
-                                              ->sql("SELECT COUNT(*) FROM user_operations")
-                                              .execute()
-                                              .fetchOne();
-            mysqlx::Row systemLogCountRow = dbManager->getSession()
-                                                ->sql("SELECT COUNT(*) FROM system_operations")
-                                                .execute()
-                                                .fetchOne();
-            data["userLogCount"] = userLogCountRow[0].get<int>();
-            data["systemLogCount"] = systemLogCountRow[0].get<int>();
+            // 复用带短 TTL 缓存的计数函数，避免每次进页面都对持续增长的操作表做 COUNT(*)。
+            data["userLogCount"] = calculateUserLogsCount();
+            data["systemLogCount"] = calculateSystemLogsCount();
         }
 
         return ResponseHelper::success(req, data);

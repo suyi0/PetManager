@@ -6,6 +6,13 @@
 
 #include "../../../controllers/modules/finance/financeHandler.h"
 #include "../../../utils/Utils.h"
+#include "../../redis/RedisClient.h"
+
+namespace
+{
+    // 财务首页变更的跨实例广播频道。
+    constexpr const char *kFinanceHomeChannel = "realtime:finance-home";
+}
 
 // 获取财务端首页实时广播器单例，保证整个服务只维护一个广播线程和连接池。
 FinanceHomeDataBroadcaster &FinanceHomeDataBroadcaster::instance()
@@ -27,11 +34,21 @@ void FinanceHomeDataBroadcaster::start(std::shared_ptr<DatabaseManagerInterface>
 
     broadcast_thread_ = std::thread([this]()
                                     { run(); });
+
+    // 订阅跨实例广播；Redis 未启用时返回 nullptr，退化为单实例本地通知。
+    subscription_ = RedisClient::instance().subscribe(
+        kFinanceHomeChannel, [this](const std::string &) { triggerLocalPush(); });
 }
 
 // 停止广播线程；唤醒等待中的线程后等待其安全退出。
 void FinanceHomeDataBroadcaster::stop()
 {
+    if (subscription_)
+    {
+        subscription_->stop();
+        subscription_.reset();
+    }
+
     running_ = false;
     broadcast_cv_.notify_all();
 
@@ -93,8 +110,19 @@ void FinanceHomeDataBroadcaster::closeAllConnections(const std::string &reason)
     }
 }
 
-// 业务数据发生变化时调用，只唤醒广播线程，不在请求线程里同步查询和推送。
+// 业务数据发生变化时调用。多实例下先发布到 Redis 频道，让所有实例（含本实例）
+// 各自推送给本地连接；单实例或 Redis 不可用时直接触发本地推送。
 void FinanceHomeDataBroadcaster::notifyHomeDataChanged()
+{
+    if (subscription_ && RedisClient::instance().publish(kFinanceHomeChannel, "1"))
+    {
+        return; // 本实例会通过自身订阅收到消息并触发本地推送
+    }
+    triggerLocalPush();
+}
+
+// 仅唤醒本实例广播线程做一次推送，不再发布，避免订阅回环。
+void FinanceHomeDataBroadcaster::triggerLocalPush()
 {
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);

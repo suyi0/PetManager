@@ -164,6 +164,19 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "刷新管理员令牌", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
+    // 登出：开放端点（自己解析 token），管理端登出时服务端吊销——bump session-version 让旧 token 立即失效。
+    CROW_ROUTE(app, "/api/auth/logout")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
+            try {
+                authHandler handler(dbManager);
+                crow::response handlerResponse = handler.logout(req);
+
+                ProcessHandlerResponse(req, res, handlerResponse);
+            } catch (const std::exception& e) {
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            } });
+
     // 添加控制手机号验证码发送路由
     CROW_ROUTE(app, "/api/sms-verification-codes")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)

@@ -1,5 +1,6 @@
 #include "./routes/setRoutes/setRoutes.h"
 #include "../utils/scheduledTaskManager/scheduledTaskManager.h"
+#include "./services/redis/RedisClient.h"
 #ifndef _WIN32
 #include <csignal>
 #include <pthread.h>
@@ -23,6 +24,10 @@ int main(int argc, char *argv[])
     crow::App<CorsMiddleware, RateLimitMiddleware> app;
     
     RateLimitMiddleware::initialize(50, 60);  // 每60s，只能接受50次请求
+
+    // 初始化 Redis 内存中转站（验证码 + 限流的共享存储）。
+    // 非核心依赖：连接失败时自动降级为进程内内存，不阻断启动。
+    RedisClient::instance().init();
 
     // 初始化数据库 - 数据库是核心依赖，连接失败时直接退出，避免后续空会话崩溃
     auto dbManager = DatabaseManager::getInstance();

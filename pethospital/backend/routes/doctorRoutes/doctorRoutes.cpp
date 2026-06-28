@@ -1,6 +1,7 @@
 #include "doctorRoutes.h"
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
+#include "../../services/auth/AuthSessionStore.h"
 
 #include <iostream>
 
@@ -195,6 +196,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
 
             auto claims = JwtUtils::getTokenClaims(tokenParam);
             if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            // 与其它实时通道一致：失效会话不再建立连接（医生为非管理角色时此校验是安全 no-op）。
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
             {
                 return false;
             }

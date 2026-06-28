@@ -142,6 +142,14 @@ export const authApi = {
   },
 
   /**
+   * 登出：通知后端做服务端吊销（管理端会 bump session-version 让旧 token 立即失效）。
+   * 携带当前 Bearer token，后端据此识别用户。
+   */
+  logout() {
+    return http.post("/api/auth/logout");
+  },
+
+  /**
    * 检查邮箱是否已被注册。
    */
   checkEmail(payload: { email: string }) {

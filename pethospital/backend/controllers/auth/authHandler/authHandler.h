@@ -27,6 +27,8 @@ public:
 
     crow::response refreshAdminToken(const crow::request& req);             //  对应 "/api/auth/admin/refresh"
 
+    crow::response logout(const crow::request& req);                       //  对应 "/api/auth/logout"（管理端登出服务端吊销）
+
     // 新增：手机号验证码相关函数
     crow::response sendSmsVerification(const crow::request& req);           // 对应 "/api/verification/sms/send"
     crow::response checkVerifySmsCode(const crow::request& req, int userId = -1);                 // 对应 "/api/verification/sms/verify"

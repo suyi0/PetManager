@@ -1,4 +1,5 @@
 #include "authMiddleware.h"
+#include "../../services/auth/AuthSessionStore.h"
 
 namespace
 {
@@ -38,6 +39,12 @@ namespace
         if (!claims || claims->userId <= 0)
         {
             res = ResponseHelper::unauthorized(req, "Invalid or expired token");
+            return -1;
+        }
+
+        if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+        {
+            res = ResponseHelper::unauthorized(req, "Session expired");
             return -1;
         }
 
@@ -143,6 +150,15 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
             break;
         }
         res = ResponseHelper::unauthorized(req, errorMsg);
+        return -1;
+    }
+
+    // 3.1 会话失效校验：与其它 token 入口一致，补齐"所有 bearer token 入口都校验 session-version"的不变量。
+    // 订单 token 多为非管理角色，此校验通常是 no-op，但管理角色访问订单时同样不会用失效会话。
+    auto orderClaims = JwtUtils::getTokenClaims(token);
+    if (orderClaims && !AuthSessionStore::isSessionCurrent(orderClaims->userId, orderClaims->typeName, orderClaims->sessionVersion))
+    {
+        res = ResponseHelper::unauthorized(req, "Session expired");
         return -1;
     }
 
