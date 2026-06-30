@@ -1,5 +1,5 @@
 #include "warehouseManagerHandler.h"
-#include "../../../services/redis/MedicineRedisCache.h"
+#include "../../../services/redis/medicineRedisCache/MedicineRedisCache.h"
 #include "../../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 
 namespace

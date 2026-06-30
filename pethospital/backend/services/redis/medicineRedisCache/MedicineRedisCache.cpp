@@ -1,6 +1,6 @@
 #include "MedicineRedisCache.h"
 
-#include "RedisClient.h"
+#include "../RedisClient.h"
 
 namespace MedicineRedisCache
 {

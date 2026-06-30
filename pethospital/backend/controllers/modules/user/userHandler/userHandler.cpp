@@ -2,7 +2,9 @@
 #include "../../../../utils/AuthIdentifierUtils.h"
 #include "../userPhoneSync/userPhoneSync.h"
 #include "../../../../services/auth/AuthSessionStore.h"
+#include "../../../../services/auth/AuthLoginFailureStore.h"
 #include "../../../../services/redis/RedisClient.h"
+#include "../../../../services/redis/redisLock/RedisLock.h"
 #include "../../../../utils/requestUtils/RequestUtils.h"
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
@@ -930,10 +932,7 @@ crow::response userHandler::userLogin(const crow::request &req)
         // 多实例共享；Redis 不可用则整段跳过，绝不阻断登录。
         const std::string loginIdentifier = !email.empty() ? email : phone;
         const std::string loginClientIp = RequestUtils::getClientIp(req);
-        const std::string loginFailKey = "auth:login-fail:" + loginClientIp + ":" + loginIdentifier;
-        const std::string loginLockKey = "auth:login-lock:" + loginClientIp + ":" + loginIdentifier;
-        RedisClient &loginRedis = RedisClient::instance();
-        if (loginRedis.enabled() && loginRedis.get(loginLockKey).has_value())
+        if (AuthLoginFailureStore::isLocked(loginClientIp, loginIdentifier))
         {
             return ResponseHelper::error(req, "尝试次数过多，请稍后再试");
         }
@@ -1099,33 +1098,15 @@ crow::response userHandler::userLogin(const crow::request &req)
         nlohmann::json response;
         if (!user || !verify_password_hash(password, user->getPassword()))
         {
-            // 失败计数 + 达阈值锁定（5 次 / 15 分钟；对不存在的标识符同样计数，避免账号枚举）。
-            if (loginRedis.enabled())
-            {
-                std::optional<long long> fails = loginRedis.incr(loginFailKey);
-                if (fails.has_value())
-                {
-                    if (fails.value() == 1)
-                    {
-                        loginRedis.expire(loginFailKey, 900);
-                    }
-                    if (fails.value() >= 5)
-                    {
-                        loginRedis.setEx(loginLockKey, 900, "1");
-                    }
-                }
-            }
+            // 失败计数 + 达阈值锁定（对不存在的标识符同样计数，避免账号枚举）。
+            AuthLoginFailureStore::recordFailure(loginClientIp, loginIdentifier);
             // 不区分用户不存在和密码错误，统一返回相同错误信息
             return ResponseHelper::error(req, "Invalid username or password");
         }
         else
         {
             // 登录成功：清掉失败计数与锁定。
-            if (loginRedis.enabled())
-            {
-                loginRedis.del(loginFailKey);
-                loginRedis.del(loginLockKey);
-            }
+            AuthLoginFailureStore::clearOnSuccess(loginClientIp, loginIdentifier);
             if (password_hash_needs_upgrade(user->getPassword()))
             {
                 try
@@ -1685,32 +1666,18 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                 // Redis 不可用时退回原有 DB 查重逻辑，不阻断下单。
                 const std::string slotLockKey =
                     "reservation:slot:" + std::to_string(doctor_id) + ":" + date + ":" + time_slot;
-                RedisClient &reservationRedis = RedisClient::instance();
-                bool holdsSlotLock = false;
-                if (reservationRedis.enabled())
+                RedisLockGuard slotLock; // token 安全；析构自动释放（仅当仍是自己持有）
+                if (RedisClient::instance().enabled())
                 {
-                    auto slotLock = reservationRedis.setNxEx(slotLockKey, 30, "1");
-                    if (slotLock.has_value() && !slotLock.value())
+                    RedisLock::Result res = RedisLock::tryAcquire(slotLockKey, 30);
+                    if (res.outcome == RedisLock::Outcome::Contended)
                     {
                         // 明确被占用：同槽位另一笔预约正在处理 → 拒绝。
                         return ResponseHelper::validation(req, "该医生当前时间段已被预约");
                     }
-                    // Redis 出错(nullopt)→不持锁，继续走下面的 DB 查重 + 唯一约束兜底，不误拒合法预约。
-                    holdsSlotLock = slotLock.value_or(false);
+                    // Acquired→持锁；Unavailable(Redis 出错)→不持锁，继续走下面的 DB 查重 + 唯一约束兜底，不误拒。
+                    slotLock = std::move(res.guard);
                 }
-                struct SlotLockGuard
-                {
-                    RedisClient &redis;
-                    const std::string &key;
-                    bool &held;
-                    ~SlotLockGuard()
-                    {
-                        if (held)
-                        {
-                            redis.del(key);
-                        }
-                    }
-                } slotLockGuard{reservationRedis, slotLockKey, holdsSlotLock};
 
                 mysqlx::SqlResult slotResult = dbManager->getSession()
                                                    ->sql("SELECT id FROM reservations "

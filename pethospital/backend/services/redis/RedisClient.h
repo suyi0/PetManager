@@ -98,6 +98,9 @@ public:
     //   - false  ：键已存在（锁被别人持有）
     //   - nullopt：Redis 不可用或命令出错（调用方应按"降级"处理，而非误判为被占用）
     std::optional<bool> setNxEx(const std::string &key, int ttlSeconds, const std::string &value);
+    // Lua compare-and-del：仅当 key 当前值 == expectedValue 时才 DEL（token 安全释放锁，
+    // 避免误删"持锁超 TTL 后别人重新拿到的同名锁"）。删除成功返回 true。
+    bool compareAndDel(const std::string &key, const std::string &expectedValue);
 
     // ---- 发布/订阅（WebSocket 跨实例广播） ----
     // 向频道发布一条消息；返回是否成功投递到 Redis。

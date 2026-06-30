@@ -380,7 +380,7 @@ if(BUILD_TESTING)
 
     add_executable(doctor_medicine_cache_tests
         tests/doctor_medicine_cache_tests.cpp
-        services/redis/MedicineRedisCache.cpp
+        services/redis/medicineRedisCache/MedicineRedisCache.cpp
         services/redis/RedisClient.cpp
     )
     if(HIREDIS_FOUND)

@@ -38,11 +38,11 @@ void migratePhones(DatabaseManagerInterface &database_manager)
 
 void migratePets(DatabaseManagerInterface &database_manager)
 {
-    Common::addColumnIfNotExists(database_manager, "pets", "pet_breed", "VARCHAR(255)");
-    Common::addColumnIfNotExists(database_manager, "pets", "pet_neutered", "VARCHAR(255)");
-    Common::addColumnIfNotExists(database_manager, "pets", "vaccine_status", "VARCHAR(255)");
-    Common::addColumnIfNotExists(database_manager, "pets", "preference", "TEXT");
-    Common::addColumnIfNotExists(database_manager, "pets", "notes", "TEXT");
+    Common::addColumnIfNotExists(database_manager, "pets", "pet_breed", "VARCHAR(255) NOT NULL DEFAULT ''");
+    Common::addColumnIfNotExists(database_manager, "pets", "pet_neutered", "VARCHAR(255) NOT NULL DEFAULT ''");
+    Common::addColumnIfNotExists(database_manager, "pets", "vaccine_status", "VARCHAR(255) NOT NULL DEFAULT ''");
+    Common::addColumnIfNotExists(database_manager, "pets", "preference", "TEXT NOT NULL DEFAULT ('')");
+    Common::addColumnIfNotExists(database_manager, "pets", "notes", "TEXT NOT NULL DEFAULT ('')");
 }
 
 void migrateWarehouse(DatabaseManagerInterface &database_manager)
@@ -62,7 +62,7 @@ void migrateWarehouse(DatabaseManagerInterface &database_manager)
                     database_manager,
                     "warehouse",
                     "item_totalprice",
-                    "DECIMAL(18, 2) GENERATED ALWAYS AS (item_price * item_number) STORED"))
+                    "DECIMAL(18, 2) GENERATED ALWAYS AS (item_price * item_number) STORED NOT NULL"))
             {
                 std::cout << "warehouse.item_totalprice generated column added for legacy migration." << std::endl;
             }
@@ -71,7 +71,7 @@ void migrateWarehouse(DatabaseManagerInterface &database_manager)
         {
             session->sql("ALTER TABLE warehouse "
                          "MODIFY COLUMN item_totalprice DECIMAL(18, 2) "
-                         "GENERATED ALWAYS AS (item_price * item_number) STORED")
+                         "GENERATED ALWAYS AS (item_price * item_number) STORED NOT NULL")
                 .execute();
             std::cout << "warehouse.item_totalprice migrated to generated column." << std::endl;
         }
@@ -95,7 +95,7 @@ void migrateOrders(DatabaseManagerInterface &database_manager)
     {
         if (!Common::columnExists(database_manager, "orders", "order_data"))
         {
-            if (Common::addColumnIfNotExists(database_manager, "orders", "order_data", "VARCHAR(255)"))
+            if (Common::addColumnIfNotExists(database_manager, "orders", "order_data", "VARCHAR(255) NOT NULL DEFAULT ''"))
             {
                 std::cout << "orders.order_data added for legacy migration." << std::endl;
             }

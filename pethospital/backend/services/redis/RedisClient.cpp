@@ -443,6 +443,27 @@ std::optional<bool> RedisClient::setNxEx(const std::string &key, int ttlSeconds,
     return result;
 }
 
+bool RedisClient::compareAndDel(const std::string &key, const std::string &expectedValue)
+{
+    redisContext *ctx = acquire();
+    if (!ctx)
+    {
+        return false;
+    }
+    // 仅当当前值等于 expectedValue 时才删除，保证只释放自己持有的锁。
+    static const char *kScript =
+        "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+    redisReply *reply = static_cast<redisReply *>(
+        redisCommand(ctx, "EVAL %s 1 %s %s", kScript, key.c_str(), expectedValue.c_str()));
+    if (!reply)
+    {
+        return false;
+    }
+    bool deleted = (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1);
+    freeReplyObject(reply);
+    return deleted;
+}
+
 bool RedisClient::publish(const std::string &channel, const std::string &message)
 {
     redisContext *ctx = acquire();

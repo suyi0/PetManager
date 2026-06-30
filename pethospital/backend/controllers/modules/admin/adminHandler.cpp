@@ -2,7 +2,7 @@
 #include "../user/userPhoneSync/userPhoneSync.h"
 #include "../../../services/logger/operationLogger.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
-#include "../../../services/redis/RedisClient.h"
+#include "../../../services/redis/redisCountCache/RedisCountCache.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
@@ -10,34 +10,6 @@
 
 namespace
 {
-    // 读穿透缓存：持续增长的全局 COUNT(*) 用短 TTL 缓存，命中直接返回，
-    // 未命中才查库并回填。Redis 不可用时退化为直接查库（无副作用）。
-    // 计数作为筛选页徽章，几十秒的轻微滞后完全可接受。
-    int cachedCount(const std::string &cacheKey, int ttlSeconds,
-                    const std::function<int()> &compute)
-    {
-        RedisClient &redis = RedisClient::instance();
-        if (redis.enabled())
-        {
-            std::optional<std::string> hit = redis.get(cacheKey);
-            if (hit.has_value())
-            {
-                try
-                {
-                    return std::stoi(hit.value());
-                }
-                catch (...)
-                {
-                    // 缓存值异常：当作未命中，继续查库覆盖。
-                }
-            }
-            int value = compute();
-            redis.setEx(cacheKey, ttlSeconds, std::to_string(value));
-            return value;
-        }
-        return compute();
-    }
-
     std::string getJsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
     {
         return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : fallback;
@@ -135,7 +107,7 @@ int adminHandler::calculateLogsCount()
 int adminHandler::calculateUserLogsCount()
 {
     // 30s 短 TTL 缓存；user_operations 持续增长，COUNT(*) 较重。
-    return cachedCount("count:user_operations", 30, [this]()
+    return RedisCountCache::cached("count:user_operations", 30, [this]()
                        {
         try
         {
@@ -155,7 +127,7 @@ int adminHandler::calculateUserLogsCount()
 int adminHandler::calculateSystemLogsCount()
 {
     // 30s 短 TTL 缓存；system_operations 持续增长，COUNT(*) 较重。
-    return cachedCount("count:system_operations", 30, [this]()
+    return RedisCountCache::cached("count:system_operations", 30, [this]()
                        {
         try
         {

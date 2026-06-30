@@ -1,6 +1,7 @@
 #include "scheduledTaskManager.h"
 #include "../roleTypeUtils/roleTypeUtils.h"
 #include "../../services/redis/RedisClient.h"
+#include "../../services/redis/redisLock/RedisLock.h"
 #include <iostream>
 #include <sstream>
 #include <cstdio>
@@ -228,10 +229,10 @@ void ScheduledTaskManager::workerLoop()
                                       local_tm.tm_year + 1900, local_tm.tm_mon + 1,
                                       local_tm.tm_mday, scheduledMinute);
                         // TTL 1 小时：键按时段唯一，TTL 仅用于自动回收，不影响下一时段。
-                        // 三态降级：抢到=执行；明确被占=跳过；Redis 出错(nullopt)→执行（退化单实例，不漏跑任务）。
-                        auto slotLock = RedisClient::instance().setNxEx(
+                        // 占位（不释放，靠 TTL 回收）；三态降级：抢到/出错都执行（出错=退化单实例不漏跑），明确被占=跳过。
+                        RedisLock::Outcome claim = RedisLock::tryClaim(
                             slotKey, 3600, std::to_string(::getpid()));
-                        acquireSlot = slotLock.value_or(true);
+                        acquireSlot = (claim != RedisLock::Outcome::Contended);
                     }
 
                     if (acquireSlot)
