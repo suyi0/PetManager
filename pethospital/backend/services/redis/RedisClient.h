@@ -32,9 +32,12 @@ private:
     std::string host_;
     int port_ = 6379;
     std::string password_;
+    // 代表 Redis 数据库索引，默认为 0。Redis 支持多个逻辑数据库，每个数据库都有一个唯一的索引号。
     int db_ = 0;
     std::function<void(const std::string &)> onMessage_;
 };
+
+
 
 // RedisClient：对 hiredis 的薄封装，作为系统的内存中转站。
 //

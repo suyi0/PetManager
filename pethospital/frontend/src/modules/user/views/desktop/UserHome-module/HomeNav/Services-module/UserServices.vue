@@ -71,6 +71,7 @@
         @close="close"
         @cancle="cancel"
         @submit-success="handleSubmitSuccess"
+        @refresh-doctors="reloadDoctors"
       />
     </section>
 
@@ -79,11 +80,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import treatSlots from "@/modules/user/views/desktop/UserHome-module/HomeNav/Services-module/treatSlots.vue";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 import { ReservationScheduleState, PetProfile } from "@/modules/user/api/types";
 import { petApi, reservationApi } from "@/modules/user/api/userApi";
+import { subscribeReservationDoctors } from "@/modules/user/utils/reservationDoctorStream";
 
 const activeTab = ref("reservation");
 const submitAfter = ref(false);
@@ -108,6 +110,7 @@ const scheduleData = ref<Omit<ReservationScheduleState, "doctorData">>({
   weekday: [],
   slots: [],
 });
+let unsubscribeReservationDoctors: (() => void) | null = null;
 
 const serviceCards: ServiceCard[] = [
   {
@@ -215,6 +218,14 @@ const close = () => {
   activeTab.value = "reservation";
 };
 
+const reloadDoctors = async () => {
+  try {
+    doctorData.value = await reservationApi.getDoctor();
+  } catch {
+    // 忽略刷新失败
+  }
+};
+
 onMounted(async () => {
   const [doctors, schedule, pets] = await Promise.all([
     reservationApi.getDoctor(),
@@ -225,6 +236,14 @@ onMounted(async () => {
   doctorData.value = doctors;
   scheduleData.value = schedule;
   petProfiles.value = pets;
+  unsubscribeReservationDoctors = subscribeReservationDoctors(() => {
+    void reloadDoctors();
+  });
+});
+
+onUnmounted(() => {
+  unsubscribeReservationDoctors?.();
+  unsubscribeReservationDoctors = null;
 });
 </script>
 

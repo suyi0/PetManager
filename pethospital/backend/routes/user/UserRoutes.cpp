@@ -1,5 +1,7 @@
 #include "UserRoutes.h"
 #include "../../services/logger/operationLogger.h"
+#include "../../services/auth/AuthSessionStore.h"
+#include "../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 
 std::unordered_map<std::string, std::chrono::steady_clock::time_point> email_check_last_access;
 
@@ -9,6 +11,44 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     static bool routes_setup = false;
     if (routes_setup)
         return;
+
+    // 用户端预约医生列表实时通道：医生上下班后广播刷新信号，预约页收到后重拉医生列表。
+    CROW_WEBSOCKET_ROUTE(app, "/realtime/users/reservation-doctors")
+        .onaccept([dbManager](const crow::request &req, void **)
+                  {
+            const char *tokenParam = req.url_params.get("token");
+            if (tokenParam == nullptr || std::string(tokenParam).empty())
+            {
+                return false;
+            }
+
+            auto claims = JwtUtils::getTokenClaims(tokenParam);
+            if (!claims || claims->userId <= 0 || !dbManager || !dbManager->getSession())
+            {
+                return false;
+            }
+
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+            {
+                return false;
+            }
+
+            std::string identifier = claims->identifier;
+            return JwtUtils::isUserAuthorizedForUserForm(
+                claims->userId,
+                identifier,
+                claims->isEmailLogin,
+                dbManager); })
+        .onopen([](crow::websocket::connection &conn)
+                {
+            DoctorListBroadcaster::instance().addConnection(&conn); })
+        .onclose([](crow::websocket::connection &conn, const std::string &, uint16_t)
+                 {
+            DoctorListBroadcaster::instance().removeConnection(&conn); })
+        .onerror([](crow::websocket::connection &conn, const std::string &reason)
+                 {
+            std::cerr << "Reservation doctors WebSocket error: " << reason << std::endl;
+            DoctorListBroadcaster::instance().removeConnection(&conn); });
 
     // 添加注册路由
     CROW_ROUTE(app, "/api/users/registrations")

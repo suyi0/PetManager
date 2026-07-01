@@ -11,7 +11,7 @@
           <p>Step 01</p>
           <h3>选择医生</h3>
         </div>
-        <span>先确定接诊医生，再进入下方时段选择。</span>
+        <span>可先选择信任的医生，再查看今天或未来日期的可预约时段。</span>
       </header>
 
       <div v-if="doctorData.length > 0" class="doctor-grid">
@@ -19,10 +19,7 @@
           v-for="doctor in doctorData"
           :key="doctor.id"
           class="doctor-card"
-          :class="{
-            'doctor-card--active': upDoctorId === doctor.id,
-            'doctor-card--disabled': doctor.status !== 'online',
-          }"
+          :class="{ 'doctor-card--active': upDoctorId === doctor.id }"
         >
           <div class="doctor-card__badge">{{ doctor.specialty || "全科" }}</div>
           <div
@@ -35,22 +32,12 @@
             {{ formatDoctorStatus(doctor.status) }}
           </div>
           <strong>{{ doctor.name }}</strong>
-          <span>
-            {{
-              doctor.status === "online"
-                ? "当前医生已在线，可继续选择日期和时段。"
-                : "当前医生已接入预约系统，可继续选择日期和时段。"
-            }}
-          </span>
+          <span>{{ getDoctorChoiceHint(doctor) }}</span>
           <button
             class="doctor-card__action"
-            :disabled="doctor.status !== 'online'"
-            @click="
-              choiceDoctor(doctor);
-              props.switchTab('showSlots');
-            "
+            @click="chooseDoctorAndContinue(doctor)"
           >
-            {{ doctor.status === "online" ? "选择该医生" : "当前不可预约" }}
+            选择该医生
           </button>
         </article>
       </div>
@@ -59,6 +46,12 @@
         <strong>暂时没有可预约医生</strong>
         <span>医生排班还未同步完成，请稍后再试。</span>
       </div>
+
+      <footer class="reservation-actions">
+        <button class="reservation-actions__ghost" @click="close">
+          返回服务
+        </button>
+      </footer>
     </section>
 
     <section
@@ -70,9 +63,7 @@
           <p>Step 02</p>
           <h3>选择预约时间</h3>
         </div>
-        <span>
-          当前医生：{{ selectedDoctorName }}，请选择日期和一个可用时段后提交。
-        </span>
+        <span> 当前医生：{{ selectedDoctorName }}，请选择日期和时段。 </span>
       </header>
 
       <div v-if="availableDates.length > 0" class="date-grid">
@@ -93,6 +84,10 @@
         <span>预约日期还未生成，请稍后刷新或联系前台。</span>
       </div>
 
+      <p v-if="selectedDoctorTodayOffline" class="reservation-warning">
+        该医生今日未上班，请选择未来日期，或改选今日在线医生。
+      </p>
+
       <div v-if="selectedDate" class="slots-panel">
         <section class="slot-group">
           <div class="slot-group__header">
@@ -105,7 +100,7 @@
               :key="slot.key"
               class="slot-button"
               :class="{ 'slot-button--active': choiceActive === slot.key }"
-              :disabled="!slot.value"
+              :disabled="!slot.value || selectedDoctorTodayOffline"
               @click="switchChoice(slot.key)"
             >
               {{ slot.value || "暂无时段" }}
@@ -124,7 +119,7 @@
               :key="slot.key"
               class="slot-button"
               :class="{ 'slot-button--active': choiceActive === slot.key }"
-              :disabled="!slot.value"
+              :disabled="!slot.value || selectedDoctorTodayOffline"
               @click="switchChoice(slot.key)"
             >
               {{ slot.value || "暂无时段" }}
@@ -240,6 +235,7 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 import { ReservationScheduleState, PetProfile } from "@/modules/user/api/types";
+import { getHttpErrorMessage } from "@/api/httpError";
 
 const store = useStore(storeKey);
 
@@ -252,7 +248,12 @@ const props = defineProps<{
   switchTab(_tab: string): void;
 }>();
 
-const emit = defineEmits(["close", "cancle", "submit-success"]);
+const emit = defineEmits([
+  "close",
+  "cancle",
+  "submit-success",
+  "refresh-doctors",
+]);
 
 interface Doctor {
   id: number;
@@ -342,6 +343,28 @@ const selectedDate = computed(
   () => availableDates.value.find((item) => item.key === dateTab.value) || null
 );
 
+const selectedDateIso = computed(() => {
+  if (!selectedDate.value) return "";
+  return [
+    selectedDate.value.year,
+    selectedDate.value.month.padStart(2, "0"),
+    selectedDate.value.day.padStart(2, "0"),
+  ].join("-");
+});
+
+const todayIso = computed(() => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+});
+
+const isSelectedDateToday = computed(
+  () =>
+    Boolean(selectedDateIso.value) && selectedDateIso.value === todayIso.value
+);
+
 /**
  * 获取时间段的开始时间
  * @param slot 时间段字符串，格式示例："9:00-9:30"
@@ -389,12 +412,14 @@ const selectedAfternoonDate = computed(() => {
 /**
  * 获取当前选中的医生名称
  */
-const selectedDoctorName = computed(() => {
-  const target = doctorData.value.find(
-    (doctor) => doctor.id === upDoctorId.value
-  );
-  return target?.name || "未选择";
-});
+const selectedDoctor = computed(
+  () =>
+    doctorData.value.find((doctor) => doctor.id === upDoctorId.value) || null
+);
+
+const selectedDoctorName = computed(
+  () => selectedDoctor.value?.name || "未选择"
+);
 
 /**
  * 获取当前选中的服务类型
@@ -475,9 +500,34 @@ const canSubmit = computed(() =>
     upDoctorId.value &&
       selectedDate.value &&
       selectedPetId.value &&
-      getChosenSlotValue()
+      getChosenSlotValue() &&
+      selectedDoctorCanBook.value
   )
 );
+
+const canChooseDoctor = (doctor: Doctor) => {
+  if (!selectedDate.value) return false;
+  if (!isSelectedDateToday.value) return true;
+  return doctor.status === "online";
+};
+
+const selectedDoctorCanBook = computed(() => {
+  return selectedDoctor.value ? canChooseDoctor(selectedDoctor.value) : false;
+});
+
+const selectedDoctorTodayOffline = computed(() =>
+  Boolean(
+    selectedDoctor.value &&
+      isSelectedDateToday.value &&
+      selectedDoctor.value.status !== "online"
+  )
+);
+
+const getDoctorChoiceHint = (doctor: Doctor) => {
+  return doctor.status === "online"
+    ? "今日在线，可预约今天或未来时段。"
+    : "今日未上线，仍可继续选择未来日期。";
+};
 
 function close() {
   emit("close");
@@ -492,6 +542,11 @@ function choiceDoctor(doctor: Doctor) {
   if (!selectedPetId.value && petProfiles.value.length > 0) {
     selectedPetId.value = petProfiles.value[0].id;
   }
+}
+
+function chooseDoctorAndContinue(doctor: Doctor) {
+  choiceDoctor(doctor);
+  props.switchTab("showSlots");
 }
 
 function switchDate(tab: string) {
@@ -513,6 +568,7 @@ function getChosenSlotValue() {
 }
 
 async function selectPet() {
+  if (!selectedDoctorCanBook.value || !getChosenSlotValue()) return;
   openSelectPetModal.value = true;
 }
 
@@ -560,8 +616,12 @@ async function submit() {
         slot: upSlot.value,
       });
     }
-  } catch {
-    window.alert("预约提交失败，请稍后重试");
+  } catch (error) {
+    // 后端下单校验（如医生已下班/不可预约）返回 400。用项目统一的 getHttpErrorMessage 取出
+    // 归一化后的后端提示（AppHttpError.message）告诉用户"为什么"，并让父组件重拉医生列表刷新在线状态，
+    // 避免"看到在线→提交被拒→只得到一句笼统失败"的糟体验。
+    window.alert(getHttpErrorMessage(error, "预约提交失败，请稍后重试"));
+    emit("refresh-doctors");
   }
 }
 
@@ -687,10 +747,6 @@ watch(
   );
 }
 
-.doctor-card--disabled {
-  opacity: 0.74;
-}
-
 .doctor-card strong,
 .empty-state strong,
 .slot-group h4,
@@ -771,6 +827,17 @@ watch(
     rgba(56, 178, 163, 0.24),
     rgba(255, 217, 176, 0.18)
   );
+}
+
+.reservation-warning {
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(220, 104, 44, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 232, 214, 0.58);
+  color: #9a4d1f;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .slots-panel {

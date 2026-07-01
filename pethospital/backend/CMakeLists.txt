@@ -387,6 +387,17 @@ if(BUILD_TESTING)
         target_link_libraries(doctor_medicine_cache_tests ${HIREDIS_LIBRARIES})
     endif()
     add_test(NAME doctor_medicine_cache_tests COMMAND doctor_medicine_cache_tests)
+
+    add_executable(doctor_list_cache_tests
+        tests/doctor_list_cache_tests.cpp
+        services/redis/doctorListCache/DoctorListCache.cpp
+        services/redis/redisJsonCache/RedisJsonCache.cpp
+        services/redis/RedisClient.cpp
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(doctor_list_cache_tests ${HIREDIS_LIBRARIES})
+    endif()
+    add_test(NAME doctor_list_cache_tests COMMAND doctor_list_cache_tests)
 endif()
 
 # 如果是header-only的system库，添加编译定义

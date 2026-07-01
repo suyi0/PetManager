@@ -2,7 +2,9 @@
 #include "../user/userPhoneSync/userPhoneSync.h"
 #include "../../../services/logger/operationLogger.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../../services/redis/redisCountCache/RedisCountCache.h"
+#include "../../../services/redis/doctorListCache/DoctorListCache.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
@@ -731,6 +733,8 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
             }
 
             AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
+            DoctorListCache::invalidateDoctorList();
+            DoctorListBroadcaster::instance().notifyDoctorListChanged();
             return ResponseHelper::success(req, "更新成功");
         }
 
@@ -746,6 +750,8 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
                     .execute();
 
                 AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
+                DoctorListCache::invalidateDoctorList();
+                DoctorListBroadcaster::instance().notifyDoctorListChanged();
                 return ResponseHelper::success(req, "更新成功");
             }
 
@@ -770,6 +776,8 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
             }
 
             AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
+            DoctorListCache::invalidateDoctorList();
+            DoctorListBroadcaster::instance().notifyDoctorListChanged();
             return ResponseHelper::success(req, "更新成功");
         }
 

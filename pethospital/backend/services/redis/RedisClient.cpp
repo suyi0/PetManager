@@ -147,6 +147,7 @@ redisContext *RedisClient::acquire()
     tv.tv_sec = timeoutMs_ / 1000;
     tv.tv_usec = (timeoutMs_ % 1000) * 1000;
 
+    // 创建连接
     redisContext *ctx = redisConnectWithTimeout(host_.c_str(), port_, tv);
     if (!ctx || ctx->err)
     {
@@ -156,6 +157,7 @@ redisContext *RedisClient::acquire()
         }
         return nullptr;
     }
+    // 设置超时
     redisSetTimeout(ctx, tv);
 
     // 鉴权 + 选库；任一失败则放弃该连接。

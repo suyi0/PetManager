@@ -5,9 +5,11 @@
 #include "../../../../services/auth/AuthLoginFailureStore.h"
 #include "../../../../services/redis/RedisClient.h"
 #include "../../../../services/redis/redisLock/RedisLock.h"
+#include "../../../../services/redis/doctorListCache/DoctorListCache.h"
 #include "../../../../utils/requestUtils/RequestUtils.h"
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
+#include "../../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include <vector>
@@ -81,6 +83,15 @@ namespace
         target["lastName"] = nameParts["lastName"];
         target["middleName"] = nameParts["middleName"];
         target["firstName"] = nameParts["firstName"];
+    }
+
+    void notifyDoctorListChangedIfDoctor(const std::string &roleName)
+    {
+        if (roleName == "医生")
+        {
+            DoctorListCache::invalidateDoctorList();
+            DoctorListBroadcaster::instance().notifyDoctorListChanged();
+        }
     }
 
 }
@@ -452,8 +463,10 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT name, CAST(birthday AS CHAR), head_image "
-                                             "FROM users WHERE id = ? "
+                                       ->sql("SELECT u.name, CAST(u.birthday AS CHAR), u.head_image, t.type "
+                                             "FROM users AS u "
+                                             "JOIN types AS t ON t.id = u.type_id "
+                                             "WHERE u.id = ? "
                                              "LIMIT 1")
                                        .bind(userId)
                                        .execute();
@@ -467,6 +480,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         const std::string DBname = row[0].isNull() ? "" : row[0].get<std::string>();
         const std::string DBbirthday = row[1].isNull() ? "1970-01-01" : row[1].get<std::string>();
         const std::string DBhead_image = row[2].isNull() ? "" : row[2].get<std::string>();
+        const std::string roleName = row[3].isNull() ? "" : row[3].get<std::string>();
 
         std::string name = getRequestStringWithFallback(request_body, "name", "name", DBname);
         std::string birthday = normalizeBirthday(getRequestStringWithFallback(request_body, "birthday", "birthady", DBbirthday));
@@ -516,6 +530,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
                 .bind(name, birthday, head_image, userId)
                 .execute();
             session->sql("COMMIT").execute();
+            notifyDoctorListChangedIfDoctor(roleName);
         }
         catch (const mysqlx::Error &e)
         {
@@ -725,6 +740,7 @@ crow::response userHandler::updateEmail(const crow::request &req, int userId)
             type,
             email,
             true);
+        notifyDoctorListChangedIfDoctor(type);
         return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)
@@ -836,6 +852,7 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
             type,
             phone,
             false);
+        notifyDoctorListChangedIfDoctor(type);
         return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)
@@ -1660,6 +1677,34 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                     return ResponseHelper::validation(req, "宠物不存在或不属于当前用户");
                 }
 
+                // 下单时从 DB 校验医生：必须是未删除的医生角色；且**当预约的是今天**时，医生须在岗(online)。
+                // 这才是真正的守门人——不依赖前端显示是否新鲜；医生下班后即便列表还旧，当天预约这里也会拒掉。
+                // 注意：系统支持预约未来 7 天，而 onlineDoctors 是"当日签到"概念，未来日期本就没有行；
+                // 所以 online 只对当天预约要求，未来日期只校验"是合法医生"，否则会误拒全部未来预约。
+                const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
+                if (doctorRoleId <= 0)
+                {
+                    return ResponseHelper::system_error(req, "医生角色不存在");
+                }
+                mysqlx::SqlResult doctorResult = dbManager->getSession()
+                                                     ->sql("SELECT COALESCE(od.status, 'offline') "
+                                                           "FROM users AS u "
+                                                           "LEFT JOIN onlineDoctors AS od "
+                                                           "ON od.doctor_id = u.id AND od.date = ? "
+                                                           "WHERE u.id = ? AND u.type_id = ? AND u.is_deleted = 0 "
+                                                           "LIMIT 1")
+                                                     .bind(date, doctor_id, doctorRoleId)
+                                                     .execute();
+                auto doctorRow = doctorResult.fetchOne();
+                if (!doctorRow)
+                {
+                    return ResponseHelper::validation(req, "医生不存在或不可预约");
+                }
+                if (date == getTodayDate() && doctorRow[0].get<std::string>() != "online")
+                {
+                    return ResponseHelper::validation(req, "该医生当前不在岗，暂不可预约");
+                }
+
                 // 槽位短锁：现有"查重后插入"在多实例并发 / 双击下可能两笔都查不到、都插入，
                 // 导致同医生同时段被重复预约。这里用 Redis 锁把同一槽位的创建串行化，缩小竞态窗口。
                 // 注意：这是配角，真正的 durable 修复是给 reservations 加"有效预约唯一约束"（见交接说明）。
@@ -1790,22 +1835,27 @@ crow::response userHandler::getDoctorList(const crow::request &req)
 
         const std::string todayDate = getTodayDate();
 
-        mysqlx::RowResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, u.name, p.phone, u.email, u.user_specialty, "
-                                             "COALESCE(od.status, 'offline') "
-                                             "FROM users AS u "
-                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
-                                             "LEFT JOIN onlineDoctors AS od "
-                                             "ON od.doctor_id = u.id AND od.date = ? "
-                                             "WHERE u.type_id = ? AND u.is_deleted = 0")
-                                       .bind(todayDate, doctorRoleId)
-                                       .execute();
+        nlohmann::json doctorList = DoctorListCache::cachedDoctorList(
+            todayDate, [this, &todayDate, doctorRoleId]()
+            {
+                mysqlx::RowResult result = dbManager->getSession()
+                                               ->sql("SELECT u.id, u.name, p.phone, u.email, u.user_specialty, "
+                                                     "COALESCE(od.status, 'offline') "
+                                                     "FROM users AS u "
+                                                     "LEFT JOIN phones AS p ON p.user_id = u.id "
+                                                     "LEFT JOIN onlineDoctors AS od "
+                                                     "ON od.doctor_id = u.id AND od.date = ? "
+                                                     "WHERE u.type_id = ? AND u.is_deleted = 0")
+                                               .bind(todayDate, doctorRoleId)
+                                               .execute();
 
-        nlohmann::json doctorList = nlohmann::json::array();
-        for (const auto &row : result)
-        {
-            doctorList.push_back(buildDoctorJson(row));
-        }
+                nlohmann::json list = nlohmann::json::array();
+                for (const auto &row : result)
+                {
+                    list.push_back(buildDoctorJson(row));
+                }
+                return list;
+            });
 
         return ResponseHelper::success(req, doctorList);
     }

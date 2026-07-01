@@ -3,7 +3,9 @@
 #include "../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include "../../../services/redis/medicineRedisCache/MedicineRedisCache.h"
+#include "../../../services/redis/doctorListCache/DoctorListCache.h"
 #include "../../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
+#include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
 #include <unordered_map>
@@ -771,7 +773,7 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
             return ResponseHelper::error(req, "未配置签到时间，请先联系管理员设置");
         }
 
-        check_in_time_end = work_time_row[1].get<std::string>();
+        check_in_time_end = work_time_row[0].get<std::string>();
 
         if (time >= check_in_time_end)
         {
@@ -811,6 +813,8 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
             }
 
             AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
+            DoctorListCache::invalidateDoctorList();
+            DoctorListBroadcaster::instance().notifyDoctorListChanged();
             return ResponseHelper::success(req, "签到成功!");
         }
     }
@@ -871,14 +875,18 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
             // 检查是否更新了记录
             if (result.getAffectedItemsCount() > 0)
             {
-                mysqlx::SqlResult workTime_row = dbManager->getSession()
+                mysqlx::SqlResult onlineDoctorResult = dbManager->getSession()
                                                      ->sql("SELECT doctor_id, date, check_in_time, check_out_time "
-                                                           "FROM workTimeLogs "
+                                                           "FROM onlineDoctors "
                                                            "WHERE doctor_id = ? AND date = ?")
                                                      .bind(userId, date)
                                                      .execute();
 
-                auto row = workTime_row.fetchOne();
+                auto row = onlineDoctorResult.fetchOne();
+                if (!row)
+                {
+                    return ResponseHelper::system_error(req, "签退后读取值班记录失败");
+                }
                 const int doctorId = row[0].isNull() ? 0 : row[0].get<int>();
                 const std::string workTime_date = row[1].isNull() ? "" : row[1].get<std::string>();
                 const std::string checkInTime = row[2].isNull() ? "" : row[2].get<std::string>();
@@ -908,6 +916,8 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
                                                             .execute();
 
                 AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
+                DoctorListCache::invalidateDoctorList();
+                DoctorListBroadcaster::instance().notifyDoctorListChanged();
                 return ResponseHelper::success(req, "签退成功!");
             }
             else

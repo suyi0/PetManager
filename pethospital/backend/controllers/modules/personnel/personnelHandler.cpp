@@ -1,6 +1,8 @@
 #include "personnelHandler.h"
 #include "../user/userPhoneSync/userPhoneSync.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
+#include "../../../services/redis/doctorListCache/DoctorListCache.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 crow::response personnelHandler::createUser(const crow::request &req)
@@ -246,6 +248,8 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
             }
 
             session->sql("COMMIT").execute();
+            DoctorListCache::invalidateDoctorList();
+            DoctorListBroadcaster::instance().notifyDoctorListChanged();
         }
         catch (...)
         {
@@ -295,6 +299,9 @@ crow::response personnelHandler::deleteDoctor(const crow::request &req)
         {
             return ResponseHelper::notFound(req);
         }
+
+        DoctorListCache::invalidateDoctorList();
+        DoctorListBroadcaster::instance().notifyDoctorListChanged();
 
         return ResponseHelper::success(req, "删除权限成功");
     }
@@ -389,4 +396,3 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
         return ResponseHelper::system_error(req, e.what());
     }
 }
-
