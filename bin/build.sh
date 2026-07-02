@@ -18,7 +18,7 @@ if [ ! -x "${CMAKE_BIN}" ]; then
 fi
 
 echo "Configuring backend with CMake..."
-"${CMAKE_BIN}" -S "${BACKEND_DIR}" -B "${BUILD_DIR}"
+"${CMAKE_BIN}" -S "${BACKEND_DIR}" -B "${BUILD_DIR}" -DBUILD_TESTING=OFF
 
 echo "Building backend..."
 "${CMAKE_BIN}" --build "${BUILD_DIR}" -j4

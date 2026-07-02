@@ -4,6 +4,7 @@
 #include "../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+#include "../../services/redis/RedisClient.h"
 #include "../../utils/staticFileHandler.h"
 
 #ifdef _WIN32
@@ -200,6 +201,37 @@ void WebSocketServer::setupRoutes()
 
     // 注册总裁端路由
     bossRoutes::setupBossRoutes(*app_ptr_, DatabaseManager::getInstance());
+
+    // 健康检查（LB/运维探活）。DB 不可用 → 503；
+    // Redis 不可用只降级不失败（全站 Redis 路径均有回退），报 degraded 供告警。
+    CROW_ROUTE((*app_ptr_), "/health")
+    ([]() {
+        bool dbUp = false;
+        try
+        {
+            auto dbManager = DatabaseManager::getInstance();
+            auto *session = dbManager ? dbManager->getSession() : nullptr;
+            if (session)
+            {
+                session->sql("SELECT 1").execute();
+                dbUp = true;
+            }
+        }
+        catch (const std::exception &)
+        {
+            dbUp = false;
+        }
+
+        auto &redis = RedisClient::instance();
+        const std::string redisState = !redis.enabled() ? "disabled"
+                                                        : (redis.ping() ? "up" : "down");
+
+        crow::json::wvalue body;
+        body["status"] = !dbUp ? "unavailable" : (redisState == "down" ? "degraded" : "ok");
+        body["db"] = dbUp ? "up" : "down";
+        body["redis"] = redisState;
+        return crow::response(dbUp ? 200 : 503, body);
+    });
 
     const auto frontendDistPath = getFrontendDistPath();
     CROW_ROUTE((*app_ptr_), "/")

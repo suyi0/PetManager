@@ -1,6 +1,7 @@
 #include "searchCommonHandler.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
+#include "visibilityFilter/VisibilityFilter.h"
 
 namespace
 {
@@ -161,19 +162,19 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
         const std::string orderStatusKeywordLike = "%" + StatusLabelUtils::toDbOrderStatus(searchByKeyword) + "%";
         const std::string reservationStatusKeywordLike = "%" + StatusLabelUtils::toDbReservationStatus(searchByKeyword) + "%";
         std::string sql = "";
+        const VisibilityFilter::Clause filter =
+            VisibilityFilter::build(isBoss, isMedicalStaff,
+                                    searchType == "reservations" ? "r" : "o",
+                                    searchType == "reservations" ? "user_id" : "owner_id",
+                                    /*alwaysExcludeSoftDeleted=*/true);
         if (searchType == "orders")
         {
-            const std::string filterSql = isBoss
-                                              ? "WHERE o.is_deleted = 0 "
-                                          : isMedicalStaff ? "WHERE o.doctor_id = ? AND o.is_deleted = 0 "
-                                                           : "WHERE o.owner_id = ? AND o.is_deleted = 0 ";
-
             sql = "SELECT o.id, p.pet_name, COALESCE(d.name, ''), o.order_type, "
                   "COALESCE(o.order_data, ''), COALESCE(o.order_status, 'pending_payment'), COALESCE(o.order_totalprice, 0.0) "
                   "FROM orders AS o "
                   "LEFT JOIN pets AS p ON o.pet_id = p.id "
                   "LEFT JOIN users AS d ON o.doctor_id = d.id " +
-                  filterSql +
+                  filter.whereSql +
                   "AND (COALESCE(p.pet_name, '') LIKE ? "
                   "OR COALESCE(d.name, '') LIKE ? "
                   "OR COALESCE(o.order_type, '') LIKE ? "
@@ -184,18 +185,13 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
         }
         else if (searchType == "reservations")
         {
-            const std::string filterSql = isBoss
-                                              ? "WHERE r.is_deleted = 0 "
-                                          : isMedicalStaff ? "WHERE r.doctor_id = ? AND r.is_deleted = 0 "
-                                                           : "WHERE r.user_id = ? AND r.is_deleted = 0 ";
-
             sql = "SELECT r.id, COALESCE(p.pet_name, ''), COALESCE(d.name, ''), "
                   "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), "
                   "COALESCE(r.reservation_type, ''), COALESCE(r.status, '') "
                   "FROM reservations AS r "
                   "LEFT JOIN pets AS p ON r.pet_id = p.id "
                   "LEFT JOIN users AS d ON r.doctor_id = d.id " +
-                  filterSql +
+                  filter.whereSql +
                   "AND (COALESCE(p.pet_name, '') LIKE ? "
                   "OR COALESCE(d.name, '') LIKE ? "
                   "OR CAST(r.date AS CHAR) LIKE ? "
@@ -211,7 +207,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
         }
 
         auto query = dbManager->getSession()->sql(sql);
-        if ((searchType == "orders" || searchType == "reservations") && !isBoss)
+        if (filter.bindsUserId)
         {
             query.bind(userId);
         }

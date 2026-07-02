@@ -61,6 +61,9 @@ public:
     // Redis 是否被启用且初始探测通过。调用方据此决定是否走 Redis 路径。
     bool enabled() const { return enabled_; }
 
+    // PING：实时连通性探测（健康检查用）。返回 true 表示当前连接可用。
+    bool ping();
+
     // ---- 键值（验证码） ----
     // SET：写入不带过期时间的字符串。成功返回 true。
     bool set(const std::string &key, const std::string &value);

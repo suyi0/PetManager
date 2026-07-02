@@ -3,6 +3,7 @@
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../../services/redis/doctorListCache/DoctorListCache.h"
+#include "../../../services/redis/userRoleCache/UserRoleCache.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 crow::response personnelHandler::createUser(const crow::request &req)
@@ -248,6 +249,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
             }
 
             session->sql("COMMIT").execute();
+            UserRoleCache::invalidate(userId);
             DoctorListCache::invalidateDoctorList();
             DoctorListBroadcaster::instance().notifyDoctorListChanged();
         }
@@ -300,6 +302,7 @@ crow::response personnelHandler::deleteDoctor(const crow::request &req)
             return ResponseHelper::notFound(req);
         }
 
+        UserRoleCache::invalidate(userId);
         DoctorListCache::invalidateDoctorList();
         DoctorListBroadcaster::instance().notifyDoctorListChanged();
 
@@ -346,6 +349,7 @@ crow::response personnelHandler::createWarehouserManager(const crow::request &re
             return ResponseHelper::notFound(req);
         }
 
+        UserRoleCache::invalidate(userId);
         return ResponseHelper::success(req, "给予权限成功");
     }
     catch (const std::exception &e)
@@ -389,6 +393,7 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
             return ResponseHelper::notFound(req);
         }
 
+        UserRoleCache::invalidate(userId);
         return ResponseHelper::success(req, "删除权限成功");
     }
     catch (const std::exception &e)

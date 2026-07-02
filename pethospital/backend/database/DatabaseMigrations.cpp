@@ -528,6 +528,7 @@ namespace DatabaseMigrations
         {
             std::cout << "reservations table is exists." << std::endl;
             ForeignKeys::migrateReservations(dbManager);
+            Columns::migrateReservations(dbManager);
         }
         else
         {

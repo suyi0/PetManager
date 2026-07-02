@@ -1,6 +1,7 @@
 #include "orderCommonHandler.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
+#include "visibilityFilter/VisibilityFilter.h"
 
 crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int &userId)
 {
@@ -14,20 +15,18 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
         const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
         const bool isBoss = RoleTypeUtils::isBossRole(roleName);
         const bool isMedicalStaff = RoleTypeUtils::isMedicalStaffRole(roleName);
-        const std::string filterSql = isBoss
-                                          ? ""
-                                      : isMedicalStaff ? "WHERE o.doctor_id = ? "
-                                                       : "WHERE o.owner_id = ? AND o.is_deleted = 0 ";
+        const VisibilityFilter::Clause filter =
+            VisibilityFilter::build(isBoss, isMedicalStaff, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
 
         const std::string sql = "SELECT o.id, p.pet_name, COALESCE(d.name, ''), o.order_type, "
                                 "o.order_data, o.order_status, o.order_totalprice "
                                 "FROM orders as o "
                                 "JOIN pets as p ON o.pet_id = p.id "
                                 "LEFT JOIN users as d ON o.doctor_id = d.id " +
-                                filterSql;
+                                filter.whereSql;
 
         auto query = dbManager->getSession()->sql(sql);
-        if (!isBoss)
+        if (filter.bindsUserId)
         {
             query.bind(userId);
         }

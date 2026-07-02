@@ -222,6 +222,24 @@ bool RedisClient::setEx(const std::string &key, int ttlSeconds, const std::strin
     return ok;
 }
 
+bool RedisClient::ping()
+{
+    redisContext *ctx = acquire();
+    if (!ctx)
+    {
+        return false;
+    }
+    redisReply *reply = static_cast<redisReply *>(redisCommand(ctx, "PING"));
+    if (!reply)
+    {
+        return false;
+    }
+    // NOAUTH/WRONGPASS 等错误也是非空回复，必须校验回复类型（见 init() 的教训）。
+    bool ok = (reply->type == REDIS_REPLY_STATUS);
+    freeReplyObject(reply);
+    return ok;
+}
+
 bool RedisClient::set(const std::string &key, const std::string &value)
 {
     redisContext *ctx = acquire();

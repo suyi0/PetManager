@@ -1,6 +1,7 @@
 #include "reservationCommonHandler.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
+#include "visibilityFilter/VisibilityFilter.h"
 
 crow::response reservationCommonHandler::getReservationSummary(const crow::request &req, int userId)
 {
@@ -15,10 +16,8 @@ crow::response reservationCommonHandler::getReservationSummary(const crow::reque
         const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
         const bool isBoss = RoleTypeUtils::isBossRole(roleName);
         const bool isMedicalStaff = RoleTypeUtils::isMedicalStaffRole(roleName);
-        const std::string filterSql = isBoss
-                                          ? ""
-                                      : isMedicalStaff ? "WHERE r.doctor_id = ? "
-                                                       : "WHERE r.user_id = ? AND r.is_deleted = 0 ";
+        const VisibilityFilter::Clause filter =
+            VisibilityFilter::build(isBoss, isMedicalStaff, "r", "user_id", /*alwaysExcludeSoftDeleted=*/true);
 
         const std::string sql = "SELECT r.id, p.pet_name, d.name, "
                                 "CAST(r.date AS CHAR), COALESCE(r.time_slot, ''), "
@@ -26,10 +25,10 @@ crow::response reservationCommonHandler::getReservationSummary(const crow::reque
                                 "FROM reservations AS r "
                                 "LEFT JOIN pets AS p ON p.id = r.pet_id "
                                 "LEFT JOIN users AS d ON d.id = r.doctor_id " +
-                                filterSql;
+                                filter.whereSql;
 
         auto query = dbManager->getSession()->sql(sql);
-        if (!isBoss)
+        if (filter.bindsUserId)
         {
             query.bind(userId);
         }

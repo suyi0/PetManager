@@ -2,6 +2,7 @@
 
 #include "migrations/common/MigrationCommon.h"
 
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -79,6 +80,56 @@ void migrateWarehouse(DatabaseManagerInterface &database_manager)
     catch (const std::exception &e)
     {
         std::cout << "warehouse.item_totalprice migration skipped: " << e.what() << std::endl;
+    }
+}
+
+void migrateReservations(DatabaseManagerInterface &database_manager)
+{
+    // 与 CREATE TABLE 中的定义保持一致；必须用 VIRTUAL，STORED 会触发整表重建并与具名外键撞名(ERROR 1215)。
+    Common::addColumnIfNotExists(
+        database_manager,
+        "reservations",
+        "active_slot_key",
+        "VARCHAR(80) GENERATED ALWAYS AS ("
+        "CASE WHEN COALESCE(status,'scheduled') NOT IN ('cancelled','failed') "
+        "AND is_deleted = 0 AND date IS NOT NULL AND time_slot IS NOT NULL "
+        "THEN CONCAT(doctor_id, '|', date, '|', time_slot) ELSE NULL END) VIRTUAL");
+
+    try
+    {
+        if (Common::indexExists(database_manager, "reservations", "uq_active_slot"))
+        {
+            std::cout << "Index 'uq_active_slot' already exists on table 'reservations'" << std::endl;
+            return;
+        }
+
+        auto *session = database_manager.getSession();
+
+        // 存量数据若已有同医生同日同时段的多笔有效预约，直接建唯一索引会失败；
+        // 先探测并明确报出来，交由人工处理，不让迁移在启动期报错中断。
+        auto dupResult = session->sql(
+                                    "SELECT COUNT(*) FROM ("
+                                    "SELECT doctor_id FROM reservations "
+                                    "WHERE COALESCE(status,'scheduled') NOT IN ('cancelled','failed') "
+                                    "AND is_deleted = 0 AND date IS NOT NULL AND time_slot IS NOT NULL "
+                                    "GROUP BY doctor_id, date, time_slot HAVING COUNT(*) > 1"
+                                    ") AS dup")
+                             .execute();
+        auto dupRow = dupResult.fetchOne();
+        const std::int64_t duplicateSlots = dupRow ? dupRow[0].get<std::int64_t>() : 0;
+        if (duplicateSlots > 0)
+        {
+            std::cerr << "Skipping unique index 'uq_active_slot': found " << duplicateSlots
+                      << " duplicated active reservation slot(s). Resolve duplicates manually, then restart." << std::endl;
+            return;
+        }
+
+        session->sql("ALTER TABLE reservations ADD UNIQUE INDEX uq_active_slot (active_slot_key)").execute();
+        std::cout << "Added unique index 'uq_active_slot' to table 'reservations'" << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "reservations.uq_active_slot migration skipped: " << e.what() << std::endl;
     }
 }
 

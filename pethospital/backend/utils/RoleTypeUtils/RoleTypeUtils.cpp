@@ -1,6 +1,8 @@
 #include "roleTypeUtils.h"
+#include "../../services/redis/userRoleCache/UserRoleCache.h"
 #include <algorithm>
 #include <array>
+#include <optional>
 
 namespace RoleTypeUtils
 {
@@ -87,6 +89,12 @@ std::string getUserRoleName(
         return "";
     }
 
+    // 读穿透缓存：命中直接返回，省掉热路径上的 users JOIN types。
+    if (std::optional<std::string> cached = UserRoleCache::readCache(userId))
+    {
+        return cached.value();
+    }
+
     mysqlx::SqlResult result = dbManager->getSession()
                                    ->sql("SELECT t.type "
                                          "FROM users AS u "
@@ -102,7 +110,10 @@ std::string getUserRoleName(
         return "";
     }
 
-    return row[0].get<std::string>();
+    const std::string roleName = row[0].get<std::string>();
+    // 仅缓存非空角色名（空名不缓存，避免把"查不到"固化）。
+    UserRoleCache::writeCache(userId, roleName);
+    return roleName;
 }
 
 bool userHasRole(

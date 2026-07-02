@@ -27,4 +27,8 @@ void migrateWarehouse(DatabaseManagerInterface &database_manager);
 // orders 表的列级迁移。
 // 当前负责兼容旧字段 order_date -> order_data。
 void migrateOrders(DatabaseManagerInterface &database_manager);
+
+// reservations 表的列级迁移。
+// 当前负责为旧库补 active_slot_key 生成列与 uq_active_slot 唯一索引。
+void migrateReservations(DatabaseManagerInterface &database_manager);
 }

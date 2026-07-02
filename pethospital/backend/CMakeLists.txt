@@ -366,6 +366,7 @@ if(BUILD_TESTING)
         controllers/auth/jwtUtils/jwtUtils.cpp
         services/auth/AuthSessionStore.cpp
         services/redis/RedisClient.cpp
+        services/redis/userRoleCache/UserRoleCache.cpp
         utils/Utils.cpp
         utils/roleTypeUtils/roleTypeUtils.cpp
     )
@@ -398,6 +399,36 @@ if(BUILD_TESTING)
         target_link_libraries(doctor_list_cache_tests ${HIREDIS_LIBRARIES})
     endif()
     add_test(NAME doctor_list_cache_tests COMMAND doctor_list_cache_tests)
+
+    add_executable(user_role_cache_tests
+        tests/user_role_cache_tests.cpp
+        services/redis/userRoleCache/UserRoleCache.cpp
+        services/redis/RedisClient.cpp
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(user_role_cache_tests ${HIREDIS_LIBRARIES})
+    endif()
+    add_test(NAME user_role_cache_tests COMMAND user_role_cache_tests)
+
+    add_executable(role_permission_tests
+        tests/role_permission_tests.cpp
+        utils/roleTypeUtils/roleTypeUtils.cpp
+        services/redis/userRoleCache/UserRoleCache.cpp
+        services/redis/RedisClient.cpp
+    )
+    target_link_libraries(role_permission_tests
+        ${MYSQLX_LIBRARIES}
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(role_permission_tests ${HIREDIS_LIBRARIES})
+    endif()
+    add_test(NAME role_permission_tests COMMAND role_permission_tests)
+
+    add_executable(visibility_filter_tests
+        tests/visibility_filter_tests.cpp
+        utils/visibilityFilter/VisibilityFilter.cpp
+    )
+    add_test(NAME visibility_filter_tests COMMAND visibility_filter_tests)
 endif()
 
 # 如果是header-only的system库，添加编译定义
