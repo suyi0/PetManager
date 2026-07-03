@@ -127,6 +127,10 @@ private:
     redisContext *acquire();
     // 关闭并清理当前线程连接（出错后强制下次重连）。
     void release(redisContext *&ctx);
+    // 在当前线程连接上执行一条命令，封装"acquire→判空→发命令"这段各操作重复的样板。
+    // 返回 redisReply*（以 void* 暴露，避免在头文件依赖 hiredis）；连接不可用/出错返回 nullptr。
+    // 调用方负责释放（.cpp 内用 RAII 的 ReplyPtr 托管，无需手动 freeReplyObject）。
+    void *command(const char *format, ...);
 
     bool enabled_ = false;
     std::string host_ = "127.0.0.1";

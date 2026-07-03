@@ -6,6 +6,7 @@
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include "../../services/redis/RedisClient.h"
 #include "../../utils/staticFileHandler.h"
+#include "../../utils/Utils.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -76,9 +77,10 @@ void WebSocketServer::start()
         throw std::runtime_error("App pointer is null in WebSocketServer::start");
     }
 
-    if (!isPortAvailable(8081))
+    const int serverPort = getServerPort();
+    if (!isPortAvailable(serverPort))
     {
-        throw std::runtime_error("Port 8081 is already in use");
+        throw std::runtime_error("Port " + std::to_string(serverPort) + " is already in use");
     }
 
     setupRoutes();          // 设置路由
@@ -92,10 +94,10 @@ void WebSocketServer::start()
     shutdown_requested = false;
     server_stopped = false;
 
-    server_thread = std::thread([this]
+    server_thread = std::thread([this, serverPort]
                                 {
             try {
-                app_ptr_->port(8081).multithreaded().run();
+                app_ptr_->port(serverPort).multithreaded().run();
             } catch (const std::exception& e) {
                 std::cerr << "Server fatal error: " << e.what() << std::endl;
             }

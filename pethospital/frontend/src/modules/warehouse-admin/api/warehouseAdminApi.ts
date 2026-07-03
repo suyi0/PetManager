@@ -1,5 +1,6 @@
 import http from "@/api/http";
 import { unwrapList } from "@/api/response";
+import { unwrapPagedList } from "@/shared/utils/pagedList";
 import { WarehouseCreatePayload, WarehouseItem } from "./types";
 
 interface WarehouseSearchResult {
@@ -21,27 +22,7 @@ const normalizeWarehouseSearchResult = (
   payload: unknown,
   fallback: { page: number; pageSize: number }
 ): WarehouseSearchResult => {
-  const dataPayload =
-    payload && typeof payload === "object" && "data" in payload
-      ? (payload as { data?: unknown }).data
-      : payload;
-  const body =
-    dataPayload && typeof dataPayload === "object"
-      ? (dataPayload as {
-          items?: unknown;
-          total?: unknown;
-          page?: unknown;
-          pageSize?: unknown;
-        })
-      : {};
-  const items = unwrapList<WarehouseItem>(body.items);
-
-  return {
-    items,
-    total: Number(body?.total ?? items.length),
-    page: Number(body?.page ?? fallback.page),
-    pageSize: Number(body?.pageSize ?? fallback.pageSize),
-  };
+  return unwrapPagedList<WarehouseItem>(payload, fallback);
 };
 
 export const warehouseAdminApi = {

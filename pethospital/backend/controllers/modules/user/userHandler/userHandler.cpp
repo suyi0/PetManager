@@ -14,11 +14,24 @@
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include <vector>
 
-// 在文件顶部添加常量定义
-#define UPLOADS_DIR "/Users/yanghang/Code/PetManager/pethospital/frontend/src/assets/uploads"
-
 namespace
 {
+    // 上传文件目录：优先环境变量 UPLOADS_DIR，默认放到项目 data/uploads（不再写进前端源码树）。
+    // 文件由后端 /uploads/<file> 端点读取回传，故无需位于前端资源目录。只解析一次并缓存。
+    const std::string &uploadsDir()
+    {
+        static const std::string dir = getEnvVar("UPLOADS_DIR", getProjectRoot() + "/data/uploads");
+        return dir;
+    }
+
+    // 对外可访问的基础 URL（拼上传文件绝对地址用）：环境变量 PUBLIC_BASE_URL，
+    // 默认开发环境的 http://localhost:8081；部署时指向真实域名/反代地址。
+    const std::string &publicBaseUrl()
+    {
+        static const std::string url = getEnvVar("PUBLIC_BASE_URL", "http://localhost:8081");
+        return url;
+    }
+
     void geocode(const std::string &address_text, double &longitude, double &latitude, std::string &geocode_source)
     {
         std::string geocoded_result = geocodeAddress(address_text);
@@ -503,7 +516,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         {
             // 删除原来的图片，如果文件不存在也不会报错
             const std::string lastFileName = getLastFileName(DBhead_image);
-            std::string oldFilePath = std::string(UPLOADS_DIR) + "/" + lastFileName;
+            std::string oldFilePath = uploadsDir() + "/" + lastFileName;
 
             // 检查文件是否存在后再删除，避免删除目录
             if (std::filesystem::exists(oldFilePath) && !std::filesystem::is_directory(oldFilePath))
@@ -1531,13 +1544,13 @@ crow::response userHandler::userUploadAvatar(const crow::request &req)
                 unique_filename = generateUniqueFilename(filename);
 
                 // 检查文件是否存在
-                if (!std::filesystem::exists(UPLOADS_DIR))
+                if (!std::filesystem::exists(uploadsDir()))
                 {
                     // 创建目录
-                    std::filesystem::create_directories(UPLOADS_DIR);
+                    std::filesystem::create_directories(uploadsDir());
                 }
 
-                filepath = std::string(UPLOADS_DIR) + "/" + unique_filename;
+                filepath = uploadsDir() + "/" + unique_filename;
 
                 // 保存文件
                 std::ofstream file(filepath, std::ios::binary);
@@ -1554,7 +1567,7 @@ crow::response userHandler::userUploadAvatar(const crow::request &req)
         }
 
         // 构建响应
-        std::string avatar_url = "http://localhost:8081/uploads/" + unique_filename;
+        std::string avatar_url = publicBaseUrl() + "/uploads/" + unique_filename;
         nlohmann::json response;
         response["message"] = "File uploaded successfully";
         response["avatarUrl"] = avatar_url;
@@ -1573,8 +1586,8 @@ crow::response userHandler::upload(const crow::request &req, const std::string &
 {
     crow::response res;
 
-    // 使用项目目录中的文件路径
-    std::string filepath = std::string(UPLOADS_DIR) + "/" + filename;
+    // 上传文件目录（可配置，见 uploadsDir）
+    std::string filepath = uploadsDir() + "/" + filename;
 
     // 检查文件是否存在
     if (!std::filesystem::exists(filepath))

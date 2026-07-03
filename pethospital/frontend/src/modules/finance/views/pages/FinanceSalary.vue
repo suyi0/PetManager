@@ -279,6 +279,7 @@ import { financeApi } from "../../api/financeApi";
 import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import { subscribeFinanceHomeData } from "../../utils/financeHomeDataStream";
 import AppPager from "@/shared/components/AppPager.vue";
+import { calculateTotalPages } from "@/shared/utils/pagination";
 
 export default defineComponent({
   name: "FinanceSalary",
@@ -322,7 +323,7 @@ export default defineComponent({
     }));
     const filteredEmployees = computed(() => employees.value);
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(total.value / pageSize))
+      calculateTotalPages(total.value, pageSize)
     );
 
     const selectedEmployee = computed<SalaryEmployeeRow | null>(() => {

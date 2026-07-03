@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 
     // 等待服务器启动
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    std::cout << "Server started on port 8081" << std::endl;
+    std::cout << "Server started on port " << getServerPort() << std::endl;
 
     std::cout << "Server is running. Press Ctrl+C to stop." << std::endl;
     while (!WebSocketServer::instance().isShutdownRequested() &&

@@ -1,34 +1,16 @@
 #include "financeHandler.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+#include "../../../utils/requestUtils/RequestUtils.h"
 #include <cmath>
 
 namespace
 {
-    std::string getJsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
-    {
-        return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : fallback;
-    }
-
-    int getJsonInt(const nlohmann::json &body, const std::string &key, int fallback)
-    {
-        return body.contains(key) && body[key].is_number_integer() ? body[key].get<int>() : fallback;
-    }
-
-    int normalizePage(int page)
-    {
-        return std::max(1, page);
-    }
-
-    int normalizePageSize(int pageSize, int fallback = 10, int max = 100)
-    {
-        if (pageSize <= 0)
-        {
-            return fallback;
-        }
-
-        return std::min(pageSize, max);
-    }
+    // 请求参数解析工具统一来自 RequestUtils（原本 finance/admin/warehouseManager 各复制一份）。
+    using RequestUtils::getJsonInt;
+    using RequestUtils::getJsonString;
+    using RequestUtils::normalizePage;
+    using RequestUtils::normalizePageSize;
 
     // 获取当天的开始和结束时间字符串，格式为 "YYYY-MM-DD HH:MM:SS"
     std::pair<std::string, std::string> getTodayRange()

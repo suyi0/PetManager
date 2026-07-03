@@ -1,5 +1,4 @@
 {
-  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "C_Cpp.default.compileCommands": "${workspaceFolder}/pethospital/backend/build/compile_commands.json",
   "C_Cpp.default.compilerPath": "/usr/bin/clang++",
   "C_Cpp.default.intelliSenseMode": "macos-clang-arm64",

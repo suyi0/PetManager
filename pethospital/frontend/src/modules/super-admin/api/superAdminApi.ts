@@ -1,5 +1,6 @@
 import http from "@/api/http";
 import { unwrapList } from "@/api/response";
+import { unwrapPagedList } from "@/shared/utils/pagedList";
 import {
   CreateUserPayload,
   HomePageSummary,
@@ -9,33 +10,10 @@ import {
   SystemLogs,
   AuditLogItem,
   OnlineDoctorsSearchResult,
-  PagedList,
   UserSearchResult,
   UserRoleCounts,
   LogSearchResult,
 } from "./types";
-
-const unwrapPagedList = <T>(
-  payload: unknown,
-  page: number,
-  pageSize: number
-): PagedList<T> => {
-  const data = (payload as { data?: unknown })?.data ?? payload;
-  const source = data as {
-    items?: unknown;
-    total?: unknown;
-    page?: unknown;
-    pageSize?: unknown;
-  };
-  const items = unwrapList<T>(source?.items);
-
-  return {
-    items,
-    total: Number(source?.total ?? items.length),
-    page: Number(source?.page ?? page),
-    pageSize: Number(source?.pageSize ?? pageSize),
-  };
-};
 
 export const superAdminApi = {
   /**
@@ -87,7 +65,7 @@ export const superAdminApi = {
     includeCounts?: boolean;
   }): Promise<UserSearchResult> {
     const { data } = await http.post("/api/admins/users/search", params);
-    const paged = unwrapPagedList<UserRow>(data, params.page, params.pageSize);
+    const paged = unwrapPagedList<UserRow>(data, params);
     const source = (data as { data?: unknown })?.data ?? data;
     const rc = (source as { roleCounts?: Partial<UserRoleCounts> })?.roleCounts;
 
@@ -114,7 +92,7 @@ export const superAdminApi = {
       params
     );
     const payload = data?.data ?? data;
-    const paged = unwrapPagedList<UserRow>(data, params.page, params.pageSize);
+    const paged = unwrapPagedList<UserRow>(data, params);
 
     return {
       ...paged,
@@ -157,11 +135,7 @@ export const superAdminApi = {
     includeCounts?: boolean;
   }): Promise<LogSearchResult> {
     const { data } = await http.post("/api/admins/logs/search", params);
-    const paged = unwrapPagedList<AuditLogItem>(
-      data,
-      params.page,
-      params.pageSize
-    );
+    const paged = unwrapPagedList<AuditLogItem>(data, params);
     const source = (data as { data?: unknown })?.data ?? data;
     const counts = source as {
       userLogCount?: unknown;

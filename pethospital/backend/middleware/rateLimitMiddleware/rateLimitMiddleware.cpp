@@ -1,6 +1,7 @@
 #include "rateLimitMiddleware.h"
 #include "../../services/redis/RedisClient.h"
 #include "../../utils/requestUtils/RequestUtils.h"
+#include "../../utils/corsUtils/CorsUtils.h"
 #include <atomic>
 #include <chrono>
 #include <string>
@@ -109,19 +110,8 @@ void RateLimitMiddleware::before_handle(crow::request &req, crow::response &res,
         res.code = 429; // Too Many Requests
         res.set_header("Content-Type", "application/json");
 
-        // 添加CORS头以确保跨域请求正常工作
-        std::string origin = req.get_header_value("Origin");
-        if (origin == "http://localhost:8080" || origin == "http://127.0.0.1:8080")
-        {
-            res.set_header("Access-Control-Allow-Origin", origin);
-        }
-        else
-        {
-            res.set_header("Access-Control-Allow-Origin", origin.empty() ? "*" : origin);
-        }
-        res.set_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-        res.set_header("Access-Control-Allow-Credentials", "true");
+        // 添加CORS头以确保跨域请求正常工作（与 CorsMiddleware 用同一份允许列表）。
+        CorsUtils::applyCorsHeaders(res, req.get_header_value("Origin"));
 
         // 构建错误响应体
         nlohmann::json error_response;
@@ -162,15 +152,14 @@ void RateLimitMiddleware::after_handle(crow::request &req, crow::response &res, 
     auto now = std::chrono::steady_clock::now();
     auto it = request_counts_.find(client_ip);
 
-    if (it != request_counts_.end())    // 找到已有记录（将当前时间添加到记录中）
+    if (it != request_counts_.end()) // 找到已有记录（将当前时间添加到记录中）
     {
         it->second.push_back(now);
     }
-    else                                // 没有该IP的记录，则创建新的记录
+    else // 没有该IP的记录，则创建新的记录
     {
         std::vector<std::chrono::steady_clock::time_point> records;
         records.push_back(now);
         request_counts_[client_ip] = records;
     }
 }
-

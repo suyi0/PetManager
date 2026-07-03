@@ -82,6 +82,11 @@ import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
+import {
+  calculateTotalPages,
+  createPlaceholderIndexes,
+  getPagedItems,
+} from "@/shared/utils/pagination";
 import { QueueItem } from "@/modules/doctor/api/types";
 
 export default defineComponent({
@@ -125,20 +130,16 @@ export default defineComponent({
     };
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(queueItems.value.length / pageSize.value))
+      calculateTotalPages(queueItems.value.length, pageSize.value)
     );
 
-    const visibleItems = computed(() => {
-      const start = (page.value - 1) * pageSize.value;
-      return queueItems.value.slice(start, start + pageSize.value);
-    });
+    const visibleItems = computed(() =>
+      getPagedItems(queueItems.value, page.value, pageSize.value)
+    );
 
     // 始终把整页占位空行补满（0 条也先铺好一整页 ledger 排布）。
     const placeholderRows = computed(() =>
-      Array.from(
-        { length: Math.max(0, pageSize.value - visibleItems.value.length) },
-        (_, index) => index + 1
-      )
+      createPlaceholderIndexes(pageSize.value, visibleItems.value.length)
     );
 
     // 按表格可用高度反推每页行数（与管理端一致），用占位空行补满。

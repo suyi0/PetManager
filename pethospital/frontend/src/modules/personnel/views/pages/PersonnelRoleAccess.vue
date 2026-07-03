@@ -207,6 +207,7 @@ import {
 } from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
+import { calculateTotalPages } from "@/shared/utils/pagination";
 import { UserRow } from "@/modules/super-admin/api/types";
 import { personnelApi } from "../../api/personnelApi";
 
@@ -314,7 +315,7 @@ export default defineComponent({
     );
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(total.value / pageSize.value))
+      calculateTotalPages(total.value, pageSize.value)
     );
 
     // 当前页记录不足一页时补足的空行数量；零结果时不补（交给空状态行）。

@@ -295,6 +295,7 @@ import {
   isSuperAdminPortalRole,
 } from "@/core/auth/utils/roleUtils";
 import AppPager from "@/shared/components/AppPager.vue";
+import { calculateTotalPages } from "@/shared/utils/pagination";
 import {
   UserLogs,
   MajorTab,
@@ -370,7 +371,7 @@ export default defineComponent({
     );
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(total.value / pageSize.value))
+      calculateTotalPages(total.value, pageSize.value)
     );
 
     const placeholderRows = computed(() => {

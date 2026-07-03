@@ -1,28 +1,7 @@
 import http from "@/api/http";
 import { unwrapList } from "@/api/response";
+import { unwrapPagedList } from "@/shared/utils/pagedList";
 import { PagedList, UserRow } from "@/modules/super-admin/api/types";
-
-const unwrapPagedList = <T>(
-  payload: unknown,
-  page: number,
-  pageSize: number
-): PagedList<T> => {
-  const data = (payload as { data?: unknown })?.data ?? payload;
-  const source = data as {
-    items?: unknown;
-    total?: unknown;
-    page?: unknown;
-    pageSize?: unknown;
-  };
-  const items = unwrapList<T>(source?.items);
-
-  return {
-    items,
-    total: Number(source?.total ?? items.length),
-    page: Number(source?.page ?? page),
-    pageSize: Number(source?.pageSize ?? pageSize),
-  };
-};
 
 export const personnelApi = {
   refreshSession() {
@@ -43,7 +22,7 @@ export const personnelApi = {
       ...params,
       role: "all",
     });
-    return unwrapPagedList<UserRow>(data, params.page, params.pageSize);
+    return unwrapPagedList<UserRow>(data, params);
   },
 
   async createDoctor(userID: number): Promise<void> {

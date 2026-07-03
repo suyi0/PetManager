@@ -32,6 +32,20 @@ namespace
     {
         return v == "0" || v == "false" || v == "FALSE" || v == "no" || v == "off";
     }
+
+    // RAII 托管 redisReply*：析构时自动 freeReplyObject，
+    // 省掉每个命令方法里手动释放（以及"先 free 再 return/打印"的易错写法）。
+    // 以 void* 构造，配合 RedisClient::command()（返回 void* 以隔离 hiredis）。
+    struct ReplyPtr
+    {
+        redisReply *r;
+        explicit ReplyPtr(void *p) : r(static_cast<redisReply *>(p)) {}
+        ~ReplyPtr() { if (r) freeReplyObject(r); }
+        ReplyPtr(const ReplyPtr &) = delete;
+        ReplyPtr &operator=(const ReplyPtr &) = delete;
+        redisReply *operator->() const { return r; }
+        explicit operator bool() const { return r != nullptr; }
+    };
 }
 
 // 获取全局唯一单例（首次调用时构造，线程安全的局部静态初始化）。
@@ -100,7 +114,7 @@ void RedisClient::init()
         return;
     }
 
-    redisReply *reply = static_cast<redisReply *>(redisCommand(ctx, "PING"));
+    ReplyPtr reply(redisCommand(ctx, "PING"));
     if (!reply)
     {
         enabled_ = false;
@@ -112,13 +126,11 @@ void RedisClient::init()
     if (reply->type == REDIS_REPLY_ERROR)
     {
         std::string err = reply->str ? reply->str : "unknown";
-        freeReplyObject(reply);
         enabled_ = false;
         std::cerr << "⚠️  Redis PING rejected (" << err
                   << "). Check REDIS_PASS. Falling back to in-memory store." << std::endl;
         return;
     }
-    freeReplyObject(reply);
     std::cout << "✅ Redis connected at " << host_ << ":" << port_ << " (db " << db_ << ")" << std::endl;
 }
 
@@ -161,33 +173,24 @@ redisContext *RedisClient::acquire()
     redisSetTimeout(ctx, tv);
 
     // 鉴权 + 选库；任一失败则放弃该连接。
+    // 这里直接用 redisCommand（不能走 command()，否则会再次 acquire 造成递归）。
     if (!password_.empty())
     {
-        redisReply *auth = static_cast<redisReply *>(redisCommand(ctx, "AUTH %s", password_.c_str()));
+        ReplyPtr auth(redisCommand(ctx, "AUTH %s", password_.c_str()));
         if (!auth || auth->type == REDIS_REPLY_ERROR)
         {
-            if (auth)
-            {
-                freeReplyObject(auth);
-            }
             redisFree(ctx);
             return nullptr;
         }
-        freeReplyObject(auth);
     }
     if (db_ != 0)
     {
-        redisReply *sel = static_cast<redisReply *>(redisCommand(ctx, "SELECT %d", db_));
+        ReplyPtr sel(redisCommand(ctx, "SELECT %d", db_));
         if (!sel || sel->type == REDIS_REPLY_ERROR)
         {
-            if (sel)
-            {
-                freeReplyObject(sel);
-            }
             redisFree(ctx);
             return nullptr;
         }
-        freeReplyObject(sel);
     }
 
     tlCtx = ctx;
@@ -204,206 +207,109 @@ void RedisClient::release(redisContext *&ctx)
     }
 }
 
-bool RedisClient::setEx(const std::string &key, int ttlSeconds, const std::string &value)
+// 统一执行入口：取线程连接 → 判空 → 发命令。把各操作里重复的样板收成一处。
+// 连接不可用返回 nullptr；否则返回 redisReply*（调用方用 ReplyPtr 托管释放）。
+void *RedisClient::command(const char *format, ...)
 {
     redisContext *ctx = acquire();
     if (!ctx)
     {
-        return false;
+        return nullptr;
     }
-    redisReply *reply = static_cast<redisReply *>(
-        redisCommand(ctx, "SETEX %s %d %b", key.c_str(), ttlSeconds, value.data(), value.size()));
-    if (!reply)
-    {
-        return false; // 连接出错：下次 acquire 会因 ctx->err 重连
-    }
-    bool ok = (reply->type == REDIS_REPLY_STATUS);
-    freeReplyObject(reply);
-    return ok;
+    va_list ap;
+    va_start(ap, format);
+    void *reply = redisvCommand(ctx, format, ap);
+    va_end(ap);
+    return reply;
+}
+
+bool RedisClient::setEx(const std::string &key, int ttlSeconds, const std::string &value)
+{
+    ReplyPtr reply(command("SETEX %s %d %b", key.c_str(), ttlSeconds, value.data(), value.size()));
+    return reply && reply->type == REDIS_REPLY_STATUS; // STATUS 表示写入成功
 }
 
 bool RedisClient::ping()
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return false;
-    }
-    redisReply *reply = static_cast<redisReply *>(redisCommand(ctx, "PING"));
-    if (!reply)
-    {
-        return false;
-    }
     // NOAUTH/WRONGPASS 等错误也是非空回复，必须校验回复类型（见 init() 的教训）。
-    bool ok = (reply->type == REDIS_REPLY_STATUS);
-    freeReplyObject(reply);
-    return ok;
+    ReplyPtr reply(command("PING"));
+    return reply && reply->type == REDIS_REPLY_STATUS;
 }
 
 bool RedisClient::set(const std::string &key, const std::string &value)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return false;
-    }
-    redisReply *reply = static_cast<redisReply *>(
-        redisCommand(ctx, "SET %s %b", key.c_str(), value.data(), value.size()));
-    if (!reply)
-    {
-        return false;
-    }
-    bool ok = (reply->type == REDIS_REPLY_STATUS);
-    freeReplyObject(reply);
-    return ok;
+    ReplyPtr reply(command("SET %s %b", key.c_str(), value.data(), value.size()));
+    return reply && reply->type == REDIS_REPLY_STATUS;
 }
 
 std::optional<std::string> RedisClient::get(const std::string &key)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
+    ReplyPtr reply(command("GET %s", key.c_str()));
+    if (reply && reply->type == REDIS_REPLY_STRING)
     {
-        return std::nullopt;
+        return std::string(reply->str, reply->len);
     }
-    redisReply *reply = static_cast<redisReply *>(redisCommand(ctx, "GET %s", key.c_str()));
-    if (!reply)
-    {
-        return std::nullopt;
-    }
-    std::optional<std::string> result;
-    if (reply->type == REDIS_REPLY_STRING)
-    {
-        result = std::string(reply->str, reply->len);
-    }
-    // REDIS_REPLY_NIL（键不存在）→ 保持 nullopt
-    freeReplyObject(reply);
-    return result;
+    // REDIS_REPLY_NIL（键不存在）/ 连接错误 → nullopt
+    return std::nullopt;
 }
 
 bool RedisClient::del(const std::string &key)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return false;
-    }
-    redisReply *reply = static_cast<redisReply *>(redisCommand(ctx, "DEL %s", key.c_str()));
-    if (!reply)
-    {
-        return false;
-    }
-    bool ok = (reply->type == REDIS_REPLY_INTEGER);
-    freeReplyObject(reply);
-    return ok;
+    ReplyPtr reply(command("DEL %s", key.c_str()));
+    return reply && reply->type == REDIS_REPLY_INTEGER;
 }
 
 std::optional<long long> RedisClient::incr(const std::string &key)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
+    ReplyPtr reply(command("INCR %s", key.c_str()));
+    if (reply && reply->type == REDIS_REPLY_INTEGER)
     {
-        return std::nullopt;
+        return reply->integer;
     }
-    redisReply *reply = static_cast<redisReply *>(redisCommand(ctx, "INCR %s", key.c_str()));
-    if (!reply)
-    {
-        return std::nullopt;
-    }
-    std::optional<long long> result;
-    if (reply->type == REDIS_REPLY_INTEGER)
-    {
-        result = reply->integer;
-    }
-    freeReplyObject(reply);
-    return result;
+    return std::nullopt;
 }
 
 bool RedisClient::expire(const std::string &key, int ttlSeconds)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return false;
-    }
-    redisReply *reply = static_cast<redisReply *>(
-        redisCommand(ctx, "EXPIRE %s %d", key.c_str(), ttlSeconds));
-    if (!reply)
-    {
-        return false;
-    }
-    bool ok = (reply->type == REDIS_REPLY_INTEGER);
-    freeReplyObject(reply);
-    return ok;
+    ReplyPtr reply(command("EXPIRE %s %d", key.c_str(), ttlSeconds));
+    return reply && reply->type == REDIS_REPLY_INTEGER;
 }
 
 std::optional<long long> RedisClient::zWindowCount(const std::string &key,
                                                    long long cutoffScoreMs)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return std::nullopt;
-    }
-
-    // 先剪掉窗口外（score < cutoff）的成员。
-    redisReply *prune = static_cast<redisReply *>(
-        redisCommand(ctx, "ZREMRANGEBYSCORE %s -inf (%lld", key.c_str(), cutoffScoreMs));
+    // 先剪掉窗口外（score < cutoff）的成员，再取当前基数。
+    ReplyPtr prune(command("ZREMRANGEBYSCORE %s -inf (%lld", key.c_str(), cutoffScoreMs));
     if (!prune)
     {
         return std::nullopt;
     }
-    freeReplyObject(prune);
-
-    redisReply *card = static_cast<redisReply *>(redisCommand(ctx, "ZCARD %s", key.c_str()));
-    if (!card)
+    ReplyPtr card(command("ZCARD %s", key.c_str()));
+    if (card && card->type == REDIS_REPLY_INTEGER)
     {
-        return std::nullopt;
+        return card->integer;
     }
-    std::optional<long long> count;
-    if (card->type == REDIS_REPLY_INTEGER)
-    {
-        count = card->integer;
-    }
-    freeReplyObject(card);
-    return count;
+    return std::nullopt;
 }
 
 bool RedisClient::zWindowAdd(const std::string &key, long long scoreMs,
                              const std::string &member, int ttlSeconds)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return false;
-    }
-    redisReply *add = static_cast<redisReply *>(
-        redisCommand(ctx, "ZADD %s %lld %s", key.c_str(), scoreMs, member.c_str()));
+    ReplyPtr add(command("ZADD %s %lld %s", key.c_str(), scoreMs, member.c_str()));
     if (!add)
     {
         return false;
     }
-    freeReplyObject(add);
-
-    // 刷新整体 TTL，保证空窗口的键最终自动回收。
-    redisReply *exp = static_cast<redisReply *>(
-        redisCommand(ctx, "EXPIRE %s %d", key.c_str(), ttlSeconds));
-    if (!exp)
-    {
-        return false;
-    }
-    freeReplyObject(exp);
-    return true;
+    // 刷新整体 TTL，保证空窗口的键最终自动回收（仅要求命令有返回，与原逻辑一致）。
+    ReplyPtr exp(command("EXPIRE %s %d", key.c_str(), ttlSeconds));
+    return static_cast<bool>(exp);
 }
 
+// 窗口内成员数超过限制则拒绝加入
 std::optional<RedisClient::WindowHit> RedisClient::zWindowHit(const std::string &key, long long cutoffScoreMs,
                                                               long long nowScoreMs, const std::string &member,
                                                               int ttlSeconds, long long limit)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return std::nullopt;
-    }
     // 单条 Lua 原子完成：剪窗口 → 计数 → 未超限则记录 → 刷 TTL；返回 {admitted, count}。
     static const char *kScript =
         "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[1]) "
@@ -417,89 +323,49 @@ std::optional<RedisClient::WindowHit> RedisClient::zWindowHit(const std::string 
         "end "
         "redis.call('EXPIRE', KEYS[1], ARGV[4]) "
         "return {admitted, count}";
-    redisReply *reply = static_cast<redisReply *>(
-        redisCommand(ctx, "EVAL %s 1 %s %lld %lld %s %d %lld",
-                     kScript, key.c_str(), cutoffScoreMs, nowScoreMs,
-                     member.c_str(), ttlSeconds, limit));
-    if (!reply)
-    {
-        return std::nullopt;
-    }
-    std::optional<WindowHit> result;
-    if (reply->type == REDIS_REPLY_ARRAY && reply->elements == 2 &&
+    ReplyPtr reply(command("EVAL %s 1 %s %lld %lld %s %d %lld",
+                           kScript, key.c_str(), cutoffScoreMs, nowScoreMs,
+                           member.c_str(), ttlSeconds, limit));
+    if (reply && reply->type == REDIS_REPLY_ARRAY && reply->elements == 2 &&
         reply->element[0]->type == REDIS_REPLY_INTEGER &&
         reply->element[1]->type == REDIS_REPLY_INTEGER)
     {
-        result = WindowHit{reply->element[0]->integer != 0, reply->element[1]->integer};
+        return WindowHit{reply->element[0]->integer != 0, reply->element[1]->integer};
     }
-    freeReplyObject(reply);
-    return result;
+    return std::nullopt;
 }
 
 std::optional<bool> RedisClient::setNxEx(const std::string &key, int ttlSeconds, const std::string &value)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return std::nullopt; // Redis 不可用：交调用方降级，而非误判为"被占用"
-    }
-    redisReply *reply = static_cast<redisReply *>(
-        redisCommand(ctx, "SET %s %s NX EX %d", key.c_str(), value.c_str(), ttlSeconds));
+    ReplyPtr reply(command("SET %s %s NX EX %d", key.c_str(), value.c_str(), ttlSeconds));
     if (!reply)
     {
-        return std::nullopt; // 连接/命令出错：同样降级
+        return std::nullopt; // Redis 不可用/命令出错：交调用方降级，而非误判为"被占用"
     }
-    std::optional<bool> result;
     if (reply->type == REDIS_REPLY_STATUS)
     {
-        result = true; // 抢到锁
+        return true; // 抢到锁
     }
-    else if (reply->type == REDIS_REPLY_NIL)
+    if (reply->type == REDIS_REPLY_NIL)
     {
-        result = false; // 键已存在：锁被别人持有
+        return false; // 键已存在：锁被别人持有
     }
-    // 其它（REDIS_REPLY_ERROR 等）→ 保持 nullopt（出错降级）
-    freeReplyObject(reply);
-    return result;
+    return std::nullopt; // 其它（REDIS_REPLY_ERROR 等）→ 出错降级
 }
 
 bool RedisClient::compareAndDel(const std::string &key, const std::string &expectedValue)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return false;
-    }
     // 仅当当前值等于 expectedValue 时才删除，保证只释放自己持有的锁。
     static const char *kScript =
         "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
-    redisReply *reply = static_cast<redisReply *>(
-        redisCommand(ctx, "EVAL %s 1 %s %s", kScript, key.c_str(), expectedValue.c_str()));
-    if (!reply)
-    {
-        return false;
-    }
-    bool deleted = (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1);
-    freeReplyObject(reply);
-    return deleted;
+    ReplyPtr reply(command("EVAL %s 1 %s %s", kScript, key.c_str(), expectedValue.c_str()));
+    return reply && reply->type == REDIS_REPLY_INTEGER && reply->integer == 1;
 }
 
 bool RedisClient::publish(const std::string &channel, const std::string &message)
 {
-    redisContext *ctx = acquire();
-    if (!ctx)
-    {
-        return false;
-    }
-    redisReply *reply = static_cast<redisReply *>(
-        redisCommand(ctx, "PUBLISH %s %b", channel.c_str(), message.data(), message.size()));
-    if (!reply)
-    {
-        return false;
-    }
-    bool ok = (reply->type == REDIS_REPLY_INTEGER);
-    freeReplyObject(reply);
-    return ok;
+    ReplyPtr reply(command("PUBLISH %s %b", channel.c_str(), message.data(), message.size()));
+    return reply && reply->type == REDIS_REPLY_INTEGER;
 }
 
 std::shared_ptr<RedisSubscription> RedisClient::subscribe(
@@ -512,15 +378,15 @@ std::shared_ptr<RedisSubscription> RedisClient::subscribe(
     }
     // 不能用 make_shared：构造函数私有，这里是 friend。
     std::shared_ptr<RedisSubscription> sub(new RedisSubscription());
-    sub->channel_ = channel;
-    sub->host_ = host_;
-    sub->port_ = port_;
-    sub->password_ = password_;
-    sub->db_ = db_;
-    sub->onMessage_ = std::move(onMessage);
-    sub->running_ = true;
+    sub->channel_ = channel;    // 订阅频道名称
+    sub->host_ = host_; // Redis 服务器地址
+    sub->port_ = port_; // Redis 服务器端口
+    sub->password_ = password_; // Redis 服务器密码
+    sub->db_ = db_; // Redis 数据库索引
+    sub->onMessage_ = std::move(onMessage); // 消息回调
+    sub->running_ = true;   // 置运行标志，loop() 里会检查
     sub->thread_ = std::thread([sub]()
-                               { sub->loop(); });
+                               { sub->loop(); });   // 启动后台线程执行订阅循环
     return sub;
 }
 
@@ -559,7 +425,7 @@ void RedisSubscription::loop()
         struct timeval tv;
         tv.tv_sec = 1;
         tv.tv_usec = 0;
-        redisContext *ctx = redisConnectWithTimeout(host_.c_str(), port_, tv);
+        redisContext *ctx = redisConnectWithTimeout(host_.c_str(), port_, tv);  // 连接redis服务器
         if (!ctx || ctx->err)
         {
             if (ctx)
@@ -576,34 +442,27 @@ void RedisSubscription::loop()
 
         if (!password_.empty())
         {
-            redisReply *auth = static_cast<redisReply *>(redisCommand(ctx, "AUTH %s", password_.c_str()));
+            ReplyPtr auth(redisCommand(ctx, "AUTH %s", password_.c_str()));
             if (!auth || auth->type == REDIS_REPLY_ERROR)
             {
-                if (auth)
-                {
-                    freeReplyObject(auth);
-                }
                 redisFree(ctx);
                 continue;
             }
-            freeReplyObject(auth);
         }
         if (db_ != 0)
         {
-            redisReply *sel = static_cast<redisReply *>(redisCommand(ctx, "SELECT %d", db_));
-            if (sel)
-            {
-                freeReplyObject(sel);
-            }
+            ReplyPtr sel(redisCommand(ctx, "SELECT %d", db_)); // 失败不阻断（保持原逻辑）
         }
 
-        redisReply *sub = static_cast<redisReply *>(redisCommand(ctx, "SUBSCRIBE %s", channel_.c_str()));
-        if (!sub)
         {
-            redisFree(ctx);
-            continue;
+            ReplyPtr sub(redisCommand(ctx, "SUBSCRIBE %s", channel_.c_str()));
+            if (!sub)
+            {
+                redisFree(ctx);
+                continue;
+            }
+            // 订阅确认回复用完即弃（离开本块即释放），后续在下方阻塞读消息。
         }
-        freeReplyObject(sub);
 
         fd_.store(ctx->fd);
 
@@ -611,6 +470,8 @@ void RedisSubscription::loop()
         while (running_.load())
         {
             redisReply *reply = nullptr;
+            // 这段代码检查从 Redis 服务器获取回复的操作是否成功。
+            // 具体来说，它使用 redisGetReply 函数从 Redis 连接上下文中获取一个回复，并检查该回复是否存在且获取操作是否没有错误。
             if (redisGetReply(ctx, reinterpret_cast<void **>(&reply)) != REDIS_OK || !reply)
             {
                 break; // 连接断开或被 shutdown 打断

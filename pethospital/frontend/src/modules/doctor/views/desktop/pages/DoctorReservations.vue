@@ -279,6 +279,11 @@ import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
 import AsyncViewState from "@/shared/components/AsyncViewState.vue";
+import {
+  calculateTotalPages,
+  createPlaceholderIndexes,
+  getPagedItems,
+} from "@/shared/utils/pagination";
 import { doctorApi } from "@/modules/doctor/api/doctorApi";
 import {
   readOrderSearchHistory,
@@ -369,20 +374,16 @@ export default defineComponent({
     );
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(filteredItems.value.length / pageSize.value))
+      calculateTotalPages(filteredItems.value.length, pageSize.value)
     );
 
-    const visibleItems = computed(() => {
-      const start = (page.value - 1) * pageSize.value;
-      return filteredItems.value.slice(start, start + pageSize.value);
-    });
+    const visibleItems = computed(() =>
+      getPagedItems(filteredItems.value, page.value, pageSize.value)
+    );
 
     // 始终把整页占位卡片补满（0 条也先铺好一整页排布）。
     const placeholderCards = computed(() =>
-      Array.from(
-        { length: Math.max(0, pageSize.value - visibleItems.value.length) },
-        (_, index) => index + 1
-      )
+      createPlaceholderIndexes(pageSize.value, visibleItems.value.length)
     );
 
     const updatePageSize = () => {

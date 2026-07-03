@@ -1,18 +1,16 @@
 #include "warehouseManagerHandler.h"
 #include "../../../services/redis/medicineRedisCache/MedicineRedisCache.h"
 #include "../../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
+#include "../../../utils/requestUtils/RequestUtils.h"
 
 namespace
 {
-    std::string getJsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
-    {
-        return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : fallback;
-    }
-
-    int getJsonInt(const nlohmann::json &body, const std::string &key, int fallback)
-    {
-        return body.contains(key) && body[key].is_number_integer() ? body[key].get<int>() : fallback;
-    }
+    // 跨文件复用的请求参数工具统一来自 RequestUtils（原本 finance/admin/warehouseManager 各复制一份）。
+    // getQueryString / getQueryInt 仅本文件用到，按约定保留在本地。
+    using RequestUtils::getJsonInt;
+    using RequestUtils::getJsonString;
+    using RequestUtils::normalizePage;
+    using RequestUtils::normalizePageSize;
 
     std::string getQueryString(const crow::request &req, const std::string &key, const std::string &fallback = "")
     {
@@ -36,21 +34,6 @@ namespace
         {
             return fallback;
         }
-    }
-
-    int normalizePage(int page)
-    {
-        return std::max(1, page);
-    }
-
-    int normalizePageSize(int pageSize, int fallback = 10, int max = 100)
-    {
-        if (pageSize <= 0)
-        {
-            return fallback;
-        }
-
-        return std::min(pageSize, max);
     }
 
     std::string resolveWarehouseOrderBy(const std::string &sortKey)

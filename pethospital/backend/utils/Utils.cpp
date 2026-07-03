@@ -378,18 +378,47 @@ std::string getEnvVar(const std::string &name, const std::string &defaultValue)
     return value ? std::string(value) : defaultValue;
 }
 
-// 在main函数开始时调用
+// 项目根目录的单一来源：优先环境变量 PROJECT_ROOT（部署机设置），
+// 否则回退到开发机路径。原先散落在 Utils/userHandler 各处硬编码，现统一到此。
+std::string getProjectRoot()
+{
+    return getEnvVar("PROJECT_ROOT", "/Users/yanghang/Code/PetManager");
+}
+
+// 服务监听端口：环境变量 SERVER_PORT，默认 8081；非法值回退默认。
+int getServerPort()
+{
+    try
+    {
+        return std::stoi(getEnvVar("SERVER_PORT", "8081"));
+    }
+    catch (...)
+    {
+        return 8081;
+    }
+}
+
+// 在main函数开始时调用。
+// 依次尝试候选 .env 路径，命中即止：PROJECT_ROOT/.env → 当前工作目录 ./.env → 开发机回退。
+// 注意：定位 .env 用的 PROJECT_ROOT 只能来自 ambient 环境变量（此时 .env 还没加载），
+// 部署机通过 systemd Environment= 或 cwd 下的 .env 即可，不再依赖硬编码路径。
 void initializeEnvironment()
 {
-    std::string projectRoot = "/Users/yanghang/Code/PetManager";
-    std::string envFile = projectRoot + "/.env";
+    std::vector<std::string> candidates;
+    if (const char *pr = getenv("PROJECT_ROOT"); pr && *pr)
+    {
+        candidates.push_back(std::string(pr) + "/.env");
+    }
+    candidates.push_back(".env");                                 // 当前工作目录
+    candidates.push_back("/Users/yanghang/Code/PetManager/.env"); // 开发机回退
 
-    if (loadEnvironmentFile(envFile))
+    for (const std::string &envFile : candidates)
     {
-        std::cout << "Environment variables loaded successfully" << std::endl;
+        if (loadEnvironmentFile(envFile))
+        {
+            std::cout << "Environment variables loaded from " << envFile << std::endl;
+            return;
+        }
     }
-    else
-    {
-        std::cout << "Failed to load environment file" << std::endl;
-    }
+    std::cout << "No .env file loaded; relying on ambient environment." << std::endl;
 }

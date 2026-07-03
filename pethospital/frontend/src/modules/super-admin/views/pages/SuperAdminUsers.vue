@@ -247,6 +247,7 @@ import {
 } from "@/core/auth/utils/roleUtils";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
+import { calculateTotalPages } from "@/shared/utils/pagination";
 import { UserRow } from "../../api/types";
 import { superAdminApi } from "../../api/superAdminApi";
 
@@ -323,7 +324,7 @@ export default defineComponent({
     const activeRoleLabel = computed(() => selectedRoleOption.value.label);
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(total.value / pageSize.value))
+      calculateTotalPages(total.value, pageSize.value)
     );
 
     const placeholderRows = computed(() => {

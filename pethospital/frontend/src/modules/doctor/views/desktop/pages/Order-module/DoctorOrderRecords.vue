@@ -146,6 +146,11 @@ import { getHttpErrorMessage } from "@/api/httpError";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
 import AsyncViewState from "@/shared/components/AsyncViewState.vue";
+import {
+  calculateTotalPages,
+  createPlaceholderIndexes,
+  getPagedItems,
+} from "@/shared/utils/pagination";
 import { doctorApi } from "@/modules/doctor/api/doctorApi";
 import {
   readOrderSearchHistory,
@@ -216,20 +221,16 @@ export default defineComponent({
     });
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(visibleItems.value.length / pageSize.value))
+      calculateTotalPages(visibleItems.value.length, pageSize.value)
     );
 
-    const pagedItems = computed(() => {
-      const start = (page.value - 1) * pageSize.value;
-      return visibleItems.value.slice(start, start + pageSize.value);
-    });
+    const pagedItems = computed(() =>
+      getPagedItems(visibleItems.value, page.value, pageSize.value)
+    );
 
     // 始终把整页占位空行补满（即使 0 条记录也先铺好一整页 ledger 排布）。
     const placeholderRows = computed(() =>
-      Array.from(
-        { length: Math.max(0, pageSize.value - pagedItems.value.length) },
-        (_, index) => index + 1
-      )
+      createPlaceholderIndexes(pageSize.value, pagedItems.value.length)
     );
 
     const updatePageSize = () => {

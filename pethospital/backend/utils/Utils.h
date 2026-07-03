@@ -40,6 +40,8 @@ std::string formatTimeOnly(const boost::posix_time::ptime &pt); // 只提取时�
 // 环境变量相关函数
 bool loadEnvironmentFile(const std::string &envFilePath);                        // 加载环境变量文件
 std::string getEnvVar(const std::string &name, const std::string &defaultValue); // 获取环境变量，带默认值
+std::string getProjectRoot();                                                    // 项目根目录（PROJECT_ROOT 环境变量，带开发机回退）
+int getServerPort();                                                             // 服务监听端口（SERVER_PORT 环境变量，默认 8081）
 void initializeEnvironment();                                                    // 在main函数开始时调用
 
 // 判断响应结果函数

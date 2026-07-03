@@ -235,6 +235,7 @@
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import AppPager from "@/shared/components/AppPager.vue";
+import { calculateTotalPages } from "@/shared/utils/pagination";
 import { UserRow, WorkTimeRecord } from "../../api/types";
 import { superAdminApi } from "../../api/superAdminApi";
 
@@ -310,7 +311,7 @@ export default defineComponent({
     const filteredDoctors = computed(() => onlineDoctors.value);
 
     const totalPages = computed(() =>
-      Math.max(1, Math.ceil(total.value / pageSize))
+      calculateTotalPages(total.value, pageSize)
     );
 
     const pagedDoctors = computed(() => filteredDoctors.value);

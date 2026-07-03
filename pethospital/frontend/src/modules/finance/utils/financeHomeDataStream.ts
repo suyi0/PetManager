@@ -1,4 +1,4 @@
-import { authStorage } from "@/core/auth/utils/authStorage";
+import { subscribeTokenRealtimeStream } from "@/shared/utils/realtimeStream";
 import type { FinanceHomeData } from "../api/types";
 
 type HomeDataMessage = {
@@ -12,16 +12,7 @@ type HomeDataStreamOptions = {
   onFallbackRefresh?: () => void;
 };
 
-const RETRY_DELAYS = [10000, 30000, 60000, 120000];
 const FALLBACK_RETRY_THRESHOLD = 3;
-
-/**
- * 根据当前站点协议创建 WebSocket 地址。
- */
-const createWebSocketUrl = (path: string) => {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}${path}`;
-};
 
 /**
  * 订阅财务端首页实时统计数据。
@@ -30,70 +21,19 @@ const createWebSocketUrl = (path: string) => {
 export const subscribeFinanceHomeData = (
   onHomeData: (_summary: FinanceHomeData) => void,
   options: HomeDataStreamOptions = {}
-) => {
-  const token = authStorage.getToken();
-
-  if (!token) {
-    return () => undefined;
-  }
-
-  let socket: WebSocket | null = null;
-  let retryTimer: number | null = null;
-  let retryCount = 0;
-  let closedByClient = false;
-
-  const connect = () => {
-    socket = new WebSocket(
-      createWebSocketUrl(
-        `/realtime/finance/home-data?token=${encodeURIComponent(token)}`
-      )
-    );
-
-    socket.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as HomeDataMessage;
-
-        if (message.event === "homeData" && message.data) {
-          retryCount = 0;
-          onHomeData(message.data);
-        }
-      } catch {
-        // 忽略无法解析的实时消息，等待下一次推送。
+) =>
+  subscribeTokenRealtimeStream<HomeDataMessage>(
+    "/realtime/finance/home-data",
+    (message) => {
+      if (message.event === "homeData" && message.data) {
+        onHomeData(message.data);
+        return true;
       }
-    };
 
-    socket.onerror = () => {
-      socket?.close();
-    };
-
-    socket.onclose = () => {
-      socket = null;
-
-      if (!closedByClient) {
-        retryCount += 1;
-
-        if (retryCount >= FALLBACK_RETRY_THRESHOLD) {
-          options.onFallbackRefresh?.();
-        }
-
-        const retryDelay =
-          RETRY_DELAYS[Math.min(retryCount - 1, RETRY_DELAYS.length - 1)];
-        retryTimer = window.setTimeout(connect, retryDelay);
-      }
-    };
-  };
-
-  connect();
-
-  return () => {
-    closedByClient = true;
-
-    if (retryTimer !== null) {
-      window.clearTimeout(retryTimer);
-      retryTimer = null;
+      return false;
+    },
+    {
+      onFallbackRefresh: options.onFallbackRefresh,
+      fallbackRetryThreshold: FALLBACK_RETRY_THRESHOLD,
     }
-
-    socket?.close();
-    socket = null;
-  };
-};
+  );
