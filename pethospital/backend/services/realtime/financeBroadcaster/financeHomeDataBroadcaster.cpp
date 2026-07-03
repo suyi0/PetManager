@@ -7,6 +7,7 @@
 #include "../../../controllers/modules/finance/financeHandler.h"
 #include "../../../utils/Utils.h"
 #include "../../redis/RedisClient.h"
+#include "../../redis/redisMessageBus/RedisMessageBus.h"
 
 namespace
 {
@@ -35,20 +36,14 @@ void FinanceHomeDataBroadcaster::start(std::shared_ptr<DatabaseManagerInterface>
     broadcast_thread_ = std::thread([this]()
                                     { run(); });
 
-    // 订阅跨实例广播；Redis 未启用时返回 nullptr，退化为单实例本地通知。
-    subscription_ = RedisClient::instance().subscribe(
+    // 订阅跨实例广播：注册到统一订阅总线；Redis 未启用时总线不启动，退化为单实例本地通知。
+    RedisMessageBus::instance().subscribe(
         kFinanceHomeChannel, [this](const std::string &) { triggerLocalPush(); });
 }
 
 // 停止广播线程；唤醒等待中的线程后等待其安全退出。
 void FinanceHomeDataBroadcaster::stop()
 {
-    if (subscription_)
-    {
-        subscription_->stop();
-        subscription_.reset();
-    }
-
     running_ = false;
     broadcast_cv_.notify_all();
 
@@ -114,7 +109,7 @@ void FinanceHomeDataBroadcaster::closeAllConnections(const std::string &reason)
 // 各自推送给本地连接；单实例或 Redis 不可用时直接触发本地推送。
 void FinanceHomeDataBroadcaster::notifyHomeDataChanged()
 {
-    if (subscription_ && RedisClient::instance().publish(kFinanceHomeChannel, "1"))
+    if (RedisMessageBus::instance().active() && RedisClient::instance().publish(kFinanceHomeChannel, "1"))
     {
         return; // 本实例会通过自身订阅收到消息并触发本地推送
     }

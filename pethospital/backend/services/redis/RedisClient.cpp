@@ -368,138 +368,41 @@ bool RedisClient::publish(const std::string &channel, const std::string &message
     return reply && reply->type == REDIS_REPLY_INTEGER;
 }
 
-std::shared_ptr<RedisSubscription> RedisClient::subscribe(
-    const std::string &channel,
-    std::function<void(const std::string &)> onMessage)
+// 建一条独立的订阅用阻塞连接（已 AUTH/SELECT，连接超时 1s、读不设超时——订阅要一直阻塞等消息）。
+// 订阅连接进入 subscribe 模式后无法再发普通命令，故与工作连接（thread_local）分开。
+// 失败返回 nullptr；调用方负责 redisFree。目前唯一消费者是 RedisMessageBus（统一订阅总线）。
+redisContext *RedisClient::createSubscriberConnection()
 {
     if (!enabled_)
     {
         return nullptr;
     }
-    // 不能用 make_shared：构造函数私有，这里是 friend。
-    std::shared_ptr<RedisSubscription> sub(new RedisSubscription());
-    sub->channel_ = channel;    // 订阅频道名称
-    sub->host_ = host_; // Redis 服务器地址
-    sub->port_ = port_; // Redis 服务器端口
-    sub->password_ = password_; // Redis 服务器密码
-    sub->db_ = db_; // Redis 数据库索引
-    sub->onMessage_ = std::move(onMessage); // 消息回调
-    sub->running_ = true;   // 置运行标志，loop() 里会检查
-    sub->thread_ = std::thread([sub]()
-                               { sub->loop(); });   // 启动后台线程执行订阅循环
-    return sub;
-}
 
-// ===================== RedisSubscription =====================
-
-// 析构即退订：确保后台线程安全退出。
-RedisSubscription::~RedisSubscription()
-{
-    stop();
-}
-
-// 停止订阅：置停标志 + shutdown(fd) 打断阻塞读，再 join 后台线程。可重复调用。
-void RedisSubscription::stop()
-{
-    if (!running_.exchange(false))
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    redisContext *ctx = redisConnectWithTimeout(host_.c_str(), port_, tv);
+    if (!ctx || ctx->err)
     {
-        return;
+        if (ctx)
+        {
+            redisFree(ctx);
+        }
+        return nullptr;
     }
-    // 打断订阅线程里阻塞的 redisGetReply。
-    int fd = fd_.load();
-    if (fd >= 0)
+
+    if (!password_.empty())
     {
-        ::shutdown(fd, SHUT_RDWR);
+        ReplyPtr auth(redisCommand(ctx, "AUTH %s", password_.c_str()));
+        if (!auth || auth->type == REDIS_REPLY_ERROR)
+        {
+            redisFree(ctx);
+            return nullptr;
+        }
     }
-    if (thread_.joinable())
+    if (db_ != 0)
     {
-        thread_.join();
+        ReplyPtr sel(redisCommand(ctx, "SELECT %d", db_)); // 失败不阻断（沿用原订阅逻辑）
     }
-}
-
-// 订阅线程主体：连接→鉴权→SUBSCRIBE→阻塞读消息并回调；断线自动重连，直到 stop()。
-void RedisSubscription::loop()
-{
-    while (running_.load())
-    {
-        struct timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-        redisContext *ctx = redisConnectWithTimeout(host_.c_str(), port_, tv);  // 连接redis服务器
-        if (!ctx || ctx->err)
-        {
-            if (ctx)
-            {
-                redisFree(ctx);
-            }
-            // 连接失败：稍后重试（除非已被要求停止）。
-            for (int i = 0; i < 10 && running_.load(); ++i)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-            continue;
-        }
-
-        if (!password_.empty())
-        {
-            ReplyPtr auth(redisCommand(ctx, "AUTH %s", password_.c_str()));
-            if (!auth || auth->type == REDIS_REPLY_ERROR)
-            {
-                redisFree(ctx);
-                continue;
-            }
-        }
-        if (db_ != 0)
-        {
-            ReplyPtr sel(redisCommand(ctx, "SELECT %d", db_)); // 失败不阻断（保持原逻辑）
-        }
-
-        {
-            ReplyPtr sub(redisCommand(ctx, "SUBSCRIBE %s", channel_.c_str()));
-            if (!sub)
-            {
-                redisFree(ctx);
-                continue;
-            }
-            // 订阅确认回复用完即弃（离开本块即释放），后续在下方阻塞读消息。
-        }
-
-        fd_.store(ctx->fd);
-
-        // 阻塞读消息，直到出错或被 stop() 打断。
-        while (running_.load())
-        {
-            redisReply *reply = nullptr;
-            // 这段代码检查从 Redis 服务器获取回复的操作是否成功。
-            // 具体来说，它使用 redisGetReply 函数从 Redis 连接上下文中获取一个回复，并检查该回复是否存在且获取操作是否没有错误。
-            if (redisGetReply(ctx, reinterpret_cast<void **>(&reply)) != REDIS_OK || !reply)
-            {
-                break; // 连接断开或被 shutdown 打断
-            }
-            // 消息格式：["message", channel, payload]
-            if (reply->type == REDIS_REPLY_ARRAY && reply->elements == 3 &&
-                reply->element[0]->str &&
-                std::string(reply->element[0]->str) == "message")
-            {
-                std::string payload(reply->element[2]->str ? reply->element[2]->str : "",
-                                    reply->element[2]->len);
-                if (onMessage_)
-                {
-                    try
-                    {
-                        onMessage_(payload);
-                    }
-                    catch (...)
-                    {
-                        // 回调异常不应拖垮订阅线程。
-                    }
-                }
-            }
-            freeReplyObject(reply);
-        }
-
-        fd_.store(-1);
-        redisFree(ctx);
-        // 若仍在运行说明是断线，循环顶部会重连。
-    }
+    return ctx;
 }

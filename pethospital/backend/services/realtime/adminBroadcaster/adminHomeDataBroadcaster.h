@@ -12,8 +12,6 @@
 
 #include "../../../database/DatabaseManager.h"
 
-class RedisSubscription; // Redis 订阅句柄（跨实例广播）
-
 class AdminHomeDataBroadcaster
 {
 public:
@@ -34,7 +32,6 @@ private:
     void triggerLocalPush(); // 仅唤醒本实例广播线程（不再次发布，避免回环）
 
     std::shared_ptr<DatabaseManagerInterface> dbManager_;
-    std::shared_ptr<RedisSubscription> subscription_; // 跨实例广播订阅
     std::thread broadcast_thread_;  // 广播线程
     std::atomic<bool> running_{false};  // 运行标志符，用于控制广播线程的生命周期 true 表示运行，false 表示停止）。
     bool pending_update_{false};    // 标志符，表示是否有数据更新待推送

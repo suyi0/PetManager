@@ -7,6 +7,7 @@
 #include "../../../controllers/modules/doctor/doctorHandler.h"
 #include "../../../utils/Utils.h"
 #include "../../redis/RedisClient.h"
+#include "../../redis/redisMessageBus/RedisMessageBus.h"
 
 namespace
 {
@@ -31,9 +32,9 @@ void DoctorQueueBroadcaster::start(std::shared_ptr<DatabaseManagerInterface> dbM
 
     broadcast_thread_ = std::thread([this]() { run(); });
 
-    // 订阅跨实例广播：消息体是 doctorId，收到后只触发该医生队列的本地推送。
-    // Redis 未启用时返回 nullptr，退化为单实例本地通知。
-    subscription_ = RedisClient::instance().subscribe(
+    // 订阅跨实例广播：注册到统一订阅总线；消息体是 doctorId，收到后只触发该医生队列的本地推送。
+    // Redis 未启用时总线不启动（active()=false），退化为单实例本地通知。
+    RedisMessageBus::instance().subscribe(
         kDoctorQueueChannel, [this](const std::string &payload)
         {
             try
@@ -49,12 +50,6 @@ void DoctorQueueBroadcaster::start(std::shared_ptr<DatabaseManagerInterface> dbM
 
 void DoctorQueueBroadcaster::stop()
 {
-    if (subscription_)
-    {
-        subscription_->stop();
-        subscription_.reset();
-    }
-
     running_ = false;
     broadcast_cv_.notify_all();
 
@@ -152,7 +147,7 @@ void DoctorQueueBroadcaster::notifyQueueChanged(int doctorId)
 
     // 多实例下先发布 doctorId 到频道，所有实例各自推送该医生的本地连接；
     // 单实例或 Redis 不可用时直接触发本地推送。
-    if (subscription_ &&
+    if (RedisMessageBus::instance().active() &&
         RedisClient::instance().publish(kDoctorQueueChannel, std::to_string(doctorId)))
     {
         return; // 本实例会通过自身订阅收到并触发本地推送

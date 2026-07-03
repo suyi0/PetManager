@@ -5,6 +5,7 @@
 #include "../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include "../../services/redis/RedisClient.h"
+#include "../../services/redis/redisMessageBus/RedisMessageBus.h"
 #include "../../utils/staticFileHandler.h"
 #include "../../utils/Utils.h"
 
@@ -146,6 +147,7 @@ void WebSocketServer::gracefulShutdown()
     MedicineStockBroadcaster::instance().closeAllConnections("server_shutdown");
     DoctorListBroadcaster::instance().stop();
     DoctorListBroadcaster::instance().closeAllConnections("server_shutdown");
+    RedisMessageBus::instance().stop();
 
     // 停止服务器
     app_ptr_->stop();

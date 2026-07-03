@@ -13,8 +13,6 @@
 
 #include "../../../database/DatabaseManager.h"
 
-class RedisSubscription; // Redis 订阅句柄（跨实例广播）
-
 class DoctorQueueBroadcaster
 {
 public:
@@ -35,7 +33,6 @@ private:
     void triggerLocalQueueChanged(int doctorId); // 仅唤醒本实例（不再次发布，避免回环）
 
     std::shared_ptr<DatabaseManagerInterface> dbManager_;
-    std::shared_ptr<RedisSubscription> subscription_; // 跨实例广播订阅
     std::thread broadcast_thread_;
     std::atomic<bool> running_{false};
     std::mutex connections_mutex_;

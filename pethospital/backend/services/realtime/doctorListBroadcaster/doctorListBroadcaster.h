@@ -10,8 +10,6 @@
 
 #include <crow.h>
 
-class RedisSubscription;
-
 // 用户端预约医生列表实时广播：医生上下班后发一个刷新信号，前端重拉预约医生列表。
 // 不带医生数据，避免 WS 侧复制 HTTP 列表查询和权限响应逻辑。
 class DoctorListBroadcaster
@@ -33,7 +31,6 @@ private:
     void pushDoctorListSignal();
     void triggerLocalDoctorListChanged();
 
-    std::shared_ptr<RedisSubscription> subscription_;
     std::thread broadcast_thread_;
     std::atomic<bool> running_{false};
     std::mutex connections_mutex_;

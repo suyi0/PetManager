@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include "../../redis/RedisClient.h"
+#include "../../redis/redisMessageBus/RedisMessageBus.h"
 #include "../../../utils/Utils.h"
 
 namespace
@@ -28,18 +29,13 @@ void DoctorListBroadcaster::start()
     }
 
     broadcast_thread_ = std::thread([this]() { run(); });
-    subscription_ = RedisClient::instance().subscribe(
+    // 注册到统一订阅总线；Redis 未启用时总线不启动，退化为单实例本地通知。
+    RedisMessageBus::instance().subscribe(
         kDoctorListChannel, [this](const std::string &) { triggerLocalDoctorListChanged(); });
 }
 
 void DoctorListBroadcaster::stop()
 {
-    if (subscription_)
-    {
-        subscription_->stop();
-        subscription_.reset();
-    }
-
     running_ = false;
     broadcast_cv_.notify_all();
 
@@ -96,7 +92,8 @@ void DoctorListBroadcaster::closeAllConnections(const std::string &reason)
 
 void DoctorListBroadcaster::notifyDoctorListChanged()
 {
-    if (subscription_ && RedisClient::instance().publish(kDoctorListChannel, "1"))
+    if (RedisMessageBus::instance().active() &&
+        RedisClient::instance().publish(kDoctorListChannel, "1"))
     {
         return;
     }

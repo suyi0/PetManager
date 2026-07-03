@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include "../../redis/RedisClient.h"
+#include "../../redis/redisMessageBus/RedisMessageBus.h"
 #include "../../../utils/Utils.h"
 
 namespace
@@ -30,20 +31,14 @@ void MedicineStockBroadcaster::start()
 
     broadcast_thread_ = std::thread([this]() { run(); });
 
-    // 跨实例广播：任一实例 publish，所有实例的订阅线程收到后触发本地推送。
-    // Redis 未启用时返回 nullptr，退化为单实例本地通知。
-    subscription_ = RedisClient::instance().subscribe(
+    // 跨实例广播：注册到统一订阅总线（任一实例 publish，所有实例收到后触发本地推送）。
+    // Redis 未启用时总线不启动（active()=false），notify 退化为单实例本地通知。
+    RedisMessageBus::instance().subscribe(
         kMedicineStockChannel, [this](const std::string &) { triggerLocalStockChanged(); });
 }
 
 void MedicineStockBroadcaster::stop()
 {
-    if (subscription_)
-    {
-        subscription_->stop();
-        subscription_.reset();
-    }
-
     running_ = false;
     broadcast_cv_.notify_all();
 
@@ -102,7 +97,7 @@ void MedicineStockBroadcaster::closeAllConnections(const std::string &reason)
 void MedicineStockBroadcaster::notifyMedicineStockChanged()
 {
     // 多实例下先发布到频道，所有实例各自推送本地连接；单实例或 Redis 不可用时直接本地触发。
-    if (subscription_ && RedisClient::instance().publish(kMedicineStockChannel, "1"))
+    if (RedisMessageBus::instance().active() && RedisClient::instance().publish(kMedicineStockChannel, "1"))
     {
         return; // 本实例会通过自身订阅收到并触发本地推送
     }

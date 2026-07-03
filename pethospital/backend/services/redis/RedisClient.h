@@ -10,35 +10,6 @@
 
 struct redisContext; // 前向声明，避免在头文件暴露 hiredis
 
-// RedisSubscription：一条独立的订阅连接 + 后台线程，收到消息回调 onMessage。
-// 用于 WebSocket 跨实例广播：任一实例 PUBLISH，所有实例的订阅线程都会触发本地推送。
-// 断线会自动重连；析构或 stop() 时安全退出（shutdown(fd) 打断阻塞读）。
-class RedisSubscription
-{
-public:
-    ~RedisSubscription();
-    void stop();
-
-private:
-    friend class RedisClient;
-    RedisSubscription() = default;
-
-    void loop();
-
-    std::thread thread_;
-    std::atomic<bool> running_{false};
-    std::atomic<int> fd_{-1}; // 订阅连接 socket fd，stop 时用于打断阻塞读
-    std::string channel_;
-    std::string host_;
-    int port_ = 6379;
-    std::string password_;
-    // 代表 Redis 数据库索引，默认为 0。Redis 支持多个逻辑数据库，每个数据库都有一个唯一的索引号。
-    int db_ = 0;
-    std::function<void(const std::string &)> onMessage_;
-};
-
-
-
 // RedisClient：对 hiredis 的薄封装，作为系统的内存中转站。
 //
 // 设计要点：
@@ -111,11 +82,10 @@ public:
     // ---- 发布/订阅（WebSocket 跨实例广播） ----
     // 向频道发布一条消息；返回是否成功投递到 Redis。
     bool publish(const std::string &channel, const std::string &message);
-    // 订阅频道；每条消息触发 onMessage(payload)。返回订阅句柄，析构即退订。
-    // Redis 未启用时返回 nullptr，调用方据此回退为单实例本地逻辑。
-    std::shared_ptr<RedisSubscription> subscribe(
-        const std::string &channel,
-        std::function<void(const std::string &)> onMessage);
+    // 建一条独立的订阅用阻塞连接（已 AUTH/SELECT）；Redis 未启用或失败返回 nullptr，
+    // 调用方负责 redisFree。订阅统一走 RedisMessageBus（services/redis/redisMessageBus），
+    // 不要在业务代码里直接用本方法自建订阅。
+    redisContext *createSubscriberConnection();
 
 private:
     RedisClient() = default;
