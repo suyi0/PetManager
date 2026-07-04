@@ -1,5 +1,6 @@
 #include "warehouseManagerRoutes.h"
 #include "../../services/logger/operationLogger.h"
+#include "../../utils/permissions/Permissions.h"
 
 void warehouseManagerRoutes::setupwarehouseManagerRoutes(
     CrowApp& app,
@@ -17,8 +18,9 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                 int userId = -1;
                 const bool isUpload = req.method == crow::HTTPMethod::POST;
                 const std::string action = isUpload ? "上传物资" : "查询全部物资";
+                const std::string permissionKey = isUpload ? Permissions::kStockWrite : Permissions::kStockRead;
                 try {
-                    userId = isValidWarehouseStaffToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, permissionKey);
                     if (res.code != 200 || userId == -1) {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", action);
                         return;
@@ -43,7 +45,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             [dbManager](const crow::request &req, crow::response &res) {
                 int userId = -1;
                 try {
-                    userId = isValidWarehouseStaffToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kStockRead);
                     if (res.code != 200 || userId == -1) {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "搜索物资");
                         return;
@@ -79,7 +81,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             ) {
                 int userId = -1;
                 try {
-                    userId = isValidWarehouseStaffToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kStockRead);
                     if (res.code != 200 || userId == -1) {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "条件查询物资");
                         return;
@@ -108,7 +110,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             ) {
                 int userId = -1;
                 try {
-                    userId = isValidWarehouseStaffToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kStockWrite);
                     if (res.code != 200 || userId == -1) {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "更新物资");
                         return;
@@ -136,7 +138,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
             ) {
                 int userId = -1;
                 try {
-                    userId = isValidWarehouseStaffToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kStockWrite);
                     if (res.code != 200 || userId == -1) {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "仓库", "删除物资");
                         return;

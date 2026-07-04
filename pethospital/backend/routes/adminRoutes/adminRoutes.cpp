@@ -5,6 +5,7 @@
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../services/auth/AuthSessionStore.h"
+#include "../../utils/permissions/Permissions.h"
 
 #include <iostream>
 
@@ -26,7 +27,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取超级管理员首页数据");
@@ -70,7 +71,7 @@ void adminRoutes::setupAdminRoutes(
             }
 
             std::string identifier = claims->identifier;
-            return JwtUtils::isUserAuthorizedForAdminForm(
+            return JwtUtils::isUserAuthorizedForSuperAdminPortal(
                 claims->userId,
                 identifier,
                 claims->isEmailLogin,
@@ -95,7 +96,7 @@ void adminRoutes::setupAdminRoutes(
                 const std::string action = isCreate ? "创建用户" : "获取用户列表";
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", action);
@@ -130,7 +131,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "搜索用户");
@@ -163,7 +164,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "搜索在线医生");
@@ -196,7 +197,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "获取工时记录");
@@ -222,7 +223,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kUserDelete);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "删除用户");
@@ -238,7 +239,7 @@ void adminRoutes::setupAdminRoutes(
                     OperationLogger::LogExceptionOperation(dbManager, req, "管理", "删除用户", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "删除用户", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "删除用户", Permissions::kUserDelete, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/admins/doctor-work-time-changes")
@@ -248,7 +249,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "调整医生排班");
@@ -291,7 +292,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "修改医生工作状态");
@@ -317,7 +318,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kLogsRead);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "查询操作日志");
@@ -333,7 +334,7 @@ void adminRoutes::setupAdminRoutes(
                     OperationLogger::LogExceptionOperation(dbManager, req, "管理", "查询操作日志", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "查询操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "查询操作日志", Permissions::kLogsRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/admins/logs/search")
@@ -343,7 +344,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kLogsRead);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "搜索操作日志");
@@ -354,7 +355,7 @@ void adminRoutes::setupAdminRoutes(
                     auto jsonOpt = handler.parseJson(req, res);
                     if (!jsonOpt)
                     {
-                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "搜索操作日志", Permissions::kLogsRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
                         return;
                     }
 
@@ -366,7 +367,7 @@ void adminRoutes::setupAdminRoutes(
                     OperationLogger::LogExceptionOperation(dbManager, req, "管理", "搜索操作日志", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "搜索操作日志", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "搜索操作日志", Permissions::kLogsRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/admins/order-records")

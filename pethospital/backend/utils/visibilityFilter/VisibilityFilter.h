@@ -1,5 +1,7 @@
 #pragma once
 
+#include "dataScope/DataScope.h"
+
 #include <string>
 
 // 角色可见性过滤：orderCommon / reservationCommon / searchCommon 三处
@@ -30,6 +32,12 @@ struct Clause
 Clause build(
     bool isBoss,
     bool isMedicalStaff,
+    const std::string &alias,
+    const std::string &ownerColumn,
+    bool alwaysExcludeSoftDeleted);
+
+Clause build(
+    const DataScope::Scope &scope,
     const std::string &alias,
     const std::string &ownerColumn,
     bool alwaysExcludeSoftDeleted);

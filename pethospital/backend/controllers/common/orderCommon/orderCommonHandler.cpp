@@ -1,4 +1,5 @@
 #include "orderCommonHandler.h"
+#include "dataScope/DataScope.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include "visibilityFilter/VisibilityFilter.h"
@@ -13,10 +14,9 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
         }
 
         const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        const bool isBoss = RoleTypeUtils::isBossRole(roleName);
-        const bool isMedicalStaff = RoleTypeUtils::isMedicalStaffRole(roleName);
+        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
         const VisibilityFilter::Clause filter =
-            VisibilityFilter::build(isBoss, isMedicalStaff, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
+            VisibilityFilter::build(dataScope, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
 
         const std::string sql = "SELECT o.id, p.pet_name, COALESCE(d.name, ''), o.order_type, "
                                 "o.order_data, o.order_status, o.order_totalprice "

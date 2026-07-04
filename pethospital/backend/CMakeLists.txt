@@ -368,6 +368,7 @@ if(BUILD_TESTING)
         services/redis/RedisClient.cpp
         services/redis/userRoleCache/UserRoleCache.cpp
         utils/Utils.cpp
+        utils/permissions/Permissions.cpp
         utils/roleTypeUtils/roleTypeUtils.cpp
     )
     target_link_libraries(auth_session_store_tests
@@ -378,6 +379,15 @@ if(BUILD_TESTING)
         target_link_libraries(auth_session_store_tests ${HIREDIS_LIBRARIES})
     endif()
     add_test(NAME auth_session_store_tests COMMAND auth_session_store_tests)
+
+    add_executable(auth_middleware_boundary_tests
+        tests/auth_middleware_boundary_tests.cpp
+    )
+    target_compile_definitions(auth_middleware_boundary_tests PRIVATE
+        AUTH_MIDDLEWARE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/middleware/authMiddleware/authMiddleware.cpp"
+        JWT_UTILS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/auth/jwtUtils/jwtUtils.cpp"
+    )
+    add_test(NAME auth_middleware_boundary_tests COMMAND auth_middleware_boundary_tests)
 
     add_executable(doctor_medicine_cache_tests
         tests/doctor_medicine_cache_tests.cpp
@@ -412,6 +422,7 @@ if(BUILD_TESTING)
 
     add_executable(role_permission_tests
         tests/role_permission_tests.cpp
+        utils/permissions/Permissions.cpp
         utils/roleTypeUtils/roleTypeUtils.cpp
         services/redis/userRoleCache/UserRoleCache.cpp
         services/redis/RedisClient.cpp
@@ -423,6 +434,32 @@ if(BUILD_TESTING)
         target_link_libraries(role_permission_tests ${HIREDIS_LIBRARIES})
     endif()
     add_test(NAME role_permission_tests COMMAND role_permission_tests)
+
+    add_executable(permission_model_tests
+        tests/permission_model_tests.cpp
+        utils/permissions/Permissions.cpp
+    )
+    add_test(NAME permission_model_tests COMMAND permission_model_tests)
+
+    add_executable(data_scope_tests
+        tests/data_scope_tests.cpp
+        utils/dataScope/DataScope.cpp
+        utils/permissions/Permissions.cpp
+        utils/visibilityFilter/VisibilityFilter.cpp
+    )
+    add_test(NAME data_scope_tests COMMAND data_scope_tests)
+
+    add_executable(sensitive_permission_route_tests
+        tests/sensitive_permission_route_tests.cpp
+    )
+    target_compile_definitions(sensitive_permission_route_tests PRIVATE
+        ADMIN_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/adminRoutes/adminRoutes.cpp"
+        FINANCE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/financeRoutes/financeRoutes.cpp"
+        BOSS_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/bossRoutes/bossRoutes.cpp"
+        WAREHOUSE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/warehouseManagerRoutes/warehouseManagerRoutes.cpp"
+        OPERATION_LOGGER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/logger/operationLogger.cpp"
+    )
+    add_test(NAME sensitive_permission_route_tests COMMAND sensitive_permission_route_tests)
 
     add_executable(visibility_filter_tests
         tests/visibility_filter_tests.cpp

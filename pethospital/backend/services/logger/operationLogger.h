@@ -33,6 +33,14 @@ public:
                                   std::optional<int> userId = std::nullopt,
                                   bool logSuccess = true);
 
+    static void FinishSensitiveRoute(std::shared_ptr<DatabaseManagerInterface> dbManager,
+                                     const crow::request &req,
+                                     crow::response &res,
+                                     const std::string &module,
+                                     const std::string &action,
+                                     const std::string &permissionKey,
+                                     std::optional<int> userId = std::nullopt);
+
     
     static void LogAuthorizationFailure(std::shared_ptr<DatabaseManagerInterface> dbManager,
                                         const crow::request &req,

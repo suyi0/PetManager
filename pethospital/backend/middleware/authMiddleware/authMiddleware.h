@@ -4,6 +4,7 @@
 #include "../../utils/Utils.h"
 #include "../../controllers/auth/jwtUtils/jwtUtils.h"
 #include "roleTypeUtils/roleTypeUtils.h"
+#include <string>
 
 // 用户端 token 校验。
 int isValidUserToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
@@ -13,6 +14,18 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
 
 // 管理端 token 校验。
 int isValidManagementToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+
+// 指定功能权限 token 校验。
+int isValidPermissionToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &permissionKey);
+
+// 超级管理员门户 token 校验。
+int isValidSuperAdminPortalToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+
+// 财务门户 token 校验。
+int isValidFinancePortalToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+
+// 总裁门户 token 校验。
+int isValidBossPortalToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
 
 // 人事端 token 校验。
 int isValidPersonnelToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);

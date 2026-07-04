@@ -1,5 +1,6 @@
 #include "bossRoutes.h"
 #include "../../services/logger/operationLogger.h"
+#include "../../utils/permissions/Permissions.h"
 
 void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
@@ -16,7 +17,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kEquityWrite);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "boss", "分配股份总额");
@@ -32,7 +33,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                     OperationLogger::LogExceptionOperation(dbManager, req, "boss", "分配股份总额", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "boss", "分配股份总额", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "boss", "分配股份总额", Permissions::kEquityWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/bosses/stock-allocations")
@@ -42,7 +43,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kEquityWrite);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "boss", "分配个人股份份额");
@@ -58,7 +59,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                     OperationLogger::LogExceptionOperation(dbManager, req, "boss", "分配个人股份份额", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "boss", "分配个人股份份额", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "boss", "分配个人股份份额", Permissions::kEquityWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/bosses/stock-changes")
@@ -68,7 +69,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kEquityWrite);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "boss", "修改个人股份份额");
@@ -84,7 +85,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                     OperationLogger::LogExceptionOperation(dbManager, req, "boss", "修改个人股份份额", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "boss", "修改个人股份份额", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "boss", "修改个人股份份额", Permissions::kEquityWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/bosses/stocks")
@@ -94,7 +95,7 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kEquityRead);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "boss", "获取公司股份分布");
@@ -110,6 +111,6 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                     OperationLogger::LogExceptionOperation(dbManager, req, "boss", "获取公司股份分布", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "boss", "获取公司股份分布", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "boss", "获取公司股份分布", Permissions::kEquityRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 }

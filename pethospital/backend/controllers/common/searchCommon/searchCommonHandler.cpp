@@ -1,4 +1,5 @@
 #include "searchCommonHandler.h"
+#include "dataScope/DataScope.h"
 #include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include "visibilityFilter/VisibilityFilter.h"
@@ -155,15 +156,14 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
         }
 
         const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        const bool isBoss = RoleTypeUtils::isBossRole(roleName);
-        const bool isMedicalStaff = RoleTypeUtils::isMedicalStaffRole(roleName);
+        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
 
         const std::string keywordLike = "%" + searchByKeyword + "%";
         const std::string orderStatusKeywordLike = "%" + StatusLabelUtils::toDbOrderStatus(searchByKeyword) + "%";
         const std::string reservationStatusKeywordLike = "%" + StatusLabelUtils::toDbReservationStatus(searchByKeyword) + "%";
         std::string sql = "";
         const VisibilityFilter::Clause filter =
-            VisibilityFilter::build(isBoss, isMedicalStaff,
+            VisibilityFilter::build(dataScope,
                                     searchType == "reservations" ? "r" : "o",
                                     searchType == "reservations" ? "user_id" : "owner_id",
                                     /*alwaysExcludeSoftDeleted=*/true);

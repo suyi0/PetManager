@@ -1,5 +1,6 @@
 #include "jwtUtils.h"
 #include "../../../services/auth/AuthSessionStore.h"
+#include "../../../utils/permissions/Permissions.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 #include <cstring>
 
@@ -548,6 +549,86 @@ bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier,
     catch (const std::exception &e)
     {
         std::cerr << "Error in isUserAuthorizedForAdminForm: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool JwtUtils::isUserAuthorizedForSuperAdminPortal(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    try
+    {
+        const auto target = getUserAuthTargetById(dbManager, userId);
+        if (!target)
+        {
+            return false;
+        }
+
+        return target->userId == userId &&
+               RoleTypeUtils::isSuperAdminPortalRole(target->roleName);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in isUserAuthorizedForSuperAdminPortal: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool JwtUtils::isUserAuthorizedForFinancePortal(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    try
+    {
+        const auto target = getUserAuthTargetById(dbManager, userId);
+        if (!target)
+        {
+            return false;
+        }
+
+        return target->userId == userId &&
+               RoleTypeUtils::isFinancePortalRole(target->roleName);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in isUserAuthorizedForFinancePortal: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool JwtUtils::isUserAuthorizedForBossPortal(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    try
+    {
+        const auto target = getUserAuthTargetById(dbManager, userId);
+        if (!target)
+        {
+            return false;
+        }
+
+        return target->userId == userId &&
+               RoleTypeUtils::isBossRole(target->roleName);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in isUserAuthorizedForBossPortal: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool JwtUtils::isUserAuthorizedForPermission(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &permissionKey)
+{
+    try
+    {
+        const auto target = getUserAuthTargetById(dbManager, userId);
+        if (!target)
+        {
+            return false;
+        }
+
+        return target->userId == userId &&
+               Permissions::roleHasPermission(target->roleName, permissionKey);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error in isUserAuthorizedForPermission: " << e.what() << std::endl;
         return false;
     }
 }

@@ -42,6 +42,26 @@ int main()
     assert(!RoleTypeUtils::isBossRole("财务总监"));
     assert(!RoleTypeUtils::isBossRole("医生"));
 
+    // ---- 门户边界：前端 allowedRoles 与后端 route token scope 必须一致 ----
+    assert(RoleTypeUtils::isFinancePortalRole("总裁"));
+    assert(RoleTypeUtils::isFinancePortalRole("副总裁"));
+    assert(RoleTypeUtils::isFinancePortalRole("财务总监"));
+    assert(RoleTypeUtils::isFinancePortalRole("财务经理"));
+    assert(!RoleTypeUtils::isFinancePortalRole("部门经理"));
+    assert(!RoleTypeUtils::isFinancePortalRole("超级管理员"));
+    assert(!RoleTypeUtils::isFinancePortalRole("人事经理"));
+
+    assert(RoleTypeUtils::isSuperAdminPortalRole("总裁"));
+    assert(RoleTypeUtils::isSuperAdminPortalRole("副总裁"));
+    assert(RoleTypeUtils::isSuperAdminPortalRole("部门经理"));
+    assert(RoleTypeUtils::isSuperAdminPortalRole("超级管理员"));
+    assert(!RoleTypeUtils::isSuperAdminPortalRole("财务总监"));
+    assert(!RoleTypeUtils::isSuperAdminPortalRole("财务经理"));
+    assert(!RoleTypeUtils::isSuperAdminPortalRole("人事经理"));
+
+    assert(!RoleTypeUtils::isFinancePortalRole(""));
+    assert(!RoleTypeUtils::isSuperAdminPortalRole(""));
+
     // ---- 管理层（session-version 强制失效的适用范围）----
     assert(RoleTypeUtils::isManagementRole("总裁"));
     assert(RoleTypeUtils::isManagementRole("副总裁"));

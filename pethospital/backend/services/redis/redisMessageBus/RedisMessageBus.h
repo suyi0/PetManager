@@ -51,5 +51,6 @@ private:
     std::atomic<bool> resubscribe_{false}; // 运行期新增频道 → 重连并重订阅
     std::atomic<int> fd_{-1};              // 当前订阅连接 socket fd，打断阻塞读用
     mutable std::mutex mutex_;             // 保护 handlers_
+    // 频道 → 回调列表（同一频道可注册多个 handler，按注册顺序执行）。
     std::unordered_map<std::string, std::vector<std::function<void(const std::string &)>>> handlers_;
 };

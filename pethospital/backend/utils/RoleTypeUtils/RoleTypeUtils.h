@@ -34,6 +34,12 @@ namespace RoleTypeUtils
     // 判断角色是否属于总裁端角色
     bool isBossRole(const std::string &roleName);
 
+    // 判断角色是否属于超级管理员门户角色
+    bool isSuperAdminPortalRole(const std::string &roleName);
+
+    // 判断角色是否属于财务门户角色
+    bool isFinancePortalRole(const std::string &roleName);
+
     // 判断角色是否属于普通用户角色
     bool isNormalUserRole(const std::string &roleName);
 

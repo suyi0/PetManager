@@ -139,6 +139,23 @@ namespace
         return details.dump();
     }
 
+    std::string buildSensitiveOperationDetails(const crow::request &req,
+                                               const crow::response &res,
+                                               const nlohmann::json &responseBody,
+                                               const std::string &permissionKey)
+    {
+        nlohmann::json details = {
+            {"method", getMethodName(req.method)},
+            {"path", req.url},
+            {"httpStatus", res.code},
+            {"clientIp", RequestUtils::getClientIp(req)},
+            {"auditType", "sensitive_permission"},
+            {"permissionKey", permissionKey},
+            {"response", responseBody}};
+
+        return details.dump();
+    }
+
     // 统一封装用户/系统日志分流，避免结果日志和异常日志各自复制一份相同判断。
     void writeOperationLog(std::shared_ptr<DatabaseManagerInterface> dbManager,
                            const std::string &module,
@@ -282,6 +299,28 @@ void OperationLogger::FinalizeResponseWithOperationLog(std::shared_ptr<DatabaseM
     const std::string source = getMethodName(req.method) + " " + req.url;
 
     writeOperationLog(dbManager, module, action, result, summary, details, source, userId);
+}
+
+void OperationLogger::FinishSensitiveRoute(std::shared_ptr<DatabaseManagerInterface> dbManager,
+                                           const crow::request &req,
+                                           crow::response &res,
+                                           const std::string &module,
+                                           const std::string &action,
+                                           const std::string &permissionKey,
+                                           std::optional<int> userId)
+{
+    if (req.method != crow::HTTPMethod::Options)
+    {
+        nlohmann::json responseBody = parseResponseBody(res);
+        const std::string result = getOperationResult(res);
+        const std::string summary = buildOperationSummary(module, action, res, responseBody);
+        const std::string details = buildSensitiveOperationDetails(req, res, responseBody, permissionKey);
+        const std::string source = "sensitive:" + permissionKey + " " + getMethodName(req.method) + " " + req.url;
+
+        writeOperationLog(dbManager, module, action, result, summary, details, source, userId);
+    }
+
+    res.end();
 }
 
 

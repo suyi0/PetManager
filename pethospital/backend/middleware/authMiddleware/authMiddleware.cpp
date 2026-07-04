@@ -7,16 +7,26 @@ namespace
     {
         User,
         Management,
+        SuperAdminPortal,
+        FinancePortal,
+        BossPortal,
         Personnel,
         MedicalStaff,
         WarehouseStaff
+    };
+
+    enum class AuthorizationFailureResponse
+    {
+        Unauthorized,
+        PermissionDenied
     };
 
     template <typename Authorizer>
     int validateToken(const crow::request &req,
                       crow::response &res,
                       std::shared_ptr<DatabaseManagerInterface> dbManager,
-                      Authorizer authorizer)
+                      Authorizer authorizer,
+                      AuthorizationFailureResponse authorizationFailureResponse = AuthorizationFailureResponse::Unauthorized)
     {
         // 从请求头取 Bearer token
         std::string authHeader = req.get_header_value("Authorization");
@@ -60,7 +70,9 @@ namespace
         const bool isAuthorized = authorizer(*claims, identifier);
         if (!isAuthorized)
         {
-            res = ResponseHelper::unauthorized(req, "用户无权限进行此操作");
+            res = authorizationFailureResponse == AuthorizationFailureResponse::PermissionDenied
+                      ? ResponseHelper::permission_denied(req, "用户无权限进行此操作")
+                      : ResponseHelper::unauthorized(req, "用户无权限进行此操作");
             return -1;
         }
 
@@ -75,14 +87,21 @@ namespace
     {
         return validateToken(req, res, dbManager, [&](const JwtUtils::TokenClaims &claims, std::string &identifier)
                              {
-            if (scope != TokenValidationScope::Management && RoleTypeUtils::isBossRole(claims.typeName))
-            {
-                return true;
-            }
-
             if (scope == TokenValidationScope::Management)
             {
                 return JwtUtils::isUserAuthorizedForAdminForm(claims.userId, identifier, claims.isEmailLogin, dbManager);
+            }
+            if (scope == TokenValidationScope::SuperAdminPortal)
+            {
+                return JwtUtils::isUserAuthorizedForSuperAdminPortal(claims.userId, identifier, claims.isEmailLogin, dbManager);
+            }
+            if (scope == TokenValidationScope::FinancePortal)
+            {
+                return JwtUtils::isUserAuthorizedForFinancePortal(claims.userId, identifier, claims.isEmailLogin, dbManager);
+            }
+            if (scope == TokenValidationScope::BossPortal)
+            {
+                return JwtUtils::isUserAuthorizedForBossPortal(claims.userId, identifier, claims.isEmailLogin, dbManager);
             }
             if (scope == TokenValidationScope::Personnel)
             {
@@ -172,7 +191,7 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
     // 5. 验证用户权限
     if (!JwtUtils::isUserAuthorizedForOrder(userId, orderId, dbManager))
     {
-        res = ResponseHelper::unauthorized(req, "Access denied to this order");
+        res = ResponseHelper::notFound(req, "Order not found");
         return -1;
     }
 
@@ -183,6 +202,38 @@ int isValidUserorderToken(const crow::request &req, crow::response &res, int &or
 int isValidManagementToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     return validateTokenWithScope(req, res, dbManager, TokenValidationScope::Management);
+}
+
+// 验证指定功能权限 token。
+int isValidPermissionToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &permissionKey)
+{
+    return validateToken(req, res, dbManager, [&](const JwtUtils::TokenClaims &claims, std::string &identifier)
+                         {
+        return JwtUtils::isUserAuthorizedForPermission(
+            claims.userId,
+            identifier,
+            claims.isEmailLogin,
+            dbManager,
+            permissionKey); },
+                         AuthorizationFailureResponse::PermissionDenied);
+}
+
+// 验证超级管理员门户 token。
+int isValidSuperAdminPortalToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::SuperAdminPortal);
+}
+
+// 验证财务门户 token。
+int isValidFinancePortalToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::FinancePortal);
+}
+
+// 验证总裁门户 token。
+int isValidBossPortalToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    return validateTokenWithScope(req, res, dbManager, TokenValidationScope::BossPortal);
 }
 
 // 验证人事部门token

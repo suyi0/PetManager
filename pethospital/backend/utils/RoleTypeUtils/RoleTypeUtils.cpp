@@ -1,4 +1,5 @@
 #include "roleTypeUtils.h"
+#include "../permissions/Permissions.h"
 #include "../../services/redis/userRoleCache/UserRoleCache.h"
 #include <algorithm>
 #include <array>
@@ -15,10 +16,6 @@ const std::array<std::string, 6> kManagementRoles = {
     "财务经理",
     "部门经理",
     "超级管理员"};
-
-const std::array<std::string, 2> kBossRoles = {
-    "总裁",
-    "副总裁"};
 
 const std::array<std::string, 1> kPersonnelRoles = {
     "人事经理"};
@@ -131,7 +128,17 @@ bool isManagementRole(const std::string &roleName)
 
 bool isBossRole(const std::string &roleName)
 {
-    return std::find(kBossRoles.begin(), kBossRoles.end(), roleName) != kBossRoles.end();
+    return Permissions::roleHasPermission(roleName, Permissions::kPortalBoss);
+}
+
+bool isSuperAdminPortalRole(const std::string &roleName)
+{
+    return Permissions::roleHasPermission(roleName, Permissions::kPortalSuperAdmin);
+}
+
+bool isFinancePortalRole(const std::string &roleName)
+{
+    return Permissions::roleHasPermission(roleName, Permissions::kPortalFinance);
 }
 
 bool isNormalUserRole(const std::string &roleName)

@@ -2,6 +2,7 @@
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include "../../services/auth/AuthSessionStore.h"
+#include "../../utils/permissions/Permissions.h"
 
 #include <iostream>
 
@@ -21,7 +22,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidFinancePortalToken(req, res, dbManager);
                     if (res.code != 200 && userId == -1)
                     {
                         OperationLogger::LogAuthorizationFailure(dbManager, req, res, "财务", "获取首页数据");
@@ -63,7 +64,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
             }
 
             std::string identifier = claims->identifier;
-            return JwtUtils::isUserAuthorizedForAdminForm(
+            return JwtUtils::isUserAuthorizedForFinancePortal(
                 claims->userId,
                 identifier,
                 claims->isEmailLogin,
@@ -87,7 +88,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryWrite);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "添加或更新员工工资");
@@ -103,7 +104,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     OperationLogger::LogExceptionOperation(dbManager, req, "财务", "添加或更新员工工资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "添加或更新员工工资", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "添加或更新员工工资", Permissions::kSalaryWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     // 获取员工工资列表摘要路由
@@ -114,7 +115,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "获取工资管理数据");
@@ -130,7 +131,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     OperationLogger::LogExceptionOperation(dbManager, req, "财务", "获取工资管理数据", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取工资管理数据", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "获取工资管理数据", Permissions::kSalaryRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/finance/salary-employees/search")
@@ -140,7 +141,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "搜索员工工资");
@@ -151,7 +152,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     auto jsonOpt = handler.parseJson(req, res);
                     if (!jsonOpt)
                     {
-                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "搜索员工工资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "搜索员工工资", Permissions::kSalaryRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
                         return;
                     }
 
@@ -163,7 +164,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     OperationLogger::LogExceptionOperation(dbManager, req, "财务", "搜索员工工资", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "搜索员工工资", userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "搜索员工工资", Permissions::kSalaryRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     // 获取员工工资详情路由
@@ -174,7 +175,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "获取工资详情");
@@ -191,7 +192,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     res = ResponseHelper::system_error(req);
                 }
 
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "财务", "获取工资详情", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "获取工资详情", Permissions::kSalaryRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/finance/expenses")
@@ -201,7 +202,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 int userId = -1;
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    userId = isValidFinancePortalToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "获取开支数据");
