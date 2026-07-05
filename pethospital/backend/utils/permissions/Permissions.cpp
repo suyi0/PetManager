@@ -53,11 +53,15 @@ bool roleHasPermission(const std::string &roleName, const std::string &permissio
              kSalaryRead,
              kSalaryWrite,
              kLogsRead,
+             kMedicalRecordRead,
+             kMedicalRecordWrite,
+             kDoctorWorkWrite,
              kUserDelete,
              kEquityRead,
              kEquityWrite,
              kStockRead,
              kStockWrite,
+             kStaffRoleWrite,
              kScopeAll},
             permissionKey);
     }
@@ -76,19 +80,22 @@ bool roleHasPermission(const std::string &roleName, const std::string &permissio
         return hasPermission(
             {kPortalSuperAdmin,
              kLogsRead,
+             kMedicalRecordRead,
+             kDoctorWorkWrite,
              kUserDelete},
             permissionKey);
     }
 
     if (roleName == "人事经理")
     {
-        return hasPermission({kPortalPersonnel}, permissionKey);
+        return hasPermission({kPortalPersonnel, kStaffRoleWrite}, permissionKey);
     }
 
     if (roleName == "医生" || roleName == "护士")
     {
         return hasPermission(
             {kPortalMedical,
+             kMedicalRecordWrite,
              kScopeMedicalAssigned},
             permissionKey);
     }

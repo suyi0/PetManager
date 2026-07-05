@@ -1,7 +1,9 @@
 #include "jwtUtils.h"
 #include "../../../services/auth/AuthSessionStore.h"
+#include "../../../utils/dataScope/DataScope.h"
 #include "../../../utils/permissions/Permissions.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
+#include "../../../utils/visibilityFilter/VisibilityFilter.h"
 #include <cstring>
 
 namespace
@@ -473,29 +475,21 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
 {
     try
     {
-        if (RoleTypeUtils::userHasBossRole(dbManager, userId))
+        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
+        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
+        const VisibilityFilter::Clause filter =
+            VisibilityFilter::build(dataScope, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
+
+        const std::string sql = "SELECT 1 FROM orders AS o " + filter.whereSql + "AND o.id = ?";
+        auto query = dbManager->getSession()->sql(sql);
+        if (filter.bindsUserId)
         {
-            return true;
+            query.bind(userId);
         }
+        query.bind(orderId);
 
-        // 需要执行SQL查询：
-        // SELECT owner_id FROM orders WHERE id = orderId
-        // 然后比较查询结果中的owner_id是否等于传入的userId
-
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT owner_id FROM orders WHERE id = ?")
-                                       .bind(orderId)
-                                       .execute();
-
-        if (result.count() == 0)
-        {
-            return false; // 订单不存在
-        }
-
-        auto row = result.fetchOne();
-        int orderOwnerId = row[0].get<int>();
-
-        return orderOwnerId == userId; // 验证所有权
+        mysqlx::SqlResult result = query.execute();
+        return result.count() > 0;
     }
     catch (const std::exception &e)
     {

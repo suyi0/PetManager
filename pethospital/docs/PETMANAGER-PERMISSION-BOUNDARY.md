@@ -10,7 +10,7 @@
   - `BossPortal`：总裁 / 副总裁。
   - `FinancePortal`：总裁 / 副总裁 / 财务总监 / 财务经理。
   - `SuperAdminPortal`：总裁 / 副总裁 / 部门经理 / 超级管理员。
-- 后端已增加 `Permissions` 代码常量层，用 `portal:*`、`salary:*`、`logs:read`、`user:delete`、`equity:*`、`stock:*`、`scope:*` 等权限键表达当前角色包；`RoleTypeUtils` 的门户判断逐步委托到它。
+- 后端已增加 `Permissions` 代码常量层，用 `portal:*`、`salary:*`、`logs:read`、`medical-record:*`、`doctor-work:write`、`user:delete`、`equity:*`、`stock:*`、`staff-role:write`、`scope:*` 等权限键表达当前角色包；`RoleTypeUtils` 的门户判断逐步委托到它。
 - 后端已增加 `DataScope` 数据范围层，把当前行级可见性表达为 `All` / `MedicalAssigned` / `Owner`，供 `VisibilityFilter` 生成 SQL 过滤。
 - 敏感动作已使用 `FinishSensitiveRoute` 强制写审计日志，并在日志 details/source 中标记 `permissionKey` 与 `sensitive_permission`。
 - 后续若继续演进，方向是 **认证 -> 功能权限 -> 数据 Scope -> 敏感动作权限 -> 审计**，前端只做体验控制，后端才是安全边界。
@@ -65,7 +65,7 @@ PetManager 已经是多门户系统：总裁端、财务端、超级管理员端
 `utils/permissions/Permissions` 是当前的代码常量权限包：
 
 - 门户能力：`portal:boss`、`portal:finance`、`portal:super-admin`、`portal:personnel`、`portal:medical`、`portal:warehouse`。
-- 功能 / 敏感能力：`salary:read`、`salary:write`、`logs:read`、`user:delete`、`equity:read`、`equity:write`、`stock:read`、`stock:write`。
+- 功能 / 敏感能力：`salary:read`、`salary:write`、`logs:read`、`medical-record:read`、`medical-record:write`、`doctor-work:write`、`user:delete`、`equity:read`、`equity:write`、`stock:read`、`stock:write`、`staff-role:write`。
 - 数据范围能力：`scope:all`、`scope:medical-assigned`。普通用户 / 未知角色不显式授予 scope，默认落到 owner 范围。
 
 当前仍是代码内角色包映射，不是运行时可配置 RBAC。这样做的目的，是先把“角色名数组”升级成“权限键契约”，为后续表结构、管理 UI、scope 和审计留出清晰接口。
@@ -78,10 +78,14 @@ PetManager 已经是多门户系统：总裁端、财务端、超级管理员端
 - 股份分布读取：`equity:read`。
 - 库存读取 / 搜索：`stock:read`。
 - 库存上传 / 更新 / 删除：`stock:write`。
+- 医生 / 仓库管理员身份分配与移除：`staff-role:write`。
 - 操作日志读取 / 搜索：`logs:read`。
+- 管理员病历读取：`medical-record:read`。
+- 医护端病历 / 诊单记录创建：`medical-record:write`。
+- 管理员调整医生排班 / 工作状态：`doctor-work:write`。
 - 删除用户：`user:delete`。
 
-其中工资、股份、日志、删除用户等敏感路由还应使用 `OperationLogger::FinishSensitiveRoute(...)` 收口日志。当前不新增独立 `audit_logs` 表，先复用 `user_operations` / `system_operations`：`source` 以 `sensitive:<permissionKey>` 开头，`details` 包含 `auditType=sensitive_permission` 与 `permissionKey`，便于在现有日志页筛选。库存路由本轮先收敛为功能权限键校验，仍沿用普通操作日志；若后续需要把库存变更纳入敏感审计，再升级到 `FinishSensitiveRoute`。
+其中工资、股份、日志、病历读写、医生排班/状态、删除用户、身份分配/移除、库存写入等敏感路由还应使用 `OperationLogger::FinishSensitiveRoute(...)` 收口日志。当前不新增独立 `audit_logs` 表，先复用 `user_operations` / `system_operations`：`source` 以 `sensitive:<permissionKey>` 开头，`details` 包含 `auditType=sensitive_permission` 与 `permissionKey`，便于在现有日志页筛选。库存读取仍沿用普通操作日志，库存上传 / 更新 / 删除按 `stock:write` 纳入敏感审计。
 
 ### 3.4 数据可见性
 
@@ -100,12 +104,16 @@ PetManager 已经是多门户系统：总裁端、财务端、超级管理员端
 
 后续如果 PetManager 引入院区、科室、门店或更细组织数据范围，应扩展 `DataScope` 解析与 `VisibilityFilter` SQL 生成，而不是只在前端隐藏数据。
 
+订单详情 / 更新等资源级授权也应复用同一条 scope 规则：通过 `DataScope::resolveForRole(...)` 解析当前 DB-backed 角色，再用 `VisibilityFilter` 查询 `orders`。这样医生 / 护士只能访问分配给自己的订单，普通用户只能访问自己的订单，Boss 可访问全部未软删订单；scope 外资源统一视为不存在。
+
+管理员病历列表虽然由 `medical-record:read` 控制入口，但数据面仍必须套同一条订单 scope：功能权限回答“能不能读病历”，`DataScope` 回答“能读哪些订单病历”。当前 Boss 依 `scope:all` 看全部未软删订单，医护依 `scope:medical-assigned` 看自己负责的订单，其他角色默认 owner 范围、fail-closed。
+
 ## 4. 后续 RBAC + Scope 方向
 
 当角色组合继续增加时，不再扩展更多散落的中文角色硬编码分支。短期先维护 `Permissions` 代码常量层；中长期再迁移到：
 
 - `roles`：角色包，例如 `boss`、`finance_manager`、`super_admin`。
-- `permissions`：动作权限，例如 `salary:read`、`salary:write`、`equity:read`、`equity:write`、`user:delete`、`logs:read`、`stock:write`。
+- `permissions`：动作权限，例如 `salary:read`、`salary:write`、`equity:read`、`equity:write`、`user:delete`、`logs:read`、`medical-record:read`、`medical-record:write`、`doctor-work:write`、`stock:write`、`staff-role:write`。
 - `role_permissions` / `user_roles`：角色与账号关系。
 - `user_scopes`：数据范围，例如全院、指定院区、指定科室、指定医生团队。
 - `audit_logs`：敏感动作审计。
@@ -137,15 +145,19 @@ PetManager 已经是多门户系统：总裁端、财务端、超级管理员端
 - `RoleTypeUtils` 增加 `isSuperAdminPortalRole` / `isFinancePortalRole`。
 - `Permissions` 增加角色包到权限键的代码常量映射；`isBossRole` / `isSuperAdminPortalRole` / `isFinancePortalRole` 委托到权限键判断。
 - `DataScope` 增加 `All` / `MedicalAssigned` / `Owner` 数据范围模型；订单、预约、搜索公共查询改为从 `DataScope` 生成 `VisibilityFilter`。
+- 订单详情 / 更新等资源级授权改为复用 `DataScope` + `VisibilityFilter`，不再单独手写 Boss / owner 分支。
+- 管理员病历列表改为复用 `DataScope` + `VisibilityFilter`，不再手写 `p.user_id = currentUser`，并统一排除软删订单。
+- 医生端订单详情路由在医疗门户 token 之后追加订单 scope 校验，防止医生直接访问未分配订单详情。
 - JWT 授权增加 `isUserAuthorizedForSuperAdminPortal` / `isUserAuthorizedForFinancePortal` / `isUserAuthorizedForBossPortal`。
 - Auth middleware 增加 `isValidSuperAdminPortalToken` / `isValidFinancePortalToken` / `isValidBossPortalToken`。
 - Auth middleware 增加 `isValidPermissionToken`，用于按权限键校验敏感动作。
 - `isValidPermissionToken` 的权限不足返回 403，认证失败 / 会话失效仍返回 401，避免把越权误判为登录过期。
 - 订单详情 / 更新等资源级 scope 失败返回 404，避免泄露订单是否存在；缺 token、token 无效或会话失效仍返回 401。
 - `adminRoutes`、`financeRoutes`、`bossRoutes` 改用各自门户 token scope。
-- 工资读取/写入、股份读取/写入、日志读取/搜索、删除用户路由改用敏感权限键校验。
+- 工资读取/写入、股份读取/写入、日志读取/搜索、管理员病历读取、医护端病历写入、医生排班/工作状态写入、删除用户路由改用敏感权限键校验。
 - 仓库库存读取/搜索/条件查询路由改用 `stock:read`，上传/更新/删除路由改用 `stock:write`。
-- 工资读取/写入、股份读取/写入、日志读取/搜索、删除用户路由改用 `FinishSensitiveRoute`，成功、失败、校验异常输入都带敏感审计标记落入现有操作日志。
+- 工资读取/写入、股份读取/写入、日志读取/搜索、管理员病历读取、医护端病历写入、医生排班/工作状态写入、删除用户、库存写入路由改用 `FinishSensitiveRoute`，成功、失败、校验异常输入都带敏感审计标记落入现有操作日志。
+- 人事端医生 / 仓库管理员身份分配与移除路由改用 `staff-role:write`，并纳入 `FinishSensitiveRoute` 敏感审计。
 - `role_permission_tests` 锁定前后端门户角色矩阵，防止后续把财务、超级管理员、Boss 边界混回宽泛 management。
 - `permission_model_tests` 锁定角色包到权限键的映射，确保财务、超级管理员、Boss、仓库、人事、医护的功能能力不被误扩。
 - `data_scope_tests` 锁定角色到数据范围的映射，以及 `VisibilityFilter` 基于 scope 生成的 SQL 片段。

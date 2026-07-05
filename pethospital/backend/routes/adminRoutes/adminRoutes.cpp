@@ -249,7 +249,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kDoctorWorkWrite);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "调整医生排班");
@@ -260,7 +260,7 @@ void adminRoutes::setupAdminRoutes(
                     auto jsonOpt = handler.parseJson(req, res);
                     if (!jsonOpt)
                     {
-                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "调整医生排班", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "调整医生排班", Permissions::kDoctorWorkWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
                         return;
                     }
 
@@ -281,7 +281,7 @@ void adminRoutes::setupAdminRoutes(
                     OperationLogger::LogExceptionOperation(dbManager, req, "管理", "调整医生排班", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "调整医生排班", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "调整医生排班", Permissions::kDoctorWorkWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     // 修改医生工作状态接口
@@ -292,7 +292,7 @@ void adminRoutes::setupAdminRoutes(
                 int userId = -1;
                 try
                 {
-                    userId = isValidSuperAdminPortalToken(req, res, dbManager);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kDoctorWorkWrite);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "修改医生工作状态");
@@ -308,7 +308,7 @@ void adminRoutes::setupAdminRoutes(
                     OperationLogger::LogExceptionOperation(dbManager, req, "管理", "修改医生工作状态", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", "修改医生工作状态", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "修改医生工作状态", Permissions::kDoctorWorkWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/admins/logs")
@@ -376,7 +376,7 @@ void adminRoutes::setupAdminRoutes(
             int userId = -1;
             try
             {
-                userId = isValidUserToken(req, res, dbManager);
+                userId = isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordRead);
 
                 if(res.code != 200 || userId == -1)
                 {
@@ -393,7 +393,7 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::LogExceptionOperation(dbManager, req, "订单", "获取全部病历", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
-            OperationLogger::FinishLoggedRoute(dbManager, req, res, "订单", "获取全部病历", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "订单", "获取全部病历", Permissions::kMedicalRecordRead, userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     routes_setup = true;
 }

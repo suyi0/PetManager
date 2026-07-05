@@ -5,7 +5,9 @@
 #include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../../services/redis/redisCountCache/RedisCountCache.h"
 #include "../../../services/redis/doctorListCache/DoctorListCache.h"
+#include "../../../utils/dataScope/DataScope.h"
 #include "../../../utils/roleTypeUtils/roleTypeUtils.h"
+#include "../../../utils/visibilityFilter/VisibilityFilter.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
 #include "../../../utils/requestUtils/RequestUtils.h"
@@ -1022,17 +1024,26 @@ crow::response adminHandler::getAllRecord(const crow::request &req, int &userId,
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
+        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
+        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
+        const VisibilityFilter::Clause filter =
+            VisibilityFilter::build(dataScope, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
+
         // 使用 JOIN 一次性查询，避免 N+1 查询问题
-        mysqlx::SqlResult orders_result = dbManager->getSession()->sql(
-                                                                     "SELECT o.id, o.pet_id, p.pet_name, o.doctor_id, o.order_type, "
-                                                                     "o.order_data, o.order_status, o.order_totalprice, o.created_at "
-                                                                     "FROM orders as o "
-                                                                     "JOIN pets as p ON o.pet_id = p.id "
-                                                                     "WHERE p.user_id = ? "
-                                                                     "ORDER BY o.order_data DESC, o.created_at DESC "
-                                                                     "LIMIT ? offset ? ")
-                                              .bind(userId, batch_size, (offset - 1) * batch_size)
-                                              .execute();
+        const std::string sql = "SELECT o.id, o.pet_id, p.pet_name, o.doctor_id, o.order_type, "
+                                "o.order_data, o.order_status, o.order_totalprice, o.created_at "
+                                "FROM orders as o "
+                                "JOIN pets as p ON o.pet_id = p.id " +
+                                filter.whereSql +
+                                "ORDER BY o.order_data DESC, o.created_at DESC "
+                                "LIMIT ? offset ? ";
+
+        auto query = dbManager->getSession()->sql(sql);
+        if (filter.bindsUserId)
+        {
+            query.bind(userId);
+        }
+        mysqlx::SqlResult orders_result = query.bind(batch_size, (offset - 1) * batch_size).execute();
 
         nlohmann::json response_data = nlohmann::json::array();
         for (auto order_row : orders_result)

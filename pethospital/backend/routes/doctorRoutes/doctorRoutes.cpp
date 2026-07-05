@@ -1,8 +1,10 @@
 #include "doctorRoutes.h"
+#include "../../controllers/auth/jwtUtils/jwtUtils.h"
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "../../services/auth/AuthSessionStore.h"
+#include "../../utils/permissions/Permissions.h"
 
 #include <iostream>
 
@@ -388,7 +390,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
         int userId = -1;
         try
         {
-            userId = isValidMedicalStaffToken(req, res, dbManager);
+            userId = isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordWrite);
 
             if (res.code != 200 || userId == -1)
             {
@@ -405,7 +407,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             OperationLogger::LogExceptionOperation(dbManager, req, "医生", "创建诊单记录", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
             res = ResponseHelper::system_error(req);
         }
-        OperationLogger::FinishLoggedRoute(dbManager, req, res, "医生", "创建诊单记录", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+        OperationLogger::FinishSensitiveRoute(dbManager, req, res, "医生", "创建诊单记录", Permissions::kMedicalRecordWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
     // 获取诊单摘要路由.
     CROW_ROUTE(app, "/api/doctors/order-summaries")
@@ -444,6 +446,12 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
 
             if (res.code != 200 || userId == -1)
             {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "获取诊单详情");
+                return;
+            }
+            if (!JwtUtils::isUserAuthorizedForOrder(userId, orderId, dbManager))
+            {
+                res = ResponseHelper::notFound(req, "Order not found");
                 OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "获取诊单详情");
                 return;
             }

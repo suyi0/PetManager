@@ -156,7 +156,11 @@ const detail = computed(() => {
     createTime:
       tabValue.value === "reservation"
         ? reservationCreatedAt || "待同步"
-        : summary?.created_at || dateText || "待同步",
+        : (summary && "created_at" in summary
+            ? summary.created_at
+            : undefined) ||
+          dateText ||
+          "待同步",
     reservateTime:
       tabValue.value === "reservation"
         ? reservationTime || "待同步"

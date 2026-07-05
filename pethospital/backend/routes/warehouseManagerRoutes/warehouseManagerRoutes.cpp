@@ -36,7 +36,11 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                         "Internal error: " + std::string(e.what())
                     );
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, isUpload);
+                if (isUpload) {
+                    OperationLogger::FinishSensitiveRoute(dbManager, req, res, "仓库", action, Permissions::kStockWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                } else {
+                    OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, false);
+                }
             }
         );
 
@@ -126,7 +130,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                         "Internal error: " + std::string(e.what())
                     );
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "更新物资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "仓库", "更新物资", Permissions::kStockWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             }
         );
 
@@ -154,7 +158,7 @@ void warehouseManagerRoutes::setupwarehouseManagerRoutes(
                         "Internal error: " + std::string(e.what())
                     );
                 }
-                OperationLogger::FinishLoggedRoute(dbManager, req, res, "仓库", "删除物资", userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "仓库", "删除物资", Permissions::kStockWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             }
         );
 

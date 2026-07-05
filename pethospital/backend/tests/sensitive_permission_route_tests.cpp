@@ -19,6 +19,14 @@
 #error "WAREHOUSE_ROUTES_SOURCE_PATH is required"
 #endif
 
+#ifndef PERSONNEL_ROUTES_SOURCE_PATH
+#error "PERSONNEL_ROUTES_SOURCE_PATH is required"
+#endif
+
+#ifndef DOCTOR_ROUTES_SOURCE_PATH
+#error "DOCTOR_ROUTES_SOURCE_PATH is required"
+#endif
+
 #ifndef OPERATION_LOGGER_SOURCE_PATH
 #error "OPERATION_LOGGER_SOURCE_PATH is required"
 #endif
@@ -82,6 +90,8 @@ int main()
     const std::string financeRoutes = readFile(FINANCE_ROUTES_SOURCE_PATH);
     const std::string bossRoutes = readFile(BOSS_ROUTES_SOURCE_PATH);
     const std::string warehouseRoutes = readFile(WAREHOUSE_ROUTES_SOURCE_PATH);
+    const std::string personnelRoutes = readFile(PERSONNEL_ROUTES_SOURCE_PATH);
+    const std::string doctorRoutes = readFile(DOCTOR_ROUTES_SOURCE_PATH);
     const std::string operationLogger = readFile(OPERATION_LOGGER_SOURCE_PATH);
 
     const std::string adminHomeSection = sectionBetween(
@@ -100,6 +110,14 @@ int main()
         adminRoutes,
         "CROW_ROUTE(app, \"/api/admins/user-deletions\")",
         "CROW_ROUTE(app, \"/api/admins/doctor-work-time-changes\")");
+    const std::string doctorWorkTimeSection = sectionBetween(
+        adminRoutes,
+        "CROW_ROUTE(app, \"/api/admins/doctor-work-time-changes\")",
+        "CROW_ROUTE(app, \"/api/admins/doctor-work-status-changes\")");
+    const std::string doctorWorkStatusSection = sectionBetween(
+        adminRoutes,
+        "CROW_ROUTE(app, \"/api/admins/doctor-work-status-changes\")",
+        "CROW_ROUTE(app, \"/api/admins/logs\")");
     const std::string logsSection = sectionBetween(
         adminRoutes,
         "CROW_ROUTE(app, \"/api/admins/logs\")",
@@ -108,6 +126,10 @@ int main()
         adminRoutes,
         "CROW_ROUTE(app, \"/api/admins/logs/search\")",
         "CROW_ROUTE(app, \"/api/admins/order-records\")");
+    const std::string adminOrderRecordsSection = sectionBetween(
+        adminRoutes,
+        "CROW_ROUTE(app, \"/api/admins/order-records\")",
+        "routes_setup = true;");
 
     assertNotContains(adminHomeSection, "isValidPermissionToken(");
     assertNotContains(adminUsersSection, "isValidPermissionToken(");
@@ -115,9 +137,18 @@ int main()
     assertContains(userDeletionSection, "isValidPermissionToken(req, res, dbManager, Permissions::kUserDelete)");
     assertContains(logsSection, "isValidPermissionToken(req, res, dbManager, Permissions::kLogsRead)");
     assertContains(logsSearchSection, "isValidPermissionToken(req, res, dbManager, Permissions::kLogsRead)");
+    assertContains(adminOrderRecordsSection, "isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordRead)");
+    assertContains(doctorWorkTimeSection, "isValidPermissionToken(req, res, dbManager, Permissions::kDoctorWorkWrite)");
+    assertContains(doctorWorkStatusSection, "isValidPermissionToken(req, res, dbManager, Permissions::kDoctorWorkWrite)");
     assertSensitiveAudit(userDeletionSection, "Permissions::kUserDelete");
+    assertSensitiveAudit(doctorWorkTimeSection, "Permissions::kDoctorWorkWrite");
+    assertSensitiveAudit(doctorWorkStatusSection, "Permissions::kDoctorWorkWrite");
     assertSensitiveAudit(logsSection, "Permissions::kLogsRead");
     assertSensitiveAudit(logsSearchSection, "Permissions::kLogsRead");
+    assertSensitiveAudit(adminOrderRecordsSection, "Permissions::kMedicalRecordRead");
+    assertNotContains(adminOrderRecordsSection, "isValidUserToken(");
+    assertNotContains(doctorWorkTimeSection, "isValidSuperAdminPortalToken(");
+    assertNotContains(doctorWorkStatusSection, "isValidSuperAdminPortalToken(");
 
     const std::string financeHomeSection = sectionBetween(
         financeRoutes,
@@ -200,15 +231,58 @@ int main()
     assertContains(warehouseItemsSection, "Permissions::kStockRead");
     assertContains(warehouseItemsSection, "Permissions::kStockWrite");
     assertContains(warehouseItemsSection, "isValidPermissionToken(req, res, dbManager, permissionKey)");
+    assertContains(warehouseItemsSection, "OperationLogger::FinishSensitiveRoute(");
+    assertContains(warehouseItemsSection, "if (isUpload)");
     assertContains(warehouseSearchSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStockRead)");
     assertContains(warehouseFilteredReadSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStockRead)");
     assertContains(warehouseUpdateSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStockWrite)");
     assertContains(warehouseDeleteSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStockWrite)");
+    assertSensitiveAudit(warehouseUpdateSection, "Permissions::kStockWrite");
+    assertSensitiveAudit(warehouseDeleteSection, "Permissions::kStockWrite");
     assertNotContains(warehouseItemsSection, "isValidWarehouseStaffToken(");
     assertNotContains(warehouseSearchSection, "isValidWarehouseStaffToken(");
     assertNotContains(warehouseFilteredReadSection, "isValidWarehouseStaffToken(");
     assertNotContains(warehouseUpdateSection, "isValidWarehouseStaffToken(");
     assertNotContains(warehouseDeleteSection, "isValidWarehouseStaffToken(");
+
+    const std::string doctorAssignmentSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/doctor-assignments\")",
+        "CROW_ROUTE(app, \"/api/personnel/doctor-removals\")");
+    const std::string doctorRemovalSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/doctor-removals\")",
+        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-assignments\")");
+    const std::string warehouseManagerAssignmentSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-assignments\")",
+        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-removals\")");
+    const std::string warehouseManagerRemovalSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-removals\")",
+        "routes_setup = true;");
+
+    assertContains(doctorAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
+    assertContains(doctorRemovalSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
+    assertContains(warehouseManagerAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
+    assertContains(warehouseManagerRemovalSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
+    assertSensitiveAudit(doctorAssignmentSection, "Permissions::kStaffRoleWrite");
+    assertSensitiveAudit(doctorRemovalSection, "Permissions::kStaffRoleWrite");
+    assertSensitiveAudit(warehouseManagerAssignmentSection, "Permissions::kStaffRoleWrite");
+    assertSensitiveAudit(warehouseManagerRemovalSection, "Permissions::kStaffRoleWrite");
+    assertNotContains(doctorAssignmentSection, "isValidPersonnelToken(");
+    assertNotContains(doctorRemovalSection, "isValidPersonnelToken(");
+    assertNotContains(warehouseManagerAssignmentSection, "isValidPersonnelToken(");
+    assertNotContains(warehouseManagerRemovalSection, "isValidPersonnelToken(");
+
+    const std::string doctorOrderRecordSection = sectionBetween(
+        doctorRoutes,
+        "CROW_ROUTE(app, \"/api/doctors/order-records\")",
+        "CROW_ROUTE(app, \"/api/doctors/order-summaries\")");
+
+    assertContains(doctorOrderRecordSection, "isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordWrite)");
+    assertSensitiveAudit(doctorOrderRecordSection, "Permissions::kMedicalRecordWrite");
+    assertNotContains(doctorOrderRecordSection, "isValidMedicalStaffToken(");
 
     assertContains(operationLogger, "FinishSensitiveRoute");
     assertContains(operationLogger, "\"auditType\"");

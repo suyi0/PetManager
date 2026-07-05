@@ -14,11 +14,15 @@ inline constexpr const char *kPortalWarehouse = "portal:warehouse";
 inline constexpr const char *kSalaryRead = "salary:read";
 inline constexpr const char *kSalaryWrite = "salary:write";
 inline constexpr const char *kLogsRead = "logs:read";
+inline constexpr const char *kMedicalRecordRead = "medical-record:read";
+inline constexpr const char *kMedicalRecordWrite = "medical-record:write";
+inline constexpr const char *kDoctorWorkWrite = "doctor-work:write";
 inline constexpr const char *kUserDelete = "user:delete";
 inline constexpr const char *kEquityRead = "equity:read";
 inline constexpr const char *kEquityWrite = "equity:write";
 inline constexpr const char *kStockRead = "stock:read";
 inline constexpr const char *kStockWrite = "stock:write";
+inline constexpr const char *kStaffRoleWrite = "staff-role:write";
 inline constexpr const char *kScopeAll = "scope:all";
 inline constexpr const char *kScopeMedicalAssigned = "scope:medical-assigned";
 

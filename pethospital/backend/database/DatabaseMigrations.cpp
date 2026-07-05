@@ -2,6 +2,7 @@
 
 #include "migrations/backfills/RelationBackfills.h"
 #include "migrations/columns/ColumnMigrations.h"
+#include "migrations/common/MigrationCommon.h"
 #include "migrations/foreign_keys/ForeignKeyMigrations.h"
 #include "../services/redis/RedisClient.h"
 #include "../services/redis/redisLock/RedisLock.h"
@@ -23,6 +24,30 @@ namespace
     namespace Columns = DatabaseMigrations::Columns;
     namespace ForeignKeys = DatabaseMigrations::ForeignKeys;
     namespace Backfills = DatabaseMigrations::Backfills;
+    namespace Common = DatabaseMigrations::Common;
+
+    // 操作日志的角色枚举：system_operations.system_role 与 user_operations.user_role 共用同一取值集合。
+    // 扩展角色（如新增“财务总监”）只改这里，两处 MODIFY 会自动跟随。
+    constexpr const char *kOperationRoleEnum =
+        "ENUM('总裁', '副总裁', '财务总监', '财务经理', '人事经理', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户')";
+
+    // 仅当列的枚举取值与目标定义不一致时才 ALTER，避免每次启动都跑 DDL 抢元数据锁。
+    // 与 ColumnMigrations 的 information_schema 比对模式一致：COLUMN_TYPE 不含 NULL/NOT NULL，
+    // 这里只对齐枚举取值集合（这两列的可空性从不变化）。
+    void alignOperationRoleEnum(DatabaseManagerInterface &dbManager, mysqlx::Session &session,
+                                const std::string &table, const std::string &column)
+    {
+        const auto current = Common::getColumnType(dbManager, table, column);
+        if (current && Common::normalizeSqlType(*current) == Common::normalizeSqlType(kOperationRoleEnum))
+        {
+            std::cout << table << "." << column << " role enum already up to date." << std::endl;
+            return;
+        }
+        session.sql("ALTER TABLE " + table + " MODIFY COLUMN " + column + " " +
+                    kOperationRoleEnum + " NULL")
+            .execute();
+        std::cout << table << "." << column << " role enum aligned." << std::endl;
+    }
 
     struct TableSpec
     {
@@ -472,12 +497,10 @@ namespace
                 INDEX idx_system_result (result)
             ))SQL",
             nullptr,
-            [](DatabaseManagerInterface &, mysqlx::Session &session)
+            [](DatabaseManagerInterface &dbManager, mysqlx::Session &session)
             {
-                // 角色枚举扩展（如 财务总监）：MODIFY 幂等，每次启动对齐一次
-                session.sql("ALTER TABLE system_operations "
-                            "MODIFY COLUMN system_role ENUM('总裁', '副总裁', '财务总监', '财务经理', '人事经理', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL")
-                    .execute();
+                // 角色枚举扩展（如 财务总监）：先比对，不一致才 MODIFY
+                alignOperationRoleEnum(dbManager, session, "system_operations", "system_role");
             },
         },
         {
@@ -504,9 +527,7 @@ namespace
             [](DatabaseManagerInterface &dbManager, mysqlx::Session &session)
             {
                 ForeignKeys::migrateUserOperations(dbManager);
-                session.sql("ALTER TABLE user_operations "
-                            "MODIFY COLUMN user_role ENUM('总裁', '副总裁', '财务总监', '财务经理', '人事经理', '部门经理', '超级管理员', '仓库管理员', '医生', '护士', '普通用户') NULL")
-                    .execute();
+                alignOperationRoleEnum(dbManager, session, "user_operations", "user_role");
             },
         },
     };

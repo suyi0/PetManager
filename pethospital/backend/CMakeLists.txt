@@ -368,8 +368,10 @@ if(BUILD_TESTING)
         services/redis/RedisClient.cpp
         services/redis/userRoleCache/UserRoleCache.cpp
         utils/Utils.cpp
+        utils/dataScope/DataScope.cpp
         utils/permissions/Permissions.cpp
         utils/roleTypeUtils/roleTypeUtils.cpp
+        utils/visibilityFilter/VisibilityFilter.cpp
     )
     target_link_libraries(auth_session_store_tests
         ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}
@@ -386,6 +388,8 @@ if(BUILD_TESTING)
     target_compile_definitions(auth_middleware_boundary_tests PRIVATE
         AUTH_MIDDLEWARE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/middleware/authMiddleware/authMiddleware.cpp"
         JWT_UTILS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/auth/jwtUtils/jwtUtils.cpp"
+        DOCTOR_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/doctorRoutes/doctorRoutes.cpp"
+        ADMIN_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/admin/adminHandler.cpp"
     )
     add_test(NAME auth_middleware_boundary_tests COMMAND auth_middleware_boundary_tests)
 
@@ -457,6 +461,8 @@ if(BUILD_TESTING)
         FINANCE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/financeRoutes/financeRoutes.cpp"
         BOSS_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/bossRoutes/bossRoutes.cpp"
         WAREHOUSE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/warehouseManagerRoutes/warehouseManagerRoutes.cpp"
+        PERSONNEL_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/personnelRoutes/personnelRoutes.cpp"
+        DOCTOR_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/doctorRoutes/doctorRoutes.cpp"
         OPERATION_LOGGER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/logger/operationLogger.cpp"
     )
     add_test(NAME sensitive_permission_route_tests COMMAND sensitive_permission_route_tests)
