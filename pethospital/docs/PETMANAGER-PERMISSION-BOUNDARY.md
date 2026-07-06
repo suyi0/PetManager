@@ -80,7 +80,7 @@ PetManager 已经是多门户系统：总裁端、财务端、超级管理员端
 - 库存上传 / 更新 / 删除：`stock:write`。
 - 医生 / 仓库管理员身份分配与移除：`staff-role:write`。
 - 操作日志读取 / 搜索：`logs:read`。
-- 管理员病历读取：`medical-record:read`。
+- 病历列表读取：`medical-record:read`（Boss / 超级管理员门户全量，医护角色包同样持有，数据面按 `scope:medical-assigned` 收敛到自己负责的订单）。
 - 医护端病历 / 诊单记录创建：`medical-record:write`。
 - 管理员调整医生排班 / 工作状态：`doctor-work:write`。
 - 删除用户：`user:delete`。
@@ -105,6 +105,8 @@ PetManager 已经是多门户系统：总裁端、财务端、超级管理员端
 后续如果 PetManager 引入院区、科室、门店或更细组织数据范围，应扩展 `DataScope` 解析与 `VisibilityFilter` SQL 生成，而不是只在前端隐藏数据。
 
 订单详情 / 更新等资源级授权也应复用同一条 scope 规则：通过 `DataScope::resolveForRole(...)` 解析当前 DB-backed 角色，再用 `VisibilityFilter` 查询 `orders`。这样医生 / 护士只能访问分配给自己的订单，普通用户只能访问自己的订单，Boss 可访问全部未软删订单；scope 外资源统一视为不存在。
+
+订单更新接口在 scope 之上再做字段收窄：医护（`scope:medical-assigned`）只能修改诊疗数据 `order_data`；改动 `pet_id` / `doctor_id`（身份改派）、`order_type`、`order_status`（全部为支付 / 退款语义）返回 403。Boss 与 owner 路径保持原有全字段行为。
 
 管理员病历列表虽然由 `medical-record:read` 控制入口，但数据面仍必须套同一条订单 scope：功能权限回答“能不能读病历”，`DataScope` 回答“能读哪些订单病历”。当前 Boss 依 `scope:all` 看全部未软删订单，医护依 `scope:medical-assigned` 看自己负责的订单，其他角色默认 owner 范围、fail-closed。
 
@@ -163,3 +165,5 @@ PetManager 已经是多门户系统：总裁端、财务端、超级管理员端
 - `data_scope_tests` 锁定角色到数据范围的映射，以及 `VisibilityFilter` 基于 scope 生成的 SQL 片段。
 - `sensitive_permission_route_tests` 锁定敏感路由不能退回只看门户 token，也不能绕过敏感审计收口。
 - `authMiddleware` 移除基于 `claims.typeName` 的 Boss 跨门户短路；`auth_middleware_boundary_tests` 锁定旧 token 角色声明不能绕过当前 DB-backed 授权。
+- 医护角色包补授 `medical-record:read`：医护可经病历列表接口按 `scope:medical-assigned` 查看自己负责的订单病历，数据面由 `VisibilityFilter` 收敛。
+- 医生端订单更新接口对医护 scope 做字段收窄：仅 `order_data` 可改，改派（`doctor_id`）、`pet_id`、`order_type`、支付状态（`order_status`）拒绝并返回 403。

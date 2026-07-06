@@ -95,6 +95,7 @@ bool roleHasPermission(const std::string &roleName, const std::string &permissio
     {
         return hasPermission(
             {kPortalMedical,
+             kMedicalRecordRead,
              kMedicalRecordWrite,
              kScopeMedicalAssigned},
             permissionKey);

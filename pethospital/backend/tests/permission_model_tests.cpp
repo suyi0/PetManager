@@ -107,6 +107,8 @@ int main()
     assert(Permissions::roleHasPermission("人事经理", "staff-role:write"));
     assert(Permissions::roleHasPermission("医生", Permissions::kPortalMedical));
     assert(Permissions::roleHasPermission("护士", Permissions::kPortalMedical));
+    assert(Permissions::roleHasPermission("医生", "medical-record:read"));
+    assert(Permissions::roleHasPermission("护士", "medical-record:read"));
     assert(Permissions::roleHasPermission("医生", "medical-record:write"));
     assert(Permissions::roleHasPermission("护士", "medical-record:write"));
     assert(!Permissions::roleHasPermission("医生", "doctor-work:write"));

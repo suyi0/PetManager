@@ -568,7 +568,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
 
             // 验证成功进行订单处理
             doctorHandler handler(dbManager);
-            crow::response response = handler.changeOrder(req, orderId);
+            crow::response response = handler.changeOrder(req, orderId, userId);
             ProcessHandlerResponse(req, res, response);
         }
         catch (const std::exception &e)

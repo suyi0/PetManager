@@ -6,6 +6,7 @@
 #include "../../../services/redis/doctorListCache/DoctorListCache.h"
 #include "../../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
+#include "../../../utils/dataScope/DataScope.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
 #include <unordered_map>
@@ -974,7 +975,7 @@ nlohmann::json doctorHandler::getOrderData(const int &orderId)
         return nlohmann::json(); // 异常时返回空JSON
     }
 }
-crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId)
+crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId, int userId)
 {
     crow::response res;
     auto request_body_opt = validateRequest(req, res);
@@ -1025,34 +1026,28 @@ crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId
             }
         }
 
-        bool has_changes = false;
-
-        if (DBpet_id != request_body["pet_id"].get<int>())
-        {
-            has_changes = true;
-        }
-        if (DBdoctor_id != request_body["doctor_id"].get<int>())
-        {
-            has_changes = true;
-        }
-        if (DBorder_type != request_body["order_type"].get<std::string>())
-        {
-            has_changes = true;
-        }
-        if (DBorder_data != request_body["order_data"].get<std::string>())
-        {
-            has_changes = true;
-        }
         const std::string requestOrderStatus = StatusLabelUtils::toDbOrderStatus(request_body["order_status"].get<std::string>());
         if (!StatusLabelUtils::isValidOrderStatus(requestOrderStatus))
         {
             return ResponseHelper::validation(req, "订单状态不合法");
         }
 
-        if (DBorder_status != requestOrderStatus)
+        const bool petChanged = DBpet_id != request_body["pet_id"].get<int>();
+        const bool doctorChanged = DBdoctor_id != request_body["doctor_id"].get<int>();
+        const bool typeChanged = DBorder_type != request_body["order_type"].get<std::string>();
+        const bool dataChanged = DBorder_data != request_body["order_data"].get<std::string>();
+        const bool statusChanged = DBorder_status != requestOrderStatus;
+
+        // 医护(scope:medical-assigned)只允许修改诊疗数据 order_data：
+        // 改 doctor_id 属身份改派，order_status 全部是支付/退款语义，均越出医护职责边界。
+        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
+        if (DataScope::resolveForRole(roleName, userId).kind == DataScope::Kind::MedicalAssigned &&
+            (petChanged || doctorChanged || typeChanged || statusChanged))
         {
-            has_changes = true;
+            return ResponseHelper::permission_denied(req, "无权修改该字段", "医护角色仅可修改订单诊疗数据 order_data");
         }
+
+        const bool has_changes = petChanged || doctorChanged || typeChanged || dataChanged || statusChanged;
 
         if (has_changes)
         {
