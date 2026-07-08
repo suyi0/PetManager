@@ -45,21 +45,20 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import Login from "./views/LoginPage.vue";
 import router from "@/app/router";
-import { getHomeRouteByUserType } from "@/core/auth/utils/authRedirect";
+import { getHomeRouteByUserAccess } from "@/core/auth/utils/authRedirect";
 
 const store = useStore(storeKey);
 
 const isLoggedIn = computed(() => store.state.auth.isLoggedIn);
 const showRegister = computed(() => store.state.ui.showRegister);
 
-onMounted(() => {
+onMounted(async () => {
   if (isLoggedIn.value) {
-    router.push(
-      getHomeRouteByUserType(
-        store.state.auth.userType,
-        store.state.auth.userRole
-      )
-    );
+    // 刷新页面后权限集可能未加载（不持久化），先拉 /auth/me 再按权限定首页
+    if (!store.state.auth.permissions?.length) {
+      await store.dispatch("auth/refreshAccess").catch(() => undefined);
+    }
+    router.push(getHomeRouteByUserAccess(store.state.auth));
   }
 });
 </script>

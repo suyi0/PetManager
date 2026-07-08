@@ -5,7 +5,6 @@
 #include "../../../utils/Utils.h"
 #include "../../../utils/AuthIdentifierUtils.h"
 #include "../../../services/verification/verification.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 
 
 class authHandler : public BaseHandler
@@ -26,6 +25,8 @@ public:
     crow::response checkVerifyEmailCode(const crow::request& req, int userId = -1);              //  对应 "/api/verification/email/verify/register"、"/api/verification/email/verify/change"
 
     crow::response refreshAdminToken(const crow::request& req);             //  对应 "/api/auth/admin/refresh"
+
+    crow::response getCurrentUserAccess(const crow::request& req);          // 对应 "/api/auth/me"
 
     crow::response logout(const crow::request& req);                       //  对应 "/api/auth/logout"（管理端登出服务端吊销）
 

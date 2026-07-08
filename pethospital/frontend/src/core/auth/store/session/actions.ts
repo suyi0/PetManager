@@ -1,6 +1,5 @@
 import { ActionContext, ActionTree } from "vuex";
 import { authApi } from "@/core/auth/api/authApi";
-import { resolveRoleName } from "@/core/auth/utils/roleUtils";
 import { authStorage } from "@/core/auth/utils/authStorage";
 import { State } from "@/app/store/types";
 import { AuthState } from "./types";
@@ -80,6 +79,23 @@ const clearAllPortalSessionState = (commit: AuthActionContext["commit"]) => {
   commit("warehouseAdmin/resetState", undefined, { root: true });
 };
 
+const syncCurrentUserAccess = async (commit: AuthActionContext["commit"]) => {
+  const accessResponse = await authApi.getCurrentUserAccess();
+  const access = accessResponse.data?.data;
+  if (!access) {
+    return;
+  }
+
+  commit("setAccess", {
+    accountType: access.account_type,
+    positionId: access.position_id ?? null,
+    staffKind: access.staff_kind,
+    permissions: access.permissions ?? [],
+    userType: access.type_id ?? null,
+    userRole: access.type_name ?? null,
+  });
+};
+
 export const authActions: ActionTree<AuthState, State> = {
   verify: debounce(async function (
     _context: AuthActionContext,
@@ -104,7 +120,7 @@ export const authActions: ActionTree<AuthState, State> = {
   ) {
     return authApi
       .registerSetUser(payload)
-      .then((response) => {
+      .then(async (response) => {
         if (response.status === 200) {
           return response;
         }
@@ -125,7 +141,7 @@ export const authActions: ActionTree<AuthState, State> = {
   ) {
     return authApi
       .login(payload)
-      .then((response) => {
+      .then(async (response) => {
         const loginData = response.data?.data ?? response.data;
         const user = loginData?.user;
         const token = loginData?.token;
@@ -135,12 +151,18 @@ export const authActions: ActionTree<AuthState, State> = {
             throw new Error("Login response payload is missing user or token");
           }
 
-          const userRole = resolveRoleName(user.type_name, user.type_id);
+          // 职位显示名原样透传（动态职位名不在旧枚举里，不能过滤掉）；判权只看 access.permissions
+          const userRole = user.type_name ?? null;
+          const access = loginData?.access;
 
           commit("setSession", {
             userType: user.type_id,
             userRole,
             token,
+            accountType: access?.account_type ?? null,
+            positionId: access?.position_id ?? null,
+            staffKind: access?.staff_kind ?? null,
+            permissions: access?.permissions ?? [],
           });
           commit(
             "currentUser/setCurrentUser",
@@ -160,6 +182,12 @@ export const authActions: ActionTree<AuthState, State> = {
             { root: true }
           );
           commit("login");
+
+          try {
+            await syncCurrentUserAccess(commit);
+          } catch {
+            // Older backends or transient auth/me failures should not block login.
+          }
 
           return response;
         }
@@ -219,6 +247,10 @@ export const authActions: ActionTree<AuthState, State> = {
   expireSession({ commit }: AuthActionContext) {
     clearAllPortalSessionState(commit);
     commit("clearSession");
+  },
+
+  async refreshAccess({ commit }: AuthActionContext) {
+    await syncCurrentUserAccess(commit);
   },
 
   checkEmail: debounce(async function (

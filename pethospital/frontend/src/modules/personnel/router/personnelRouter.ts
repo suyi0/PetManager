@@ -1,11 +1,13 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import { PERSONNEL_PORTAL_ROLES } from "@/core/auth/utils/roleUtils";
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: "/personnel",
     component: () => import("../views/PersonnelLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [...PERSONNEL_PORTAL_ROLES] },
+    meta: {
+      requiresAuth: true,
+      allowedPermissions: ["portal:personnel"],
+    },
     children: [
       {
         path: "",

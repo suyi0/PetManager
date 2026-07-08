@@ -3,8 +3,9 @@
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../../services/redis/doctorListCache/DoctorListCache.h"
+#include "../../../services/auth/AccessRevocation.h"
+#include "../../../services/rbac/RbacService.h"
 #include "../../../services/redis/userRoleCache/UserRoleCache.h"
-#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 crow::response personnelHandler::createUser(const crow::request &req)
 {
@@ -66,22 +67,15 @@ crow::response personnelHandler::createUser(const crow::request &req)
 
         const std::string hashed_password = hash_password(password);
 
-        const int defaultUserRoleId =
-            RoleTypeUtils::getRoleId(dbManager, "普通用户");
-        if (defaultUserRoleId <= 0)
-        {
-            return ResponseHelper::system_error(req, "普通用户角色不存在");
-        }
-
         auto session = dbManager->getSession();
         session->sql("START TRANSACTION").execute();
 
         mysqlx::SqlResult result;
         try
         {
-            result = session->sql("INSERT INTO users (type_id, name, password, email, birthday, head_image) "
-                                  "VALUES (?, ?, ?, ?, ?, ?)")
-                         .bind(defaultUserRoleId, name, hashed_password, email, birthday, head_image)
+            result = session->sql("INSERT INTO users (account_type, position_id, name, password, email, birthday, head_image) "
+                                  "VALUES ('customer', NULL, ?, ?, ?, ?, ?)")
+                         .bind(name, hashed_password, email, birthday, head_image)
                          .execute();
 
             if (result.getAffectedItemsCount() == 0)
@@ -110,7 +104,7 @@ crow::response personnelHandler::createUser(const crow::request &req)
         payload["message"] = "创建成功";
         payload["data"] = {
             {"id", result.getAutoIncrementValue()},
-            {"type_id", defaultUserRoleId},
+            {"type_id", 0},
             {"type_name", "普通用户"},
             {"name", name},
             {"phone", phone},
@@ -150,7 +144,7 @@ crow::response personnelHandler::deleteUser(const crow::request &req, int &userI
         }
 
         mysqlx::SqlResult target_result = dbManager->getSession()
-                                              ->sql("SELECT type_id FROM users WHERE id = ? AND is_deleted = 0")
+                                              ->sql("SELECT account_type FROM users WHERE id = ? AND is_deleted = 0")
                                               .bind(userID)
                                               .execute();
 
@@ -160,10 +154,8 @@ crow::response personnelHandler::deleteUser(const crow::request &req, int &userI
         }
 
         mysqlx::Row target_row = target_result.fetchOne();
-        const int target_type = target_row[0].isNull() ? 0 : target_row[0].get<int>();
-        const std::string target_role_name =
-            RoleTypeUtils::getRoleName(dbManager, target_type);
-        if (target_role_name != "普通用户")
+        const std::string accountType = target_row[0].isNull() ? "" : target_row[0].get<std::string>();
+        if (accountType != "customer")
         {
             return ResponseHelper::unavailable(req, "这里只能删除普通用户");
         }
@@ -171,8 +163,8 @@ crow::response personnelHandler::deleteUser(const crow::request &req, int &userI
         mysqlx::SqlResult result = dbManager->getSession()
                                        ->sql("UPDATE users "
                                              "SET is_deleted = 1, deleted_at = NOW(), deleted_by = ? "
-                                             "WHERE id = ? AND type_id = ? AND is_deleted = 0")
-                                       .bind(userId, userID, target_type)
+                                             "WHERE id = ? AND account_type = 'customer' AND is_deleted = 0")
+                                       .bind(userId, userID)
                                        .execute();
 
         if (result.getAffectedItemsCount() == 0)
@@ -207,7 +199,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
 
-        const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
+        const int doctorRoleId = RbacService::findPositionIdBySystemKey(dbManager, "doctor");
         if (doctorRoleId <= 0)
         {
             return ResponseHelper::system_error(req, "医生角色不存在");
@@ -217,7 +209,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
         session->sql("START TRANSACTION").execute();
         try
         {
-            mysqlx::SqlResult result = session->sql("UPDATE users SET type_id = ? WHERE id = ?")
+            mysqlx::SqlResult result = session->sql("UPDATE users SET account_type = 'staff', position_id = ? WHERE id = ?")
                                            .bind(doctorRoleId, userId)
                                            .execute();
 
@@ -249,7 +241,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
             }
 
             session->sql("COMMIT").execute();
-            UserRoleCache::invalidate(userId);
+            AccessRevocation::onUserAccessChanged(userId);
             DoctorListCache::invalidateDoctorList();
             DoctorListBroadcaster::instance().notifyDoctorListChanged();
         }
@@ -285,16 +277,9 @@ crow::response personnelHandler::deleteDoctor(const crow::request &req)
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
 
-        const int defaultUserRoleId =
-            RoleTypeUtils::getRoleId(dbManager, "普通用户");
-        if (defaultUserRoleId <= 0)
-        {
-            return ResponseHelper::system_error(req, "普通用户角色不存在");
-        }
-
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("UPDATE users SET type_id = ? WHERE id = ?")
-                                       .bind(defaultUserRoleId, userId)
+                                       ->sql("UPDATE users SET account_type = 'customer', position_id = NULL WHERE id = ?")
+                                       .bind(userId)
                                        .execute();
 
         if (result.getAffectedItemsCount() == 0)
@@ -302,7 +287,7 @@ crow::response personnelHandler::deleteDoctor(const crow::request &req)
             return ResponseHelper::notFound(req);
         }
 
-        UserRoleCache::invalidate(userId);
+        AccessRevocation::onUserAccessChanged(userId);
         DoctorListCache::invalidateDoctorList();
         DoctorListBroadcaster::instance().notifyDoctorListChanged();
 
@@ -333,14 +318,14 @@ crow::response personnelHandler::createWarehouserManager(const crow::request &re
         }
 
         const int warehouseRoleId =
-            RoleTypeUtils::getRoleId(dbManager, "仓库管理员");
+            RbacService::findPositionIdBySystemKey(dbManager, "warehouse-admin");
         if (warehouseRoleId <= 0)
         {
             return ResponseHelper::system_error(req, "仓库管理员角色不存在");
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("UPDATE users SET type_id = ? WHERE id = ?")
+                                       ->sql("UPDATE users SET account_type = 'staff', position_id = ? WHERE id = ?")
                                        .bind(warehouseRoleId, userId)
                                        .execute();
 
@@ -349,7 +334,7 @@ crow::response personnelHandler::createWarehouserManager(const crow::request &re
             return ResponseHelper::notFound(req);
         }
 
-        UserRoleCache::invalidate(userId);
+        AccessRevocation::onUserAccessChanged(userId);
         return ResponseHelper::success(req, "给予权限成功");
     }
     catch (const std::exception &e)
@@ -376,16 +361,9 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
             return ResponseHelper::unavailable(req, "用户ID不能为空");
         }
 
-        const int defaultUserRoleId =
-            RoleTypeUtils::getRoleId(dbManager, "普通用户");
-        if (defaultUserRoleId <= 0)
-        {
-            return ResponseHelper::system_error(req, "普通用户角色不存在");
-        }
-
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("UPDATE users SET type_id = ? WHERE id = ?")
-                                       .bind(defaultUserRoleId, userId)
+                                       ->sql("UPDATE users SET account_type = 'customer', position_id = NULL WHERE id = ?")
+                                       .bind(userId)
                                        .execute();
 
         if (result.getAffectedItemsCount() == 0)
@@ -393,7 +371,7 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
             return ResponseHelper::notFound(req);
         }
 
-        UserRoleCache::invalidate(userId);
+        AccessRevocation::onUserAccessChanged(userId);
         return ResponseHelper::success(req, "删除权限成功");
     }
     catch (const std::exception &e)

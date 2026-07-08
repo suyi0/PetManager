@@ -280,7 +280,7 @@
 import { ref, computed, watch, onUnmounted } from "vue";
 import { useStore } from "vuex";
 import { useRouter, useRoute } from "vue-router";
-import { getHomeRouteByUserType } from "@/core/auth/utils/authRedirect";
+import { getHomeRouteByUserAccess } from "@/core/auth/utils/authRedirect";
 import { isEmail } from "@/core/auth/utils/authValidators";
 import { defineComponent } from "vue";
 
@@ -695,7 +695,7 @@ function Verify() {
           throw new Error("注册后登录返回数据缺少 user 字段");
         }
 
-        router.push(getHomeRouteByUserType(user.type_id, user.type_name));
+        router.push(getHomeRouteByUserAccess(store.state.auth));
       } else {
         throw new Error(`登录失败: ${loginResponse.status}`);
       }

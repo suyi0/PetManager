@@ -5,7 +5,10 @@
 #include <utility>
 
 #include "../../../controllers/modules/finance/financeHandler.h"
+#include "../../../services/auth/AuthSessionStore.h"
+#include "../../../services/rbac/RbacService.h"
 #include "../../../utils/Utils.h"
+#include "../../../utils/permissions/Permissions.h"
 #include "../../redis/RedisClient.h"
 #include "../../redis/redisMessageBus/RedisMessageBus.h"
 
@@ -54,7 +57,7 @@ void FinanceHomeDataBroadcaster::stop()
 }
 
 // 新增一个 WebSocket 连接，并唤醒广播线程尽快推送一次最新数据。
-void FinanceHomeDataBroadcaster::addConnection(crow::websocket::connection *conn)
+void FinanceHomeDataBroadcaster::addConnection(crow::websocket::connection *conn, const ConnectionContext &context)
 {
     if (!conn)
     {
@@ -63,7 +66,7 @@ void FinanceHomeDataBroadcaster::addConnection(crow::websocket::connection *conn
 
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);
-        connections_.insert(conn);
+        connections_[conn] = context;
         pending_update_ = true;
     }
 
@@ -83,7 +86,10 @@ void FinanceHomeDataBroadcaster::closeAllConnections(const std::string &reason)
     std::vector<crow::websocket::connection *> connections;
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);
-        connections.assign(connections_.begin(), connections_.end());
+        for (const auto &[conn, context] : connections_)
+        {
+            connections.push_back(conn);
+        }
         connections_.clear();
     }
 
@@ -162,7 +168,7 @@ void FinanceHomeDataBroadcaster::run()
 // 查询财务端首页数据并发送给当前全部 WebSocket 连接。
 void FinanceHomeDataBroadcaster::pushHomeData()
 {
-    std::vector<crow::websocket::connection *> connections;
+    std::vector<std::pair<crow::websocket::connection *, ConnectionContext>> connections;
     {
         std::lock_guard<std::mutex> lock(connections_mutex_);
         connections.assign(connections_.begin(), connections_.end());
@@ -176,24 +182,37 @@ void FinanceHomeDataBroadcaster::pushHomeData()
     try
     {
         financeHandler handler(dbManager_);
-        nlohmann::json message = {
-            {"event", "homeData"},
-            {"version", 1},
-            {"sentAt", getCreateTime()},
-            {"data", handler.buildHomeData()}};
-        const std::string payload = message.dump();
-
         // 先记录发送失败的连接，循环结束后再统一从连接池移除。
         std::unordered_set<crow::websocket::connection *> failedConnections;
-        for (auto *conn : connections)
+        for (const auto &[conn, context] : connections)
         {
             if (!conn)
             {
                 continue;
             }
 
+            if (!AuthSessionStore::isSessionCurrent(context.userId, context.sessionVersion) ||
+                !RbacService::userHasPermission(dbManager_, context.userId, Permissions::kPortalFinance))
+            {
+                try
+                {
+                    conn->close("access_revoked");
+                }
+                catch (...)
+                {
+                }
+                failedConnections.insert(conn);
+                continue;
+            }
+
             try
             {
+                nlohmann::json message = {
+                    {"event", "homeData"},
+                    {"version", 1},
+                    {"sentAt", getCreateTime()},
+                    {"data", handler.buildHomeData(context.userId)}};
+                const std::string payload = message.dump();
                 conn->send_text(payload);
             }
             catch (const std::exception &e)

@@ -14,15 +14,27 @@ public:
 
     int calculateUserCount();
 
+    int calculateUserCount(const crow::request &req);
+
     int calculateOnlineDoctorCount();
+
+    int calculateOnlineDoctorCount(const crow::request &req);
 
     int calculateLogsCount();
 
+    int calculateLogsCount(const crow::request &req);
+
     int calculateUserLogsCount();
+
+    int calculateUserLogsCount(const crow::request &req);
 
     int calculateSystemLogsCount();
 
     nlohmann::json buildHomeData(); // 构建超级管理员首页统计数据
+
+    nlohmann::json buildHomeData(const crow::request &req); // 构建带组织范围的超级管理员首页统计数据
+
+    nlohmann::json buildHomeData(int userId); // 构建指定用户组织范围的超级管理员首页统计数据
 
     crow::response getHomeData(const crow::request &req); // 获取首页数据 对应 /api/admins/home-data
 

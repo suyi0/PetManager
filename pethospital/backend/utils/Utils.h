@@ -14,6 +14,7 @@
 #include <mysqlx/xdevapi.h>
 #include "../middleware/corsMiddleware/corsMiddleware.h"
 #include "../middleware/rateLimitMiddleware/rateLimitMiddleware.h"
+#include "../middleware/dbSessionGuardMiddleware/dbSessionGuardMiddleware.h"
 #include "../database/DatabaseManager.h"
 #include "../controllers/auth/encrypt/encrypt.h"
 #include "../controllers/auth/jwtUtils/jwtUtils.h"
@@ -253,4 +254,4 @@ public:
     }
 };
 
-using CrowApp = crow::Crow<CorsMiddleware, RateLimitMiddleware>;
+using CrowApp = crow::Crow<CorsMiddleware, RateLimitMiddleware, DbSessionGuardMiddleware>;

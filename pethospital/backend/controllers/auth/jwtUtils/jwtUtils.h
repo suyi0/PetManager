@@ -28,7 +28,9 @@ namespace JwtUtils {
         std::string identifier;
     };
 
-    std::string createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail, int sessionVersion = -1);
+    // managementSession 由调用方按当前权限算好传入（RbacService::userHasManagementAccess），
+    // 仅决定 token TTL（管理端短时效）。jwtUtils 不自查库，避免把 DB 依赖下沉到低层工具。
+    std::string createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail, bool managementSession, int sessionVersion = -1);
     std::string createUpdateTicket(int userId, const std::string &date, const std::string &identifier);
     std::optional<UpdateTicketClaims> getUpdateTicketClaims(const std::string &ticket, const std::string &data, const std::string &identifier);
 

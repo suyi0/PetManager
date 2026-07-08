@@ -1,6 +1,5 @@
 #include "reservationCommonHandler.h"
 #include "dataScope/DataScope.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include "visibilityFilter/VisibilityFilter.h"
 
@@ -14,8 +13,7 @@ crow::response reservationCommonHandler::getReservationSummary(const crow::reque
 
     try
     {
-        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
+        const DataScope::Scope dataScope = DataScope::resolveForUser(dbManager, userId);
         const VisibilityFilter::Clause filter =
             VisibilityFilter::build(dataScope, "r", "user_id", /*alwaysExcludeSoftDeleted=*/true);
 

@@ -1,8 +1,12 @@
 #include "financeHandler.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+#include "../../../services/rbac/RbacService.h"
+#include "../../../utils/permissions/Permissions.h"
 #include "../../../utils/requestUtils/RequestUtils.h"
 #include <cmath>
+#include <optional>
+#include <sstream>
 
 namespace
 {
@@ -22,6 +26,84 @@ namespace
             dayStart + boost::gregorian::days(1);
 
         return {formatDateTime(dayStart), formatDateTime(nextDayStart)};
+    }
+
+    std::optional<int> currentRequestUserId(const crow::request &req)
+    {
+        const std::string authHeader = req.get_header_value("Authorization");
+        if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
+        {
+            return std::nullopt;
+        }
+        auto claims = JwtUtils::getTokenClaims(authHeader.substr(7));
+        if (!claims || claims->userId <= 0)
+        {
+            return std::nullopt;
+        }
+        return claims->userId;
+    }
+
+    std::string joinIds(const std::vector<int> &ids)
+    {
+        std::ostringstream stream;
+        for (std::size_t i = 0; i < ids.size(); ++i)
+        {
+            if (i > 0)
+            {
+                stream << ",";
+            }
+            stream << ids[i];
+        }
+        return stream.str();
+    }
+
+    std::string orgScopeCondition(
+        const crow::request &req,
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        const std::string &departmentColumn)
+    {
+        const std::optional<int> userId = currentRequestUserId(req);
+        if (!userId.has_value())
+        {
+            return " AND 1 = 0 ";
+        }
+
+        // EffectiveOrgScope 显式区分「不限制(scope:all)」与「无可见部门」，
+        // 查库异常/客户账户不会被误判为全量可见（fail-closed）
+        const RbacService::EffectiveOrgScope scope =
+            RbacService::loadEffectiveOrgScope(dbManager, userId.value());
+        if (scope.unrestricted)
+        {
+            return "";
+        }
+        if (scope.departmentIds.empty())
+        {
+            return " AND 1 = 0 ";
+        }
+        return " AND " + departmentColumn + " IN (" + joinIds(scope.departmentIds) + ") ";
+    }
+
+    std::string orgScopeConditionForUser(
+        int userId,
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        const std::string &departmentColumn)
+    {
+        if (userId <= 0)
+        {
+            return " AND 1 = 0 ";
+        }
+
+        const RbacService::EffectiveOrgScope scope =
+            RbacService::loadEffectiveOrgScope(dbManager, userId);
+        if (scope.unrestricted)
+        {
+            return "";
+        }
+        if (scope.departmentIds.empty())
+        {
+            return " AND 1 = 0 ";
+        }
+        return " AND " + departmentColumn + " IN (" + joinIds(scope.departmentIds) + ") ";
     }
 }
 
@@ -63,21 +145,13 @@ double financeHandler::calculateCostCount()
             return -1;
         }
 
-        const int normalUserRoleId =
-            RoleTypeUtils::getRoleId(dbManager, "普通用户");
-        if (normalUserRoleId <= 0)
-        {
-            throw std::runtime_error("Failed to resolve normal user role id");
-        }
-
         const auto [dayStart, nextDayStart] = getTodayRange();
 
         const double employeeCostCount = dbManager->getSession()
                                              ->sql("SELECT COALESCE(ROUND(SUM(s.total_salary / 31)), 0) "
                                                    "FROM salary AS s "
                                                    "JOIN users AS u ON u.id = s.user_id "
-                                                   "WHERE u.type_id <> ?")
-                                             .bind(normalUserRoleId)
+                                                   "WHERE u.account_type = 'staff'")
                                              .execute()
                                              .fetchOne()[0]
                                              .get<double>();
@@ -100,6 +174,90 @@ double financeHandler::calculateCostCount()
     catch (const std::exception &e)
     {
         throw std::runtime_error("Failed to get costCount: " + std::string(e.what()));
+    }
+}
+
+double financeHandler::calculateCostCount(const crow::request &req)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return -1;
+        }
+
+        const auto [dayStart, nextDayStart] = getTodayRange();
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
+
+        const double employeeCostCount = dbManager->getSession()
+                                             ->sql("SELECT COALESCE(ROUND(SUM(s.total_salary / 31)), 0) "
+                                                   "FROM salary AS s "
+                                                   "JOIN users AS u ON u.id = s.user_id "
+                                                   "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                                   "WHERE u.account_type = 'staff' " +
+                                                   scopeFilter)
+                                             .execute()
+                                             .fetchOne()[0]
+                                             .get<double>();
+
+        const double itemCostCount = dbManager->getSession()
+                                         ->sql("SELECT COALESCE(ROUND(SUM(om.total_price)), 0) "
+                                               "FROM orderMedicines AS om "
+                                               "JOIN orders AS o ON om.order_id = o.id "
+                                               "WHERE o.created_at >= ? AND o.created_at < ?")
+                                         .bind(dayStart)
+                                         .bind(nextDayStart)
+                                         .execute()
+                                         .fetchOne()[0]
+                                         .get<double>();
+
+        return employeeCostCount + itemCostCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get scoped costCount: " + std::string(e.what()));
+    }
+}
+
+double financeHandler::calculateCostCount(int userId)
+{
+    try
+    {
+        if (!checkDbConnection())
+        {
+            return -1;
+        }
+
+        const auto [dayStart, nextDayStart] = getTodayRange();
+        const std::string scopeFilter = orgScopeConditionForUser(userId, dbManager, "pos.department_id");
+
+        const double employeeCostCount = dbManager->getSession()
+                                             ->sql("SELECT COALESCE(ROUND(SUM(s.total_salary / 31)), 0) "
+                                                   "FROM salary AS s "
+                                                   "JOIN users AS u ON u.id = s.user_id "
+                                                   "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                                   "WHERE u.account_type = 'staff' " +
+                                                   scopeFilter)
+                                             .execute()
+                                             .fetchOne()[0]
+                                             .get<double>();
+
+        const double itemCostCount = dbManager->getSession()
+                                         ->sql("SELECT COALESCE(ROUND(SUM(om.total_price)), 0) "
+                                               "FROM orderMedicines AS om "
+                                               "JOIN orders AS o ON om.order_id = o.id "
+                                               "WHERE o.created_at >= ? AND o.created_at < ?")
+                                         .bind(dayStart)
+                                         .bind(nextDayStart)
+                                         .execute()
+                                         .fetchOne()[0]
+                                         .get<double>();
+
+        return employeeCostCount + itemCostCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get scoped costCount: " + std::string(e.what()));
     }
 }
 
@@ -128,11 +286,69 @@ nlohmann::json financeHandler::buildHomeData()
         {"dailyProfit", salesCount - costCount}};
 }
 
+nlohmann::json financeHandler::buildHomeData(const crow::request &req)
+{
+    if (!checkDbConnection())
+    {
+        throw std::runtime_error("Database connection failed");
+    }
+
+    const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
+    mysqlx::SqlResult dailyExpensesResult = dbManager->getSession()
+                                                ->sql("SELECT COALESCE(ROUND(SUM(s.total_salary / 31)), 0) "
+                                                      "FROM salary AS s "
+                                                      "JOIN users AS u ON u.id = s.user_id "
+                                                      "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                                      "WHERE u.account_type = 'staff' " +
+                                                      scopeFilter)
+                                                .execute();
+
+    auto dailyRow = dailyExpensesResult.fetchOne();
+
+    double salesCount = calculateSalesCount();
+    double costCount = calculateCostCount(req);
+
+    return {
+        {"dailyExpense", dailyRow && !dailyRow[0].isNull() ? dailyRow[0].get<double>() : 0.0},
+        {"dailyCost", costCount},
+        {"dailySales", salesCount},
+        {"dailyProfit", salesCount - costCount}};
+}
+
+nlohmann::json financeHandler::buildHomeData(int userId)
+{
+    if (!checkDbConnection())
+    {
+        throw std::runtime_error("Database connection failed");
+    }
+
+    const std::string scopeFilter = orgScopeConditionForUser(userId, dbManager, "pos.department_id");
+    mysqlx::SqlResult dailyExpensesResult = dbManager->getSession()
+                                                ->sql("SELECT COALESCE(ROUND(SUM(s.total_salary / 31)), 0) "
+                                                      "FROM salary AS s "
+                                                      "JOIN users AS u ON u.id = s.user_id "
+                                                      "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                                      "WHERE u.account_type = 'staff' " +
+                                                      scopeFilter)
+                                                .execute();
+
+    auto dailyRow = dailyExpensesResult.fetchOne();
+
+    double salesCount = calculateSalesCount();
+    double costCount = calculateCostCount(userId);
+
+    return {
+        {"dailyExpense", dailyRow && !dailyRow[0].isNull() ? dailyRow[0].get<double>() : 0.0},
+        {"dailyCost", costCount},
+        {"dailySales", salesCount},
+        {"dailyProfit", salesCount - costCount}};
+}
+
 crow::response financeHandler::getHomeData(const crow::request &req)
 {
     try
     {
-        return ResponseHelper::success(req, buildHomeData());
+        return ResponseHelper::success(req, buildHomeData(req));
     }
     catch (const std::exception &e)
     {
@@ -169,12 +385,16 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
 
         try
         {
+            // org_scope：写路径必须与列表/详情同样按部门隔离，否则范围受限用户可按 userId
+            // 改范围外员工工资。范围外查不到 → notFound（不泄露存在性），与详情接口一致。
+            const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
             mysqlx::SqlResult employeeResult = session->sql(
-                                                          "SELECT u.name, t.type, s.id, s.base_salary, s.PA_Award, s.PB_Award "
+                                                          "SELECT u.name, COALESCE(pos.name, ''), s.id, s.base_salary, s.PA_Award, s.PB_Award, u.account_type "
                                                           "FROM users AS u "
-                                                          "JOIN types AS t ON t.id = u.type_id "
+                                                          "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                                           "LEFT JOIN salary AS s ON s.user_id = u.id "
-                                                          "WHERE u.id = ? AND u.is_deleted = 0 "
+                                                          "WHERE u.id = ? AND u.is_deleted = 0 " +
+                                                          scopeFilter +
                                                           "LIMIT 1 FOR UPDATE")
                                                    .bind(goalUserId)
                                                    .execute();
@@ -188,7 +408,8 @@ crow::response financeHandler::updateEmployeeSalary(const crow::request &req, in
 
             const std::string employeeName = employeeRow[0].isNull() ? "" : clean_string(employeeRow[0].get<std::string>());
             const std::string employeeType = employeeRow[1].isNull() ? "" : employeeRow[1].get<std::string>();
-            if (RoleTypeUtils::isNormalUserRole(employeeType)) // 普通用户没有工资
+            const std::string accountType = employeeRow[6].isNull() ? "" : employeeRow[6].get<std::string>();
+            if (accountType != "staff") // 普通用户没有工资
             {
                 rollbackTransactionQuietly(*session);
                 return ResponseHelper::validation(req, "普通用户不能创建员工工资记录");
@@ -322,13 +543,15 @@ crow::response financeHandler::getSalarySummary(const crow::request &req, int pa
 
         const int pageSize = 150;
         const int offset = (page - 1) * pageSize; // 计算偏移量
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT s.id, u.name, t.type, COALESCE(s.total_salary, 0) "
+                                       ->sql("SELECT s.id, u.name, COALESCE(pos.name, ''), COALESCE(s.total_salary, 0) "
                                              "FROM salary AS s "
                                              "JOIN users AS u ON u.id = s.user_id "
-                                             "JOIN types AS t ON t.id = u.type_id "
-                                             "WHERE u.is_deleted = 0 "
+                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                             "WHERE u.is_deleted = 0 " +
+                                             scopeFilter +
                                              "ORDER BY COALESCE(s.total_salary, 0) DESC, u.id ASC "
                                              "LIMIT ?, ?")
                                        .bind(offset, pageSize)
@@ -338,7 +561,9 @@ crow::response financeHandler::getSalarySummary(const crow::request &req, int pa
                                             ->sql("SELECT COUNT(*) "
                                                   "FROM salary AS s "
                                                   "JOIN users AS u ON u.id = s.user_id "
-                                                  "WHERE u.is_deleted = 0")
+                                                  "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                                  "WHERE u.is_deleted = 0 " +
+                                                  scopeFilter)
                                             .execute();
 
         nlohmann::json list = nlohmann::json::array();
@@ -382,12 +607,14 @@ crow::response financeHandler::getSalaryInformation(const crow::request &req, in
             return ResponseHelper::error(req, "无效的工资单编号");
         }
 
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, s.id, u.name, t.type, s.base_salary, s.PA_Award, s.PB_Award, s.total_salary, CAST(s.update_at AS CHAR) "
+                                       ->sql("SELECT u.id, s.id, u.name, COALESCE(pos.name, ''), s.base_salary, s.PA_Award, s.PB_Award, s.total_salary, CAST(s.updated_at AS CHAR) "
                                              "FROM salary AS s "
                                              "JOIN users AS u ON u.id = s.user_id "
-                                             "JOIN types AS t ON t.id = u.type_id "
-                                             "WHERE s.id = ? AND u.is_deleted = 0")
+                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                             "WHERE s.id = ? AND u.is_deleted = 0 " +
+                                             scopeFilter)
                                        .bind(salaryId)
                                        .execute();
 
@@ -431,18 +658,20 @@ crow::response financeHandler::searchSalaryEmployees(const crow::request &req, c
         const int page = normalizePage(getJsonInt(requestBody, "page", 1));
         const int pageSize = normalizePageSize(getJsonInt(requestBody, "pageSize", 10), 10, 100);
         const int offset = (page - 1) * pageSize;
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, "
+                                       ->sql("SELECT u.id, COALESCE(u.position_id, 0), COALESCE(pos.name, ''), u.name, p.phone, u.email, "
                                              "COALESCE(s.base_salary, 0), COALESCE(s.PA_Award, 0), COALESCE(s.PB_Award, 0), "
-                                             "COALESCE(s.total_salary, 0), CAST(s.update_at AS CHAR) "
+                                             "COALESCE(s.total_salary, 0), CAST(s.updated_at AS CHAR) "
                                              "FROM users AS u "
-                                             "JOIN types AS t ON t.id = u.type_id "
+                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                              "LEFT JOIN phones AS p ON p.user_id = u.id "
                                              "LEFT JOIN salary AS s ON s.user_id = u.id "
-                                             "WHERE u.is_deleted = 0 AND t.type <> '普通用户' "
-                                             "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(t.type, '') LIKE ? "
-                                             "OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) "
+                                             "WHERE u.is_deleted = 0 AND u.account_type = 'staff' "
+                                             "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(pos.name, '') LIKE ? "
+                                             "OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) " +
+                                             scopeFilter +
                                              "ORDER BY u.id ASC "
                                              "LIMIT ?, ?")
                                        .bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword, offset, pageSize)
@@ -451,20 +680,22 @@ crow::response financeHandler::searchSalaryEmployees(const crow::request &req, c
         mysqlx::SqlResult countResult = dbManager->getSession()
                                             ->sql("SELECT COUNT(DISTINCT u.id) "
                                                   "FROM users AS u "
-                                                  "JOIN types AS t ON t.id = u.type_id "
+                                                  "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                                   "LEFT JOIN phones AS p ON p.user_id = u.id "
-                                                  "WHERE u.is_deleted = 0 AND t.type <> '普通用户' "
-                                                  "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(t.type, '') LIKE ? "
-                                                  "OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?)")
+                                                  "WHERE u.is_deleted = 0 AND u.account_type = 'staff' "
+                                                  "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(pos.name, '') LIKE ? "
+                                                  "OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) " +
+                                                  scopeFilter)
                                             .bind(keyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword)
                                             .execute();
 
         mysqlx::SqlResult summaryResult = dbManager->getSession()
                                               ->sql("SELECT COUNT(*), COALESCE(SUM(COALESCE(s.total_salary, 0)), 0) "
                                                     "FROM users AS u "
-                                                    "JOIN types AS t ON t.id = u.type_id "
+                                                    "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                                     "LEFT JOIN salary AS s ON s.user_id = u.id "
-                                                    "WHERE u.is_deleted = 0 AND t.type <> '普通用户'")
+                                                    "WHERE u.is_deleted = 0 AND u.account_type = 'staff' " +
+                                                    scopeFilter)
                                               .execute();
 
         nlohmann::json employees = nlohmann::json::array();
@@ -488,7 +719,7 @@ crow::response financeHandler::searchSalaryEmployees(const crow::request &req, c
         auto summaryRow = summaryResult.fetchOne();
         const int employeeCount = summaryRow && !summaryRow[0].isNull() ? summaryRow[0].get<int>() : 0;
         const double monthlyPayroll = summaryRow && !summaryRow[1].isNull() ? summaryRow[1].get<double>() : 0.0;
-        const nlohmann::json homeData = buildHomeData();
+        const nlohmann::json homeData = buildHomeData(req);
 
         nlohmann::json data = {
             {"employees", employees},

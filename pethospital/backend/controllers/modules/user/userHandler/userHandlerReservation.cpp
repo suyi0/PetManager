@@ -10,7 +10,6 @@
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include <vector>
 
@@ -81,19 +80,16 @@ crow::response userHandler::createReservation(const crow::request &req, int user
                 // 这才是真正的守门人——不依赖前端显示是否新鲜；医生下班后即便列表还旧，当天预约这里也会拒掉。
                 // 注意：系统支持预约未来 7 天，而 onlineDoctors 是"当日签到"概念，未来日期本就没有行；
                 // 所以 online 只对当天预约要求，未来日期只校验"是合法医生"，否则会误拒全部未来预约。
-                const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
-                if (doctorRoleId <= 0)
-                {
-                    return ResponseHelper::system_error(req, "医生角色不存在");
-                }
                 mysqlx::SqlResult doctorResult = dbManager->getSession()
                                                      ->sql("SELECT COALESCE(od.status, 'offline') "
                                                            "FROM users AS u "
+                                                           "JOIN positions AS pos ON pos.id = u.position_id "
                                                            "LEFT JOIN onlineDoctors AS od "
                                                            "ON od.doctor_id = u.id AND od.date = ? "
-                                                           "WHERE u.id = ? AND u.type_id = ? AND u.is_deleted = 0 "
+                                                           "WHERE u.id = ? AND u.account_type = 'staff' "
+                                                           "AND pos.staff_kind = 'doctor' AND u.is_deleted = 0 "
                                                            "LIMIT 1")
-                                                     .bind(date, doctor_id, doctorRoleId)
+                                                     .bind(date, doctor_id)
                                                      .execute();
                 auto doctorRow = doctorResult.fetchOne();
                 if (!doctorRow)
@@ -227,26 +223,22 @@ crow::response userHandler::getDoctorList(const crow::request &req)
 
     try
     {
-        const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
-        if (doctorRoleId <= 0)
-        {
-            return ResponseHelper::system_error(req, "医生角色不存在");
-        }
-
         const std::string todayDate = getTodayDate();
 
         nlohmann::json doctorList = DoctorListCache::cachedDoctorList(
-            todayDate, [this, &todayDate, doctorRoleId]()
+            todayDate, [this, &todayDate]()
             {
                 mysqlx::RowResult result = dbManager->getSession()
                                                ->sql("SELECT u.id, u.name, p.phone, u.email, u.user_specialty, "
                                                      "COALESCE(od.status, 'offline') "
                                                      "FROM users AS u "
+                                                     "JOIN positions AS pos ON pos.id = u.position_id "
                                                      "LEFT JOIN phones AS p ON p.user_id = u.id "
                                                      "LEFT JOIN onlineDoctors AS od "
                                                      "ON od.doctor_id = u.id AND od.date = ? "
-                                                     "WHERE u.type_id = ? AND u.is_deleted = 0")
-                                               .bind(todayDate, doctorRoleId)
+                                                     "WHERE u.account_type = 'staff' AND pos.staff_kind = 'doctor' "
+                                                     "AND u.is_deleted = 0")
+                                               .bind(todayDate)
                                                .execute();
 
                 nlohmann::json list = nlohmann::json::array();

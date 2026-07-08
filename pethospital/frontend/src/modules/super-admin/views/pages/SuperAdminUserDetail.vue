@@ -153,9 +153,9 @@ import { computed, defineComponent, onMounted, ref } from "vue";
 import { useStore } from "vuex";
 import { useRoute, useRouter } from "vue-router";
 import {
-  isSuperAdminPortalRole,
-  resolveRoleName,
-} from "@/core/auth/utils/roleUtils";
+  displayRoleName,
+  isManagementPillRole,
+} from "@/core/auth/utils/roleDisplay";
 import { storeKey } from "@/app/store";
 
 type RoleKind = "boss" | "doctor" | "warehouse" | "user";
@@ -193,16 +193,13 @@ export default defineComponent({
         null
     );
     const roleName = computed(() =>
-      user.value
-        ? resolveRoleName(user.value.type_name, user.value.type_id) ||
-          "未知角色"
-        : "未知角色"
+      displayRoleName(user.value?.type_name)
     );
     const isDoctor = computed(() => roleName.value === "医生");
     const online = computed(() => user.value?.status === "online");
     const roleKind = computed<RoleKind>(() => {
       const role = roleName.value;
-      if (isSuperAdminPortalRole(role)) return "boss";
+      if (isManagementPillRole(role)) return "boss";
       if (role === "医生" || role === "护士") return "doctor";
       if (role === "仓库管理员") return "warehouse";
       return "user";

@@ -12,7 +12,6 @@
 #include "../../../../models/user/User.h"
 #include "../getAddress/getAddress.h"
 #include "../../../auth/jwtUtils/jwtUtils.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "../../../../services/logger/operationLogger.h"
 
 class userHandler : public BaseHandler

@@ -246,10 +246,10 @@ void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface>
         try
         {
             session->sql("INSERT INTO user_operations "
-                         "(user_id, category, user_role, operator, module, action, result, summary, details, source) "
-                         "SELECT u.id, '用户类', t.type, u.name, ?, ?, ?, ?, ?, ? "
+                         "(user_id, category, user_role, operator_department_id, operator, module, action, result, summary, details, source) "
+                         "SELECT u.id, '用户类', pos.name, pos.department_id, u.name, ?, ?, ?, ?, ?, ? "
                          "FROM users AS u "
-                         "LEFT JOIN types AS t ON u.type_id = t.id "
+                         "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                          "WHERE u.id = ?")
                 .bind(module, action, result, fallbackSummary(summary, action), details, fallbackSource(source), userId)
                 .execute();
@@ -257,8 +257,8 @@ void OperationLogger::logUserOperation(std::shared_ptr<DatabaseManagerInterface>
         catch (const std::exception &roleError)
         {
             session->sql("INSERT INTO user_operations "
-                         "(user_id, category, user_role, operator, module, action, result, summary, details, source) "
-                         "SELECT u.id, '用户类', NULL, u.name, ?, ?, ?, ?, ?, ? "
+                         "(user_id, category, user_role, operator_department_id, operator, module, action, result, summary, details, source) "
+                         "SELECT u.id, '用户类', NULL, NULL, u.name, ?, ?, ?, ?, ?, ? "
                          "FROM users AS u "
                          "WHERE u.id = ?")
                 .bind(module, action, result, fallbackSummary(summary, action), details, fallbackSource(source), userId)

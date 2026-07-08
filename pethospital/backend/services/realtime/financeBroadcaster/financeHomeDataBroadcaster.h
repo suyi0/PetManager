@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -15,11 +16,17 @@
 class FinanceHomeDataBroadcaster
 {
 public:
+    struct ConnectionContext
+    {
+        int userId;
+        int sessionVersion;
+    };
+
     static FinanceHomeDataBroadcaster &instance();
 
     void start(std::shared_ptr<DatabaseManagerInterface> dbManager);
     void stop();
-    void addConnection(crow::websocket::connection *conn);
+    void addConnection(crow::websocket::connection *conn, const ConnectionContext &context);
     void removeConnection(crow::websocket::connection *conn);
     void closeAllConnections(const std::string &reason);
     void notifyHomeDataChanged();
@@ -37,5 +44,5 @@ private:
     bool pending_update_{false};
     std::mutex connections_mutex_;
     std::condition_variable broadcast_cv_;
-    std::unordered_set<crow::websocket::connection *> connections_;
+    std::unordered_map<crow::websocket::connection *, ConnectionContext> connections_;
 };

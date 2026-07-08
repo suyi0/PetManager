@@ -3,6 +3,7 @@
 #include "../userPhoneSync/userPhoneSync.h"
 #include "../../../../services/auth/AuthSessionStore.h"
 #include "../../../../services/auth/AuthLoginFailureStore.h"
+#include "../../../../services/rbac/RbacService.h"
 #include "../../../../services/redis/RedisClient.h"
 #include "../../../../services/redis/redisLock/RedisLock.h"
 #include "../../../../services/redis/doctorListCache/DoctorListCache.h"
@@ -10,7 +11,6 @@
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include "userHandlerInternal.h" // 共享的用户名拆分辅助（与 userHandlerAuth.cpp 共用）
 #include <vector>
@@ -33,12 +33,41 @@ namespace
         return url;
     }
 
-    void notifyDoctorListChangedIfDoctor(const std::string &roleName)
+    // 业务身份判据是 staff_kind（不可变工种标记），不是可改名的职位显示名
+    void notifyDoctorListChangedIfDoctor(const std::string &staffKind)
     {
-        if (roleName == "医生")
+        if (staffKind == "doctor")
         {
             DoctorListCache::invalidateDoctorList();
             DoctorListBroadcaster::instance().notifyDoctorListChanged();
+        }
+    }
+
+    // 调用点手头只有 userId 时按库里的当前工种判断
+    void notifyDoctorListChangedIfDoctorByUser(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager, int userId)
+    {
+        if (!dbManager || !dbManager->getSession() || userId <= 0)
+        {
+            return;
+        }
+        try
+        {
+            mysqlx::SqlResult result = dbManager->getSession()
+                                           ->sql("SELECT COALESCE(pos.staff_kind, '') FROM users AS u "
+                                                 "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                                 "WHERE u.id = ? LIMIT 1")
+                                           .bind(userId)
+                                           .execute();
+            auto row = result.fetchOne();
+            if (row && !row[0].isNull())
+            {
+                notifyDoctorListChangedIfDoctor(row[0].get<std::string>());
+            }
+        }
+        catch (...)
+        {
+            // 列表刷新是尽力而为的通知，不因它失败中断主流程
         }
     }
 
@@ -336,7 +365,6 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         // 注册时存储的数据
         if (userId <= 0)
         {
-            int type_id = RoleTypeUtils::getRoleId(dbManager, "普通用户");
             std::string name = getRequestString(request_body, "name", "");
             std::string password = getRequestString(request_body, "password", "");
             std::string phone = getRequestString(request_body, "phone", "");
@@ -375,9 +403,9 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
 
             try
             {
-                mysqlx::SqlResult result = session->sql("INSERT INTO users(type_id, name, email, password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at) "
-                                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                                               .bind(type_id, name, email, hashed_password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at)
+                mysqlx::SqlResult result = session->sql("INSERT INTO users(account_type, position_id, name, email, password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at) "
+                                                        "VALUES ('customer', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                                               .bind(name, email, hashed_password, birthday, head_image, user_specialty, user_introduction, user_level, funds, is_deleted, deleted_by, deleted_at)
                                                .execute();
 
                 // 用户注册过程中，若手机号同步失败，则回滚整个事务，确保数据一致性
@@ -411,9 +439,10 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.name, CAST(u.birthday AS CHAR), u.head_image, t.type "
+                                       ->sql("SELECT u.name, CAST(u.birthday AS CHAR), u.head_image, "
+                                             "COALESCE(pos.staff_kind, '') AS staff_kind "
                                              "FROM users AS u "
-                                             "JOIN types AS t ON t.id = u.type_id "
+                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                              "WHERE u.id = ? "
                                              "LIMIT 1")
                                        .bind(userId)
@@ -428,7 +457,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
         const std::string DBname = row[0].isNull() ? "" : row[0].get<std::string>();
         const std::string DBbirthday = row[1].isNull() ? "1970-01-01" : row[1].get<std::string>();
         const std::string DBhead_image = row[2].isNull() ? "" : row[2].get<std::string>();
-        const std::string roleName = row[3].isNull() ? "" : row[3].get<std::string>();
+        const std::string staffKind = row[3].isNull() ? "" : row[3].get<std::string>();
 
         std::string name = getRequestStringWithFallback(request_body, "name", "name", DBname);
         std::string birthday = normalizeBirthday(getRequestStringWithFallback(request_body, "birthday", "birthady", DBbirthday));
@@ -478,7 +507,7 @@ crow::response userHandler::userUpdate(const crow::request &req, int userId)
                 .bind(name, birthday, head_image, userId)
                 .execute();
             session->sql("COMMIT").execute();
-            notifyDoctorListChangedIfDoctor(roleName);
+            notifyDoctorListChangedIfDoctor(staffKind);
         }
         catch (const mysqlx::Error &e)
         {
@@ -523,9 +552,10 @@ crow::response userHandler::updatePassword(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.password, t.type "
+                                       ->sql("SELECT u.password, "
+                                             "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name "
                                              "FROM users AS u "
-                                             "JOIN types AS t ON t.id = u.type_id "
+                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                              "WHERE u.id = ? AND u.is_deleted = 0 "
                                              "LIMIT 1")
                                        .bind(userId)
@@ -571,10 +601,8 @@ crow::response userHandler::updatePassword(const crow::request &req, int userId)
             .bind(hash_password(password), userId)
             .execute();
 
-        if (RoleTypeUtils::isManagementRole(roleName))
-        {
-            AuthSessionStore::bumpSessionVersionForUser(userId);
-        }
+        // 改密后吊销该用户全部已签发 token（会话版本已全员生效，不再按角色名区分）
+        AuthSessionStore::bumpSessionVersionForUser(userId);
 
         return ResponseHelper::success(req, "密码更新成功");
     }
@@ -634,9 +662,10 @@ crow::response userHandler::updateEmail(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result2 = dbManager->getSession()
-                                        ->sql("SELECT u.email, u.type_id, t.type "
+                                        ->sql("SELECT u.email, COALESCE(u.position_id, 0), "
+                                              "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name "
                                               "FROM users AS u "
-                                              "JOIN types AS t ON t.id = u.type_id "
+                                              "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                               "WHERE u.id = ? AND u.is_deleted = 0 "
                                               "LIMIT 1")
                                         .bind(userId)
@@ -687,8 +716,9 @@ crow::response userHandler::updateEmail(const crow::request &req, int userId)
             type_id,
             type,
             email,
-            true);
-        notifyDoctorListChangedIfDoctor(type);
+            true,
+            RbacService::userHasManagementAccess(dbManager, userId));
+        notifyDoctorListChangedIfDoctorByUser(dbManager, userId);
         return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)
@@ -748,9 +778,10 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
         }
 
         mysqlx::SqlResult result2 = dbManager->getSession()
-                                        ->sql("SELECT p.phone, u.type_id, t.type "
+                                        ->sql("SELECT p.phone, COALESCE(u.position_id, 0), "
+                                              "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name "
                                               "FROM users AS u "
-                                              "JOIN types AS t ON t.id = u.type_id "
+                                              "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                               "LEFT JOIN phones AS p ON p.user_id = u.id "
                                               "WHERE u.id = ? AND u.is_deleted = 0 "
                                               "LIMIT 1")
@@ -799,8 +830,9 @@ crow::response userHandler::updatePhone(const crow::request &req, int userId)
             type_id,
             type,
             phone,
-            false);
-        notifyDoctorListChangedIfDoctor(type);
+            false,
+            RbacService::userHasManagementAccess(dbManager, userId));
+        notifyDoctorListChangedIfDoctorByUser(dbManager, userId);
         return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)

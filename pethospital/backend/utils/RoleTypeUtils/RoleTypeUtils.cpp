@@ -1,70 +1,23 @@
 #include "roleTypeUtils.h"
-#include "../permissions/Permissions.h"
 #include "../../services/redis/userRoleCache/UserRoleCache.h"
-#include <algorithm>
-#include <array>
-#include <optional>
 
 namespace RoleTypeUtils
 {
-namespace
-{
-const std::array<std::string, 6> kManagementRoles = {
-    "总裁",
-    "副总裁",
-    "财务总监",
-    "财务经理",
-    "部门经理",
-    "超级管理员"};
-
-const std::array<std::string, 1> kPersonnelRoles = {
-    "人事经理"};
-
-const std::array<std::string, 1> kNormalUserRoles = {
-    "普通用户"};
-
-const std::array<std::string, 2> kMedicalStaffRoles = {
-    "医生",
-    "护士"};
-
-const std::array<std::string, 1> kWarehouseStaffRoles = {
-    "仓库管理员"};
-}
-
-int getRoleId(
-    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-    const std::string &roleName)
-{
-    if (!dbManager || !dbManager->getSession())
-    {
-        return 0;
-    }
-
-    mysqlx::SqlResult result = dbManager->getSession()
-                                   ->sql("SELECT id FROM types WHERE type = ? LIMIT 1")
-                                   .bind(roleName)
-                                   .execute();
-
-    auto row = result.fetchOne();
-    if (!row || row[0].isNull())
-    {
-        return 0;
-    }
-
-    return row[0].get<int>();
-}
-
 std::string getRoleName(
     const std::shared_ptr<DatabaseManagerInterface> &dbManager,
     int roleId)
 {
-    if (!dbManager || !dbManager->getSession() || roleId <= 0)
+    if (!dbManager || !dbManager->getSession())
     {
         return "";
     }
+    if (roleId <= 0)
+    {
+        return "普通用户";
+    }
 
     mysqlx::SqlResult result = dbManager->getSession()
-                                   ->sql("SELECT type FROM types WHERE id = ? LIMIT 1")
+                                   ->sql("SELECT name FROM positions WHERE id = ? LIMIT 1")
                                    .bind(roleId)
                                    .execute();
 
@@ -86,16 +39,18 @@ std::string getUserRoleName(
         return "";
     }
 
-    // 读穿透缓存：命中直接返回，省掉热路径上的 users JOIN types。
+    // 读穿透缓存：命中直接返回，省掉热路径上的 users/positions 查询。
     if (std::optional<std::string> cached = UserRoleCache::readCache(userId))
     {
         return cached.value();
     }
 
     mysqlx::SqlResult result = dbManager->getSession()
-                                   ->sql("SELECT t.type "
+                                   ->sql("SELECT CASE "
+                                         "WHEN u.account_type = 'customer' THEN '普通用户' "
+                                         "ELSE COALESCE(pos.name, '') END AS role_name "
                                          "FROM users AS u "
-                                         "JOIN types AS t ON u.type_id = t.id "
+                                         "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                          "WHERE u.id = ? "
                                          "LIMIT 1")
                                    .bind(userId)
@@ -111,74 +66,5 @@ std::string getUserRoleName(
     // 仅缓存非空角色名（空名不缓存，避免把"查不到"固化）。
     UserRoleCache::writeCache(userId, roleName);
     return roleName;
-}
-
-bool userHasRole(
-    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-    int userId,
-    const std::string &roleName)
-{
-    return getUserRoleName(dbManager, userId) == roleName;
-}
-
-bool isManagementRole(const std::string &roleName)
-{
-    return std::find(kManagementRoles.begin(), kManagementRoles.end(), roleName) != kManagementRoles.end();
-}
-
-bool isBossRole(const std::string &roleName)
-{
-    return Permissions::roleHasPermission(roleName, Permissions::kPortalBoss);
-}
-
-bool isSuperAdminPortalRole(const std::string &roleName)
-{
-    return Permissions::roleHasPermission(roleName, Permissions::kPortalSuperAdmin);
-}
-
-bool isFinancePortalRole(const std::string &roleName)
-{
-    return Permissions::roleHasPermission(roleName, Permissions::kPortalFinance);
-}
-
-bool isNormalUserRole(const std::string &roleName)
-{
-    return std::find(kNormalUserRoles.begin(), kNormalUserRoles.end(), roleName) != kNormalUserRoles.end();
-}
-
-bool userHasManagementRole(
-    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-    int userId)
-{
-    return isManagementRole(getUserRoleName(dbManager, userId));
-}
-
-bool userHasBossRole(
-    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-    int userId)
-{
-    return isBossRole(getUserRoleName(dbManager, userId));
-}
-
-bool isPersonnelRole(const std::string &roleName)
-{
-    return std::find(kPersonnelRoles.begin(), kPersonnelRoles.end(), roleName) != kPersonnelRoles.end();
-}
-
-bool isMedicalStaffRole(const std::string &roleName)
-{
-    return std::find(kMedicalStaffRoles.begin(), kMedicalStaffRoles.end(), roleName) != kMedicalStaffRoles.end();
-}
-
-bool isWarehouseStaffRole(const std::string &roleName)
-{
-    return std::find(kWarehouseStaffRoles.begin(), kWarehouseStaffRoles.end(), roleName) != kWarehouseStaffRoles.end();
-}
-
-bool userHasPersonnelRole(
-    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-    int userId)
-{
-    return isPersonnelRole(getUserRoleName(dbManager, userId));
 }
 }

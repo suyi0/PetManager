@@ -1,115 +1,70 @@
 #include "Permissions.h"
 
 #include <algorithm>
+#include <array>
 #include <initializer_list>
 
 namespace Permissions
 {
 namespace
 {
-bool hasPermission(std::initializer_list<const char *> permissions, const std::string &permissionKey)
+const std::array kAllPermissionKeys = {
+    kPortalBoss,
+    kPortalFinance,
+    kPortalSuperAdmin,
+    kPortalPersonnel,
+    kPortalMedical,
+    kPortalWarehouse,
+    kPortalUser,
+    kSalaryRead,
+    kSalaryWrite,
+    kLogsRead,
+    kMedicalRecordRead,
+    kMedicalRecordWrite,
+    kDoctorWorkWrite,
+    kUserDelete,
+    kEquityRead,
+    kEquityWrite,
+    kStockRead,
+    kStockWrite,
+    kStaffRoleWrite,
+    kScopeAll,
+    kScopeMedicalAssigned,
+    kRbacManage,
+};
+
+std::vector<std::string> copyKeysExceptMetaPermission()
 {
-    return std::find_if(
-               permissions.begin(),
-               permissions.end(),
-               [&permissionKey](const char *candidate)
-               {
-                   return permissionKey == candidate;
-               }) != permissions.end();
+    std::vector<std::string> keys;
+    keys.reserve(kAllPermissionKeys.size() - 1);
+    for (const char *key : kAllPermissionKeys)
+    {
+        if (std::string(key) != kRbacManage)
+        {
+            keys.emplace_back(key);
+        }
+    }
+    return keys;
+}
 }
 
-bool isBossPackage(const std::string &roleName)
+std::vector<std::string> allPermissionKeys()
 {
-    return roleName == "总裁" || roleName == "副总裁";
+    return {kAllPermissionKeys.begin(), kAllPermissionKeys.end()};
 }
 
-bool isFinancePackage(const std::string &roleName)
+std::vector<std::string> grantablePermissionKeys()
 {
-    return roleName == "财务总监" || roleName == "财务经理";
+    return copyKeysExceptMetaPermission();
 }
 
-bool isSuperAdminPackage(const std::string &roleName)
+bool isKnownPermissionKey(const std::string &permissionKey)
 {
-    return roleName == "部门经理" || roleName == "超级管理员";
-}
+    return std::find(kAllPermissionKeys.begin(), kAllPermissionKeys.end(), permissionKey) != kAllPermissionKeys.end();
 }
 
-bool roleHasPermission(const std::string &roleName, const std::string &permissionKey)
+bool isGrantablePermissionKey(const std::string &permissionKey)
 {
-    if (roleName.empty() || permissionKey.empty())
-    {
-        return false;
-    }
-
-    if (isBossPackage(roleName))
-    {
-        return hasPermission(
-            {kPortalBoss,
-             kPortalFinance,
-             kPortalSuperAdmin,
-             kPortalPersonnel,
-             kPortalMedical,
-             kPortalWarehouse,
-             kSalaryRead,
-             kSalaryWrite,
-             kLogsRead,
-             kMedicalRecordRead,
-             kMedicalRecordWrite,
-             kDoctorWorkWrite,
-             kUserDelete,
-             kEquityRead,
-             kEquityWrite,
-             kStockRead,
-             kStockWrite,
-             kStaffRoleWrite,
-             kScopeAll},
-            permissionKey);
-    }
-
-    if (isFinancePackage(roleName))
-    {
-        return hasPermission(
-            {kPortalFinance,
-             kSalaryRead,
-             kSalaryWrite},
-            permissionKey);
-    }
-
-    if (isSuperAdminPackage(roleName))
-    {
-        return hasPermission(
-            {kPortalSuperAdmin,
-             kLogsRead,
-             kMedicalRecordRead,
-             kDoctorWorkWrite,
-             kUserDelete},
-            permissionKey);
-    }
-
-    if (roleName == "人事经理")
-    {
-        return hasPermission({kPortalPersonnel, kStaffRoleWrite}, permissionKey);
-    }
-
-    if (roleName == "医生" || roleName == "护士")
-    {
-        return hasPermission(
-            {kPortalMedical,
-             kMedicalRecordRead,
-             kMedicalRecordWrite,
-             kScopeMedicalAssigned},
-            permissionKey);
-    }
-
-    if (roleName == "仓库管理员")
-    {
-        return hasPermission(
-            {kPortalWarehouse,
-             kStockRead,
-             kStockWrite},
-            permissionKey);
-    }
-
-    return false;
+    return permissionKey != kRbacManage && isKnownPermissionKey(permissionKey);
 }
 }

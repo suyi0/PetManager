@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace Permissions
 {
@@ -10,6 +11,7 @@ inline constexpr const char *kPortalSuperAdmin = "portal:super-admin";
 inline constexpr const char *kPortalPersonnel = "portal:personnel";
 inline constexpr const char *kPortalMedical = "portal:medical";
 inline constexpr const char *kPortalWarehouse = "portal:warehouse";
+inline constexpr const char *kPortalUser = "portal:user";
 
 inline constexpr const char *kSalaryRead = "salary:read";
 inline constexpr const char *kSalaryWrite = "salary:write";
@@ -25,6 +27,10 @@ inline constexpr const char *kStockWrite = "stock:write";
 inline constexpr const char *kStaffRoleWrite = "staff-role:write";
 inline constexpr const char *kScopeAll = "scope:all";
 inline constexpr const char *kScopeMedicalAssigned = "scope:medical-assigned";
+inline constexpr const char *kRbacManage = "rbac:manage";
 
-bool roleHasPermission(const std::string &roleName, const std::string &permissionKey);
+std::vector<std::string> allPermissionKeys();
+std::vector<std::string> grantablePermissionKeys();
+bool isKnownPermissionKey(const std::string &permissionKey);
+bool isGrantablePermissionKey(const std::string &permissionKey);
 }

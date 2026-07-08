@@ -291,9 +291,9 @@ import {
   watch,
 } from "vue";
 import {
-  ALL_ROLE_NAMES,
-  isSuperAdminPortalRole,
-} from "@/core/auth/utils/roleUtils";
+  LEGACY_ROLE_NAMES,
+  isManagementPillRole,
+} from "@/core/auth/utils/roleDisplay";
 import AppPager from "@/shared/components/AppPager.vue";
 import { calculateTotalPages } from "@/shared/utils/pagination";
 import {
@@ -353,7 +353,7 @@ export default defineComponent({
 
     const userRoleOptions = [
       { key: "all" as UserRole, label: "全部角色" },
-      ...ALL_ROLE_NAMES.map((role) => ({
+      ...LEGACY_ROLE_NAMES.map((role) => ({
         key: role as UserRole,
         label: role,
       })),
@@ -459,7 +459,7 @@ export default defineComponent({
       if (userRole === "仓库管理员") {
         return "logs-badge--warehouse";
       }
-      if (userRole && isSuperAdminPortalRole(userRole)) {
+      if (userRole && isManagementPillRole(userRole)) {
         return "logs-badge--super";
       }
       return "logs-badge--user";

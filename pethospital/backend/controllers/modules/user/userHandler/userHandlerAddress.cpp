@@ -10,7 +10,6 @@
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include <vector>
 

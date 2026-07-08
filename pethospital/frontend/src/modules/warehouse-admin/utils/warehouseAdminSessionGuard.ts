@@ -2,7 +2,6 @@ import type { Router } from "vue-router";
 import type { Store } from "vuex";
 import { superAdminApi } from "@/modules/super-admin/api/superAdminApi";
 import { authStorage } from "@/core/auth/utils/authStorage";
-import { isWarehousePortalRole } from "@/core/auth/utils/roleUtils";
 import type { State } from "@/app/store";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -30,7 +29,7 @@ const isWarehouseRoute = () =>
 const isWarehouseSessionActive = () =>
   Boolean(
     boundStore?.state.auth.isLoggedIn &&
-      isWarehousePortalRole(boundStore.state.auth.userRole) &&
+      boundStore.state.auth.permissions.includes("portal:warehouse") &&
       isWarehouseRoute()
   );
 

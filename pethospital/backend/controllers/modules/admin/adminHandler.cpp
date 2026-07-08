@@ -5,13 +5,15 @@
 #include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../../services/redis/redisCountCache/RedisCountCache.h"
 #include "../../../services/redis/doctorListCache/DoctorListCache.h"
+#include "../../../services/rbac/RbacService.h"
 #include "../../../utils/dataScope/DataScope.h"
-#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
+#include "../../../utils/permissions/Permissions.h"
 #include "../../../utils/visibilityFilter/VisibilityFilter.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
 #include "../../../utils/requestUtils/RequestUtils.h"
 #include <functional>
+#include <sstream>
 
 namespace
 {
@@ -35,6 +37,84 @@ namespace
         user_json["status"] = row[8].isNull() ? "" : row[8].get<std::string>();
         return user_json;
     }
+
+    std::optional<int> currentRequestUserId(const crow::request &req)
+    {
+        const std::string authHeader = req.get_header_value("Authorization");
+        if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
+        {
+            return std::nullopt;
+        }
+        auto claims = JwtUtils::getTokenClaims(authHeader.substr(7));
+        if (!claims || claims->userId <= 0)
+        {
+            return std::nullopt;
+        }
+        return claims->userId;
+    }
+
+    std::string joinIds(const std::vector<int> &ids)
+    {
+        std::ostringstream stream;
+        for (std::size_t i = 0; i < ids.size(); ++i)
+        {
+            if (i > 0)
+            {
+                stream << ",";
+            }
+            stream << ids[i];
+        }
+        return stream.str();
+    }
+
+    std::string orgScopeCondition(
+        const crow::request &req,
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        const std::string &departmentColumn)
+    {
+        const std::optional<int> userId = currentRequestUserId(req);
+        if (!userId.has_value())
+        {
+            return " AND 1 = 0 ";
+        }
+
+        // EffectiveOrgScope 显式区分「不限制(scope:all)」与「无可见部门」，
+        // 空集合只可能意味着拒绝——查库异常/客户账户不会被误判为全量可见
+        const RbacService::EffectiveOrgScope scope =
+            RbacService::loadEffectiveOrgScope(dbManager, userId.value());
+        if (scope.unrestricted)
+        {
+            return "";
+        }
+        if (scope.departmentIds.empty())
+        {
+            return " AND 1 = 0 ";
+        }
+        return " AND " + departmentColumn + " IN (" + joinIds(scope.departmentIds) + ") ";
+    }
+
+    std::string orgScopeConditionForUser(
+        int userId,
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        const std::string &departmentColumn)
+    {
+        if (userId <= 0)
+        {
+            return " AND 1 = 0 ";
+        }
+
+        const RbacService::EffectiveOrgScope scope =
+            RbacService::loadEffectiveOrgScope(dbManager, userId);
+        if (scope.unrestricted)
+        {
+            return "";
+        }
+        if (scope.departmentIds.empty())
+        {
+            return " AND 1 = 0 ";
+        }
+        return " AND " + departmentColumn + " IN (" + joinIds(scope.departmentIds) + ") ";
+    }
 }
 
 int adminHandler::calculateUserCount()
@@ -54,6 +134,44 @@ int adminHandler::calculateUserCount()
     }
 }
 
+int adminHandler::calculateUserCount(const crow::request &req)
+{
+    try
+    {
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
+        int userCount = dbManager->getSession()
+                            ->sql("SELECT COUNT(DISTINCT u.id) "
+                                  "FROM users AS u "
+                                  "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                  "WHERE u.is_deleted = 0 " +
+                                  scopeFilter)
+                            .execute()
+                            .fetchOne()[0]
+                            .get<int>();
+        return userCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get scoped userCount: " + std::string(e.what()));
+    }
+}
+
+int calculateUserCountForScope(
+    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+    int userId)
+{
+    const std::string scopeFilter = orgScopeConditionForUser(userId, dbManager, "pos.department_id");
+    return dbManager->getSession()
+        ->sql("SELECT COUNT(DISTINCT u.id) "
+              "FROM users AS u "
+              "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+              "WHERE u.is_deleted = 0 " +
+              scopeFilter)
+        .execute()
+        .fetchOne()[0]
+        .get<int>();
+}
+
 int adminHandler::calculateOnlineDoctorCount()
 {
     try
@@ -69,6 +187,46 @@ int adminHandler::calculateOnlineDoctorCount()
     {
         throw std::runtime_error("Failed to get onlineDoctorCount: " + std::string(e.what()));
     }
+}
+
+int adminHandler::calculateOnlineDoctorCount(const crow::request &req)
+{
+    try
+    {
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
+        int onlineDoctorCount = dbManager->getSession()
+                                    ->sql("SELECT COUNT(DISTINCT od.doctor_id) "
+                                          "FROM onlineDoctors AS od "
+                                          "JOIN users AS u ON u.id = od.doctor_id "
+                                          "JOIN positions AS pos ON pos.id = u.position_id "
+                                          "WHERE od.status = 'online' AND u.is_deleted = 0 " +
+                                          scopeFilter)
+                                    .execute()
+                                    .fetchOne()[0]
+                                    .get<int>();
+        return onlineDoctorCount;
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get scoped onlineDoctorCount: " + std::string(e.what()));
+    }
+}
+
+int calculateOnlineDoctorCountForScope(
+    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+    int userId)
+{
+    const std::string scopeFilter = orgScopeConditionForUser(userId, dbManager, "pos.department_id");
+    return dbManager->getSession()
+        ->sql("SELECT COUNT(DISTINCT od.doctor_id) "
+              "FROM onlineDoctors AS od "
+              "JOIN users AS u ON u.id = od.doctor_id "
+              "JOIN positions AS pos ON pos.id = u.position_id "
+              "WHERE od.status = 'online' AND u.is_deleted = 0 " +
+              scopeFilter)
+        .execute()
+        .fetchOne()[0]
+        .get<int>();
 }
 
 int adminHandler::calculateLogsCount()
@@ -90,6 +248,18 @@ int adminHandler::calculateLogsCount()
     }
 }
 
+int adminHandler::calculateLogsCount(const crow::request &req)
+{
+    try
+    {
+        return calculateUserLogsCount(req) + calculateSystemLogsCount();
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get scoped logsCount: " + std::string(e.what()));
+    }
+}
+
 int adminHandler::calculateUserLogsCount()
 {
     // 30s 短 TTL 缓存；user_operations 持续增长，COUNT(*) 较重。
@@ -108,6 +278,41 @@ int adminHandler::calculateUserLogsCount()
         {
             throw std::runtime_error("Failed to get userLogsCount: " + std::string(e.what()));
         } });
+}
+
+int adminHandler::calculateUserLogsCount(const crow::request &req)
+{
+    const std::string scopeFilter = orgScopeCondition(req, dbManager, "operator_department_id");
+    try
+    {
+        return dbManager->getSession()
+            ->sql("SELECT COUNT(*) "
+                  "FROM user_operations "
+                  "WHERE 1 = 1 " +
+                  scopeFilter)
+            .execute()
+            .fetchOne()[0]
+            .get<int>();
+    }
+    catch (const std::exception &e)
+    {
+        throw std::runtime_error("Failed to get scoped userLogsCount: " + std::string(e.what()));
+    }
+}
+
+int calculateUserLogsCountForScope(
+    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+    int userId)
+{
+    const std::string scopeFilter = orgScopeConditionForUser(userId, dbManager, "operator_department_id");
+    return dbManager->getSession()
+        ->sql("SELECT COUNT(*) "
+              "FROM user_operations "
+              "WHERE 1 = 1 " +
+              scopeFilter)
+        .execute()
+        .fetchOne()[0]
+        .get<int>();
 }
 
 int adminHandler::calculateSystemLogsCount()
@@ -155,6 +360,32 @@ nlohmann::json adminHandler::buildHomeData()
         {"userLogCount", calculateUserLogsCount()},
         {"systemLogCount", calculateSystemLogsCount()}};
 }
+
+nlohmann::json adminHandler::buildHomeData(const crow::request &req)
+{
+    nlohmann::json financeData = financer.buildHomeData(req);
+
+    financeData["userCount"] = calculateUserCount(req);
+    financeData["onlineDoctorCount"] = calculateOnlineDoctorCount(req);
+    financeData["allLogCount"] = calculateLogsCount(req);
+    financeData["userLogCount"] = calculateUserLogsCount(req);
+    financeData["systemLogCount"] = calculateSystemLogsCount();
+    return financeData;
+}
+
+nlohmann::json adminHandler::buildHomeData(int userId)
+{
+    nlohmann::json financeData = financer.buildHomeData(userId);
+
+    const int userLogCount = calculateUserLogsCountForScope(dbManager, userId);
+    financeData["userCount"] = calculateUserCountForScope(dbManager, userId);
+    financeData["onlineDoctorCount"] = calculateOnlineDoctorCountForScope(dbManager, userId);
+    financeData["allLogCount"] = userLogCount + calculateSystemLogsCount();
+    financeData["userLogCount"] = userLogCount;
+    financeData["systemLogCount"] = calculateSystemLogsCount();
+    return financeData;
+}
+
 crow::response adminHandler::getHomeData(const crow::request &req)
 {
     try
@@ -164,7 +395,7 @@ crow::response adminHandler::getHomeData(const crow::request &req)
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
-        return ResponseHelper::success(req, buildHomeData());
+        return ResponseHelper::success(req, buildHomeData(req));
     }
     catch (const std::exception &e)
     {
@@ -181,14 +412,18 @@ crow::response adminHandler::getUsers(const crow::request &req)
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
+                                       ->sql("SELECT u.id, COALESCE(u.position_id, 0), "
+                                             "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name, "
+                                             "u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
                                              "u.head_image, od.status "
                                              "FROM users AS u "
-                                             "LEFT JOIN types AS t ON u.type_id = t.id "
+                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                              "LEFT JOIN phones AS p ON p.user_id = u.id "
                                              "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id "
-                                             "WHERE u.is_deleted = 0")
+                                             "WHERE u.is_deleted = 0 " +
+                                             scopeFilter)
                                        .execute();
 
         nlohmann::json response_data = nlohmann::json::array();
@@ -239,27 +474,31 @@ crow::response adminHandler::searchUsers(const crow::request &req, const nlohman
         std::string roleCondition;
         if (role == "medical")
         {
-            roleCondition = "AND COALESCE(t.type, '') IN ('医生', '护士') ";
+            roleCondition = "AND pos.staff_kind IN ('doctor', 'nurse') ";
         }
         else if (role == "admin")
         {
-            roleCondition = "AND COALESCE(t.type, '') IN ('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') ";
+            roleCondition = "AND COALESCE(pos.name, '') IN ('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') ";
         }
         else if (filterRole)
         {
-            roleCondition = "AND COALESCE(t.type, '') = ? ";
+            roleCondition = "AND COALESCE(pos.name, CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE '' END) = ? ";
         }
         const bool bindRole = filterRole && role != "medical" && role != "admin";
+        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
 
         auto query = dbManager->getSession()
-                         ->sql(std::string("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
+                         ->sql(std::string("SELECT u.id, COALESCE(u.position_id, 0), "
+                                           "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name, "
+                                           "u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
                                            "u.head_image, od.status "
                                            "FROM users AS u "
-                                           "LEFT JOIN types AS t ON u.type_id = t.id "
+                                           "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                            "LEFT JOIN phones AS p ON p.user_id = u.id "
                                            "LEFT JOIN onlineDoctors AS od ON od.doctor_id = u.id "
                                            "WHERE u.is_deleted = 0 "
                                            "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) ") +
+                               scopeFilter +
                                roleCondition +
                                "ORDER BY u.id ASC "
                                "LIMIT ?, ?")
@@ -275,10 +514,11 @@ crow::response adminHandler::searchUsers(const crow::request &req, const nlohman
         auto countQuery = dbManager->getSession()
                               ->sql(std::string("SELECT COUNT(DISTINCT u.id) "
                                                 "FROM users AS u "
-                                                "LEFT JOIN types AS t ON u.type_id = t.id "
+                                                "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                                 "LEFT JOIN phones AS p ON p.user_id = u.id "
                                                 "WHERE u.is_deleted = 0 "
                                                 "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) ") +
+                                    scopeFilter +
                                     roleCondition)
                               .bind(keyword, likeKeyword, likeKeyword, likeKeyword);
         if (bindRole)
@@ -306,14 +546,15 @@ crow::response adminHandler::searchUsers(const crow::request &req, const nlohman
             auto roleCountQuery = dbManager->getSession()
                                       ->sql("SELECT "
                                             "COUNT(DISTINCT u.id), "
-                                            "COUNT(DISTINCT CASE WHEN COALESCE(t.type, '') IN ('医生', '护士') THEN u.id END), "
-                                            "COUNT(DISTINCT CASE WHEN COALESCE(t.type, '') IN ('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') THEN u.id END), "
-                                            "COUNT(DISTINCT CASE WHEN COALESCE(t.type, '') NOT IN ('医生', '护士', '总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') THEN u.id END) "
+                                            "COUNT(DISTINCT CASE WHEN pos.staff_kind IN ('doctor', 'nurse') THEN u.id END), "
+                                            "COUNT(DISTINCT CASE WHEN COALESCE(pos.name, '') IN ('总裁', '副总裁', '财务总监', '部门经理', '超级管理员', '仓库管理员') THEN u.id END), "
+                                            "COUNT(DISTINCT CASE WHEN u.account_type = 'customer' THEN u.id END) "
                                             "FROM users AS u "
-                                            "LEFT JOIN types AS t ON u.type_id = t.id "
+                                            "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
                                             "WHERE u.is_deleted = 0 "
-                                            "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) ")
+                                            "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) " +
+                                            scopeFilter)
                                       .bind(keyword, likeKeyword, likeKeyword, likeKeyword);
             mysqlx::Row roleCountRow = roleCountQuery.execute().fetchOne();
             data["roleCounts"] = {
@@ -348,13 +589,13 @@ crow::response adminHandler::searchOnlineDoctors(const crow::request &req, const
         const int offset = (page - 1) * pageSize;
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.id, u.type_id, t.type, u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
+                                       ->sql("SELECT u.id, COALESCE(u.position_id, 0), COALESCE(pos.name, ''), u.name, p.phone, u.email, CAST(u.birthday AS CHAR), "
                                              "u.head_image, od.status "
                                              "FROM users AS u "
-                                             "JOIN types AS t ON u.type_id = t.id "
+                                             "JOIN positions AS pos ON pos.id = u.position_id "
                                              "LEFT JOIN phones AS p ON p.user_id = u.id "
                                              "JOIN onlineDoctors AS od ON od.doctor_id = u.id "
-                                             "WHERE u.is_deleted = 0 AND t.type = '医生' AND od.status = 'online' "
+                                             "WHERE u.is_deleted = 0 AND pos.staff_kind = 'doctor' AND od.status = 'online' "
                                              "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?) "
                                              "ORDER BY u.id ASC "
                                              "LIMIT ?, ?")
@@ -364,10 +605,10 @@ crow::response adminHandler::searchOnlineDoctors(const crow::request &req, const
         mysqlx::SqlResult countResult = dbManager->getSession()
                                             ->sql("SELECT COUNT(DISTINCT u.id) "
                                                   "FROM users AS u "
-                                                  "JOIN types AS t ON u.type_id = t.id "
+                                                  "JOIN positions AS pos ON pos.id = u.position_id "
                                                   "LEFT JOIN phones AS p ON p.user_id = u.id "
                                                   "JOIN onlineDoctors AS od ON od.doctor_id = u.id "
-                                                  "WHERE u.is_deleted = 0 AND t.type = '医生' AND od.status = 'online' "
+                                                  "WHERE u.is_deleted = 0 AND pos.staff_kind = 'doctor' AND od.status = 'online' "
                                                   "AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(p.phone, '') LIKE ? OR COALESCE(u.email, '') LIKE ?)")
                                             .bind(keyword, likeKeyword, likeKeyword, likeKeyword)
                                             .execute();
@@ -658,16 +899,12 @@ crow::response adminHandler::handleDoctorStatusAction(const crow::request &req, 
             return ResponseHelper::validation(req, "Missing or invalid doctorId");
         }
 
-        const int doctorRoleId = RoleTypeUtils::getRoleId(dbManager, "医生");
-        if (doctorRoleId <= 0)
-        {
-            return ResponseHelper::notFound(req, "医生角色不存在");
-        }
-
         auto doctorResult = dbManager->getSession()
-                                ->sql("SELECT id FROM users WHERE id = ? AND type_id = ? LIMIT 1")
+                                ->sql("SELECT u.id FROM users AS u "
+                                      "JOIN positions AS pos ON pos.id = u.position_id "
+                                      "WHERE u.id = ? AND u.account_type = 'staff' "
+                                      "AND pos.staff_kind = 'doctor' LIMIT 1")
                                 .bind(targetDoctorId)
-                                .bind(doctorRoleId)
                                 .execute();
         auto doctorRow = doctorResult.fetchOne();
         if (!doctorRow)
@@ -783,10 +1020,13 @@ crow::response adminHandler::getLogs(const crow::request &req)
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
+        const std::string userLogScopeFilter = orgScopeCondition(req, dbManager, "operator_department_id");
         mysqlx::SqlResult userLogs_result = dbManager->getSession()
                                                 ->sql("SELECT CAST(id AS CHAR), category, user_role, operator, module, action, result, "
                                                       "CAST(created_at AS CHAR), summary, details, source "
                                                       "FROM user_operations "
+                                                      "WHERE 1 = 1 " +
+                                                      userLogScopeFilter +
                                                       "ORDER BY created_at DESC")
                                                 .execute();
 
@@ -883,6 +1123,10 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
         const std::string tableName = isUserLogs ? "user_operations" : "system_operations";
         const std::string roleColumn = isUserLogs ? "user_role" : "system_role";
         std::string filters = filterRole ? "AND COALESCE(" + roleColumn + ", '') = ? " : "";
+        if (isUserLogs)
+        {
+            filters += orgScopeCondition(req, dbManager, "operator_department_id");
+        }
         if (filterModule)
         {
             filters += "AND COALESCE(module, '') LIKE ? ";
@@ -1001,8 +1245,7 @@ crow::response adminHandler::searchLogs(const crow::request &req, const nlohmann
         // 仅在前端明确请求 includeCounts（通常只在进页面时）才统计。
         if (includeCounts)
         {
-            // 复用带短 TTL 缓存的计数函数，避免每次进页面都对持续增长的操作表做 COUNT(*)。
-            data["userLogCount"] = calculateUserLogsCount();
+            data["userLogCount"] = calculateUserLogsCount(req);
             data["systemLogCount"] = calculateSystemLogsCount();
         }
 
@@ -1024,8 +1267,7 @@ crow::response adminHandler::getAllRecord(const crow::request &req, int &userId,
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
-        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
+        const DataScope::Scope dataScope = DataScope::resolveForUser(dbManager, userId);
         const VisibilityFilter::Clause filter =
             VisibilityFilter::build(dataScope, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
 

@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     std::cout << "Crow PID: " << getpid() << std::endl;
 #endif
 
-    crow::App<CorsMiddleware, RateLimitMiddleware> app;
+    crow::App<CorsMiddleware, RateLimitMiddleware, DbSessionGuardMiddleware> app;
     
     RateLimitMiddleware::initialize(50, 60);  // 每60s，只能接受50次请求
 

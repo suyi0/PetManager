@@ -49,7 +49,7 @@ public:
     void setApp(CrowApp* app_ptr) { app_ptr_ = app_ptr; }
     
     // 获取app指针
-    crow::App<CorsMiddleware, RateLimitMiddleware>* getApp() { return app_ptr_; }
+    crow::App<CorsMiddleware, RateLimitMiddleware, DbSessionGuardMiddleware>* getApp() { return app_ptr_; }
 
 private:
     // 私有构造函数，防止外部实例化
@@ -65,7 +65,7 @@ private:
     std::mutex cleanup_mutex;                       // 用于保护清理任务
     std::condition_variable cleanup_cv;              // 用于等待清理任务结束
     std::condition_variable shutdown_cv;              // 用于等待服务线程结束
-    crow::App<CorsMiddleware, RateLimitMiddleware>* app_ptr_ = nullptr;  // 使用指针，以便外部传入
+    crow::App<CorsMiddleware, RateLimitMiddleware, DbSessionGuardMiddleware>* app_ptr_ = nullptr;  // 使用指针，以便外部传入
     std::thread server_thread;
     std::atomic<bool> shutdown_requested{false};    // 表示“已经收到关闭请求” 在 Ctrl+C 的信号处理里设置
     std::atomic<bool> server_stopped{false};        // 表示“Crow 的 run() 已经真正返回” 在服务线程退出时设置

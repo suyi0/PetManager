@@ -9,6 +9,11 @@
 
 namespace
 {
+    // 缓存连接的活性检测节流间隔：间隔内直接复用（零额外往返），
+    // 超过间隔的下一次 getSession 先 ping 确认。取 5s 在"MySQL 重启后
+    // 最多 5s 内自愈"与"高频请求零 ping 开销"之间平衡。
+    constexpr std::chrono::seconds kSessionValidationInterval{5};
+
     // 清理 .env 里可能带上的引号，避免配置值解析异常。
     std::string trimQuotes(std::string value)
     {
@@ -35,10 +40,8 @@ namespace
 
         std::string normalized = trimQuotes(std::string(value));
         std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch)
-                        { 
-                            return static_cast<char>(std::toupper(ch)); 
-                            // std::toupper() 函数返回一个 int 类型值，
-                            //通过 static_cast<char> 将其安全地转换回 char 类型以匹配 std::transform 所需的类型。
+                        {
+                            return static_cast<char>(std::toupper(ch));
                         });
         return normalized == "1" || normalized == "TRUE" || normalized == "YES" || normalized == "ON";
     }
@@ -95,24 +98,6 @@ namespace
         return mysqlx::SSLMode::REQUIRED;
     }
 
-    // 将SSL模式转换为URI值
-    const char *sslModeToUriValue(mysqlx::SSLMode mode)
-    {
-        switch (mode)
-        {
-        case mysqlx::SSLMode::DISABLED:
-            return "DISABLED";
-        case mysqlx::SSLMode::REQUIRED:
-            return "REQUIRED";
-        case mysqlx::SSLMode::VERIFY_CA:
-            return "VERIFY_CA";
-        case mysqlx::SSLMode::VERIFY_IDENTITY:
-            return "VERIFY_IDENTITY";
-        default:
-            return "REQUIRED";
-        }
-    }
-
     // 将SSL模式转换为字符串
     const char *sslModeToString(mysqlx::SSLMode mode)
     {
@@ -151,7 +136,7 @@ std::tuple<std::string, int, std::string, std::string, std::string> loadDatabase
         host = trimQuotes(std::string(db_host));
         try
         {
-            port = std::stoi(std::string(db_port));
+            port = std::stoi(std::string(db_port)); // 将字符串转换为整数
         }
         catch (const std::exception &)
         {
@@ -173,9 +158,12 @@ std::tuple<std::string, int, std::string, std::string, std::string> loadDatabase
 std::mutex DatabaseManager::mutex_;
 thread_local std::unique_ptr<mysqlx::Session> DatabaseManager::thread_session_ = nullptr;
 thread_local std::unique_ptr<mysqlx::Schema> DatabaseManager::thread_schema_ = nullptr;
+thread_local std::chrono::steady_clock::time_point DatabaseManager::thread_validated_at_{};
+thread_local bool DatabaseManager::thread_session_used_ = false;
 std::shared_ptr<DatabaseManagerInterface> DatabaseManager::instance = nullptr;
 
-// 当前线程是否已经持有可用的 session/schema。
+// 当前线程是否已经持有 session/schema 对象（不代表连接仍然存活，
+// 活性由 ensureThreadConnection 的节流 ping 判断）。
 bool DatabaseManager::hasValidConnection() const
 {
     return thread_session_ != nullptr && thread_schema_ != nullptr;
@@ -214,159 +202,110 @@ DatabaseManager::DatabaseManager()
     }
     catch (const std::exception &e)
     {
+        // 注意：这里不能直接把 std::getenv 结果塞进流（缺失时为 nullptr，UB）；
+        // 缺哪些变量 loadDatabaseConfig 的异常信息里已经写明。
         std::cerr << "❌ 数据库连接发生异常: " << e.what() << std::endl;
-        std::cerr << "连接参数详情:" << std::endl;
-        std::cerr << "- Host: " << std::getenv("DB_HOST") << std::endl;
-        std::cerr << "- Port: " << std::getenv("DB_PORT") << std::endl;
-        std::cerr << "- User: " << std::getenv("DB_USER") << std::endl;
-        std::cerr << "- Password: " << (std::getenv("DB_PASS") ? "***" : "未设置") << std::endl;
-        std::cerr << "- DB Name: " << std::getenv("DB_NAME") << std::endl;
         thread_session_.reset();
         thread_schema_.reset();
     }
 }
 
+// 建立一条已选中目标库、UTC 时区的新连接；失败抛 mysqlx::Error。
+// 30s 连接超时沿用旧 URI 路径的 connect-timeout=30000 语义。
+std::unique_ptr<mysqlx::Session> DatabaseManager::openSessionWithDatabase() const
+{
+    auto session = std::make_unique<mysqlx::Session>(
+        mysqlx::SessionOption::HOST, db_host_.c_str(),
+        mysqlx::SessionOption::PORT, db_port_,
+        mysqlx::SessionOption::USER, db_user_.c_str(),
+        mysqlx::SessionOption::PWD, db_pass_.c_str(),
+        mysqlx::SessionOption::DB, db_name_.c_str(),
+        mysqlx::SessionOption::SSL_MODE, ssl_mode_,
+        mysqlx::SessionOption::CONNECT_TIMEOUT, 30000);
+    configureSessionTimeZone(*session);
+    return session;
+}
+
+void DatabaseManager::adoptThreadSession(std::unique_ptr<mysqlx::Session> session)
+{
+    auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
+    // 作用是把 session 和 schema 绑定到当前线程的 thread_local 变量中，确保每个线程都有独立的数据库连接和模式对象。
+    thread_session_ = std::move(session);
+    thread_schema_ = std::move(schema);
+    thread_validated_at_ = std::chrono::steady_clock::now();    // 更新最后验证时间
+}
+
 // 为每个线程建立独立数据库连接，避免跨线程复用同一个 MySQL X session。
+// 已有连接会按节流间隔 ping 活性，死连接（MySQL 重启 / wait_timeout）丢弃重建。
 bool DatabaseManager::ensureThreadConnection()
 {
-    if (thread_session_ && thread_schema_)
+    if (thread_session_ && thread_schema_)  // 已有连接，检查活性
     {
-        return true;
+        const auto now = std::chrono::steady_clock::now();
+        if (now - thread_validated_at_ < kSessionValidationInterval)
+        {
+            return true;
+        }
+        try
+        {
+            thread_session_->sql("SELECT 1").execute();
+            thread_validated_at_ = now;
+            return true;
+        }
+        catch (const mysqlx::Error &e)
+        {
+            std::cerr << "⚠️  Cached DB session is dead (" << e.what()
+                      << "), reconnecting..." << std::endl;
+            thread_schema_.reset();
+            thread_session_.reset();
+        }
     }
 
-    bool connected = false;
+    // 没有连接或连接已死：尝试建立新连接。
 
+    // 唯一连接路径：SessionOption 直连目标库。
+    // （旧代码的 URI / host-string 回退与它走的是同一条协议路径，属于冗余，已移除。）
     try
     {
-        // 优先使用完整 URI 连接，配置最集中，也最容易复用 SSL 参数。
-        std::string full_uri =
-            "mysqlx://" + db_user_ + ":" + db_pass_ + "@" + db_host_ + ":" +
-            std::to_string(db_port_) + "/" + db_name_ +
-            "?connect-timeout=30000&ssl-mode=" + sslModeToUriValue(ssl_mode_);
-        
-        // 使用std::make_unique来创建一个mysqlx::Session对象的独占指针
-        auto session = std::make_unique<mysqlx::Session>(full_uri);
-        configureSessionTimeZone(*session);
-        auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
-        thread_session_ = std::move(session);
-        thread_schema_ = std::move(schema);
-        std::cout << "✅ Database connection successful via URI method! SSL mode: "
+        adoptThreadSession(openSessionWithDatabase());
+        std::cout << "✅ Database connection established. SSL mode: "
                   << sslModeToString(ssl_mode_) << std::endl;
-        connected = true;
+        return true;
     }
     catch (const mysqlx::Error &e)
     {
-        std::cerr << "❌ URI connection failed: " << e.what() << std::endl;
+        std::cerr << "❌ Database connection failed: " << e.what() << std::endl;
     }
 
-    if (!connected)
+    // 直连失败通常是目标库不存在（全新环境）：仅在允许启动迁移时，
+    // 连接到服务器级按需建库后重试一次；禁用迁移时不做任何隐式 DDL。
+    if (!shouldRunStartupMigrations())
     {
-        try
-        {
-            // URI 失败时回退到 SessionOption 方式，兼容不同环境下的连接行为。
-            auto session = std::make_unique<mysqlx::Session>(
-                mysqlx::SessionOption::HOST, db_host_.c_str(),
-                mysqlx::SessionOption::PORT, db_port_,
-                mysqlx::SessionOption::USER, db_user_.c_str(),
-                mysqlx::SessionOption::PWD, db_pass_.c_str(),
-                mysqlx::SessionOption::DB, db_name_.c_str(),
-                mysqlx::SessionOption::SSL_MODE, ssl_mode_);
-            configureSessionTimeZone(*session);
-            auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
-            thread_session_ = std::move(session);
-            thread_schema_ = std::move(schema);
-            std::cout << "✅ Database connection successful via SessionOption method! SSL mode: "
-                      << sslModeToString(ssl_mode_) << std::endl;
-            connected = true;
-        }
-        catch (const mysqlx::Error &e)
-        {
-            std::cerr << "❌ SessionOption connection failed: " << e.what() << std::endl;
-        }
+        std::cerr << "Skipping automatic database creation because DB_AUTO_RUN_MIGRATIONS is disabled." << std::endl;
+        return false;
     }
-
-    if (!connected)
+    try
     {
-        try
-        {
-            // 如果禁用了启动迁移，这里也不应偷偷执行 CREATE DATABASE 这类 DDL。
-            if (!shouldRunStartupMigrations())
-            {
-                std::cerr << "Skipping automatic database creation because DB_AUTO_RUN_MIGRATIONS is disabled." << std::endl;
-                throw std::runtime_error("Database does not exist and automatic migrations are disabled");
-            }
+        mysqlx::Session server_session(
+            mysqlx::SessionOption::HOST, db_host_.c_str(),
+            mysqlx::SessionOption::PORT, db_port_,
+            mysqlx::SessionOption::USER, db_user_.c_str(),
+            mysqlx::SessionOption::PWD, db_pass_.c_str(),
+            mysqlx::SessionOption::SSL_MODE, ssl_mode_,
+            mysqlx::SessionOption::CONNECT_TIMEOUT, 30000);
+        server_session
+            .sql("CREATE DATABASE IF NOT EXISTS `" + db_name_ + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            .execute();
+        std::cout << "Database '" << db_name_ << "' ensured, reconnecting..." << std::endl;
 
-            // 如果目标库不存在，先连接到服务端级别，再按需创建数据库。
-            mysqlx::Session temp_session(
-                mysqlx::SessionOption::HOST, db_host_.c_str(),
-                mysqlx::SessionOption::PORT, db_port_,
-                mysqlx::SessionOption::USER, db_user_.c_str(),
-                mysqlx::SessionOption::PWD, db_pass_.c_str(),
-                mysqlx::SessionOption::SSL_MODE, ssl_mode_);
-            configureSessionTimeZone(temp_session);
-
-            auto result = temp_session
-                              .sql("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?")
-                              .bind(db_name_)
-                              .execute();
-
-            if (result.count() == 0)
-            {
-                std::cout << "Database '" << db_name_ << "' does not exist, creating it..." << std::endl;
-                temp_session
-                    .sql("CREATE DATABASE IF NOT EXISTS `" + db_name_ + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-                    .execute();
-                std::cout << "Database '" << db_name_ << "' created successfully!" << std::endl;
-            }
-
-            // 创建数据库连接
-            auto session = std::make_unique<mysqlx::Session>(
-                mysqlx::SessionOption::HOST, db_host_.c_str(),
-                mysqlx::SessionOption::PORT, db_port_,
-                mysqlx::SessionOption::USER, db_user_.c_str(),
-                mysqlx::SessionOption::PWD, db_pass_.c_str(),
-                mysqlx::SessionOption::DB, db_name_.c_str(),
-                mysqlx::SessionOption::SSL_MODE, ssl_mode_);
-            configureSessionTimeZone(*session);
-            auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
-            thread_session_ = std::move(session);
-            thread_schema_ = std::move(schema);
-            connected = true;
-        }
-        catch (const mysqlx::Error &e)
-        {
-            std::cerr << "❌ Server-first connection failed: " << e.what() << std::endl;
-        }
+        adoptThreadSession(openSessionWithDatabase());
+        std::cout << "✅ Database connection established after creating schema. SSL mode: "
+                  << sslModeToString(ssl_mode_) << std::endl;
+        return true;
     }
-
-    if (!connected)
+    catch (const mysqlx::Error &e)
     {
-        try
-        {
-            // 最后再尝试 host string 的 URI 形式，补充兜底。
-            std::string host_and_port = db_host_ + ":" + std::to_string(db_port_);
-            auto session = std::make_unique<mysqlx::Session>(
-                mysqlx::SessionOption::URI,
-                ("mysqlx://" + db_user_ + ":" + db_pass_ + "@" + host_and_port +
-                 "/" + db_name_ + "?ssl-mode=" + std::string(sslModeToUriValue(ssl_mode_)))
-                    .c_str());
-            configureSessionTimeZone(*session);
-            auto schema = std::make_unique<mysqlx::Schema>(session->getSchema(db_name_));
-            thread_session_ = std::move(session);
-            thread_schema_ = std::move(schema);
-            std::cout << "✅ Database connection successful via host string method! SSL mode: "
-                      << sslModeToString(ssl_mode_) << std::endl;
-            connected = true;
-        }
-        catch (const mysqlx::Error &e)
-        {
-            std::cerr << "❌ Host string connection failed: " << e.what() << std::endl;
-        }
-    }
-
-    if (!connected)
-    {
-        std::cerr << "❌ All connection methods failed!" << std::endl;
+        std::cerr << "❌ Database connection failed (after create-database attempt): " << e.what() << std::endl;
         std::cerr << "连接参数详情:" << std::endl;
         std::cerr << "- Host: " << db_host_ << std::endl;
         std::cerr << "- Port: " << db_port_ << std::endl;
@@ -375,9 +314,8 @@ bool DatabaseManager::ensureThreadConnection()
         std::cerr << "- SSL Mode: " << sslModeToString(ssl_mode_) << std::endl;
         thread_session_.reset();
         thread_schema_.reset();
+        return false;
     }
-
-    return connected;
 }
 
 std::shared_ptr<DatabaseManagerInterface> DatabaseManager::getInstance()
@@ -391,6 +329,7 @@ std::shared_ptr<DatabaseManagerInterface> DatabaseManager::getInstance()
     return instance;
 }
 
+// 显式释放单例
 void DatabaseManager::destroyInstance()
 {
     // 显式释放单例，便于服务关闭时清理数据库资源。
@@ -398,16 +337,54 @@ void DatabaseManager::destroyInstance()
     instance.reset();
 }
 
-mysqlx::Session *DatabaseManager::getSession()
+void DatabaseManager::endOfRequestCleanup()
 {
-    // 按需确保当前线程连接存在，再返回底层 session。
-    return ensureThreadConnection() ? thread_session_.get() : nullptr;
+    // 没把会话交给过业务代码的请求直接返回，零开销。
+    if (!thread_session_used_)
+    {
+        return;
+    }
+    thread_session_used_ = false;
+    if (!thread_session_)
+    {
+        return;
+    }
+    try
+    {
+        // 防御性回滚：handler 带着未完成事务返回（异常 / 漏 commit）时，
+        // 掐断对同线程下一个请求的污染；无事务时 ROLLBACK 是服务端 no-op。
+        thread_session_->sql("ROLLBACK").execute();
+    }
+    catch (const mysqlx::Error &)
+    {
+        // 连 ROLLBACK 都失败说明连接状态不明：直接丢弃，下次 getSession 重建。
+        thread_schema_.reset();
+        thread_session_.reset();
+    }
 }
 
+// 获取当前线程的数据库会话对象，如果没有有效连接则返回 nullptr。
+mysqlx::Session *DatabaseManager::getSession()
+{
+    // 按需确保当前线程连接存在（含活性检测），再返回底层 session。
+    if (!ensureThreadConnection())
+    {
+        return nullptr;
+    }
+    thread_session_used_ = true;
+    return thread_session_.get();
+}
+
+// 获取当前线程的数据库模式对象，如果没有有效连接则返回 nullptr。
 mysqlx::Schema *DatabaseManager::getSchema()
 {
     // schema 依赖 session，同样走线程级懒初始化。
-    return ensureThreadConnection() ? thread_schema_.get() : nullptr;
+    if (!ensureThreadConnection())
+    {
+        return nullptr;
+    }
+    thread_session_used_ = true;
+    return thread_schema_.get();
 }
 
 DatabaseManager::~DatabaseManager()

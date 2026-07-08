@@ -272,6 +272,7 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 
 # 排除build目录中的文件
 list(FILTER SOURCES EXCLUDE REGEX ".*/build/.*")
+list(FILTER SOURCES EXCLUDE REGEX ".*/build-tests/.*")
 list(FILTER SOURCES EXCLUDE REGEX ".*/tests/.*")
 
 # 创建可执行文件
@@ -365,6 +366,7 @@ if(BUILD_TESTING)
         tests/auth_session_store_tests.cpp
         controllers/auth/jwtUtils/jwtUtils.cpp
         services/auth/AuthSessionStore.cpp
+        services/rbac/RbacService.cpp
         services/redis/RedisClient.cpp
         services/redis/userRoleCache/UserRoleCache.cpp
         utils/Utils.cpp
@@ -450,7 +452,17 @@ if(BUILD_TESTING)
         utils/dataScope/DataScope.cpp
         utils/permissions/Permissions.cpp
         utils/visibilityFilter/VisibilityFilter.cpp
+        services/rbac/RbacService.cpp
+        services/redis/userRoleCache/UserRoleCache.cpp
+        services/redis/RedisClient.cpp
     )
+    target_link_libraries(data_scope_tests
+        ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}
+        ${MYSQLX_LIBRARIES}
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(data_scope_tests ${HIREDIS_LIBRARIES})
+    endif()
     add_test(NAME data_scope_tests COMMAND data_scope_tests)
 
     add_executable(sensitive_permission_route_tests
@@ -466,6 +478,62 @@ if(BUILD_TESTING)
         OPERATION_LOGGER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/logger/operationLogger.cpp"
     )
     add_test(NAME sensitive_permission_route_tests COMMAND sensitive_permission_route_tests)
+
+    add_executable(operation_log_schema_tests
+        tests/operation_log_schema_tests.cpp
+    )
+    target_compile_definitions(operation_log_schema_tests PRIVATE
+        DATABASE_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/DatabaseMigrations.cpp"
+    )
+    add_test(NAME operation_log_schema_tests COMMAND operation_log_schema_tests)
+
+    add_executable(rbac_schema_tests
+        tests/rbac_schema_tests.cpp
+    )
+    target_compile_definitions(rbac_schema_tests PRIVATE
+        DATABASE_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/DatabaseMigrations.cpp"
+    )
+    add_test(NAME rbac_schema_tests COMMAND rbac_schema_tests)
+
+    add_executable(rbac_service_tests
+        tests/rbac_service_tests.cpp
+    )
+    target_compile_definitions(rbac_service_tests PRIVATE
+        RBAC_SERVICE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/rbac/RbacService.cpp"
+    )
+    add_test(NAME rbac_service_tests COMMAND rbac_service_tests)
+
+    add_executable(rbac_route_tests
+        tests/rbac_route_tests.cpp
+    )
+    target_compile_definitions(rbac_route_tests PRIVATE
+        ADMIN_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/adminRoutes/adminRoutes.cpp"
+    )
+    add_test(NAME rbac_route_tests COMMAND rbac_route_tests)
+
+    add_executable(rbac_runtime_migration_tests
+        tests/rbac_runtime_migration_tests.cpp
+    )
+    target_compile_definitions(rbac_runtime_migration_tests PRIVATE
+        SCHEDULED_TASK_MANAGER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/utils/scheduledTaskManager/scheduledTaskManager.cpp"
+        OPERATION_LOGGER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/logger/operationLogger.cpp"
+        JWT_UTILS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/auth/jwtUtils/jwtUtils.cpp"
+        USER_HANDLER_AUTH_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/user/userHandler/userHandlerAuth.cpp"
+        ROLE_TYPE_UTILS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/utils/roleTypeUtils/roleTypeUtils.cpp"
+        ADMIN_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/admin/adminHandler.cpp"
+        FINANCE_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/finance/financeHandler.cpp"
+        ADMIN_BROADCASTER_HEADER_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+        ADMIN_BROADCASTER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/realtime/adminBroadcaster/adminHomeDataBroadcaster.cpp"
+        ADMIN_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/adminRoutes/adminRoutes.cpp"
+        FINANCE_BROADCASTER_HEADER_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
+        FINANCE_BROADCASTER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/realtime/financeBroadcaster/financeHomeDataBroadcaster.cpp"
+        FINANCE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/financeRoutes/financeRoutes.cpp"
+        DOCTOR_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/doctor/doctorHandler.cpp"
+        PERSONNEL_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/personnel/personnelHandler.cpp"
+        USER_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/user/userHandler/userHandler.cpp"
+        USER_HANDLER_RESERVATION_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/user/userHandler/userHandlerReservation.cpp"
+    )
+    add_test(NAME rbac_runtime_migration_tests COMMAND rbac_runtime_migration_tests)
 
     add_executable(visibility_filter_tests
         tests/visibility_filter_tests.cpp

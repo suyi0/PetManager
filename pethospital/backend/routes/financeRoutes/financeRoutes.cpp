@@ -43,7 +43,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
 
     // 财务端首页实时数据通道。
     CROW_WEBSOCKET_ROUTE(app, "/realtime/finance/home-data")
-        .onaccept([dbManager](const crow::request &req, void **)
+        .onaccept([dbManager](const crow::request &req, void **userdata)
                   {
             const char *tokenParam = req.url_params.get("token");
             if (tokenParam == nullptr || std::string(tokenParam).empty())
@@ -58,20 +58,38 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
             }
 
             // 管理端会话失效：被 bump 过的旧 token（改密码/失效后）不能继续建立实时连接。
-            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->sessionVersion))
             {
                 return false;
             }
 
             std::string identifier = claims->identifier;
-            return JwtUtils::isUserAuthorizedForFinancePortal(
+            if (!JwtUtils::isUserAuthorizedForFinancePortal(
+                    claims->userId,
+                    identifier,
+                    claims->isEmailLogin,
+                    dbManager))
+            {
+                return false;
+            }
+
+            auto *context = new FinanceHomeDataBroadcaster::ConnectionContext{
                 claims->userId,
-                identifier,
-                claims->isEmailLogin,
-                dbManager); })
+                claims->sessionVersion};
+            *userdata = context;
+            return true; })
         .onopen([](crow::websocket::connection &conn)
                 {
-            FinanceHomeDataBroadcaster::instance().addConnection(&conn); })
+            auto *context = static_cast<FinanceHomeDataBroadcaster::ConnectionContext *>(conn.userdata());
+            if (!context || context->userId <= 0)
+            {
+                conn.close("invalid_finance_home_session");
+                return;
+            }
+
+            FinanceHomeDataBroadcaster::instance().addConnection(&conn, *context);
+            delete context;
+            conn.userdata(nullptr); })
         .onclose([](crow::websocket::connection &conn, const std::string &, uint16_t)
                  {
             FinanceHomeDataBroadcaster::instance().removeConnection(&conn); })

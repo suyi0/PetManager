@@ -229,7 +229,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             }
 
             // 与其它实时通道一致：失效会话不再建立连接（医生为非管理角色时此校验是安全 no-op）。
-            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->sessionVersion))
             {
                 return false;
             }
@@ -283,7 +283,7 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             }
 
             // 与其它实时通道一致：失效会话不再建立连接。
-            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->sessionVersion))
             {
                 return false;
             }

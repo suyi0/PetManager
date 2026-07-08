@@ -54,6 +54,7 @@ int main()
     // A role stored in JWT claims can be stale after role reassignment.
     assert(source.find("RoleTypeUtils::isBossRole(claims.typeName)") == std::string::npos);
     assert(source.find("claims.typeName))\n            {\n                return true;") == std::string::npos);
+    assert(jwtSource.find("RbacService::userHasPermission(dbManager, userId, permissionKey)") != std::string::npos);
 
     // Function-level permission checks are authorization failures, not authentication failures.
     // Missing/expired tokens remain 401, but a valid token without a required permission must be 403.
@@ -66,7 +67,9 @@ int main()
     assert(source.find("ResponseHelper::unauthorized(req, \"Access denied to this order\"") == std::string::npos);
 
     // Order resource authorization must use the same DataScope contract as list/search paths.
-    assert(jwtSource.find("DataScope::resolveForRole(roleName, userId)") != std::string::npos);
+    // resolveForUser：按用户当前职位权限查库解析，不再经由可改名的角色名。
+    assert(jwtSource.find("DataScope::resolveForUser(dbManager, userId)") != std::string::npos);
+    assert(jwtSource.find("DataScope::resolveForRole(") == std::string::npos);
     assert(jwtSource.find("VisibilityFilter::build(dataScope, \"o\", \"owner_id\", /*alwaysExcludeSoftDeleted=*/true)") != std::string::npos);
     assert(jwtSource.find("SELECT 1 FROM orders AS o ") != std::string::npos);
     assert(jwtSource.find("SELECT owner_id FROM orders WHERE id = ?") == std::string::npos);
@@ -83,8 +86,8 @@ int main()
         adminHandlerSource,
         "crow::response adminHandler::getAllRecord",
         "return ResponseHelper::success(req, response_data);");
-    assert(adminOrderRecordsHandler.find("RoleTypeUtils::getUserRoleName(dbManager, userId)") != std::string::npos);
-    assert(adminOrderRecordsHandler.find("DataScope::resolveForRole(roleName, userId)") != std::string::npos);
+    assert(adminOrderRecordsHandler.find("DataScope::resolveForUser(dbManager, userId)") != std::string::npos);
+    assert(adminOrderRecordsHandler.find("RoleTypeUtils::") == std::string::npos);
     assert(adminOrderRecordsHandler.find("VisibilityFilter::build(dataScope, \"o\", \"owner_id\", /*alwaysExcludeSoftDeleted=*/true)") != std::string::npos);
     assert(adminOrderRecordsHandler.find("filter.whereSql") != std::string::npos);
     assert(adminOrderRecordsHandler.find("if (filter.bindsUserId)") != std::string::npos);

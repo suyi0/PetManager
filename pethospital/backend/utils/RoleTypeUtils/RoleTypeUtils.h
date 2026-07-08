@@ -5,65 +5,19 @@
 #include <memory>
 #include <string>
 
+// 职位名的展示查询（display-only）。
+// 判权一律走 RbacService（position_permissions 库驱动）；业务身份（是不是医生/员工）
+// 一律走 users.account_type / positions.staff_kind。本模块禁止再出现按名字的
+// 权限/身份判断——那是动态角色下的双轨漏洞（RBAC-DYNAMIC-ROLES-DESIGN.md §6）。
 namespace RoleTypeUtils
 {
-    // 获取角色类型ID
-    int getRoleId(
-        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-        const std::string &roleName);
-    
-    // 获取角色类型名
+    // 职位显示名（roleId<=0 时返回历史兼容的"普通用户"，仅用于展示/日志）
     std::string getRoleName(
         const std::shared_ptr<DatabaseManagerInterface> &dbManager,
         int roleId);
 
-    // 获取用户类型名
+    // 用户当前职位显示名（客户账户显示"普通用户"）；带 UserRoleCache 读穿透缓存
     std::string getUserRoleName(
-        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-        int userId);
-
-    // 判断用户是否为指定角色类型
-    bool userHasRole(
-        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-        int userId,
-        const std::string &roleName);
-
-    // 判断角色是否属于管理门户角色
-    bool isManagementRole(const std::string &roleName);
-
-    // 判断角色是否属于总裁端角色
-    bool isBossRole(const std::string &roleName);
-
-    // 判断角色是否属于超级管理员门户角色
-    bool isSuperAdminPortalRole(const std::string &roleName);
-
-    // 判断角色是否属于财务门户角色
-    bool isFinancePortalRole(const std::string &roleName);
-
-    // 判断角色是否属于普通用户角色
-    bool isNormalUserRole(const std::string &roleName);
-
-    // 判断用户是否属于管理门户角色
-    bool userHasManagementRole(
-        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-        int userId);
-
-    // 判断用户是否属于总裁端角色
-    bool userHasBossRole(
-        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-        int userId);
-
-    // 判断角色是否属于人事门户角色
-    bool isPersonnelRole(const std::string &roleName);
-
-    // 判断角色是否属于医疗端角色
-    bool isMedicalStaffRole(const std::string &roleName);
-
-    // 判断角色是否属于仓储端角色
-    bool isWarehouseStaffRole(const std::string &roleName);
-
-    // 判断用户是否属于人事门户角色
-    bool userHasPersonnelRole(
         const std::shared_ptr<DatabaseManagerInterface> &dbManager,
         int userId);
 }

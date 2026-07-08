@@ -12,7 +12,9 @@ import financeRouters from "@/modules/finance/router/financeRouter";
 import personnelRouters from "@/modules/personnel/router/personnelRouter";
 import bossRouters from "@/modules/boss/router/bossRouter";
 import { appStore } from "@/app/store";
-import { resolveRoleName } from "@/core/auth/utils/roleUtils";
+
+const hasAny = (owned: string[], required: string[]) =>
+  required.some((item) => owned.includes(item));
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -57,23 +59,37 @@ router.beforeEach((to, from, next) => {
 
   // 只对需要认证的路由进行检查
   if (to.matched.some((record) => record.meta.requiresAuth)) {
-    const allowedRoles = to.matched
-      .map((record) => record.meta.allowedRoles as string[] | undefined)
-      .filter((roles): roles is string[] => Array.isArray(roles))
+    const allowedPermissions = to.matched
+      .map((record) => record.meta.allowedPermissions as string[] | undefined)
+      .filter((permissions): permissions is string[] =>
+        Array.isArray(permissions)
+      )
+      .flat();
+    const allowedStaffKinds = to.matched
+      .map((record) => record.meta.allowedStaffKinds as string[] | undefined)
+      .filter((staffKinds): staffKinds is string[] => Array.isArray(staffKinds))
       .flat();
 
-    // 确保当前用户角色匹配
-    const ensureRoleMatches = () => {
-      if (allowedRoles.length === 0) {
-        next();
-        return;
+    const canAccessByPermission = () => {
+      if (allowedPermissions.length === 0 && allowedStaffKinds.length === 0) {
+        return true;
       }
 
-      const currentUserRole = resolveRoleName(
-        appStore.state.auth.userRole,
-        appStore.state.auth.userType
-      );
-      if (currentUserRole && allowedRoles.includes(currentUserRole)) {
+      const permissions = appStore.state.auth.permissions ?? [];
+      if (
+        allowedPermissions.length > 0 &&
+        hasAny(permissions, allowedPermissions)
+      ) {
+        return true;
+      }
+
+      const staffKind = appStore.state.auth.staffKind;
+      return Boolean(staffKind && allowedStaffKinds.includes(staffKind));
+    };
+
+    // 确保当前用户权限匹配。
+    const ensureRoleMatches = () => {
+      if (canAccessByPermission()) {
         next();
         return;
       }
@@ -87,7 +103,13 @@ router.beforeEach((to, from, next) => {
 
     // 先检查本地 Vuex 状态，避免频繁连接 WebSocket
     if (appStore.state.auth.isLoggedIn) {
-      ensureRoleMatches();
+      const hasAccess =
+        appStore.state.auth.permissions.length > 0 ||
+        Boolean(appStore.state.auth.accountType || appStore.state.auth.staffKind);
+      const accessPromise = hasAccess
+        ? Promise.resolve()
+        : appStore.dispatch("auth/refreshAccess").catch(() => undefined);
+      accessPromise.then(() => ensureRoleMatches());
     } else {
       // 只有在 Vuex 中未登录时才尝试连接 WebSocket 检查真实状态
       appStore
@@ -95,7 +117,10 @@ router.beforeEach((to, from, next) => {
         .then(() => {
           // 检查用户是否已登录
           if (appStore.state.auth.isLoggedIn) {
-            ensureRoleMatches();
+            return appStore
+              .dispatch("auth/refreshAccess")
+              .catch(() => undefined)
+              .then(() => ensureRoleMatches());
           } else {
             next({
               name: "PetHospital",

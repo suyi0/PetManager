@@ -164,6 +164,28 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 }
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "刷新管理员令牌", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
 
+    CROW_ROUTE(app, "/api/auth/me")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                    {
+            int userId = -1;
+            try {
+                authHandler handler(dbManager);
+                crow::response handlerResponse = handler.getCurrentUserAccess(req);
+                const std::string authHeader = req.get_header_value("Authorization");
+                if (authHeader.rfind("Bearer ", 0) == 0)
+                {
+                    if (auto claims = JwtUtils::getTokenClaims(authHeader.substr(7)); claims)
+                    {
+                        userId = claims->userId;
+                    }
+                }
+                ProcessHandlerResponse(req, res, handlerResponse);
+            } catch (const std::exception& e) {
+                OperationLogger::LogExceptionOperation(dbManager, req, "认证", "获取当前用户权限", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "认证", "获取当前用户权限", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
     // 登出：开放端点（自己解析 token），管理端登出时服务端吊销——bump session-version 让旧 token 立即失效。
     CROW_ROUTE(app, "/api/auth/logout")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)

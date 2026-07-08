@@ -1,70 +1,58 @@
 #include "../utils/dataScope/DataScope.h"
-#include "../utils/permissions/Permissions.h"
 #include "../utils/visibilityFilter/VisibilityFilter.h"
 
 #include <cassert>
+#include <memory>
 
+// 数据范围契约（动态 RBAC 版）：
+// 1. resolveForUser 是唯一入口——按用户当前职位的 scope:* 权限查库解析，
+//    职位名不参与判定（名字可被超管改，判定必须库驱动）。
+// 2. fail-closed：无数据库连接 / 用户不存在 / 客户账户（无职位）一律落到
+//    Owner（只看自己），绝不放大可见范围。
+// 3. VisibilityFilter 的 SQL 生成契约保持不变（All 免 owner 过滤 /
+//    MedicalAssigned 绑 doctor_id / Owner 绑 owner_id）。
+// 角色→scope 权限的映射正确性由 seed 等价性测试（rbac_schema_tests）锁定。
 int main()
 {
+    const std::shared_ptr<DatabaseManagerInterface> nullDb;
+
+    // ---- fail-closed：无数据库连接 → Owner ----
     {
-        DataScope::Scope boss = DataScope::resolveForRole("总裁", 42);
-        assert(boss.kind == DataScope::Kind::All);
-        assert(boss.userId == 42);
-        assert(!DataScope::bindsUserId(boss));
-        assert(Permissions::roleHasPermission("总裁", Permissions::kScopeAll));
+        DataScope::Scope scope = DataScope::resolveForUser(nullDb, 42);
+        assert(scope.kind == DataScope::Kind::Owner);
+        assert(scope.userId == 42);
+        assert(DataScope::bindsUserId(scope));
     }
 
+    // ---- fail-closed：非法 userId → Owner ----
     {
-        DataScope::Scope medical = DataScope::resolveForRole("医生", 42);
-        assert(medical.kind == DataScope::Kind::MedicalAssigned);
-        assert(medical.userId == 42);
-        assert(DataScope::bindsUserId(medical));
-        assert(Permissions::roleHasPermission("医生", Permissions::kScopeMedicalAssigned));
+        DataScope::Scope scope = DataScope::resolveForUser(nullDb, 0);
+        assert(scope.kind == DataScope::Kind::Owner);
+        DataScope::Scope negative = DataScope::resolveForUser(nullDb, -1);
+        assert(negative.kind == DataScope::Kind::Owner);
     }
 
+    // ---- bindsUserId 语义：只有 All 免绑定 ----
     {
-        DataScope::Scope nurse = DataScope::resolveForRole("护士", 7);
-        assert(nurse.kind == DataScope::Kind::MedicalAssigned);
-        assert(nurse.userId == 7);
-        assert(DataScope::bindsUserId(nurse));
+        assert(!DataScope::bindsUserId({DataScope::Kind::All, 42}));
+        assert(DataScope::bindsUserId({DataScope::Kind::MedicalAssigned, 42}));
+        assert(DataScope::bindsUserId({DataScope::Kind::Owner, 42}));
     }
 
+    // ---- VisibilityFilter SQL 生成契约 ----
     {
-        DataScope::Scope owner = DataScope::resolveForRole("普通用户", 42);
-        assert(owner.kind == DataScope::Kind::Owner);
-        assert(owner.userId == 42);
-        assert(DataScope::bindsUserId(owner));
-        assert(!Permissions::roleHasPermission("普通用户", Permissions::kScopeAll));
-        assert(!Permissions::roleHasPermission("普通用户", Permissions::kScopeMedicalAssigned));
-    }
-
-    {
-        DataScope::Scope fallback = DataScope::resolveForRole("医生助理", 42);
-        assert(fallback.kind == DataScope::Kind::Owner);
-        assert(fallback.userId == 42);
-        assert(DataScope::bindsUserId(fallback));
-    }
-
-    {
-        DataScope::Scope empty = DataScope::resolveForRole("", 42);
-        assert(empty.kind == DataScope::Kind::Owner);
-        assert(empty.userId == 42);
-        assert(DataScope::bindsUserId(empty));
-    }
-
-    {
-        VisibilityFilter::Clause boss =
-            VisibilityFilter::build(DataScope::resolveForRole("总裁", 42), "o", "owner_id", true);
-        assert(boss.whereSql == "WHERE o.is_deleted = 0 ");
-        assert(!boss.bindsUserId);
+        VisibilityFilter::Clause all =
+            VisibilityFilter::build({DataScope::Kind::All, 42}, "o", "owner_id", true);
+        assert(all.whereSql == "WHERE o.is_deleted = 0 ");
+        assert(!all.bindsUserId);
 
         VisibilityFilter::Clause medical =
-            VisibilityFilter::build(DataScope::resolveForRole("医生", 42), "o", "owner_id", true);
+            VisibilityFilter::build({DataScope::Kind::MedicalAssigned, 42}, "o", "owner_id", true);
         assert(medical.whereSql == "WHERE o.doctor_id = ? AND o.is_deleted = 0 ");
         assert(medical.bindsUserId);
 
         VisibilityFilter::Clause owner =
-            VisibilityFilter::build(DataScope::resolveForRole("普通用户", 42), "o", "owner_id", true);
+            VisibilityFilter::build({DataScope::Kind::Owner, 42}, "o", "owner_id", true);
         assert(owner.whereSql == "WHERE o.owner_id = ? AND o.is_deleted = 0 ");
         assert(owner.bindsUserId);
     }

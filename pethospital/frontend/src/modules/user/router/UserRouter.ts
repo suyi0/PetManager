@@ -1,11 +1,14 @@
 import { RouteRecordRaw } from "vue-router";
-import { USER_PORTAL_ROLES } from "@/core/auth/utils/roleUtils";
 
 const UserRoutes: Array<RouteRecordRaw> = [
   {
     path: "/user",
     component: () => import("../views/desktop/UserHome-module/UserLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [...USER_PORTAL_ROLES] },
+    meta: {
+      requiresAuth: true,
+      allowedPermissions: ["portal:user", "portal:boss"],
+      allowedStaffKinds: ["nurse"],
+    },
     children: [
       {
         path: "",
@@ -30,7 +33,11 @@ const UserRoutes: Array<RouteRecordRaw> = [
         name: "userPersonal",
         component: () =>
           import("../views/desktop/Personal-module/UserPersonalView.vue"),
-        meta: { requiresAuth: true, allowedRoles: [...USER_PORTAL_ROLES] }, // 需要认证才能访问
+        meta: {
+          requiresAuth: true,
+          allowedPermissions: ["portal:user", "portal:boss"],
+          allowedStaffKinds: ["nurse"],
+        }, // 需要认证才能访问
       },
       {
         path: "/user/order",
@@ -39,7 +46,11 @@ const UserRoutes: Array<RouteRecordRaw> = [
             "../views/desktop/UserHome-module/HomeNav/order-module/orderView.vue"
           ),
         name: "userOrder",
-        meta: { requiresAuth: true, allowedRoles: [...USER_PORTAL_ROLES] }, // 需要认证才能访问
+        meta: {
+          requiresAuth: true,
+          allowedPermissions: ["portal:user", "portal:boss"],
+          allowedStaffKinds: ["nurse"],
+        }, // 需要认证才能访问
       },
       {
         path: "/user/orderDetail",
@@ -48,7 +59,11 @@ const UserRoutes: Array<RouteRecordRaw> = [
             "../views/desktop/UserHome-module/HomeNav/order-module/orderDetail.vue"
           ),
         name: "userOrderDetail",
-        meta: { requiresAuth: true, allowedRoles: [...USER_PORTAL_ROLES] }, // 需要认证才能访问
+        meta: {
+          requiresAuth: true,
+          allowedPermissions: ["portal:user", "portal:boss"],
+          allowedStaffKinds: ["nurse"],
+        }, // 需要认证才能访问
       },
     ],
   },

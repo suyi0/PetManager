@@ -13,6 +13,10 @@ import {
   UserSearchResult,
   UserRoleCounts,
   LogSearchResult,
+  RbacDepartment,
+  RbacPosition,
+  PermissionTemplate,
+  UserScopePayload,
 } from "./types";
 
 export const superAdminApi = {
@@ -174,5 +178,96 @@ export const superAdminApi = {
       userLogCount: Number(summary?.userLogCount ?? 0),
       systemLogCount: Number(summary?.systemLogCount ?? 0),
     };
+  },
+
+  async getRbacDepartments(): Promise<RbacDepartment[]> {
+    const { data } = await http.get("/api/admin/org/departments");
+    return unwrapList<RbacDepartment>(data?.data?.departments ?? data?.departments ?? data);
+  },
+
+  async createRbacDepartment(payload: {
+    name: string;
+    branch_id?: number;
+    description?: string;
+  }): Promise<void> {
+    await http.post("/api/admin/org/departments", payload);
+  },
+
+  async getRbacPositions(): Promise<RbacPosition[]> {
+    const { data } = await http.get("/api/admin/org/positions");
+    return unwrapList<RbacPosition>(data?.data?.positions ?? data?.positions ?? data);
+  },
+
+  async createRbacPosition(payload: {
+    department_id: number;
+    name: string;
+    staff_kind: string;
+    description?: string;
+  }): Promise<void> {
+    await http.post("/api/admin/org/positions", payload);
+  },
+
+  async getPermissionCatalog(): Promise<string[]> {
+    const { data } = await http.get("/api/admin/rbac/permissions/catalog");
+    return unwrapList<string>(data?.data?.permissions ?? data?.permissions ?? data);
+  },
+
+  async getPositionPermissions(positionId: number): Promise<string[]> {
+    const { data } = await http.get(
+      `/api/admin/rbac/positions/${positionId}/permissions`
+    );
+    return unwrapList<string>(data?.data?.permissions ?? data?.permissions ?? data);
+  },
+
+  async updatePositionPermissions(
+    positionId: number,
+    permissions: string[]
+  ): Promise<void> {
+    await http.put(`/api/admin/rbac/positions/${positionId}/permissions`, {
+      permissions,
+    });
+  },
+
+  async applyPermissionTemplate(
+    positionId: number,
+    templateId: number
+  ): Promise<void> {
+    await http.post(`/api/admin/rbac/positions/${positionId}/apply-template`, {
+      template_id: templateId,
+    });
+  },
+
+  async getPermissionTemplates(): Promise<PermissionTemplate[]> {
+    const { data } = await http.get("/api/admin/rbac/permission-templates");
+    return unwrapList<PermissionTemplate>(
+      data?.data?.templates ?? data?.templates ?? data
+    );
+  },
+
+  async updateUserPosition(userId: number, positionId: number | null) {
+    await http.put(`/api/admin/users/${userId}/position`, {
+      position_id: positionId,
+    });
+  },
+
+  async getUserScopes(userId: number): Promise<UserScopePayload> {
+    const { data } = await http.get(`/api/admin/users/${userId}/scopes`);
+    const payload = data?.data ?? data;
+    return {
+      user_id: Number(payload?.user_id ?? userId),
+      branch_ids: Array.isArray(payload?.branch_ids)
+        ? payload.branch_ids.map(Number)
+        : [],
+      department_ids: Array.isArray(payload?.department_ids)
+        ? payload.department_ids.map(Number)
+        : [],
+    };
+  },
+
+  async updateUserScopes(
+    userId: number,
+    payload: { branch_ids: number[]; department_ids: number[] }
+  ): Promise<void> {
+    await http.put(`/api/admin/users/${userId}/scopes`, payload);
   },
 };

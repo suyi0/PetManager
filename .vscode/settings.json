@@ -4,6 +4,22 @@
   "C_Cpp.default.intelliSenseMode": "macos-clang-arm64",
   "C_Cpp.default.cppStandard": "c++17",
   "C_Cpp.default.cStandard": "c17",
+  "C_Cpp.files.exclude": {
+    "${workspaceFolder}/pethospital/backend/build": true,
+    "${workspaceFolder}/pethospital/backend/build-tests": true,
+    "**/pethospital/backend/build/**": true,
+    "**/pethospital/backend/build-tests/**": true,
+    "**/CMakeFiles": true,
+    "**/CMakeFiles/**": true
+  },
+  "files.watcherExclude": {
+    "**/pethospital/backend/build/**": true,
+    "**/pethospital/backend/build-tests/**": true
+  },
+  "search.exclude": {
+    "**/pethospital/backend/build/**": true,
+    "**/pethospital/backend/build-tests/**": true
+  },
   "cmake.cmakePath": "/opt/homebrew/bin/cmake",
   "cmake.sourceDirectory": "${workspaceFolder}/pethospital/backend",
   "cmake.buildDirectory": "${workspaceFolder}/pethospital/backend/build",

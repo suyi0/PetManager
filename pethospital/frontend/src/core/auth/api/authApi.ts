@@ -35,6 +35,18 @@ export type VerifyCodeResponseData =
   | VerifyEmailCodeResponseData
   | VerifySmsCodeResponseData;
 
+export type CurrentUserAccess = {
+  user_id: number;
+  account_type: "customer" | "staff" | string;
+  position_id: number | null;
+  position_name: string;
+  staff_kind: string;
+  system_key: string;
+  permissions: string[];
+  type_id?: number | null;
+  type_name?: string;
+};
+
 const emailVerificationCodePaths: Record<EmailVerificationScene, string> = {
   register: "/api/email-verification-codes/registrations",
   change: "/api/email-verification-codes/email-changes",
@@ -147,6 +159,10 @@ export const authApi = {
    */
   logout() {
     return http.post("/api/auth/logout");
+  },
+
+  getCurrentUserAccess(): Promise<AxiosResponse<ApiResponse<CurrentUserAccess>>> {
+    return http.get("/api/auth/me");
   },
 
   /**

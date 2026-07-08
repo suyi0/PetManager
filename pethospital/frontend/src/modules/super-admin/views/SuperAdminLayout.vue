@@ -66,6 +66,19 @@
           </svg>
           在线医生
         </RouterLink>
+        <RouterLink class="saas-nav__item" :to="`${routePrefix}/rbac`">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7l-8-4Z" />
+            <path d="M9 12h6" />
+            <path d="M12 9v6" />
+          </svg>
+          权限组织
+        </RouterLink>
         <RouterLink class="saas-nav__item" :to="`${routePrefix}/logs`">
           <svg
             viewBox="0 0 24 24"
@@ -120,7 +133,6 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
 import {
   startSuperAdminSessionGuard,
   stopSuperAdminSessionGuard,
@@ -159,10 +171,8 @@ export default defineComponent({
     const routePrefix = computed(() => "/super-admin");
 
     const currentRoleLabel = computed(() => {
-      const activeRole = store.state.auth.userRole;
-      return activeRole && isSuperAdminPortalRole(activeRole)
-        ? activeRole
-        : "超级管理员";
+      // 展示当前职位名（动态职位原样显示）；能进本布局已由路由守卫按权限保证
+      return store.state.auth.userRole || "超级管理员";
     });
 
     return {

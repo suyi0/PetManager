@@ -28,7 +28,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                 return false;
             }
 
-            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+            if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->sessionVersion))
             {
                 return false;
             }

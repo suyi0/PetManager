@@ -1,6 +1,5 @@
 #include "orderCommonHandler.h"
 #include "dataScope/DataScope.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include "visibilityFilter/VisibilityFilter.h"
 
@@ -13,8 +12,7 @@ crow::response orderCommonHandler::getOrderSummary(const crow::request &req, int
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
-        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
+        const DataScope::Scope dataScope = DataScope::resolveForUser(dbManager, userId);
         const VisibilityFilter::Clause filter =
             VisibilityFilter::build(dataScope, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
 

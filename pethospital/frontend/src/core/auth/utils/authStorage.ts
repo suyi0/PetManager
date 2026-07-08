@@ -1,4 +1,6 @@
-import { isSuperAdminPortalRole } from "./roleUtils";
+// 管理端会话走 sessionStorage(随标签页销毁)。判据由调用方按权限集算好传入
+// (isManagementPortalSession(permissions)),本模块不做任何按角色名的判断——
+// 动态角色下名字可改,按名字判断=双轨漏洞(RBAC-DYNAMIC-ROLES-DESIGN.md §6)。
 
 // 存储全部信息
 const STORAGE_KEYS = {
@@ -299,8 +301,9 @@ export const authStorage = {
     token: string;
     userType?: number | null;
     userRole?: string | null;
+    managementSession?: boolean;
   }) {
-    const authStorageTarget = isSuperAdminPortalRole(payload.userRole)
+    const authStorageTarget = payload.managementSession
       ? sessionStorage
       : localStorage;
     const otherStorage =
@@ -328,8 +331,10 @@ export const authStorage = {
     userAddress?: string;
     userType?: number | null;
     userRole?: string | null;
+    managementSession?: boolean;
   }) {
-    const authStorageTarget = isSuperAdminPortalRole(payload.userRole)
+    // 未显式给出 managementSession 时跟随 token 已在的存储区，不做名字判断
+    const authStorageTarget = payload.managementSession
       ? sessionStorage
       : getActiveAuthStorage() ?? localStorage;
 
@@ -395,15 +400,9 @@ export const authStorage = {
     });
   },
 
-  // 更新令牌
-  updateToken(
-    token: string,
-    userType?: number | null,
-    userRole?: string | null
-  ) {
-    const activeStorage = isSuperAdminPortalRole(userRole)
-      ? sessionStorage
-      : getActiveAuthStorage() ?? localStorage;
+  // 更新令牌：跟随 token 已在的存储区（登录时已按 managementSession 定区）
+  updateToken(token: string) {
+    const activeStorage = getActiveAuthStorage() ?? localStorage;
 
     activeStorage.setItem(STORAGE_KEYS.token, token);
   },

@@ -2,7 +2,6 @@ import type { Router } from "vue-router";
 import type { Store } from "vuex";
 import { personnelApi } from "@/modules/personnel/api/personnelApi";
 import { authStorage } from "@/core/auth/utils/authStorage";
-import { isPersonnelPortalRole } from "@/core/auth/utils/roleUtils";
 import type { State } from "@/app/store";
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
@@ -30,7 +29,7 @@ const isPersonnelRoute = () =>
 const isPersonnelSessionActive = () =>
   Boolean(
     boundStore?.state.auth.isLoggedIn &&
-      isPersonnelPortalRole(boundStore.state.auth.userRole) &&
+      boundStore.state.auth.permissions.includes("portal:personnel") &&
       isPersonnelRoute()
   );
 

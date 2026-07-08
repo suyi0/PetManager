@@ -1,7 +1,6 @@
 #ifndef DOCTORHANDLER_H
 #define DOCTORHANDLER_H 
 
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "../../../utils/Utils.h"
 #include "../../../services/logger/operationLogger.h"
 

@@ -1,11 +1,13 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from "vue-router";
-import { FINANCE_PORTAL_ROLES } from "@/core/auth/utils/roleUtils";
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: "/finance",
     component: () => import("../views/FinanceLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [...FINANCE_PORTAL_ROLES] },
+    meta: {
+      requiresAuth: true,
+      allowedPermissions: ["portal:finance"],
+    },
     children: [
       {
         path: "",

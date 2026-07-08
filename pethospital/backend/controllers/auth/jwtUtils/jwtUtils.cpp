@@ -1,8 +1,8 @@
 #include "jwtUtils.h"
 #include "../../../services/auth/AuthSessionStore.h"
+#include "../../../services/rbac/RbacService.h"
 #include "../../../utils/dataScope/DataScope.h"
 #include "../../../utils/permissions/Permissions.h"
-#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 #include "../../../utils/visibilityFilter/VisibilityFilter.h"
 #include <cstring>
 
@@ -65,8 +65,10 @@ namespace
         if (isEmail)
         {
             result = dbManager->getSession()
-                         ->sql("SELECT u.id, t.type FROM users AS u "
-                               "JOIN types AS t ON u.type_id = t.id "
+                         ->sql("SELECT u.id, "
+                               "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(p.name, '') END AS role_name "
+                               "FROM users AS u "
+                               "LEFT JOIN positions AS p ON p.id = u.position_id "
                                "WHERE u.email = ? AND u.is_deleted = 0")
                          .bind(identifier)
                          .execute();
@@ -74,10 +76,12 @@ namespace
         else
         {
             result = dbManager->getSession()
-                         ->sql("SELECT u.id, t.type FROM users AS u "
-                               "JOIN types AS t ON u.type_id = t.id "
-                               "JOIN phones AS p ON p.user_id = u.id "
-                               "WHERE p.phone = ? AND u.is_deleted = 0")
+                         ->sql("SELECT u.id, "
+                               "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS role_name "
+                               "FROM users AS u "
+                               "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                               "JOIN phones AS ph ON ph.user_id = u.id "
+                               "WHERE ph.phone = ? AND u.is_deleted = 0")
                          .bind(identifier)
                          .execute();
         }
@@ -103,8 +107,10 @@ namespace
         }
 
         auto result = dbManager->getSession()
-                          ->sql("SELECT u.id, t.type FROM users AS u "
-                                "JOIN types AS t ON u.type_id = t.id "
+                          ->sql("SELECT u.id, "
+                                "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(p.name, '') END AS role_name "
+                                "FROM users AS u "
+                                "LEFT JOIN positions AS p ON p.id = u.position_id "
                                 "WHERE u.id = ? AND u.is_deleted = 0")
                           .bind(userId)
                           .execute();
@@ -268,7 +274,7 @@ std::string get_jwt_secret()
 }
 
 // 生成JWT
-std::string JwtUtils::createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail, int sessionVersion)
+std::string JwtUtils::createToken(int userId, const int type_id, const std::string &type_name, const std::string &identifier, bool isEmail, bool managementSession, int sessionVersion)
 {
     try
     {
@@ -276,7 +282,9 @@ std::string JwtUtils::createToken(int userId, const int type_id, const std::stri
         time_t now = time(nullptr);
         const int resolvedSessionVersion = sessionVersion >= 0
                                                ? sessionVersion
-                                               : AuthSessionStore::issueVersionForRole(userId, type_name);
+                                               : AuthSessionStore::issueVersion(userId);
+        // managementSession 由调用方按当前权限算好（RbacService::userHasManagementAccess）；
+        // TTL 只看它，不看 token 里的职位名（名字仅展示）
         nlohmann::json payload_json;
         payload_json["sub"] = userId; // JWT 标准主体字段
         payload_json["type_id"] = type_id;
@@ -285,7 +293,7 @@ std::string JwtUtils::createToken(int userId, const int type_id, const std::stri
         payload_json["login_type"] = isEmail ? "email" : "phone";
         payload_json["session_version"] = resolvedSessionVersion;
         payload_json["iat"] = now; // 签发时间
-        payload_json["exp"] = now + (RoleTypeUtils::isManagementRole(type_name)
+        payload_json["exp"] = now + (managementSession
                                          ? kManagementTokenTtlSeconds
                                          : kDefaultTokenTtlSeconds);
 
@@ -475,8 +483,7 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
 {
     try
     {
-        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
+        const DataScope::Scope dataScope = DataScope::resolveForUser(dbManager, userId);
         const VisibilityFilter::Clause filter =
             VisibilityFilter::build(dataScope, "o", "owner_id", /*alwaysExcludeSoftDeleted=*/true);
 
@@ -498,20 +505,20 @@ bool JwtUtils::isUserAuthorizedForOrder(int userId, int orderId, std::shared_ptr
     }
 }
 
-// 验证用户对用户表单的访问权限
+// 验证用户对用户表单的访问权限。
+// 等价映射：旧 普通用户∥Boss → 客户账户 ∥ portal:user（Boss seed 已授 portal:user）。
 bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
+        const auto access = RbacService::loadUserAccess(dbManager, userId);
+        if (!access || access->userId != userId)
         {
             return false;
         }
 
-        return target->userId == userId &&
-               (RoleTypeUtils::isNormalUserRole(target->roleName) ||
-                RoleTypeUtils::isBossRole(target->roleName));
+        return access->accountType == "customer" ||
+               RbacService::accessHasPermission(*access, Permissions::kPortalUser);
     }
     catch (const std::exception &e)
     {
@@ -520,25 +527,14 @@ bool JwtUtils::isUserAuthorizedForUserForm(int userId, std::string &identifier, 
     }
 }
 
-// 验证管理员部门访问权限
+// 验证管理员部门访问权限（管理端会话：持任一管理门户权限）
 bool JwtUtils::isUserAuthorizedForAdminForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        if (target->userId == userId && RoleTypeUtils::isManagementRole(target->roleName)) // 管理门户角色才能通过这个权限认证
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        const auto access = RbacService::loadUserAccess(dbManager, userId);
+        return access && access->userId == userId &&
+               RbacService::accessHasManagementAccess(*access);
     }
     catch (const std::exception &e)
     {
@@ -551,14 +547,7 @@ bool JwtUtils::isUserAuthorizedForSuperAdminPortal(int userId, std::string &iden
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        return target->userId == userId &&
-               RoleTypeUtils::isSuperAdminPortalRole(target->roleName);
+        return RbacService::userHasPermission(dbManager, userId, Permissions::kPortalSuperAdmin);
     }
     catch (const std::exception &e)
     {
@@ -571,14 +560,7 @@ bool JwtUtils::isUserAuthorizedForFinancePortal(int userId, std::string &identif
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        return target->userId == userId &&
-               RoleTypeUtils::isFinancePortalRole(target->roleName);
+        return RbacService::userHasPermission(dbManager, userId, Permissions::kPortalFinance);
     }
     catch (const std::exception &e)
     {
@@ -591,14 +573,7 @@ bool JwtUtils::isUserAuthorizedForBossPortal(int userId, std::string &identifier
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        return target->userId == userId &&
-               RoleTypeUtils::isBossRole(target->roleName);
+        return RbacService::userHasPermission(dbManager, userId, Permissions::kPortalBoss);
     }
     catch (const std::exception &e)
     {
@@ -607,18 +582,13 @@ bool JwtUtils::isUserAuthorizedForBossPortal(int userId, std::string &identifier
     }
 }
 
+// 判权唯一来源是 position_permissions（RbacService）。
+// 禁止回退到按职位名的硬编码包——否则超管撤权对 seed 同名职位永远不生效（双轨漏洞，DESIGN §6）。
 bool JwtUtils::isUserAuthorizedForPermission(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &permissionKey)
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        return target->userId == userId &&
-               Permissions::roleHasPermission(target->roleName, permissionKey);
+        return RbacService::userHasPermission(dbManager, userId, permissionKey);
     }
     catch (const std::exception &e)
     {
@@ -627,20 +597,12 @@ bool JwtUtils::isUserAuthorizedForPermission(int userId, std::string &identifier
     }
 }
 
-// 验证人事部门访问权限
+// 验证人事部门访问权限。等价映射：旧 人事∥Boss → portal:personnel（Boss seed 已含）。
 bool JwtUtils::isUserAuthorizedForPersonnelForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        return target->userId == userId &&
-               (RoleTypeUtils::isPersonnelRole(target->roleName) ||
-                RoleTypeUtils::isBossRole(target->roleName));
+        return RbacService::userHasPermission(dbManager, userId, Permissions::kPortalPersonnel);
     }
     catch (const std::exception &e)
     {
@@ -649,20 +611,12 @@ bool JwtUtils::isUserAuthorizedForPersonnelForm(int userId, std::string &identif
     }
 }
 
-// 验证医疗端访问权限
+// 验证医疗端访问权限。等价映射：旧 医护∥Boss → portal:medical（Boss seed 已含）。
 bool JwtUtils::isUserAuthorizedForMedicalStaffForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        return target->userId == userId &&
-               (RoleTypeUtils::isMedicalStaffRole(target->roleName) ||
-                RoleTypeUtils::isBossRole(target->roleName));
+        return RbacService::userHasPermission(dbManager, userId, Permissions::kPortalMedical);
     }
     catch (const std::exception &e)
     {
@@ -671,20 +625,12 @@ bool JwtUtils::isUserAuthorizedForMedicalStaffForm(int userId, std::string &iden
     }
 }
 
-// 验证仓储端访问权限
+// 验证仓储端访问权限。等价映射：旧 仓库∥Boss → portal:warehouse（Boss seed 已含）。
 bool JwtUtils::isUserAuthorizedForWarehouseStaffForm(int userId, std::string &identifier, bool isEmail, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
     try
     {
-        const auto target = getUserAuthTargetById(dbManager, userId);
-        if (!target)
-        {
-            return false;
-        }
-
-        return target->userId == userId &&
-               (RoleTypeUtils::isWarehouseStaffRole(target->roleName) ||
-                RoleTypeUtils::isBossRole(target->roleName));
+        return RbacService::userHasPermission(dbManager, userId, Permissions::kPortalWarehouse);
     }
     catch (const std::exception &e)
     {

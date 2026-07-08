@@ -1,7 +1,6 @@
 #include "AuthSessionStore.h"
 
 #include "../redis/RedisClient.h"
-#include "../../utils/roleTypeUtils/roleTypeUtils.h"
 
 #include <iostream>
 
@@ -43,9 +42,11 @@ namespace AuthSessionStore
         return tokenVersion == storedVersion.value();
     }
 
-    int issueVersionForRole(int userId, const std::string &roleName)
+    // 会话版本对全员生效（原先只对管理角色）：动态 RBAC 下派职位/改权限随时可能发生在任何用户身上，
+    // 版本 bump 是"降权即时生效"的载体，不能按 token 里的旧角色名决定是否检查。
+    int issueVersion(int userId)
     {
-        if (userId <= 0 || !RoleTypeUtils::isManagementRole(roleName))
+        if (userId <= 0)
         {
             return kDefaultSessionVersion;
         }
@@ -59,16 +60,11 @@ namespace AuthSessionStore
         return parseSessionVersion(redis.get(sessionVersionKey(userId))).value_or(kDefaultSessionVersion);
     }
 
-    bool isSessionCurrent(int userId, const std::string &roleName, int tokenVersion)
+    bool isSessionCurrent(int userId, int tokenVersion)
     {
         if (userId <= 0)
         {
             return false;
-        }
-
-        if (!RoleTypeUtils::isManagementRole(roleName))
-        {
-            return true;
         }
 
         RedisClient &redis = RedisClient::instance();

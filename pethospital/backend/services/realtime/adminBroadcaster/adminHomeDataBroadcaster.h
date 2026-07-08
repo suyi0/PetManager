@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -15,11 +16,17 @@
 class AdminHomeDataBroadcaster
 {
 public:
+    struct ConnectionContext
+    {
+        int userId;
+        int sessionVersion;
+    };
+
     static AdminHomeDataBroadcaster &instance();
 
     void start(std::shared_ptr<DatabaseManagerInterface> dbManager);
     void stop();
-    void addConnection(crow::websocket::connection *conn);
+    void addConnection(crow::websocket::connection *conn, const ConnectionContext &context);
     void removeConnection(crow::websocket::connection *conn);
     void closeAllConnections(const std::string &reason);
     void notifyHomeDataChanged();
@@ -43,5 +50,5 @@ private:
     
     // 一个哈希集合，存储了所有当前活跃的 WebSocket 连接。
     // 广播线程会遍历这个集合并向每个连接发送数据。
-    std::unordered_set<crow::websocket::connection *> connections_;
+    std::unordered_map<crow::websocket::connection *, ConnectionContext> connections_;
 };

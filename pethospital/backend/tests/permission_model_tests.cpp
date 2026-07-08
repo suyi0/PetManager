@@ -1,128 +1,76 @@
 #include "../utils/permissions/Permissions.h"
 
+#include <algorithm>
 #include <cassert>
 #include <string>
+#include <vector>
 
+// 权限目录契约（动态 RBAC 版）：
+// 1. 权限 key 目录是代码常量单一真相源；角色→权限映射已入库（position_permissions），
+//    其正确性由 seed 等价性测试（rbac_schema_tests）与 RbacService 测试锁定。
+// 2. 元权限 rbac:manage：known 但绝不可授予（grant-of-grant 防线的目录层）。
+// 3. 未知 key 一律 fail-closed。
 namespace
 {
-void assertNoPortalOrSensitivePermission(const std::string &roleName)
+bool contains(const std::vector<std::string> &items, const std::string &value)
 {
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kPortalBoss));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kPortalFinance));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kPortalSuperAdmin));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kPortalPersonnel));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kPortalMedical));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kPortalWarehouse));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kSalaryRead));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kSalaryWrite));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kLogsRead));
-    assert(!Permissions::roleHasPermission(roleName, "medical-record:read"));
-    assert(!Permissions::roleHasPermission(roleName, "medical-record:write"));
-    assert(!Permissions::roleHasPermission(roleName, "doctor-work:write"));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kUserDelete));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kEquityRead));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kEquityWrite));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kStockRead));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kStockWrite));
-    assert(!Permissions::roleHasPermission(roleName, "staff-role:write"));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kScopeAll));
-    assert(!Permissions::roleHasPermission(roleName, Permissions::kScopeMedicalAssigned));
+    return std::find(items.begin(), items.end(), value) != items.end();
 }
 }
 
 int main()
 {
-    // Boss package: current product semantics allow cross-management visibility.
-    assert(Permissions::roleHasPermission("总裁", Permissions::kPortalBoss));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kPortalFinance));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kPortalSuperAdmin));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kSalaryRead));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kSalaryWrite));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kLogsRead));
-    assert(Permissions::roleHasPermission("总裁", "medical-record:read"));
-    assert(Permissions::roleHasPermission("总裁", "medical-record:write"));
-    assert(Permissions::roleHasPermission("总裁", "doctor-work:write"));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kUserDelete));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kEquityRead));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kEquityWrite));
-    assert(Permissions::roleHasPermission("总裁", "staff-role:write"));
-    assert(Permissions::roleHasPermission("总裁", Permissions::kScopeAll));
-    assert(!Permissions::roleHasPermission("总裁", Permissions::kScopeMedicalAssigned));
+    const std::vector<std::string> all = Permissions::allPermissionKeys();
+    const std::vector<std::string> grantable = Permissions::grantablePermissionKeys();
 
-    assert(Permissions::roleHasPermission("副总裁", Permissions::kPortalBoss));
-    assert(Permissions::roleHasPermission("副总裁", Permissions::kPortalFinance));
-    assert(Permissions::roleHasPermission("副总裁", Permissions::kPortalSuperAdmin));
-    assert(Permissions::roleHasPermission("副总裁", "medical-record:read"));
-    assert(Permissions::roleHasPermission("副总裁", "medical-record:write"));
-    assert(Permissions::roleHasPermission("副总裁", "doctor-work:write"));
-    assert(Permissions::roleHasPermission("副总裁", Permissions::kEquityRead));
-    assert(Permissions::roleHasPermission("副总裁", Permissions::kEquityWrite));
-    assert(Permissions::roleHasPermission("副总裁", "staff-role:write"));
+    // ---- 目录完整性：全部常量都在 all 里 ----
+    const std::vector<std::string> expectedKeys = {
+        Permissions::kPortalBoss,
+        Permissions::kPortalFinance,
+        Permissions::kPortalSuperAdmin,
+        Permissions::kPortalPersonnel,
+        Permissions::kPortalMedical,
+        Permissions::kPortalWarehouse,
+        Permissions::kPortalUser,
+        Permissions::kSalaryRead,
+        Permissions::kSalaryWrite,
+        Permissions::kLogsRead,
+        Permissions::kMedicalRecordRead,
+        Permissions::kMedicalRecordWrite,
+        Permissions::kDoctorWorkWrite,
+        Permissions::kUserDelete,
+        Permissions::kEquityRead,
+        Permissions::kEquityWrite,
+        Permissions::kStockRead,
+        Permissions::kStockWrite,
+        Permissions::kStaffRoleWrite,
+        Permissions::kScopeAll,
+        Permissions::kScopeMedicalAssigned,
+        Permissions::kRbacManage,
+    };
+    for (const std::string &key : expectedKeys)
+    {
+        assert(contains(all, key));
+        assert(Permissions::isKnownPermissionKey(key));
+    }
 
-    // Finance package: salary access, but no boss or super-admin portal privileges.
-    assert(Permissions::roleHasPermission("财务总监", Permissions::kPortalFinance));
-    assert(Permissions::roleHasPermission("财务总监", Permissions::kSalaryRead));
-    assert(Permissions::roleHasPermission("财务总监", Permissions::kSalaryWrite));
-    assert(!Permissions::roleHasPermission("财务总监", Permissions::kPortalBoss));
-    assert(!Permissions::roleHasPermission("财务总监", Permissions::kPortalSuperAdmin));
-    assert(!Permissions::roleHasPermission("财务总监", Permissions::kLogsRead));
-    assert(!Permissions::roleHasPermission("财务总监", "medical-record:read"));
-    assert(!Permissions::roleHasPermission("财务总监", "medical-record:write"));
-    assert(!Permissions::roleHasPermission("财务总监", "doctor-work:write"));
-    assert(!Permissions::roleHasPermission("财务总监", Permissions::kUserDelete));
-    assert(!Permissions::roleHasPermission("财务总监", Permissions::kEquityRead));
-    assert(!Permissions::roleHasPermission("财务总监", Permissions::kEquityWrite));
-    assert(!Permissions::roleHasPermission("财务总监", "staff-role:write"));
+    // ---- 元权限不可委派：grantable = all − rbac:manage，仅此一项差异 ----
+    assert(!contains(grantable, Permissions::kRbacManage));
+    assert(!Permissions::isGrantablePermissionKey(Permissions::kRbacManage));
+    assert(grantable.size() == all.size() - 1);
+    for (const std::string &key : grantable)
+    {
+        assert(Permissions::isKnownPermissionKey(key));
+        assert(Permissions::isGrantablePermissionKey(key));
+    }
 
-    assert(Permissions::roleHasPermission("财务经理", Permissions::kPortalFinance));
-    assert(Permissions::roleHasPermission("财务经理", Permissions::kSalaryRead));
-    assert(Permissions::roleHasPermission("财务经理", Permissions::kSalaryWrite));
-    assert(!Permissions::roleHasPermission("财务经理", Permissions::kPortalBoss));
-    assert(!Permissions::roleHasPermission("财务经理", Permissions::kPortalSuperAdmin));
+    // ---- portal:user 已进目录且可授予（Boss 职位靠它保住用户端入口等价） ----
+    assert(Permissions::isGrantablePermissionKey(Permissions::kPortalUser));
 
-    // Super-admin package: user/log administration, but no salary or boss portal access.
-    assert(Permissions::roleHasPermission("部门经理", Permissions::kPortalSuperAdmin));
-    assert(Permissions::roleHasPermission("部门经理", Permissions::kLogsRead));
-    assert(Permissions::roleHasPermission("部门经理", "medical-record:read"));
-    assert(!Permissions::roleHasPermission("部门经理", "medical-record:write"));
-    assert(Permissions::roleHasPermission("部门经理", "doctor-work:write"));
-    assert(Permissions::roleHasPermission("部门经理", Permissions::kUserDelete));
-    assert(!Permissions::roleHasPermission("部门经理", Permissions::kPortalFinance));
-    assert(!Permissions::roleHasPermission("部门经理", Permissions::kPortalBoss));
-    assert(!Permissions::roleHasPermission("部门经理", Permissions::kSalaryWrite));
-    assert(!Permissions::roleHasPermission("部门经理", Permissions::kEquityRead));
-    assert(!Permissions::roleHasPermission("部门经理", Permissions::kEquityWrite));
-
-    assert(Permissions::roleHasPermission("超级管理员", Permissions::kPortalSuperAdmin));
-    assert(Permissions::roleHasPermission("超级管理员", Permissions::kLogsRead));
-    assert(Permissions::roleHasPermission("超级管理员", "medical-record:read"));
-    assert(!Permissions::roleHasPermission("超级管理员", "medical-record:write"));
-    assert(Permissions::roleHasPermission("超级管理员", "doctor-work:write"));
-    assert(Permissions::roleHasPermission("超级管理员", Permissions::kUserDelete));
-    assert(!Permissions::roleHasPermission("超级管理员", Permissions::kPortalFinance));
-    assert(!Permissions::roleHasPermission("超级管理员", Permissions::kPortalBoss));
-
-    // Other current role packages stay narrow.
-    assert(Permissions::roleHasPermission("人事经理", Permissions::kPortalPersonnel));
-    assert(Permissions::roleHasPermission("人事经理", "staff-role:write"));
-    assert(Permissions::roleHasPermission("医生", Permissions::kPortalMedical));
-    assert(Permissions::roleHasPermission("护士", Permissions::kPortalMedical));
-    assert(Permissions::roleHasPermission("医生", "medical-record:read"));
-    assert(Permissions::roleHasPermission("护士", "medical-record:read"));
-    assert(Permissions::roleHasPermission("医生", "medical-record:write"));
-    assert(Permissions::roleHasPermission("护士", "medical-record:write"));
-    assert(!Permissions::roleHasPermission("医生", "doctor-work:write"));
-    assert(!Permissions::roleHasPermission("护士", "doctor-work:write"));
-    assert(Permissions::roleHasPermission("医生", Permissions::kScopeMedicalAssigned));
-    assert(Permissions::roleHasPermission("护士", Permissions::kScopeMedicalAssigned));
-    assert(!Permissions::roleHasPermission("医生", Permissions::kScopeAll));
-    assert(Permissions::roleHasPermission("仓库管理员", Permissions::kPortalWarehouse));
-    assert(Permissions::roleHasPermission("仓库管理员", Permissions::kStockRead));
-    assert(Permissions::roleHasPermission("仓库管理员", Permissions::kStockWrite));
-
-    assertNoPortalOrSensitivePermission("普通用户");
-    assertNoPortalOrSensitivePermission("");
-    assertNoPortalOrSensitivePermission("总裁办");
+    // ---- 未知 key fail-closed ----
+    assert(!Permissions::isKnownPermissionKey(""));
+    assert(!Permissions::isKnownPermissionKey("portal:hacker"));
+    assert(!Permissions::isGrantablePermissionKey("portal:hacker"));
 
     return 0;
 }

@@ -262,13 +262,16 @@ int main()
         "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-removals\")",
         "routes_setup = true;");
 
-    assertContains(doctorAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
+    // 派职（委任医生/仓管）= 把人派进含权限职位 = 授权，须 rbac:manage（超管独占），
+    // 不能用可委派的 staff-role:write（否则 personnel 成二级授权旁路，DESIGN §8）。
+    assertContains(doctorAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kRbacManage)");
+    assertContains(warehouseManagerAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kRbacManage)");
+    assertSensitiveAudit(doctorAssignmentSection, "Permissions::kRbacManage");
+    assertSensitiveAudit(warehouseManagerAssignmentSection, "Permissions::kRbacManage");
+    // 摘除（医生/仓管降级为普通用户）= 收权，安全，保留 staff-role:write。
     assertContains(doctorRemovalSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
-    assertContains(warehouseManagerAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
     assertContains(warehouseManagerRemovalSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
-    assertSensitiveAudit(doctorAssignmentSection, "Permissions::kStaffRoleWrite");
     assertSensitiveAudit(doctorRemovalSection, "Permissions::kStaffRoleWrite");
-    assertSensitiveAudit(warehouseManagerAssignmentSection, "Permissions::kStaffRoleWrite");
     assertSensitiveAudit(warehouseManagerRemovalSection, "Permissions::kStaffRoleWrite");
     assertNotContains(doctorAssignmentSection, "isValidPersonnelToken(");
     assertNotContains(doctorRemovalSection, "isValidPersonnelToken(");

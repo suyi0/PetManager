@@ -98,7 +98,7 @@ void WebSocketServer::start()
     server_thread = std::thread([this, serverPort]
                                 {
             try {
-                app_ptr_->port(serverPort).multithreaded().run();
+                app_ptr_->port(serverPort).multithreaded().run();   // .multithreaded() 根据CPU核心数自动设置线程数，避免过多线程导致上下文切换开销
             } catch (const std::exception& e) {
                 std::cerr << "Server fatal error: " << e.what() << std::endl;
             }

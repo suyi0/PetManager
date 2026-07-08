@@ -1,5 +1,4 @@
 #include "scheduledTaskManager.h"
-#include "../roleTypeUtils/roleTypeUtils.h"
 #include "../../services/redis/RedisClient.h"
 #include "../../services/redis/redisLock/RedisLock.h"
 #include <iostream>
@@ -453,12 +452,6 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
         const std::string recordDate =
             boost::gregorian::to_iso_extended_string(yesterday);
 
-        const int normalUserRoleId = RoleTypeUtils::getRoleId(dbManager, "普通用户");
-        if (normalUserRoleId <= 0)
-        {
-            throw std::runtime_error("普通用户角色不存在，无法计算工资记录");
-        }
-
         session->sql("START TRANSACTION").execute();
         try
         {
@@ -484,8 +477,8 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
                                                  "              WHERE o.created_at >= ? AND o.created_at < ?), 0) "
                                                  " FROM salary AS s "
                                                  " JOIN users AS u ON u.id = s.user_id "
-                                                 " WHERE u.type_id <> ?) AS costCount")
-                                       .bind(dayStart, nextDayStart, dayStart, nextDayStart, normalUserRoleId)
+                                                 " WHERE u.account_type = 'staff') AS costCount")
+                                       .bind(dayStart, nextDayStart, dayStart, nextDayStart)
                                        .execute()
                                        .fetchOne();
 

@@ -276,7 +276,8 @@ import { storeKey } from "@/app/store";
 import { useRoute } from "vue-router";
 import { SalaryEmployeeRow, SalaryManagementPayload } from "../../api/types";
 import { financeApi } from "../../api/financeApi";
-import { isSuperAdminPortalRole } from "@/core/auth/utils/roleUtils";
+// 展示用：工资表行的职位药丸配色（按名字仅影响颜色，不判权；动态职位落默认色）
+const SUPER_PILL_ROLE_NAMES = new Set(["总裁", "副总裁", "部门经理", "超级管理员"]);
 import { subscribeFinanceHomeData } from "../../utils/financeHomeDataStream";
 import AppPager from "@/shared/components/AppPager.vue";
 import { calculateTotalPages } from "@/shared/utils/pagination";
@@ -351,7 +352,7 @@ export default defineComponent({
       value ? value.replace("T", " ").slice(0, 16) : "暂无日期";
 
     const roleClassName = (role?: string) => {
-      if (role && isSuperAdminPortalRole(role)) {
+      if (role && SUPER_PILL_ROLE_NAMES.has(role)) {
         return "role-pill--super";
       }
       if (role === "医生" || role === "护士") {

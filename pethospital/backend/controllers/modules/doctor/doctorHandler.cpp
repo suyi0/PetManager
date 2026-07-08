@@ -6,7 +6,9 @@
 #include "../../../services/redis/doctorListCache/DoctorListCache.h"
 #include "../../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
+#include "../../../services/rbac/RbacService.h"
 #include "../../../utils/dataScope/DataScope.h"
+#include "../../../utils/permissions/Permissions.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 
 #include <unordered_map>
@@ -91,8 +93,9 @@ crow::response doctorHandler::getDoctor(const crow::request &req)
         mysqlx::SqlResult result = dbManager->getSession()->sql("SELECT u.name, u.user_specialty, u.user_introduction, u.user_level "
                                                                 "FROM users as u "
                                                                 "JOIN onlineDoctors as od ON u.id = od.doctor_id "
-                                                                "JOIN types as t ON u.type_id = t.id "
-                                                                "WHERE t.type = '医生' AND od.status = 'online' AND u.is_deleted = 0")
+                                                                "JOIN positions as pos ON pos.id = u.position_id "
+                                                                "WHERE u.account_type = 'staff' AND pos.staff_kind = 'doctor' "
+                                                                "AND od.status = 'online' AND u.is_deleted = 0")
                                        .execute();
 
         nlohmann::json response = nlohmann::json::array();
@@ -188,7 +191,7 @@ crow::response doctorHandler::updateReservationStatus(const crow::request &req, 
             return ResponseHelper::database_error(req, "Database connection failed", "无法连接到数据库");
         }
 
-        const bool isBoss = RoleTypeUtils::userHasBossRole(dbManager, doctorId);
+        const bool isBoss = RbacService::userHasPermission(dbManager, doctorId, Permissions::kPortalBoss);
         mysqlx::SqlResult reservationResult = dbManager->getSession()
                                                   ->sql("SELECT doctor_id FROM reservations WHERE id = ? LIMIT 1")
                                                   .bind(reservationId)
@@ -380,7 +383,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         mysqlx::SqlResult result;
         if (identifier == "name")
         {
-            result = dbManager->getSession()->sql("SELECT u.id, u.type_id, u.name, p.phone, u.email, u.head_image "
+            result = dbManager->getSession()->sql("SELECT u.id, COALESCE(u.position_id, 0), u.name, p.phone, u.email, u.head_image "
                                                   "FROM users AS u "
                                                   "LEFT JOIN phones AS p ON p.user_id = u.id "
                                                   "WHERE u.name LIKE ? AND u.is_deleted = 0 "
@@ -393,7 +396,7 @@ crow::response doctorHandler::getUserList(const crow::request &req, const std::s
         {
             const std::string phoneLike = "%" + data + "%";
             result = dbManager->getSession()
-                         ->sql("SELECT DISTINCT u.id, u.type_id, u.name, p.phone, u.email, u.head_image "
+                         ->sql("SELECT DISTINCT u.id, COALESCE(u.position_id, 0), u.name, p.phone, u.email, u.head_image "
                                "FROM users AS u "
                                "LEFT JOIN phones AS p ON u.id = p.user_id "
                                "WHERE u.is_deleted = 0 "
@@ -595,9 +598,11 @@ crow::response doctorHandler::getUserProfiles(const crow::request &req, int user
                                       ->sql("SELECT u.id, COALESCE(u.name, ''), COALESCE(p.phone, ''), COALESCE(u.email, ''), "
                                             "CAST(u.birthday AS CHAR), COALESCE(u.head_image, ''), COALESCE(u.user_specialty, ''), "
                                             "COALESCE(u.user_introduction, ''), COALESCE(u.user_level, 0), COALESCE(u.funds, 0.0), "
-                                            "CAST(u.created_at AS CHAR), COALESCE(t.type, ''), COALESCE(u.type_id, 0) "
+                                            "CAST(u.created_at AS CHAR), "
+                                            "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name, "
+                                            "COALESCE(u.position_id, 0) "
                                             "FROM users AS u "
-                                            "LEFT JOIN types AS t ON u.type_id = t.id "
+                                            "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                             "LEFT JOIN phones AS p ON p.user_id = u.id "
                                             "WHERE u.id = ? ")
                                       .bind(userId)
@@ -1040,8 +1045,7 @@ crow::response doctorHandler::changeOrder(const crow::request &req, int &orderId
 
         // 医护(scope:medical-assigned)只允许修改诊疗数据 order_data：
         // 改 doctor_id 属身份改派，order_status 全部是支付/退款语义，均越出医护职责边界。
-        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        if (DataScope::resolveForRole(roleName, userId).kind == DataScope::Kind::MedicalAssigned &&
+        if (DataScope::resolveForUser(dbManager, userId).kind == DataScope::Kind::MedicalAssigned &&
             (petChanged || doctorChanged || typeChanged || statusChanged))
         {
             return ResponseHelper::permission_denied(req, "无权修改该字段", "医护角色仅可修改订单诊疗数据 order_data");

@@ -1,6 +1,5 @@
 #include "searchCommonHandler.h"
 #include "dataScope/DataScope.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include "visibilityFilter/VisibilityFilter.h"
 
@@ -155,8 +154,7 @@ crow::response searchCommonHandler::searchByKeyword(const crow::request &req, co
             return ResponseHelper::validation(req, "搜索类型不能为空");
         }
 
-        const std::string roleName = RoleTypeUtils::getUserRoleName(dbManager, userId);
-        const DataScope::Scope dataScope = DataScope::resolveForRole(roleName, userId);
+        const DataScope::Scope dataScope = DataScope::resolveForUser(dbManager, userId);
 
         const std::string keywordLike = "%" + searchByKeyword + "%";
         const std::string orderStatusKeywordLike = "%" + StatusLabelUtils::toDbOrderStatus(searchByKeyword) + "%";

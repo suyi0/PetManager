@@ -1,6 +1,10 @@
 #include "authHandler.h"
 #include "../../../services/auth/AuthSessionStore.h"
+#include "../../../services/rbac/RbacService.h"
+#include "../../../utils/permissions/Permissions.h"
 #include "../smsScriptRunner.h"
+
+#include <algorithm>
 
 crow::response authHandler::authCheckName(const crow::request &req)
 {
@@ -390,7 +394,7 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         }
 
         // 失效的管理端会话不能靠刷新续命：被 bump 过的旧 token 直接拒绝，否则等于绕过会话失效。
-        if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->typeName, claims->sessionVersion))
+        if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->sessionVersion))
         {
             return ResponseHelper::unauthorized(req, "Session expired");
         }
@@ -399,9 +403,11 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         const std::string &identifier = claims->identifier;
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.type_id, t.type, u.email, p.phone "
+                                       ->sql("SELECT COALESCE(u.position_id, 0), "
+                                             "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name, "
+                                             "u.email, p.phone "
                                              "FROM users AS u "
-                                             "JOIN types AS t ON u.type_id = t.id "
+                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                              "LEFT JOIN phones AS p ON p.user_id = u.id "
                                              "WHERE u.id = ? AND u.is_deleted = 0")
                                        .bind(userId)
@@ -415,7 +421,8 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
 
         int typeId = row[0].get<int>();
         std::string typeName = row[1].get<std::string>();
-        if (!RoleTypeUtils::isManagementRole(typeName))
+        // 管理端会话按权限判定（portal:boss/finance/super-admin 任一），职位名只做展示
+        if (!RbacService::userHasManagementAccess(dbManager, userId))
         {
             return ResponseHelper::unauthorized(req, "Only management roles can refresh this token");
         }
@@ -432,12 +439,14 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
         }
 
         nlohmann::json response;
+        // 此路径上方已确认是管理端会话（非管理端已拒绝刷新），管理端 TTL
         response["token"] = JwtUtils::createToken(
             userId,
             typeId,
             typeName,
             isEmailLogin ? email : phone,
-            isEmailLogin);
+            isEmailLogin,
+            /*managementSession=*/true);
         response["expiresIn"] = 1800;
         return ResponseHelper::success(req, response);
     }
@@ -445,6 +454,51 @@ crow::response authHandler::refreshAdminToken(const crow::request &req)
     {
         std::cerr << "[ERROR] Failed to refresh admin token: " << e.what() << std::endl;
         return ResponseHelper::system_error(req);
+    }
+}
+
+crow::response authHandler::getCurrentUserAccess(const crow::request &req)
+{
+    try
+    {
+        std::string authHeader = req.get_header_value("Authorization");
+        if (authHeader.empty() || authHeader.substr(0, 7) != "Bearer ")
+        {
+            return ResponseHelper::unauthorized(req, "Missing or invalid token");
+        }
+
+        auto claims = JwtUtils::getTokenClaims(authHeader.substr(7));
+        if (!claims || claims->userId <= 0)
+        {
+            return ResponseHelper::unauthorized(req, "Token expired or invalid");
+        }
+
+        auto access = RbacService::loadUserAccess(dbManager, claims->userId);
+        if (!access)
+        {
+            return ResponseHelper::unauthorized(req, "User not found");
+        }
+
+        const std::vector<std::string> permissions = RbacService::effectivePermissions(*access);
+
+        nlohmann::json data;
+        data["user_id"] = access->userId;
+        data["account_type"] = access->accountType;
+        data["position_id"] = access->positionId == 0 ? nlohmann::json(nullptr) : nlohmann::json(access->positionId);
+        data["position_name"] = access->positionName;
+        data["staff_kind"] = access->staffKind;
+        data["system_key"] = access->systemKey;
+        data["permissions"] = permissions;
+
+        // 兼容旧前端读取的角色字段；判权新代码应改用 permissions/account_type/staff_kind。
+        data["type_id"] = data["position_id"];
+        data["type_name"] = access->accountType == "customer" ? "普通用户" : access->positionName;
+
+        return ResponseHelper::success(req, data);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
     }
 }
 
@@ -457,9 +511,9 @@ crow::response authHandler::logout(const crow::request &req)
         {
             std::string token = authHeader.substr(7);
             auto claims = JwtUtils::getTokenClaims(token);
-            // 管理端登出：bump session-version，让该用户所有已签发的管理端 token 立即失效（服务端吊销）。
-            // 普通角色 session-version 为 no-op，登出仍返回成功，由前端清理本地状态。
-            if (claims && claims->userId > 0 && RoleTypeUtils::isManagementRole(claims->typeName))
+            // 登出：bump session-version，让该用户所有已签发 token 立即失效（服务端吊销）。
+            // 会话版本已对全员生效（动态 RBAC 降权载体），不再按 token 里的旧角色名区分。
+            if (claims && claims->userId > 0)
             {
                 AuthSessionStore::bumpSessionVersionForUser(claims->userId);
             }

@@ -3,7 +3,6 @@
 
 #include "../../utils/Utils.h"
 #include "../../controllers/auth/jwtUtils/jwtUtils.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include <string>
 
 // 用户端 token 校验。

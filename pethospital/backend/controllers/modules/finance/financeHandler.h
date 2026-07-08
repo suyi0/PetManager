@@ -3,7 +3,6 @@
 
 #include "../../../utils/Utils.h"
 #include "../../../services/logger/operationLogger.h"
-#include "../../../utils/roleTypeUtils/roleTypeUtils.h"
 
 class financeHandler : public BaseHandler
 {
@@ -17,7 +16,15 @@ public:
 
     double calculateCostCount();
 
+    double calculateCostCount(const crow::request &req);
+
+    double calculateCostCount(int userId);
+
     nlohmann::json buildHomeData(); // 构建财务端首页实时统计数据
+
+    nlohmann::json buildHomeData(const crow::request &req); // 构建带组织范围的财务端首页实时统计数据
+
+    nlohmann::json buildHomeData(int userId); // 构建指定用户组织范围的财务端首页实时统计数据
 
     crow::response getHomeData(const crow::request &req); // 获取总览数据 对应 /api/finance/home-data
 

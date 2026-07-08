@@ -62,7 +62,6 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { isPersonnelPortalRole } from "@/core/auth/utils/roleUtils";
 import {
   startPersonnelSessionGuard,
   stopPersonnelSessionGuard,
@@ -94,10 +93,8 @@ export default defineComponent({
     const routePrefix = computed(() => "/personnel");
 
     const currentRoleLabel = computed(() => {
-      const activeRole = store.state.auth.userRole;
-      return activeRole && isPersonnelPortalRole(activeRole)
-        ? activeRole
-        : "人事经理";
+      // 展示当前职位名（动态职位原样显示）；能进本布局已由路由守卫按权限保证
+      return store.state.auth.userRole || "人事经理";
     });
 
     return {

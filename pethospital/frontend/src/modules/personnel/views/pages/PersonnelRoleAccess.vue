@@ -202,9 +202,9 @@ import {
 } from "vue";
 import { useStore } from "vuex";
 import {
-  isSuperAdminPortalRole,
-  resolveRoleName,
-} from "@/core/auth/utils/roleUtils";
+  displayRoleName,
+  isManagementPillRole,
+} from "@/core/auth/utils/roleDisplay";
 import { storeKey } from "@/app/store";
 import AppPager from "@/shared/components/AppPager.vue";
 import { calculateTotalPages } from "@/shared/utils/pagination";
@@ -271,12 +271,12 @@ export default defineComponent({
     };
 
     const formatRole = (typeName?: string, typeId?: number | null) => {
-      return resolveRoleName(typeName, typeId) || "未知角色";
+      return displayRoleName(typeName);
     };
 
     const roleKind = (typeName?: string, typeId?: number | null): RoleKind => {
       const role = formatRole(typeName, typeId);
-      if (isSuperAdminPortalRole(role)) return "boss";
+      if (isManagementPillRole(role)) return "boss";
       if (role === "医生" || role === "护士") return "doctor";
       if (role === "仓库管理员") return "warehouse";
       return "user";

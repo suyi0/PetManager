@@ -24,6 +24,35 @@ export interface UserRow {
   status?: "online" | "offline" | "";
 }
 
+export interface RbacDepartment {
+  id: number;
+  branch_id: number;
+  branch_name?: string;
+  name: string;
+  description?: string;
+}
+
+export interface RbacPosition {
+  id: number;
+  department_id: number | null;
+  department_name?: string;
+  name: string;
+  system_key?: string;
+  staff_kind?: string;
+  description?: string;
+}
+
+export interface PermissionTemplate {
+  id: number;
+  name: string;
+}
+
+export interface UserScopePayload {
+  user_id: number;
+  branch_ids: number[];
+  department_ids: number[];
+}
+
 export interface SalaryEmployeeRow {
   id: number;
   type_id: number | null;

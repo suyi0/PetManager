@@ -12,7 +12,7 @@
 //   不该让所有人缓存失效。
 //
 // 为什么值得缓存：getUserRoleName 在 order/reservation/search 公共权限校验里
-//   每个已登录请求都要 `users JOIN types` 查一次库，是真正的热路径。
+//   每个已登录请求都要 `users JOIN positions` 查一次库，是真正的热路径。
 //
 // 降级：Redis 未启用时读写都 no-op，getUserRoleName 直接回退到 DB 查询（无缓存亦无陈旧）。
 namespace UserRoleCache

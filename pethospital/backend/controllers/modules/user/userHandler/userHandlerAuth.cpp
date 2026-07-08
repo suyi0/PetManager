@@ -3,6 +3,7 @@
 #include "../userPhoneSync/userPhoneSync.h"
 #include "../../../../services/auth/AuthSessionStore.h"
 #include "../../../../services/auth/AuthLoginFailureStore.h"
+#include "../../../../services/rbac/RbacService.h"
 #include "../../../../services/redis/RedisClient.h"
 #include "../../../../services/redis/redisLock/RedisLock.h"
 #include "../../../../services/redis/doctorListCache/DoctorListCache.h"
@@ -10,7 +11,6 @@
 #include "../../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
-#include "roleTypeUtils/roleTypeUtils.h"
 #include "statusLabelUtils/StatusLabelUtils.h"
 #include <vector>
 #include "userHandlerInternal.h"
@@ -115,6 +115,7 @@ crow::response userHandler::userLogin(const crow::request &req)
         // 从数据库中获取用户信息
         // user是一个智能指针
         std::unique_ptr<User> user = nullptr;
+        std::string role_name;
         try
         {
             // 获取表
@@ -123,10 +124,12 @@ crow::response userHandler::userLogin(const crow::request &req)
             {
                 // 通过email查询用户
                 result = dbManager->getSession()
-                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, p.phone, u.email, "
+                             ->sql("SELECT u.id, COALESCE(u.position_id, 0), "
+                                   "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name, "
+                                   "u.name, u.password, p.phone, u.email, "
                                    "CAST(u.birthday AS CHAR), u.head_image "
                                    "FROM users AS u "
-                                   "LEFT JOIN types AS t ON u.type_id = t.id "
+                                   "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                    "LEFT JOIN phones AS p ON p.user_id = u.id "
                                    "WHERE u.email = ?")
                              .bind(email)
@@ -137,10 +140,12 @@ crow::response userHandler::userLogin(const crow::request &req)
                 const std::string legacyPhone = stripChinaCountryCode(phone);
                 // 通过phone查询用户
                 result = dbManager->getSession()
-                             ->sql("SELECT u.id, u.type_id, t.type, u.name, u.password, p.phone, u.email, "
+                             ->sql("SELECT u.id, COALESCE(u.position_id, 0), "
+                                   "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name, "
+                                   "u.name, u.password, p.phone, u.email, "
                                    "CAST(u.birthday AS CHAR), u.head_image "
                                    "FROM users AS u "
-                                   "LEFT JOIN types AS t ON u.type_id = t.id "
+                                   "LEFT JOIN positions AS pos ON pos.id = u.position_id "
                                    "JOIN phones AS p ON p.user_id = u.id "
                                    "WHERE p.phone = ? OR p.phone = ?")
                              .bind(phone)
@@ -244,6 +249,14 @@ crow::response userHandler::userLogin(const crow::request &req)
                 {
                     user->setHeadImage("");
                 }
+                try
+                {
+                    role_name = row[2].isNull() ? "" : row[2].get<std::string>();
+                }
+                catch (...)
+                {
+                    role_name.clear();
+                }
 
                 break; // 只需要第一个匹配的用户
             }
@@ -295,14 +308,17 @@ crow::response userHandler::userLogin(const crow::request &req)
             // 生成一个基于用户邮箱的JWT token
             const bool loggedInWithEmail = !email.empty();
             const std::string loginIdentifier = loggedInWithEmail ? user->getEmail() : user->getPhone();
-            const std::string role_name =
-                RoleTypeUtils::getRoleName(dbManager, user->getTypeID());
+            if (role_name.empty())
+            {
+                role_name = "普通用户";
+            }
             std::string token = JwtUtils::createToken(
                 user->getID(),
                 user->getTypeID(),
                 role_name,
                 loginIdentifier,
-                loggedInWithEmail);
+                loggedInWithEmail,
+                RbacService::userHasManagementAccess(dbManager, user->getID()));
             response["token"] = token;
             response["success"] = true;
 
@@ -325,6 +341,19 @@ crow::response userHandler::userLogin(const crow::request &req)
             user_json["birthday"] = oss.str();
 
             response["user"] = user_json;
+
+            // 登录即下发权限快照：前端在保存会话（选 storage、算首页）时就需要，
+            // 不能等 /auth/me——那一步在 setSession 之后（判权数据源=permissions，名字仅展示）
+            if (auto access = RbacService::loadUserAccess(dbManager, user->getID()))
+            {
+                nlohmann::json accessJson;
+                accessJson["account_type"] = access->accountType;
+                accessJson["position_id"] = access->positionId == 0 ? nlohmann::json(nullptr) : nlohmann::json(access->positionId);
+                accessJson["position_name"] = access->positionName;
+                accessJson["staff_kind"] = access->staffKind;
+                accessJson["permissions"] = RbacService::effectivePermissions(*access);
+                response["access"] = accessJson;
+            }
             // Return response
             return ResponseHelper::success(req, response);
         }
@@ -335,4 +364,3 @@ crow::response userHandler::userLogin(const crow::request &req)
         return ResponseHelper::system_error(req, "Internal server error" + std::string(e.what()));
     }
 }
-

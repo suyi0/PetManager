@@ -1,11 +1,13 @@
 import { RouteRecordRaw } from "vue-router";
-import { DOCTOR_PORTAL_ROLES } from "@/core/auth/utils/roleUtils";
 
 const doctorRoutes: Array<RouteRecordRaw> = [
   {
     path: "/doctor",
     component: () => import("@/modules/doctor/views/desktop/DoctorLayout.vue"),
-    meta: { requiresAuth: true, allowedRoles: [...DOCTOR_PORTAL_ROLES] },
+    meta: {
+      requiresAuth: true,
+      allowedPermissions: ["portal:medical"],
+    },
     children: [
       {
         path: "",

@@ -158,7 +158,7 @@ import { ref, computed, onUnmounted } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import { AppHttpError } from "@/api/httpError";
-import { getHomeRouteByUserType } from "@/core/auth/utils/authRedirect";
+import { getHomeRouteByUserAccess } from "@/core/auth/utils/authRedirect";
 import { isEmail, isPhone } from "@/core/auth/utils/authValidators";
 
 const store = useStore();
@@ -289,7 +289,7 @@ const handleLogin = () => {
           throw new Error("登录返回数据缺少 user 字段");
         }
 
-        router.push(getHomeRouteByUserType(user.type_id, user.type_name));
+        router.push(getHomeRouteByUserAccess(store.state.auth));
       }
     })
     .catch((error) => {

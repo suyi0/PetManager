@@ -63,7 +63,6 @@ import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { computed, defineComponent, onBeforeUnmount, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { isFinancePortalRole } from "@/core/auth/utils/roleUtils";
 import {
   startFinanceSessionGuard,
   stopFinanceSessionGuard,
@@ -96,10 +95,8 @@ export default defineComponent({
     const routePrefix = computed(() => "/finance");
 
     const currentRoleLabel = computed(() => {
-      const activeRole = store.state.auth.userRole;
-      return activeRole && isFinancePortalRole(activeRole)
-        ? activeRole
-        : "财务总监";
+      // 展示当前职位名（动态职位原样显示）；能进本布局已由路由守卫按权限保证
+      return store.state.auth.userRole || "财务总监";
     });
 
     return {

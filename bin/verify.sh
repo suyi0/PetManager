@@ -8,7 +8,11 @@ set -euo pipefail
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "${BIN_DIR}")"
 BACKEND_DIR="${PROJECT_ROOT}/pethospital/backend"
-BUILD_DIR="${BACKEND_DIR}/build"
+# 测试构建用独立目录，绝不碰日常 build/：
+# verify 若与 bin/build.sh 共用 build/，BUILD_TESTING=ON 会把测试目标灌进
+# build/compile_commands.json（同一源文件多条目 + 测试宏），VSCode cpptools
+# 以它为准 → 大纲/跳转/悬停解析错乱。隔离后 IDE 所见配置永远是日常配置。
+BUILD_DIR="${BACKEND_DIR}/build-tests"
 FRONTEND_DIR="${PROJECT_ROOT}/pethospital/frontend"
 CMAKE_BIN="${CMAKE_BIN:-/opt/homebrew/bin/cmake}"
 
