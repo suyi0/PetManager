@@ -53,6 +53,17 @@ const UserRoutes: Array<RouteRecordRaw> = [
         }, // 需要认证才能访问
       },
       {
+        path: "/user/attendance",
+        name: "userAttendance",
+        component: () =>
+          import("../views/desktop/Personal-module/UserAttendanceView.vue"),
+        meta: {
+          requiresAuth: true,
+          allowedPermissions: ["portal:user", "portal:boss"],
+          allowedStaffKinds: ["nurse"],
+        },
+      },
+      {
         path: "/user/orderDetail",
         component: () =>
           import(

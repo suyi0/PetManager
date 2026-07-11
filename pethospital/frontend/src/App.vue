@@ -58,7 +58,11 @@ onMounted(async () => {
     if (!store.state.auth.permissions?.length) {
       await store.dispatch("auth/refreshAccess").catch(() => undefined);
     }
-    router.push(getHomeRouteByUserAccess(store.state.auth));
+    await router.isReady();
+    const currentPath = router.currentRoute.value.path;
+    if (currentPath === "/" || currentPath === "/PetHospital") {
+      await router.replace(getHomeRouteByUserAccess(store.state.auth));
+    }
   }
 });
 </script>

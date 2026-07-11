@@ -7,6 +7,7 @@ import {
   OrderSummary,
   ReservationScheduleState,
   ReservationScheduleResponseItem,
+  UserAttendanceRecord,
 } from "@/modules/user/api/types";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 
@@ -76,6 +77,30 @@ const normalizeReservationSummaries = (
       [item.date, item.time_slot].filter(Boolean).join(" ") ||
       "",
   }));
+
+const unwrapAttendanceRecords = (response: unknown) => {
+  const responseData = response as {
+    data?: {
+      data?: { records?: unknown; items?: unknown } | unknown[];
+      records?: unknown;
+      items?: unknown;
+    };
+  };
+  const payload = responseData?.data?.data ?? responseData?.data;
+
+  if (Array.isArray(payload)) {
+    return payload as UserAttendanceRecord[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const rows =
+      (payload as { records?: unknown; items?: unknown }).records ??
+      (payload as { records?: unknown; items?: unknown }).items;
+    return Array.isArray(rows) ? (rows as UserAttendanceRecord[]) : [];
+  }
+
+  return [];
+};
 
 /**
  * 订单列表摘要接口请求函数。
@@ -363,5 +388,14 @@ export const petApi = {
 
   async deletePetProfile(petId: string): Promise<void> {
     await http.delete(`/api/users/me/pet-profiles/${petId}`);
+  },
+};
+
+export const attendanceApi = {
+  async getMyAttendance(month: string): Promise<UserAttendanceRecord[]> {
+    const response = await http.get("/api/user/attendance/me", {
+      params: { month },
+    });
+    return unwrapAttendanceRecords(response);
   },
 };

@@ -397,3 +397,19 @@ org_scope 要 work，受约束的数据得能查到"属于哪个部门"：
 - **本期建**：部门级范围 + `scope:all`（最高管理层=全部分院）两档。**预留不建**：分院级范围授予接口/UI（等真开分院再启用，表结构已就位不返工）。
 - **验证**：部门 A 经理看不到部门 B 的员工/工资/日志（列表被过滤、单条 404）；`scope:all`（最高管理层）看全部分院；客户数据不受影响；撤销范围后即时生效（含 §6 的 WS 处理）。
 - **落位**：作为 **P2.5**（在 P2 RBAC 管理之后、P3 前端之前，或与 P2 合并），依赖 positions/departments/branches 已就位，同属超管管理面。
+
+## 17. 实施与验证记录（2026-07-08，Claude 审核 + Codex 独立验证）
+
+Codex 完成全部实施（P0–P3 + P2.5 org_scope + 超管 RBAC 管理 UI `SuperAdminRbac.vue`）并提交。Claude 按本方案做审核验证，Codex 独立复核。
+
+**已验证通过**：后端 `bin/build.sh` + 前端 `npm run build` + `bin/verify.sh backend` 18/18；硬门禁六项全零（后端无 `JOIN types`/`RoleTypeUtils::*Role`/`roleHasPermission`/`resolveForRole` 判权；前端无 `allowedRoles`/`roleUtils`/`is*PortalRole` 判权）。一次性库 DB 级实测：10 seed 职位 + 74 权限落库、职能职位 scope:all 落库、`position_permissions`/`permission_template_items` 的 `CHECK(permission_key<>'rbac:manage')` 实测挡住写入。
+
+**审核发现并修复**：
+1. **（Claude）seed 职能角色缺 `scope:all`**：super-admin/finance-*/department-manager/personnel-manager 无 scope:all，org_scope 把它们限到本部门，违反 §10.4 等价性（超管看不到全院日志、财务无法全院发薪）。YANG 拍板"内置职能角色看全院"。修复：给这 5 个职位 + Finance/SuperAdmin/Personnel 三模版各补 scope:all（doctor/nurse/warehouse 不碰组织数据，不补）。
+2. **（Codex 阻断级）`PUT /api/admin/rbac/positions/<id>/permissions` 授权门回退**：提交版误用 `isValidManagementToken`，任一管理用户可给自己岗位授 portal:super-admin/scope:all/user:delete，绕过"授权归超管"。修复：PUT 分支改 `isValidPermissionToken(kRbacManage)`，GET 仍管理端。修复后提权链两道门（授权 + 派高权职位）都要 rbac:manage，闭合。
+
+**已知限制（本期不做，记录）**：
+- 多实例 WS 撤权：`AccessRevocation::closeRealtimeConnections()` 只关本进程连接；多实例部署需补跨实例 access-revoked 广播（与 §6 单实例假设一致）。
+- `scope:all` 同时用于 org_scope（HR 数据）与 DataScope（客户交易数据）：本期耦合可接受（职能角色无 portal:user/portal:medical，够不到客户端点）；长期可拆 `org:scope:all` / `data:scope:all`，属新增设计，另开评审。
+- HTTP 级越权矩阵（非超管管理用户 PUT 改权限应 403）待在可连库环境补跑；DB 级 + 静态门禁已覆盖核心不变量。
+- rebuild 仅限 dev/clean 库（§10）。

@@ -75,7 +75,68 @@ export interface CreateOrderRecordPayload {
     quantity: number;
     price: number;
     totalPrice: number;
+    specification?: string;
+    unit?: string;
+    dosage?: string;
+    frequency?: string;
+    route?: string;
+    durationDays?: number;
+    instructions?: string;
   }>;
+  medicalDocument: MedicalDocumentDraftFields;
+}
+
+export interface MedicalDocumentDraftFields {
+  chiefComplaint: string;
+  presentIllness: string;
+  pastHistory: string;
+  allergies: string;
+  physicalExam: string;
+  diagnosis: string;
+  treatmentPlan: string;
+  dischargeAdvice: string;
+  followUpAt: string;
+  structuredData?: Record<string, unknown>;
+}
+
+export interface MedicalPrescriptionItem {
+  id?: number;
+  medicineId: number;
+  medicineName: string;
+  specification: string;
+  unit: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  durationDays: number;
+  quantity: number;
+  instructions: string;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface MedicalDocument extends MedicalDocumentDraftFields {
+  id: number;
+  documentNo: string;
+  orderId: number;
+  ownerId: number;
+  ownerName: string;
+  petId: number;
+  petName: string;
+  petType: string;
+  petBreed: string;
+  petAge: string;
+  petSex: string;
+  doctorId: number;
+  doctorName: string;
+  status: "draft" | "finalized" | "amended" | "voided";
+  revisionNo: number;
+  lockVersion: number;
+  finalizedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  totalPrice: number;
+  prescriptionItems: MedicalPrescriptionItem[];
 }
 
 /**
@@ -100,6 +161,12 @@ export interface SelectedMedicineItem {
   type?: string;
   stock?: number;
   dosage: string;
+  frequency?: string;
+  route?: string;
+  durationDays?: number;
+  specification?: string;
+  unit?: string;
+  instructions?: string;
   days: number;
   unitPrice: number;
   subtotal: number;

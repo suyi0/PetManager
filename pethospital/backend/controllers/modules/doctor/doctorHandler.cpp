@@ -247,6 +247,11 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         std::string orderType = request_body.value("orderType", "");
         std::string orderData = request_body.value("orderData", "");
         double orderTotalPrice = request_body.value("orderTotalPrice", 0.0);
+        nlohmann::json medicalDocument = request_body.value("medicalDocument", nlohmann::json::object());
+        if (!medicalDocument.is_object())
+        {
+            return ResponseHelper::validation(req, "medicalDocument 必须是对象");
+        }
 
         nlohmann::json medicines = nlohmann::json::array();
         if (request_body.contains("orderMedicines"))
@@ -271,7 +276,29 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
 
         unsigned long long orderId = ordersResult.getAutoIncrementValue();
 
-        // 写入订单药品记录
+        const std::string diagnosis = medicalDocument.value("diagnosis", orderData);
+        mysqlx::SqlResult documentResult = session->sql(
+            "INSERT INTO medical_documents (document_no, order_id, owner_id, pet_id, doctor_id, "
+            "chief_complaint, present_illness, past_history, allergies, physical_exam, diagnosis, "
+            "treatment_plan, discharge_advice, follow_up_at, structured_data) "
+            "VALUES (CONCAT('MD-', DATE_FORMAT(UTC_TIMESTAMP(), '%Y%m%d'), '-', LPAD(?, 8, '0')), "
+            "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?)")
+            .bind(orderId, orderId, ownerId, petId, doctorId,
+                  medicalDocument.value("chiefComplaint", orderData),
+                  medicalDocument.value("presentIllness", ""),
+                  medicalDocument.value("pastHistory", ""),
+                  medicalDocument.value("allergies", ""),
+                  medicalDocument.value("physicalExam", ""),
+                  diagnosis,
+                  medicalDocument.value("treatmentPlan", ""),
+                  medicalDocument.value("dischargeAdvice", ""),
+                  medicalDocument.value("followUpAt", ""),
+                  medicalDocument.value("structuredData", nlohmann::json::object()).dump())
+            .execute();
+        const unsigned long long medicalDocumentId = documentResult.getAutoIncrementValue();
+
+        // 写入订单药品记录及诊疗文书中的处方快照。
+        int prescriptionSortOrder = 0;
         for (auto row : medicines)
         {
             if (!hasValidMedicineOrderFields(row))
@@ -301,6 +328,18 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
                          "order_id, medicine_id, medicine_name, quantity, price, total_price) "
                          "VALUES (?, ?, ?, ?, ?, ?)")
                 .bind(orderId, medicineId, row["medicineName"].get<std::string>(), quantity, row["price"].get<double>(), row["totalPrice"].get<double>())
+                .execute();
+
+            session->sql("INSERT INTO medical_prescription_items ("
+                         "medical_document_id, medicine_id, medicine_name, specification, unit, dosage, frequency, route, "
+                         "duration_days, quantity, instructions, unit_price, total_price, sort_order) "
+                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(medicalDocumentId, medicineId, row["medicineName"].get<std::string>(),
+                      row.value("specification", row.value("spec", "")), row.value("unit", ""),
+                      row.value("dosage", ""), row.value("frequency", ""), row.value("route", ""),
+                      row.value("durationDays", 0), quantity, row.value("instructions", ""),
+                      row["price"].get<double>(), row["totalPrice"].get<double>(),
+                      prescriptionSortOrder++)
                 .execute();
         }
 
@@ -351,6 +390,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         orderRecord["totalFee"] = createdOrderRow[5].isNull() ? 0.0 : createdOrderRow[5].get<double>();
         orderRecord["status"] = StatusLabelUtils::toDisplayOrderStatus(createdOrderRow[6].isNull() ? "pending_payment" : createdOrderRow[6].get<std::string>());
         orderRecord["orderMedicines"] = medicines;
+        orderRecord["medicalDocumentId"] = medicalDocumentId;
 
         FinanceHomeDataBroadcaster::instance().notifyHomeDataChanged();
         AdminHomeDataBroadcaster::instance().notifyHomeDataChanged();
@@ -804,16 +844,19 @@ crow::response doctorHandler::onlineDoctor(const crow::request &req, int userId)
                     return ResponseHelper::error(req, "当前已处于签到状态，请勿重复签到!");
                 }
 
+                // 手动签到必须盖 last_attendance_event_at，否则设备离线补推的旧事件
+                // 会走 "IS NULL" 放行分支覆盖当前在线态（见 attendanceRoutes 联动守卫）。
+                // check_out_time 列 NOT NULL，'00:00:00' 表示"未签退"，写 NULL 会直接报错。
                 dbManager->getSession()->sql("UPDATE onlineDoctors "
-                                             "SET date = ?, check_in_time = ?, check_out_time = NULL, status = 'online' "
+                                             "SET date = ?, check_in_time = ?, check_out_time = '00:00:00', status = 'online', last_attendance_event_at = NOW() "
                                              "WHERE doctor_id = ?")
                     .bind(date, time, userId)
                     .execute();
             }
             else
             {
-                dbManager->getSession()->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, status) "
-                                             "VALUES (?, ?, ?, 'online')")
+                dbManager->getSession()->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, status, last_attendance_event_at) "
+                                             "VALUES (?, ?, ?, 'online', NOW())")
                     .bind(userId, date, time)
                     .execute();
             }
@@ -873,7 +916,7 @@ crow::response doctorHandler::offlineDoctor(const crow::request &req, int userId
         else
         {
             auto result = dbManager->getSession()->sql("UPDATE onlineDoctors "
-                                                       "SET check_out_time = ?, status = 'offline' "
+                                                       "SET check_out_time = ?, status = 'offline', last_attendance_event_at = NOW() "
                                                        "WHERE doctor_id = ? AND date = ? AND status = 'online'")
                               .bind(time, userId, date)
                               .execute();

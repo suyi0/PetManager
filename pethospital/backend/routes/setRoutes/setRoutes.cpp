@@ -200,6 +200,9 @@ void WebSocketServer::setupRoutes()
     // 注册管理员路由
     adminRoutes::setupAdminRoutes(*app_ptr_, DatabaseManager::getInstance());
 
+    // 注册考勤路由
+    attendanceRoutes::setupAttendanceRoutes(*app_ptr_, DatabaseManager::getInstance());
+
     // 注册人事路由
     personnelRoutes::setupPersonnelRoutes(*app_ptr_, DatabaseManager::getInstance());
 

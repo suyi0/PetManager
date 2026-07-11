@@ -1,4 +1,5 @@
 import { SelectedMedicineItem } from "../api/types";
+import { MedicalDocumentDraftFields } from "../api/types";
 
 /**
  * 医生端开诊单草稿的完整内存数据。
@@ -16,6 +17,7 @@ export type DoctorOrderDraft = {
     symptom: string;
   };
   selected: SelectedMedicineItem[];
+  clinicalForm?: MedicalDocumentDraftFields;
   updatedAt: number;
 };
 

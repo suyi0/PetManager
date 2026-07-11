@@ -838,9 +838,9 @@ crow::response adminHandler::changeDoctorWorkTime(const crow::request &req, int 
         int affected_rows = 0;
         if (todayDate == date)
         {
-            // 更新今日在线医生表
+            // 更新今日在线医生表；盖 last_attendance_event_at，防设备旧事件回写覆盖人工修改
             mysqlx::SqlResult result = dbManager->getSession()
-                                           ->sql("UPDATE onlineDoctors SET " + identifier + " = ? WHERE doctor_id = ? AND date = ?")
+                                           ->sql("UPDATE onlineDoctors SET " + identifier + " = ?, last_attendance_event_at = NOW() WHERE doctor_id = ? AND date = ?")
                                            .bind(time_value, userId, date)
                                            .execute();
 

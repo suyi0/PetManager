@@ -24,7 +24,11 @@
           </svg>
           总览
         </RouterLink>
-        <RouterLink class="saas-nav__item" :to="`${routePrefix}/worktime`">
+        <RouterLink
+          v-if="canReadAttendance"
+          class="saas-nav__item"
+          :to="`${routePrefix}/worktime`"
+        >
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -169,6 +173,9 @@ export default defineComponent({
     };
 
     const routePrefix = computed(() => "/super-admin");
+    const canReadAttendance = computed(() =>
+      store.state.auth.permissions.includes("attendance:read")
+    );
 
     const currentRoleLabel = computed(() => {
       // 展示当前职位名（动态职位原样显示）；能进本布局已由路由守卫按权限保证
@@ -178,6 +185,7 @@ export default defineComponent({
     return {
       logout,
       routePrefix,
+      canReadAttendance,
       currentRoleLabel,
       showBossReturn,
       returnToBossPortal,

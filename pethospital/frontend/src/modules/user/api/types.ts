@@ -88,3 +88,20 @@ export interface ReservationScheduleResponseItem {
   weekday: string;
   time_slots?: Record<string, unknown>;
 }
+
+export type UserAttendanceStatus =
+  | "normal"
+  | "late"
+  | "early_leave"
+  | "late_and_early"
+  | "missing_out"
+  | "absent";
+
+export interface UserAttendanceRecord {
+  work_date: string;
+  check_in_at: string;
+  check_out_at: string;
+  status: UserAttendanceStatus;
+  is_corrected: boolean;
+  correction_note: string;
+}

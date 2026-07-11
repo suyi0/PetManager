@@ -3,6 +3,7 @@
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../../services/redis/doctorListCache/DoctorListCache.h"
+#include "../../../services/attendance/DevicePersonSync.h"
 #include "../../../services/auth/AccessRevocation.h"
 #include "../../../services/rbac/RbacService.h"
 #include "../../../services/redis/userRoleCache/UserRoleCache.h"
@@ -242,6 +243,7 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
 
             session->sql("COMMIT").execute();
             AccessRevocation::onUserAccessChanged(userId);
+            DevicePersonSync::enqueueUpsert(dbManager, userId);
             DoctorListCache::invalidateDoctorList();
             DoctorListBroadcaster::instance().notifyDoctorListChanged();
         }
@@ -288,6 +290,8 @@ crow::response personnelHandler::deleteDoctor(const crow::request &req)
         }
 
         AccessRevocation::onUserAccessChanged(userId);
+        // 离职物理撤权第四件套：设备端人员模板必须删（设计 §0），与缓存/会话/WS 并列。
+        DevicePersonSync::enqueueRemove(dbManager, userId);
         DoctorListCache::invalidateDoctorList();
         DoctorListBroadcaster::instance().notifyDoctorListChanged();
 
@@ -335,6 +339,7 @@ crow::response personnelHandler::createWarehouserManager(const crow::request &re
         }
 
         AccessRevocation::onUserAccessChanged(userId);
+        DevicePersonSync::enqueueUpsert(dbManager, userId);
         return ResponseHelper::success(req, "给予权限成功");
     }
     catch (const std::exception &e)
@@ -372,6 +377,7 @@ crow::response personnelHandler::deleteWarehouserManager(const crow::request &re
         }
 
         AccessRevocation::onUserAccessChanged(userId);
+        DevicePersonSync::enqueueRemove(dbManager, userId);
         return ResponseHelper::success(req, "删除权限成功");
     }
     catch (const std::exception &e)

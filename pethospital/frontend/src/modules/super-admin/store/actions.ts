@@ -2,7 +2,11 @@ import { ActionContext, ActionTree } from "vuex";
 import { State, shouldFetch } from "@/app/store/types";
 import { superAdminApi } from "../api/superAdminApi";
 import { SuperAdminState } from "./types";
-import { CreateUserPayload, HomePageSummary } from "../api/types";
+import {
+  AttendanceRecordQuery,
+  CreateUserPayload,
+  HomePageSummary,
+} from "../api/types";
 
 type SuperAdminActionContext = ActionContext<SuperAdminState, State>;
 
@@ -48,6 +52,38 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
       return records;
     } finally {
       commit("setWorkTimeRecordsLoading", false);
+    }
+  },
+
+  async fetchAttendanceRecords(
+    { commit }: SuperAdminActionContext,
+    query: AttendanceRecordQuery = {}
+  ) {
+    commit("setAttendanceRecordsLoading", true);
+    try {
+      const result = await superAdminApi.getAttendanceRecords(query);
+      commit("setAttendanceRecords", result);
+      return result;
+    } finally {
+      commit("setAttendanceRecordsLoading", false);
+    }
+  },
+
+  async ensureAttendanceDevices(
+    { state, commit }: SuperAdminActionContext,
+    options?: { force?: boolean }
+  ) {
+    if (!shouldFetch(state.attendanceDevicesMeta, options?.force)) {
+      return state.attendanceDevices;
+    }
+
+    commit("setAttendanceDevicesLoading", true);
+    try {
+      const devices = await superAdminApi.getAttendanceDevices();
+      commit("setAttendanceDevices", devices);
+      return devices;
+    } finally {
+      commit("setAttendanceDevicesLoading", false);
     }
   },
 
@@ -193,6 +229,77 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
     ]);
   },
 
+  async manualAttendancePunch(
+    { commit, dispatch }: SuperAdminActionContext,
+    payload: {
+      user_id: number;
+      punched_at: string;
+      verify_mode?: string;
+      reason: string;
+      refreshQuery?: AttendanceRecordQuery;
+    }
+  ) {
+    const { refreshQuery, ...requestPayload } = payload;
+    await superAdminApi.manualAttendancePunch(requestPayload);
+    commit("markAttendanceRecordsDirty");
+    commit("markLogsDirty");
+
+    await Promise.all([
+      dispatch("fetchAttendanceRecords", refreshQuery ?? {}),
+      dispatch("ensureLogs", { force: true }),
+    ]);
+  },
+
+  async closeAttendanceDay(
+    { commit, dispatch }: SuperAdminActionContext,
+    payload: { work_date: string; refreshQuery?: AttendanceRecordQuery }
+  ) {
+    const created = await superAdminApi.closeAttendanceDay(payload.work_date);
+    commit("markAttendanceRecordsDirty");
+    commit("markLogsDirty");
+
+    await Promise.all([
+      dispatch("fetchAttendanceRecords", payload.refreshQuery ?? {}),
+      dispatch("ensureLogs", { force: true }),
+    ]);
+
+    return created;
+  },
+
+  async createAttendanceDevice(
+    { commit, dispatch }: SuperAdminActionContext,
+    payload: {
+      name: string;
+      device_key?: string;
+      vendor?: string;
+      location?: string;
+      branch_id?: number | null;
+    }
+  ) {
+    const result = await superAdminApi.createAttendanceDevice(payload);
+    commit("markAttendanceDevicesDirty");
+    await dispatch("ensureAttendanceDevices", { force: true });
+    return result;
+  },
+
+  async rotateAttendanceDeviceSecret(
+    { commit }: SuperAdminActionContext,
+    deviceId: number
+  ) {
+    const result = await superAdminApi.rotateAttendanceDeviceSecret(deviceId);
+    commit("markAttendanceDevicesDirty");
+    return result;
+  },
+
+  async disableAttendanceDevice(
+    { commit, dispatch }: SuperAdminActionContext,
+    deviceId: number
+  ) {
+    await superAdminApi.disableAttendanceDevice(deviceId);
+    commit("markAttendanceDevicesDirty");
+    await dispatch("ensureAttendanceDevices", { force: true });
+  },
+
   async changeDoctorWorkStatus(
     { commit, dispatch }: SuperAdminActionContext,
     payload: { doctorId: number; status: "online" | "offline" }
@@ -217,6 +324,14 @@ export const superAdminActions: ActionTree<SuperAdminState, State> = {
 
   markWorkTimeRecordsDirty({ commit }: SuperAdminActionContext) {
     commit("markWorkTimeRecordsDirty");
+  },
+
+  markAttendanceRecordsDirty({ commit }: SuperAdminActionContext) {
+    commit("markAttendanceRecordsDirty");
+  },
+
+  markAttendanceDevicesDirty({ commit }: SuperAdminActionContext) {
+    commit("markAttendanceDevicesDirty");
   },
 
   markLogsDirty({ commit }: SuperAdminActionContext) {

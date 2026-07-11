@@ -17,6 +17,12 @@ import {
   RbacPosition,
   PermissionTemplate,
   UserScopePayload,
+  AttendanceDevice,
+  AttendanceDeviceCreateResult,
+  AttendanceRecord,
+  AttendanceRecordQuery,
+  AttendanceRecordResult,
+  AttendanceSecretResult,
 } from "./types";
 
 export const superAdminApi = {
@@ -50,6 +56,81 @@ export const superAdminApi = {
     status: "online" | "offline";
   }): Promise<void> {
     await http.post("/api/admins/doctor-work-status-changes", params);
+  },
+
+  async getAttendanceRecords(
+    params: AttendanceRecordQuery
+  ): Promise<AttendanceRecordResult> {
+    const { data } = await http.get("/api/admin/attendance/records", {
+      params,
+    });
+    const payload = data?.data ?? data;
+
+    return {
+      items: unwrapList<AttendanceRecord>(
+        payload?.items ?? payload?.records ?? payload
+      ),
+      total: Number(payload?.total ?? payload?.items?.length ?? 0),
+    };
+  },
+
+  async manualAttendancePunch(payload: {
+    user_id: number;
+    punched_at: string;
+    verify_mode?: string;
+    reason: string;
+  }): Promise<void> {
+    await http.post("/api/admin/attendance/manual-punch", payload);
+  },
+
+  async closeAttendanceDay(workDate: string): Promise<number> {
+    const { data } = await http.post("/api/admin/attendance/close-day", {
+      work_date: workDate,
+    });
+    const payload = data?.data ?? data;
+    return Number(payload?.absent_records_created ?? 0);
+  },
+
+  async getAttendanceDevices(): Promise<AttendanceDevice[]> {
+    const { data } = await http.get("/api/admin/attendance/devices");
+    return unwrapList<AttendanceDevice>(
+      data?.data?.devices ?? data?.devices ?? data
+    );
+  },
+
+  async createAttendanceDevice(payload: {
+    name: string;
+    device_key?: string;
+    vendor?: string;
+    location?: string;
+    branch_id?: number | null;
+  }): Promise<AttendanceDeviceCreateResult> {
+    const { data } = await http.post("/api/admin/attendance/devices", payload);
+    const result = data?.data ?? data;
+
+    return {
+      id: Number(result?.id ?? 0),
+      device_key: String(result?.device_key ?? ""),
+      secret: String(result?.secret ?? ""),
+    };
+  },
+
+  async rotateAttendanceDeviceSecret(
+    deviceId: number
+  ): Promise<AttendanceSecretResult> {
+    const { data } = await http.post(
+      `/api/admin/attendance/devices/${deviceId}/rotate-secret`
+    );
+    const result = data?.data ?? data;
+
+    return {
+      device_id: Number(result?.device_id ?? deviceId),
+      secret: String(result?.secret ?? ""),
+    };
+  },
+
+  async disableAttendanceDevice(deviceId: number): Promise<void> {
+    await http.post(`/api/admin/attendance/devices/${deviceId}/disable`);
   },
 
   /**

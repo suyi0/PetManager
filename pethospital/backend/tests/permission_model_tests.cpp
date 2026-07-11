@@ -44,6 +44,8 @@ int main()
         Permissions::kStockRead,
         Permissions::kStockWrite,
         Permissions::kStaffRoleWrite,
+        Permissions::kAttendanceRead,
+        Permissions::kAttendanceManage,
         Permissions::kScopeAll,
         Permissions::kScopeMedicalAssigned,
         Permissions::kRbacManage,

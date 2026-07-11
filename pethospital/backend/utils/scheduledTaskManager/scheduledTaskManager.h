@@ -61,6 +61,9 @@ private:
     // 每日零点执行日结，并在月初执行月结归档
     void Automatic_update_salaryRecord();
 
+    // 每日零点考勤日结：给昨日工作日无记录的员工补 absent（多实例由 workerLoop 时段锁去重）
+    void Automatic_attendanceCloseDay();
+
 public:
     ~ScheduledTaskManager();
 

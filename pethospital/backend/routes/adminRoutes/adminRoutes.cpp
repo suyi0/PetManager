@@ -2,12 +2,14 @@
 #include "../../controllers/modules/doctor/doctorHandler.h"
 #include "../../controllers/modules/finance/financeHandler.h"
 #include "../../controllers/modules/personnel/personnelHandler.h"
+#include "../../controllers/modules/reportTemplate/ReportTemplateHandler.h"
 #include "../../services/realtime/doctorBroadcaster/doctorQueueBroadcaster.h"
 #include "../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
 #include "../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include "../../services/realtime/medicineBroadcaster/medicineStockBroadcaster.h"
 #include "../../services/logger/operationLogger.h"
 #include "../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
+#include "../../services/attendance/DevicePersonSync.h"
 #include "../../services/auth/AccessRevocation.h"
 #include "../../services/auth/AuthSessionStore.h"
 #include "../../services/rbac/RbacService.h"
@@ -494,6 +496,15 @@ crow::response updateUserPosition(
 
     AccessRevocation::revokeUserSessions(targetUserId);
     AccessRevocation::closeRealtimeConnections();
+    // 考勤设备联动：转客户=删设备模板（撤权第四件套），派职=下发模板（内部会初始化 attendance_no）。
+    if (assignCustomer)
+    {
+        DevicePersonSync::enqueueRemove(dbManager, targetUserId);
+    }
+    else
+    {
+        DevicePersonSync::enqueueUpsert(dbManager, targetUserId);
+    }
 
     return ResponseHelper::success(req, {{"user_id", targetUserId}, {"position_id", assignCustomer ? nullptr : nlohmann::json(positionId.value())}});
 }
@@ -718,7 +729,13 @@ void adminRoutes::setupAdminRoutes(
                 const std::string action = isUpdate ? "修改岗位权限" : "获取岗位权限";
                 try
                 {
-                    userId = isValidManagementToken(req, res, dbManager);
+                    // 授权/收权(PUT)=改动实权，必须 rbac:manage(超管独占，与 apply-template 同级)；
+                    // 只读(GET)查看某岗位有哪些权限，管理端可见即可。
+                    // 若两者都只用 isValidManagementToken，任一管理用户可给自己岗位授
+                    // portal:super-admin/scope:all 等，绕过"授权归超管"边界(Codex 2026-07-08 抓出的回退)。
+                    userId = isUpdate
+                                 ? isValidPermissionToken(req, res, dbManager, Permissions::kRbacManage)
+                                 : isValidManagementToken(req, res, dbManager);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", action);
@@ -1326,6 +1343,68 @@ void adminRoutes::setupAdminRoutes(
                 res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
             }
             OperationLogger::FinishSensitiveRoute(dbManager, req, res, "订单", "获取全部病历", Permissions::kMedicalRecordRead, userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    CROW_ROUTE(app, "/api/admin/report-templates/data-contracts/medical-document")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+        {
+            const int userId = isValidPermissionToken(req, res, dbManager, Permissions::kReportTemplateRead);
+            if (res.code != 200 || userId <= 0)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "读取诊疗单字段目录");
+                return;
+            }
+            ReportTemplateHandler handler(dbManager);
+            auto response = handler.dataContract(req);
+            ProcessHandlerResponse(req, res, response);
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "读取诊疗单字段目录", Permissions::kReportTemplateRead, userId);
+        });
+
+    CROW_ROUTE(app, "/api/admin/report-templates")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+        {
+            const int userId = isValidPermissionToken(req, res, dbManager, Permissions::kReportTemplateRead);
+            if (res.code != 200 || userId <= 0)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "读取打印模板");
+                return;
+            }
+            ReportTemplateHandler handler(dbManager);
+            auto response = handler.list(req);
+            ProcessHandlerResponse(req, res, response);
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "读取打印模板", Permissions::kReportTemplateRead, userId);
+        });
+
+    CROW_ROUTE(app, "/api/admin/report-templates/<int>/versions")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int templateId)
+        {
+            const bool isCreate = req.method == crow::HTTPMethod::Post;
+            const char *permission = isCreate ? Permissions::kReportTemplateManage : Permissions::kReportTemplateRead;
+            const int userId = isValidPermissionToken(req, res, dbManager, permission);
+            if (res.code != 200 || userId <= 0)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", isCreate ? "创建打印模板版本" : "读取打印模板版本");
+                return;
+            }
+            ReportTemplateHandler handler(dbManager);
+            auto response = isCreate ? handler.createVersion(req, templateId, userId) : handler.versions(req, templateId);
+            ProcessHandlerResponse(req, res, response);
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", isCreate ? "创建打印模板版本" : "读取打印模板版本", permission, userId);
+        });
+
+    CROW_ROUTE(app, "/api/admin/report-templates/<int>/publish")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int templateId)
+        {
+            const int userId = isValidPermissionToken(req, res, dbManager, Permissions::kReportTemplatePublish);
+            if (res.code != 200 || userId <= 0)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "发布打印模板");
+                return;
+            }
+            ReportTemplateHandler handler(dbManager);
+            auto response = handler.publish(req, templateId, userId);
+            ProcessHandlerResponse(req, res, response);
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "发布打印模板", Permissions::kReportTemplatePublish, userId);
+        });
 
     routes_setup = true;
 }

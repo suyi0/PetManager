@@ -106,6 +106,75 @@ namespace
             .execute();
     }
 
+    // 考勤权限增量 seed：seedPositionPermissions 只在建表时跑，早于考勤功能建库的实例
+    // 永远拿不到 attendance:* —— 管理端整套考勤接口全员 403。仅当库里完全没有考勤
+    // 权限时装设计默认值；一旦有任何一条（含管理员手动配置），不再干预，避免和动态
+    // RBAC 的运行时回收打架。
+    void seedAttendancePermissionsIfAbsent(DatabaseManagerInterface &, mysqlx::Session &session)
+    {
+        session.sql(R"SQL(INSERT IGNORE INTO position_permissions (position_id, permission_key)
+            SELECT p.id, v.permission_key
+            FROM positions p
+            JOIN (
+                SELECT 'president' AS system_key, 'attendance:read' AS permission_key
+                UNION ALL SELECT 'president', 'attendance:manage'
+                UNION ALL SELECT 'vice-president', 'attendance:read'
+                UNION ALL SELECT 'vice-president', 'attendance:manage'
+                UNION ALL SELECT 'super-admin', 'attendance:read'
+                UNION ALL SELECT 'personnel-manager', 'attendance:read'
+                UNION ALL SELECT 'personnel-manager', 'attendance:manage'
+                UNION ALL SELECT 'Boss', 'attendance:read'
+                UNION ALL SELECT 'Boss', 'attendance:manage'
+                UNION ALL SELECT 'SuperAdmin', 'attendance:read'
+                UNION ALL SELECT 'Personnel', 'attendance:read'
+                UNION ALL SELECT 'Personnel', 'attendance:manage'
+            ) v ON v.system_key = p.system_key
+            WHERE NOT EXISTS (
+                SELECT 1 FROM position_permissions existing
+                WHERE existing.permission_key IN ('attendance:read', 'attendance:manage')
+            ))SQL")
+            .execute();
+    }
+
+    void seedMedicalDocumentPermissionsIfAbsent(DatabaseManagerInterface &, mysqlx::Session &session)
+    {
+        session.sql(R"SQL(INSERT IGNORE INTO position_permissions (position_id, permission_key)
+            SELECT p.id, v.permission_key
+            FROM positions p
+            JOIN (
+                SELECT 'president' AS system_key, 'medical-record:finalize' AS permission_key
+                UNION ALL SELECT 'president', 'medical-record:print'
+                UNION ALL SELECT 'president', 'report-template:read'
+                UNION ALL SELECT 'president', 'report-template:manage'
+                UNION ALL SELECT 'president', 'report-template:publish'
+                UNION ALL SELECT 'vice-president', 'medical-record:finalize'
+                UNION ALL SELECT 'vice-president', 'medical-record:print'
+                UNION ALL SELECT 'vice-president', 'report-template:read'
+                UNION ALL SELECT 'vice-president', 'report-template:manage'
+                UNION ALL SELECT 'vice-president', 'report-template:publish'
+                UNION ALL SELECT 'super-admin', 'medical-record:print'
+                UNION ALL SELECT 'super-admin', 'report-template:read'
+                UNION ALL SELECT 'super-admin', 'report-template:manage'
+                UNION ALL SELECT 'super-admin', 'report-template:publish'
+                UNION ALL SELECT 'doctor', 'medical-record:finalize'
+                UNION ALL SELECT 'doctor', 'medical-record:print'
+            ) v ON v.system_key = p.system_key
+            WHERE NOT EXISTS (
+                SELECT 1 FROM position_permissions existing
+                WHERE existing.permission_key IN (
+                    'medical-record:finalize', 'medical-record:print',
+                    'report-template:read', 'report-template:manage', 'report-template:publish'
+                )
+            ))SQL")
+            .execute();
+    }
+
+    void seedIncrementalPositionPermissions(DatabaseManagerInterface &dbManager, mysqlx::Session &session)
+    {
+        seedAttendancePermissionsIfAbsent(dbManager, session);
+        seedMedicalDocumentPermissionsIfAbsent(dbManager, session);
+    }
+
     void seedPositionPermissions(DatabaseManagerInterface &, mysqlx::Session &session)
     {
         session.sql(R"SQL(INSERT INTO position_permissions (position_id, permission_key)
@@ -131,6 +200,8 @@ namespace
                 UNION ALL SELECT 'president', 'stock:read'
                 UNION ALL SELECT 'president', 'stock:write'
                 UNION ALL SELECT 'president', 'staff-role:write'
+                UNION ALL SELECT 'president', 'attendance:read'
+                UNION ALL SELECT 'president', 'attendance:manage'
                 UNION ALL SELECT 'president', 'scope:all'
                 UNION ALL SELECT 'vice-president', 'portal:boss'
                 UNION ALL SELECT 'vice-president', 'portal:user'
@@ -151,25 +222,35 @@ namespace
                 UNION ALL SELECT 'vice-president', 'stock:read'
                 UNION ALL SELECT 'vice-president', 'stock:write'
                 UNION ALL SELECT 'vice-president', 'staff-role:write'
+                UNION ALL SELECT 'vice-president', 'attendance:read'
+                UNION ALL SELECT 'vice-president', 'attendance:manage'
                 UNION ALL SELECT 'vice-president', 'scope:all'
                 UNION ALL SELECT 'finance-director', 'portal:finance'
                 UNION ALL SELECT 'finance-director', 'salary:read'
                 UNION ALL SELECT 'finance-director', 'salary:write'
+                UNION ALL SELECT 'finance-director', 'scope:all'
                 UNION ALL SELECT 'finance-manager', 'portal:finance'
                 UNION ALL SELECT 'finance-manager', 'salary:read'
                 UNION ALL SELECT 'finance-manager', 'salary:write'
+                UNION ALL SELECT 'finance-manager', 'scope:all'
                 UNION ALL SELECT 'department-manager', 'portal:super-admin'
                 UNION ALL SELECT 'department-manager', 'logs:read'
                 UNION ALL SELECT 'department-manager', 'medical-record:read'
                 UNION ALL SELECT 'department-manager', 'doctor-work:write'
                 UNION ALL SELECT 'department-manager', 'user:delete'
+                UNION ALL SELECT 'department-manager', 'scope:all'
                 UNION ALL SELECT 'super-admin', 'portal:super-admin'
                 UNION ALL SELECT 'super-admin', 'logs:read'
                 UNION ALL SELECT 'super-admin', 'medical-record:read'
                 UNION ALL SELECT 'super-admin', 'doctor-work:write'
                 UNION ALL SELECT 'super-admin', 'user:delete'
+                UNION ALL SELECT 'super-admin', 'attendance:read'
+                UNION ALL SELECT 'super-admin', 'scope:all'
                 UNION ALL SELECT 'personnel-manager', 'portal:personnel'
                 UNION ALL SELECT 'personnel-manager', 'staff-role:write'
+                UNION ALL SELECT 'personnel-manager', 'attendance:read'
+                UNION ALL SELECT 'personnel-manager', 'attendance:manage'
+                UNION ALL SELECT 'personnel-manager', 'scope:all'
                 UNION ALL SELECT 'doctor', 'portal:medical'
                 UNION ALL SELECT 'doctor', 'medical-record:read'
                 UNION ALL SELECT 'doctor', 'medical-record:write'
@@ -224,17 +305,25 @@ namespace
                 UNION ALL SELECT 'Boss', 'stock:read'
                 UNION ALL SELECT 'Boss', 'stock:write'
                 UNION ALL SELECT 'Boss', 'staff-role:write'
+                UNION ALL SELECT 'Boss', 'attendance:read'
+                UNION ALL SELECT 'Boss', 'attendance:manage'
                 UNION ALL SELECT 'Boss', 'scope:all'
                 UNION ALL SELECT 'Finance', 'portal:finance'
                 UNION ALL SELECT 'Finance', 'salary:read'
                 UNION ALL SELECT 'Finance', 'salary:write'
+                UNION ALL SELECT 'Finance', 'scope:all'
                 UNION ALL SELECT 'SuperAdmin', 'portal:super-admin'
                 UNION ALL SELECT 'SuperAdmin', 'logs:read'
                 UNION ALL SELECT 'SuperAdmin', 'medical-record:read'
                 UNION ALL SELECT 'SuperAdmin', 'doctor-work:write'
                 UNION ALL SELECT 'SuperAdmin', 'user:delete'
+                UNION ALL SELECT 'SuperAdmin', 'attendance:read'
+                UNION ALL SELECT 'SuperAdmin', 'scope:all'
                 UNION ALL SELECT 'Personnel', 'portal:personnel'
                 UNION ALL SELECT 'Personnel', 'staff-role:write'
+                UNION ALL SELECT 'Personnel', 'attendance:read'
+                UNION ALL SELECT 'Personnel', 'attendance:manage'
+                UNION ALL SELECT 'Personnel', 'scope:all'
                 UNION ALL SELECT 'Medical', 'portal:medical'
                 UNION ALL SELECT 'Medical', 'medical-record:read'
                 UNION ALL SELECT 'Medical', 'medical-record:write'
@@ -244,6 +333,69 @@ namespace
                 UNION ALL SELECT 'Warehouse', 'stock:write'
             ) v ON v.template_name = t.name
         )SQL")
+            .execute();
+    }
+
+    void seedMedicalDocumentTemplatePermissionsIfAbsent(DatabaseManagerInterface &, mysqlx::Session &session)
+    {
+        session.sql(R"SQL(INSERT IGNORE INTO permission_template_items (template_id, permission_key)
+            SELECT t.id, v.permission_key
+            FROM permission_templates t
+            JOIN (
+                SELECT 'Boss' AS template_name, 'medical-record:finalize' AS permission_key
+                UNION ALL SELECT 'Boss', 'medical-record:print'
+                UNION ALL SELECT 'Boss', 'report-template:read'
+                UNION ALL SELECT 'Boss', 'report-template:manage'
+                UNION ALL SELECT 'Boss', 'report-template:publish'
+                UNION ALL SELECT 'SuperAdmin', 'medical-record:print'
+                UNION ALL SELECT 'SuperAdmin', 'report-template:read'
+                UNION ALL SELECT 'SuperAdmin', 'report-template:manage'
+                UNION ALL SELECT 'SuperAdmin', 'report-template:publish'
+                UNION ALL SELECT 'Medical', 'medical-record:finalize'
+                UNION ALL SELECT 'Medical', 'medical-record:print'
+            ) v ON v.template_name = t.name
+            WHERE NOT EXISTS (
+                SELECT 1 FROM permission_template_items existing
+                WHERE existing.permission_key IN (
+                    'medical-record:finalize', 'medical-record:print',
+                    'report-template:read', 'report-template:manage', 'report-template:publish'
+                )
+            ))SQL")
+            .execute();
+    }
+
+    const char *defaultMedicalDocumentTemplate()
+    {
+        return R"HTML(<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><style>
+@page{size:A4;margin:14mm 15mm 16mm}*{box-sizing:border-box}body{margin:0;color:#172b2d;font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:12px;line-height:1.65}.header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1d6b62;padding-bottom:12px;margin-bottom:16px}.brand{font-size:22px;font-weight:700}.title{font-size:18px;font-weight:700}.meta{color:#607472}.grid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #b8c8c5;border-bottom:0}.cell{padding:7px 9px;border-right:1px solid #b8c8c5;border-bottom:1px solid #b8c8c5}.cell:nth-child(4n){border-right:0}.label{display:block;color:#6b7d7a;font-size:10px}.section{margin-top:14px}.section h2{margin:0 0 6px;font-size:13px;color:#1d6b62}.content{min-height:34px;padding:8px 10px;border:1px solid #cbd7d5;white-space:pre-wrap}.rx{width:100%;border-collapse:collapse}.rx th,.rx td{padding:7px;border:1px solid #b8c8c5;text-align:left}.rx th{background:#edf5f2;color:#315f59}.footer{display:flex;justify-content:space-between;margin-top:22px;padding-top:10px;border-top:1px solid #b8c8c5}.muted{color:#6b7d7a}
+</style></head><body>
+<header class="header"><div><div class="brand">{{hospital.name}}</div><div class="meta">{{hospital.address}} {{hospital.phone}}</div></div><div><div class="title">诊疗记录单</div><div class="meta">编号 {{document.number}}</div></div></header>
+<section class="grid"><div class="cell"><span class="label">宠物姓名</span>{{pet.name}}</div><div class="cell"><span class="label">种类 / 品种</span>{{pet.species}} / {{pet.breed}}</div><div class="cell"><span class="label">性别 / 年龄</span>{{pet.sex}} / {{pet.age}}</div><div class="cell"><span class="label">主人</span>{{owner.name}}</div><div class="cell"><span class="label">接诊医生</span>{{doctor.name}}</div><div class="cell"><span class="label">接诊时间</span>{{document.issuedAt}}</div><div class="cell"><span class="label">订单编号</span>{{document.orderNumber}}</div><div class="cell"><span class="label">状态</span>{{document.status}}</div></section>
+<section class="section"><h2>主诉</h2><div class="content">{{visit.chiefComplaint}}</div></section><section class="section"><h2>现病史与既往史</h2><div class="content">{{visit.presentIllness}}\n{{visit.pastHistory}}</div></section><section class="section"><h2>检查记录</h2><div class="content">{{visit.physicalExam}}</div></section><section class="section"><h2>诊断</h2><div class="content">{{visit.diagnosis}}</div></section><section class="section"><h2>治疗方案</h2><div class="content">{{visit.treatmentPlan}}</div></section>
+<section class="section"><h2>处方与用药</h2><table class="rx"><thead><tr><th>药品</th><th>剂量</th><th>频次</th><th>途径</th><th>疗程</th><th>数量</th><th>说明</th></tr></thead><tbody>{{#prescription.items}}<tr><td>{{medicineName}}</td><td>{{dosage}}</td><td>{{frequency}}</td><td>{{route}}</td><td>{{durationDays}} 天</td><td>{{quantity}} {{unit}}</td><td>{{instructions}}</td></tr>{{/prescription.items}}</tbody></table></section>
+<section class="section"><h2>离院医嘱与复诊</h2><div class="content">{{visit.dischargeAdvice}}\n复诊时间：{{visit.followUpAt}}</div></section><footer class="footer"><span class="muted">本诊疗单由 PetManager 生成</span><span>医师签名：{{doctor.name}}</span></footer>
+</body></html>)HTML";
+    }
+
+    void seedDefaultReportTemplate(DatabaseManagerInterface &, mysqlx::Session &session)
+    {
+        session.sql("INSERT IGNORE INTO report_templates (code, name, document_type, paper_size, orientation, status, created_by) "
+                    "VALUES ('medical-document-a4', '默认 A4 诊疗单', 'medical_document', 'A4', 'portrait', 'published', NULL)")
+            .execute();
+    }
+
+    void seedDefaultReportTemplateVersion(DatabaseManagerInterface &, mysqlx::Session &session)
+    {
+        session.sql("INSERT INTO report_template_versions "
+                    "(template_id, version_no, engine, template_content, data_contract_version, status, published_at) "
+                    "SELECT id, 1, 'html', ?, 'medical-document.v1', 'published', UTC_TIMESTAMP() "
+                    "FROM report_templates t WHERE code = 'medical-document-a4' "
+                    "AND NOT EXISTS (SELECT 1 FROM report_template_versions v WHERE v.template_id=t.id AND v.version_no=1) LIMIT 1")
+            .bind(defaultMedicalDocumentTemplate())
+            .execute();
+        session.sql("UPDATE report_templates t JOIN report_template_versions v ON v.template_id = t.id "
+                    "SET t.current_version_id = v.id WHERE t.code = 'medical-document-a4' AND v.version_no = 1")
             .execute();
     }
 
@@ -377,7 +529,7 @@ namespace
                 CONSTRAINT chk_position_permission_not_meta CHECK (permission_key <> 'rbac:manage')
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
             seedPositionPermissions,
-            nullptr,
+            seedIncrementalPositionPermissions,
         },
         {
             "permission_templates",
@@ -398,7 +550,7 @@ namespace
                 CONSTRAINT chk_template_permission_not_meta CHECK (permission_key <> 'rbac:manage')
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
             seedPermissionTemplateItems,
-            nullptr,
+            seedMedicalDocumentTemplatePermissionsIfAbsent,
         },
         {
             "salaryRecord",
@@ -424,6 +576,7 @@ namespace
                 id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
                 account_type ENUM('customer','staff') NOT NULL DEFAULT 'customer',
                 position_id INT NULL,
+                attendance_no VARCHAR(32) NULL,
                 name VARCHAR(255) NOT NULL DEFAULT '',
                 password VARCHAR(255) NOT NULL DEFAULT '',
                 email VARCHAR(255) NOT NULL DEFAULT '',
@@ -444,6 +597,7 @@ namespace
                     (account_type = 'staff' AND position_id IS NOT NULL)
                 ),
                 INDEX idx_users_name (name),
+                UNIQUE KEY uq_users_attendance_no (attendance_no),
                 INDEX idx_users_position_id (position_id),
                 INDEX idx_users_account_type (account_type),
                 INDEX idx_users_is_deleted (is_deleted)
@@ -451,9 +605,11 @@ namespace
             ensureBootstrapSuperAdmin,
             [](DatabaseManagerInterface &dbManager, mysqlx::Session &)
             {
+                // 先建 bootstrap 管理员再跑列迁移：migrateUsers 里的 attendance_no 回填
+                // 才能覆盖到它，否则要等下一次启动。
+                ensureBootstrapSuperAdmin(dbManager, *dbManager.getSession());
                 Columns::migrateUsers(dbManager);
                 ForeignKeys::migrateUsers(dbManager);
-                ensureBootstrapSuperAdmin(dbManager, *dbManager.getSession());
             },
         },
         {
@@ -472,6 +628,169 @@ namespace
                 CONSTRAINT chk_user_scope_level CHECK (branch_id IS NOT NULL OR department_id IS NOT NULL),
                 UNIQUE KEY uq_user_scope_branch (user_id, branch_id),
                 UNIQUE KEY uq_user_scope_department (user_id, department_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "attendance_devices",
+            R"SQL(CREATE TABLE attendance_devices (
+                id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                name VARCHAR(100) NOT NULL,
+                device_key VARCHAR(64) NOT NULL,
+                hmac_key_cipher VARCHAR(255) NOT NULL,
+                vendor VARCHAR(64) NOT NULL DEFAULT '',
+                location VARCHAR(128) NOT NULL DEFAULT '',
+                branch_id INT NULL,
+                is_active TINYINT NOT NULL DEFAULT 1,
+                last_seen_at DATETIME NULL,
+                created_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_attendance_devices_device_key (device_key),
+                INDEX idx_attendance_devices_branch (branch_id),
+                CONSTRAINT fk_attendance_device_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
+                CONSTRAINT fk_attendance_device_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "attendance_workdays",
+            R"SQL(CREATE TABLE attendance_workdays (
+                id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                work_date DATE NOT NULL,
+                day_type ENUM('workday','holiday') NOT NULL DEFAULT 'workday',
+                check_in_start TIME NOT NULL DEFAULT '08:00:00',
+                check_in_end TIME NOT NULL DEFAULT '09:00:00',
+                check_out_start TIME NOT NULL DEFAULT '18:00:00',
+                check_out_end TIME NOT NULL DEFAULT '23:59:59',
+                note VARCHAR(255) NOT NULL DEFAULT '',
+                created_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_attendance_workdays_date (work_date),
+                CONSTRAINT fk_attendance_workday_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "attendance_punches",
+            R"SQL(CREATE TABLE attendance_punches (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                device_id INT NULL,
+                user_id INT NOT NULL,
+                attendance_no VARCHAR(32) NOT NULL DEFAULT '',
+                event_id VARCHAR(128) NULL,
+                raw_event_hash CHAR(64) NOT NULL,
+                punched_at DATETIME NOT NULL,
+                verify_mode ENUM('face','fingerprint','card','password','manual','unknown') NOT NULL DEFAULT 'unknown',
+                source ENUM('device','manual','import') NOT NULL DEFAULT 'device',
+                is_voided TINYINT NOT NULL DEFAULT 0,
+                voided_by INT NULL,
+                voided_at DATETIME NULL,
+                void_reason VARCHAR(255) NOT NULL DEFAULT '',
+                created_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_attendance_punch_event (device_id, event_id),
+                UNIQUE KEY uq_attendance_punch_hash (device_id, raw_event_hash),
+                INDEX idx_attendance_punch_user_time (user_id, punched_at),
+                INDEX idx_attendance_punch_attendance_no_time (attendance_no, punched_at),
+                INDEX idx_attendance_punch_voided (is_voided),
+                CONSTRAINT fk_attendance_punch_device FOREIGN KEY (device_id) REFERENCES attendance_devices(id) ON DELETE SET NULL,
+                CONSTRAINT fk_attendance_punch_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_attendance_punch_voided_by FOREIGN KEY (voided_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_attendance_punch_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "attendance_records",
+            R"SQL(CREATE TABLE attendance_records (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL,
+                work_date DATE NOT NULL,
+                check_in_at DATETIME NULL,
+                check_out_at DATETIME NULL,
+                status ENUM('normal','late','early_leave','late_and_early','missing_out','absent') NOT NULL DEFAULT 'absent',
+                is_corrected TINYINT NOT NULL DEFAULT 0,
+                corrected_by INT NULL,
+                corrected_at DATETIME NULL,
+                correction_note VARCHAR(255) NOT NULL DEFAULT '',
+                branch_id INT NULL,
+                department_id INT NULL,
+                position_id INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_attendance_records_user_date (user_id, work_date),
+                INDEX idx_attendance_records_date (work_date),
+                INDEX idx_attendance_records_department_date (department_id, work_date),
+                INDEX idx_attendance_records_branch_date (branch_id, work_date),
+                CONSTRAINT fk_attendance_record_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_attendance_record_corrected_by FOREIGN KEY (corrected_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_attendance_record_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
+                CONSTRAINT fk_attendance_record_department FOREIGN KEY (department_id) REFERENCES departments(id),
+                CONSTRAINT fk_attendance_record_position FOREIGN KEY (position_id) REFERENCES positions(id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "device_person_sync",
+            R"SQL(CREATE TABLE device_person_sync (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                device_id INT NOT NULL,
+                user_id INT NOT NULL,
+                attendance_no VARCHAR(32) NOT NULL,
+                desired_state ENUM('active','deleted') NOT NULL DEFAULT 'active',
+                sync_state ENUM('pending','synced','failed') NOT NULL DEFAULT 'pending',
+                last_error VARCHAR(255) NOT NULL DEFAULT '',
+                last_synced_at DATETIME NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_device_person_sync (device_id, user_id),
+                INDEX idx_device_person_sync_state (device_id, sync_state),
+                CONSTRAINT fk_device_person_sync_device FOREIGN KEY (device_id) REFERENCES attendance_devices(id) ON DELETE CASCADE,
+                CONSTRAINT fk_device_person_sync_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "attendance_device_events",
+            R"SQL(CREATE TABLE attendance_device_events (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                device_id INT NULL,
+                device_key VARCHAR(64) NOT NULL DEFAULT '',
+                event_type VARCHAR(64) NOT NULL,
+                result ENUM('success','failure') NOT NULL DEFAULT 'success',
+                request_hash CHAR(64) NOT NULL DEFAULT '',
+                message VARCHAR(255) NOT NULL DEFAULT '',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_attendance_device_events_device_time (device_id, created_at),
+                INDEX idx_attendance_device_events_type_time (event_type, created_at),
+                CONSTRAINT fk_attendance_device_event_device FOREIGN KEY (device_id) REFERENCES attendance_devices(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            [](DatabaseManagerInterface &dbManager, mysqlx::Session &)
+            {
+                // 未注册设备 device_id 为 NULL，排查"哪台设备在乱发"全靠 device_key；已建表的库补列。
+                Common::addColumnIfNotExists(dbManager, "attendance_device_events", "device_key",
+                                             "VARCHAR(64) NOT NULL DEFAULT '' AFTER device_id");
+            },
+        },
+        {
+            "attendance_device_nonces",
+            R"SQL(CREATE TABLE attendance_device_nonces (
+                device_id INT NOT NULL,
+                nonce VARCHAR(128) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (device_id, nonce),
+                INDEX idx_attendance_device_nonces_expires (expires_at),
+                CONSTRAINT fk_attendance_device_nonce_device FOREIGN KEY (device_id) REFERENCES attendance_devices(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
             nullptr,
             nullptr,
@@ -670,12 +989,15 @@ namespace
                 check_in_time TIME NOT NULL DEFAULT '00:00:00',
                 check_out_time TIME NOT NULL DEFAULT '00:00:00',
                 status ENUM('online', 'offline') NOT NULL DEFAULT 'offline',
+                last_attendance_event_at DATETIME NULL,
                 CONSTRAINT fk_doctor_user FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE
             ))SQL",
             nullptr,
             [](DatabaseManagerInterface &dbManager, mysqlx::Session &)
             {
                 ForeignKeys::migrateOnlineDoctors(dbManager);
+                // 考勤联动的旧事件防回写守卫依赖此列；旧库必须补，否则打卡联动 SQL 直接报错。
+                Common::addColumnIfNotExists(dbManager, "onlineDoctors", "last_attendance_event_at", "DATETIME NULL");
             },
         },
         {
@@ -765,6 +1087,167 @@ namespace
             {
                 ForeignKeys::migrateOrderMedicines(dbManager);
             },
+        },
+        {
+            "report_templates",
+            R"SQL(CREATE TABLE report_templates (
+                id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                code VARCHAR(64) NOT NULL,
+                name VARCHAR(128) NOT NULL,
+                document_type VARCHAR(64) NOT NULL,
+                paper_size VARCHAR(16) NOT NULL DEFAULT 'A4',
+                orientation ENUM('portrait', 'landscape') NOT NULL DEFAULT 'portrait',
+                status ENUM('draft', 'published', 'archived') NOT NULL DEFAULT 'draft',
+                current_version_id INT NULL,
+                created_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE INDEX uq_report_templates_code (code),
+                INDEX idx_report_templates_type_status (document_type, status),
+                INDEX idx_report_templates_current_version (current_version_id),
+                CONSTRAINT fk_report_templates_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            seedDefaultReportTemplate,
+            seedDefaultReportTemplate,
+        },
+        {
+            "report_template_versions",
+            R"SQL(CREATE TABLE report_template_versions (
+                id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                template_id INT NOT NULL,
+                version_no INT NOT NULL,
+                engine VARCHAR(32) NOT NULL DEFAULT 'html',
+                template_content LONGTEXT NOT NULL,
+                data_contract_version VARCHAR(64) NOT NULL DEFAULT 'medical-document.v1',
+                status ENUM('draft', 'published', 'archived') NOT NULL DEFAULT 'draft',
+                created_by INT NULL,
+                published_by INT NULL,
+                published_at DATETIME NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE INDEX uq_report_template_version (template_id, version_no),
+                INDEX idx_report_template_versions_status (template_id, status),
+                CONSTRAINT fk_report_template_versions_template FOREIGN KEY (template_id) REFERENCES report_templates(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_report_template_versions_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_report_template_versions_published_by FOREIGN KEY (published_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            seedDefaultReportTemplateVersion,
+            seedDefaultReportTemplateVersion,
+        },
+        {
+            "medical_documents",
+            R"SQL(CREATE TABLE medical_documents (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                document_no VARCHAR(48) NOT NULL,
+                order_id INT NOT NULL,
+                owner_id INT NOT NULL,
+                pet_id INT NOT NULL,
+                doctor_id INT NOT NULL,
+                status ENUM('draft', 'finalized', 'amended', 'voided') NOT NULL DEFAULT 'draft',
+                chief_complaint TEXT NOT NULL,
+                present_illness TEXT NOT NULL,
+                past_history TEXT NOT NULL,
+                allergies TEXT NOT NULL,
+                physical_exam TEXT NOT NULL,
+                diagnosis TEXT NOT NULL,
+                treatment_plan TEXT NOT NULL,
+                discharge_advice TEXT NOT NULL,
+                follow_up_at DATETIME NULL,
+                structured_data JSON NULL,
+                revision_no INT NOT NULL DEFAULT 0,
+                lock_version INT NOT NULL DEFAULT 0,
+                template_version_id INT NULL,
+                finalized_by INT NULL,
+                finalized_at DATETIME NULL,
+                voided_by INT NULL,
+                voided_at DATETIME NULL,
+                void_reason VARCHAR(500) NOT NULL DEFAULT '',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE INDEX uq_medical_documents_no (document_no),
+                UNIQUE INDEX uq_medical_documents_order (order_id),
+                INDEX idx_medical_documents_doctor_status_time (doctor_id, status, created_at),
+                INDEX idx_medical_documents_owner_time (owner_id, created_at),
+                INDEX idx_medical_documents_pet_time (pet_id, created_at),
+                CONSTRAINT fk_medical_documents_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_medical_documents_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_medical_documents_pet FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_medical_documents_doctor FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_medical_documents_template_version FOREIGN KEY (template_version_id) REFERENCES report_template_versions(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_medical_documents_finalized_by FOREIGN KEY (finalized_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_medical_documents_voided_by FOREIGN KEY (voided_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "medical_prescription_items",
+            R"SQL(CREATE TABLE medical_prescription_items (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                medical_document_id BIGINT NOT NULL,
+                medicine_id INT NULL,
+                medicine_name VARCHAR(255) NOT NULL,
+                specification VARCHAR(255) NOT NULL DEFAULT '',
+                unit VARCHAR(32) NOT NULL DEFAULT '',
+                dosage VARCHAR(128) NOT NULL DEFAULT '',
+                frequency VARCHAR(128) NOT NULL DEFAULT '',
+                route VARCHAR(128) NOT NULL DEFAULT '',
+                duration_days INT NOT NULL DEFAULT 0,
+                quantity INT NOT NULL DEFAULT 0,
+                instructions VARCHAR(500) NOT NULL DEFAULT '',
+                unit_price DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                total_price DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                sort_order INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_medical_prescription_document (medical_document_id, sort_order),
+                INDEX idx_medical_prescription_medicine (medicine_id),
+                CONSTRAINT fk_medical_prescription_document FOREIGN KEY (medical_document_id) REFERENCES medical_documents(id) ON DELETE CASCADE,
+                CONSTRAINT fk_medical_prescription_medicine FOREIGN KEY (medicine_id) REFERENCES warehouse(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "medical_document_versions",
+            R"SQL(CREATE TABLE medical_document_versions (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                medical_document_id BIGINT NOT NULL,
+                revision_no INT NOT NULL,
+                snapshot_json JSON NOT NULL,
+                change_reason VARCHAR(500) NOT NULL DEFAULT '',
+                content_hash CHAR(64) NOT NULL,
+                created_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE INDEX uq_medical_document_revision (medical_document_id, revision_no),
+                INDEX idx_medical_document_versions_hash (content_hash),
+                CONSTRAINT fk_medical_document_versions_document FOREIGN KEY (medical_document_id) REFERENCES medical_documents(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_medical_document_versions_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "report_artifacts",
+            R"SQL(CREATE TABLE report_artifacts (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                medical_document_version_id BIGINT NOT NULL,
+                template_version_id INT NOT NULL,
+                format VARCHAR(16) NOT NULL DEFAULT 'pdf',
+                storage_key VARCHAR(500) NOT NULL,
+                sha256 CHAR(64) NOT NULL,
+                payload_hash CHAR(64) NOT NULL,
+                byte_size BIGINT NOT NULL DEFAULT 0,
+                page_count INT NULL,
+                generated_by INT NULL,
+                generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE INDEX uq_report_artifact_version_template_format (medical_document_version_id, template_version_id, format),
+                INDEX idx_report_artifacts_sha256 (sha256),
+                CONSTRAINT fk_report_artifacts_document_version FOREIGN KEY (medical_document_version_id) REFERENCES medical_document_versions(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_report_artifacts_template_version FOREIGN KEY (template_version_id) REFERENCES report_template_versions(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_report_artifacts_generated_by FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
         },
         {
             "workTimeLogs",

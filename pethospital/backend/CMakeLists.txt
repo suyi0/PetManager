@@ -447,6 +447,31 @@ if(BUILD_TESTING)
     )
     add_test(NAME permission_model_tests COMMAND permission_model_tests)
 
+    add_executable(attendance_core_tests
+        tests/attendance_core_tests.cpp
+        services/attendance/AttendanceTypes.cpp
+        services/attendance/AttendanceSecurity.cpp
+        services/attendance/AttendanceService.cpp
+        services/rbac/RbacService.cpp
+        services/redis/userRoleCache/UserRoleCache.cpp
+        services/redis/RedisClient.cpp
+        utils/permissions/Permissions.cpp
+    )
+    target_compile_definitions(attendance_core_tests PRIVATE
+        ATTENDANCE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/attendanceRoutes/attendanceRoutes.cpp"
+        ATTENDANCE_SERVICE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/attendance/AttendanceService.cpp"
+        DOCTOR_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/doctor/doctorHandler.cpp"
+        COLUMN_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/migrations/columns/ColumnMigrations.cpp"
+    )
+    target_link_libraries(attendance_core_tests
+        ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}
+        ${MYSQLX_LIBRARIES}
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(attendance_core_tests ${HIREDIS_LIBRARIES})
+    endif()
+    add_test(NAME attendance_core_tests COMMAND attendance_core_tests)
+
     add_executable(data_scope_tests
         tests/data_scope_tests.cpp
         utils/dataScope/DataScope.cpp

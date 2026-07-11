@@ -12,6 +12,62 @@ export interface WorkTimeRecord {
   updated_at: string;
 }
 
+export type AttendanceStatus =
+  | "normal"
+  | "late"
+  | "early_leave"
+  | "late_and_early"
+  | "missing_out"
+  | "absent";
+
+export interface AttendanceRecord {
+  user_id: number;
+  name: string;
+  department_name: string;
+  work_date: string;
+  check_in_at: string;
+  check_out_at: string;
+  status: AttendanceStatus;
+  is_corrected: boolean;
+  correction_note: string;
+}
+
+export interface AttendanceRecordQuery {
+  month?: string;
+  start_date?: string;
+  end_date?: string;
+  user_id?: number;
+  status?: AttendanceStatus | "";
+}
+
+export interface AttendanceRecordResult {
+  items: AttendanceRecord[];
+  total: number;
+}
+
+export interface AttendanceDevice {
+  id: number;
+  name: string;
+  device_key: string;
+  vendor: string;
+  location: string;
+  branch_id: number | null;
+  is_active: boolean;
+  last_seen_at: string;
+  created_at: string;
+}
+
+export interface AttendanceDeviceCreateResult {
+  id: number;
+  device_key: string;
+  secret: string;
+}
+
+export interface AttendanceSecretResult {
+  device_id: number;
+  secret: string;
+}
+
 export interface UserRow {
   id: number;
   type_id: number | null;

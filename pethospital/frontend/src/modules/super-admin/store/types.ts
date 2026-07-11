@@ -4,6 +4,8 @@ import {
   UserLogs,
   UserRow,
   WorkTimeRecord,
+  AttendanceDevice,
+  AttendanceRecord,
 } from "../api/types";
 import { CacheMeta } from "@/app/store/types";
 
@@ -22,10 +24,15 @@ export interface LogsPayload {
 export interface SuperAdminState {
   users: UserRow[];
   workTimeRecords: WorkTimeRecord[];
+  attendanceRecords: AttendanceRecord[];
+  attendanceRecordTotal: number;
+  attendanceDevices: AttendanceDevice[];
   logs: LogsPayload;
   homePageData: HomePageSummary;
   usersMeta: CacheMeta;
   workTimeRecordsMeta: CacheMeta;
+  attendanceRecordsMeta: CacheMeta;
+  attendanceDevicesMeta: CacheMeta;
   logsMeta: CacheMeta;
   homePageDataMeta: CacheMeta;
 }

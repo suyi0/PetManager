@@ -31,10 +31,15 @@ const createHomePageSummary = (): HomePageSummary => ({
 export const createSuperAdminState = (): SuperAdminState => ({
   users: [],
   workTimeRecords: [],
+  attendanceRecords: [],
+  attendanceRecordTotal: 0,
+  attendanceDevices: [],
   logs: createLogsPayload(),
   homePageData: createHomePageSummary(),
   usersMeta: createCacheMeta(),
   workTimeRecordsMeta: createCacheMeta(),
+  attendanceRecordsMeta: createCacheMeta(),
+  attendanceDevicesMeta: createCacheMeta(),
   logsMeta: createCacheMeta(),
   homePageDataMeta: createCacheMeta(),
 });

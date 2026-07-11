@@ -75,6 +75,8 @@ int main()
     assertContains(migrations, "'salary:read'");
     assertContains(migrations, "'medical-record:write'");
     assertContains(migrations, "'stock:write'");
+    assertContains(migrations, "'attendance:read'");
+    assertContains(migrations, "'attendance:manage'");
     assertNotContains(migrations, "('super-admin', 'rbac:manage')");
 
     assertContains(migrations, "\"permission_templates\"");
@@ -94,6 +96,8 @@ int main()
     assertContains(migrations, "\"users\"");
     assertContains(migrations, "account_type ENUM('customer','staff') NOT NULL DEFAULT 'customer'");
     assertContains(migrations, "position_id INT NULL");
+    assertContains(migrations, "attendance_no VARCHAR(32) NULL");
+    assertContains(migrations, "UNIQUE KEY uq_users_attendance_no (attendance_no)");
     assertContains(migrations, "CONSTRAINT fk_users_position FOREIGN KEY (position_id) REFERENCES positions(id)");
     assertContains(migrations, "CONSTRAINT chk_account_position CHECK");
     assertContains(migrations, "account_type = 'customer' AND position_id IS NULL");
@@ -107,6 +111,15 @@ int main()
 
     assertContains(migrations, "operator_department_id INT NULL");
     assertContains(migrations, "CONSTRAINT fk_user_operations_operator_department");
+    assertContains(migrations, "last_attendance_event_at DATETIME NULL");
+
+    assertContains(migrations, "\"attendance_devices\"");
+    assertContains(migrations, "\"attendance_punches\"");
+    assertContains(migrations, "\"attendance_records\"");
+    assertContains(migrations, "\"attendance_device_nonces\"");
+    assertContains(migrations, "UNIQUE KEY uq_attendance_punch_event (device_id, event_id)");
+    assertContains(migrations, "UNIQUE KEY uq_attendance_records_user_date (user_id, work_date)");
+    assertContains(migrations, "PRIMARY KEY (device_id, nonce)");
 
     return 0;
 }

@@ -23,6 +23,7 @@
 #include "../adminRoutes/adminRoutes.h"
 #include "../personnelRoutes/personnelRoutes.h"
 #include "../bossRoutes/bossRoutes.h"
+#include "../attendanceRoutes/attendanceRoutes.h"
 
 class WebSocketServer
 {

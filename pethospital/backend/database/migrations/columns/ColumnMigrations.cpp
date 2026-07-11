@@ -17,6 +17,35 @@ bool shouldAutoMigrateLegacyColumns()
 void migrateUsers(DatabaseManagerInterface &database_manager)
 {
     Common::addIndexIfNotExists(database_manager, "users", "idx_users_name", "name");
+
+    // 考勤模块：旧库补 attendance_no 列 + 唯一键（新库建表已含，全部幂等）。
+    Common::addColumnIfNotExists(database_manager, "users", "attendance_no", "VARCHAR(32) NULL");
+    if (!Common::indexExists(database_manager, "users", "uq_users_attendance_no"))
+    {
+        try
+        {
+            database_manager.getSession()
+                ->sql("ALTER TABLE users ADD UNIQUE KEY uq_users_attendance_no (attendance_no)")
+                .execute();
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "users.uq_users_attendance_no add failed: " << e.what() << std::endl;
+        }
+    }
+    // 设计 §3：设备协议只认 attendance_no，v1 用 users.id 字符串初始化存量员工，
+    // 否则设备打卡匹配不到人、closeDay 全员跳过。
+    try
+    {
+        database_manager.getSession()
+            ->sql("UPDATE users SET attendance_no = CAST(id AS CHAR) "
+                  "WHERE account_type = 'staff' AND (attendance_no IS NULL OR attendance_no = '')")
+            .execute();
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "users.attendance_no backfill failed: " << e.what() << std::endl;
+    }
 }
 
 void migratePhones(DatabaseManagerInterface &database_manager)

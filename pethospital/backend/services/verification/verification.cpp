@@ -337,7 +337,7 @@ void Verify::StoreCode(const std::string &email, const std::string &code)
     code_storage[email] = info;
 }
 
-// 验证验证码
+// 验证用户输入的验证码是否与系统中的验证码匹配，并检查是否过期
 bool Verify::ValidateCode(const std::string &email, const std::string &input_code)
 {
     // 先查 Redis；命中即在此完成校验与一次性消费。

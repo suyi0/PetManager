@@ -7,6 +7,9 @@ import {
   DoctorUserProfile,
   DoctorUserSummary,
   MedicineSearchItem,
+  MedicalDocument,
+  MedicalDocumentDraftFields,
+  MedicalPrescriptionItem,
   OrderDetailItem,
   QueueItem,
   OrderSummaryItem,
@@ -500,6 +503,48 @@ export const doctorApi = {
       `/api/doctors/orders/${orderId}/information`
     );
     return unwrapOrderDetail(data);
+  },
+
+  async getMedicalDocument(orderId: number): Promise<MedicalDocument | null> {
+    const { data } = await http.get(
+      `/api/doctors/orders/${orderId}/medical-document`
+    );
+    return unwrapData<MedicalDocument>(data);
+  },
+
+  async updateMedicalDocument(
+    orderId: number,
+    payload: MedicalDocumentDraftFields & {
+      lockVersion: number;
+      prescriptionItems: MedicalPrescriptionItem[];
+    }
+  ): Promise<MedicalDocument> {
+    const { data } = await http.put(
+      `/api/doctors/orders/${orderId}/medical-document`,
+      payload
+    );
+    const document = unwrapData<MedicalDocument>(data);
+    if (!document) throw new Error("保存诊疗单接口未返回文书");
+    return document;
+  },
+
+  async previewMedicalDocument(orderId: number): Promise<string> {
+    const { data } = await http.post(
+      `/api/doctors/orders/${orderId}/medical-document/preview`
+    );
+    return unwrapData<{ html: string }>(data)?.html ?? "";
+  },
+
+  async finalizeMedicalDocument(orderId: number): Promise<void> {
+    await http.post(`/api/doctors/orders/${orderId}/medical-document/finalize`);
+  },
+
+  async getMedicalDocumentPdf(orderId: number): Promise<Blob> {
+    const { data } = await http.get(
+      `/api/doctors/orders/${orderId}/medical-document/pdf`,
+      { responseType: "blob" }
+    );
+    return data as Blob;
   },
 
   /**

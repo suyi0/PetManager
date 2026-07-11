@@ -6,6 +6,7 @@ namespace VerificationCodeRedisStore
 {
     namespace
     {
+        // 验证码存储的key
         std::string codeKey(const std::string &identifier)
         {
             return "verify:code:" + identifier;
@@ -19,7 +20,7 @@ namespace VerificationCodeRedisStore
         {
             return false;
         }
-        return redis.setEx(codeKey(identifier), ttlSeconds, code);
+        return redis.setEx(codeKey(identifier), ttlSeconds, code);  // 存储验证码
     }
 
     std::optional<std::string> get(const std::string &identifier)

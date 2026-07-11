@@ -1,4 +1,5 @@
 #include "scheduledTaskManager.h"
+#include "../../services/attendance/AttendanceService.h"
 #include "../../services/redis/RedisClient.h"
 #include "../../services/redis/redisLock/RedisLock.h"
 #include <iostream>
@@ -85,6 +86,10 @@ void ScheduledTaskManager::initialize(std::shared_ptr<DatabaseManagerInterface> 
     // 添加每日24时执行更新员工工资记录任务
     addTask("Automatic_update_salaryRecord", [this]()
             { this->Automatic_update_salaryRecord(); }, std::chrono::hours(24), midnight);
+
+    // 添加每日零点考勤日结任务（补昨日 absent；忘了手动日结也不丢数据）
+    addTask("Attendance_closeDay", [this]()
+            { this->Automatic_attendanceCloseDay(); }, std::chrono::hours(24), midnight);
 }
 
 void ScheduledTaskManager::start()
@@ -608,5 +613,29 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
     catch (const std::exception &e)
     {
         std::cerr << "员工工资记录更新失败: " << e.what() << std::endl;
+    }
+}
+
+void ScheduledTaskManager::Automatic_attendanceCloseDay()
+{
+    if (!canUseDatabase(dbManager))
+        return;
+
+    try
+    {
+        // 零点跑，结昨日：closeDay 内部只对 attendance_workdays 配置为工作日的日期补
+        // absent，未配置/节假日直接返回 0；INSERT IGNORE 幂等，手动日结与定时任务互不冲突。
+        const boost::gregorian::date yesterday =
+            boost::posix_time::second_clock::local_time().date() - boost::gregorian::days(1);
+        const std::string workDate = boost::gregorian::to_iso_extended_string(yesterday);
+        const int inserted = AttendanceService::closeDay(dbManager, workDate);
+        if (inserted > 0)
+        {
+            std::cout << "[定时任务] 考勤日结 " << workDate << " 补缺勤 " << inserted << " 条" << std::endl;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "考勤日结失败: " << e.what() << std::endl;
     }
 }

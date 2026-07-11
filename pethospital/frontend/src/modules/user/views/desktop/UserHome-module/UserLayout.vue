@@ -84,6 +84,12 @@ const navItems = computed(() => [
     label: "我的订单",
     to: `${basePath.value}/order`,
   },
+  {
+    key: "attendance",
+    icon: "⏱",
+    label: "我的考勤",
+    to: `${basePath.value}/attendance`,
+  },
 ]);
 
 const isActive = (item: { key: string; to: string }) =>

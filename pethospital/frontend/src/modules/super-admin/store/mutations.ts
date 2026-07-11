@@ -1,7 +1,13 @@
 import { MutationTree } from "vuex";
 import { createSuperAdminState } from "./state";
 import { LogsPayload, SuperAdminState } from "./types";
-import { HomePageSummary, UserRow, WorkTimeRecord } from "../api/types";
+import {
+  AttendanceDevice,
+  AttendanceRecord,
+  HomePageSummary,
+  UserRow,
+  WorkTimeRecord,
+} from "../api/types";
 
 /**
  * 成功拉取数据后统一更新元信息。
@@ -64,6 +70,36 @@ export const superAdminMutations: MutationTree<SuperAdminState> = {
    */
   markWorkTimeRecordsDirty(state) {
     applyDirtyMeta(state.workTimeRecordsMeta);
+  },
+
+  setAttendanceRecordsLoading(state, loading: boolean) {
+    state.attendanceRecordsMeta.loading = loading;
+  },
+
+  setAttendanceRecords(
+    state,
+    payload: { items: AttendanceRecord[]; total: number }
+  ) {
+    state.attendanceRecords = payload.items;
+    state.attendanceRecordTotal = payload.total;
+    applyLoadedMeta(state.attendanceRecordsMeta);
+  },
+
+  markAttendanceRecordsDirty(state) {
+    applyDirtyMeta(state.attendanceRecordsMeta);
+  },
+
+  setAttendanceDevicesLoading(state, loading: boolean) {
+    state.attendanceDevicesMeta.loading = loading;
+  },
+
+  setAttendanceDevices(state, devices: AttendanceDevice[]) {
+    state.attendanceDevices = devices;
+    applyLoadedMeta(state.attendanceDevicesMeta);
+  },
+
+  markAttendanceDevicesDirty(state) {
+    applyDirtyMeta(state.attendanceDevicesMeta);
   },
 
   /**

@@ -32,6 +32,8 @@ void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow:
 }
 
 // 固定时间字符串比较，适合验证码、签名、Token 摘要等敏感值比较。
+// left - 接收用户输入值
+// right - 接收服务器端存储的值
 bool constantTimeEquals(const std::string &left, const std::string &right)
 {
     if (left.size() != right.size())
