@@ -324,7 +324,7 @@ export default defineComponent({
 }
 
 .link-back:hover {
-  color: #4f46e5;
+  color: #2f7dd0;
 }
 
 .link-back svg {
@@ -370,8 +370,8 @@ export default defineComponent({
 }
 
 .avatar--boss {
-  background: #eef2ff;
-  color: #4f46e5;
+  background: #e2eefb;
+  color: #2f7dd0;
 }
 
 .avatar--doctor {
@@ -422,8 +422,8 @@ export default defineComponent({
 }
 
 .pill--boss {
-  background: #eef2ff;
-  color: #4338ca;
+  background: #e2eefb;
+  color: #245fa5;
 }
 
 .pill--doctor {
@@ -474,7 +474,7 @@ export default defineComponent({
   gap: 4px;
   padding: 12px 18px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  background: linear-gradient(135deg, #2f7dd0, #4f97e0);
   color: #fff;
   min-width: 180px;
   text-align: right;
@@ -611,7 +611,7 @@ export default defineComponent({
 
 .seg__btn--active {
   background: #fff;
-  color: #4f46e5;
+  color: #2f7dd0;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
 }
 
@@ -662,7 +662,7 @@ export default defineComponent({
   padding: 0 18px;
   border: 0;
   border-radius: 9px;
-  background: #4f46e5;
+  background: #2f7dd0;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -670,7 +670,7 @@ export default defineComponent({
 }
 
 .btn-primary:hover {
-  background: #4338ca;
+  background: #245fa5;
 }
 
 /* 空态 */

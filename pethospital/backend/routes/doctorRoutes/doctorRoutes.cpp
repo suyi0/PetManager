@@ -570,6 +570,106 @@ void DoctorRoutes::setupDoctorRoutes(CrowApp &app, std::shared_ptr<DatabaseManag
             OperationLogger::FinishSensitiveRoute(dbManager, req, res, "医生", "打印诊疗单", Permissions::kMedicalRecordPrint, userId > 0 ? std::optional<int>(userId) : std::nullopt);
         });
 
+    CROW_ROUTE(app, "/api/doctors/orders/<int>/medical-document/amendments")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId)
+        {
+            int userId = -1;
+            try
+            {
+                userId = isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordAmend);
+                if (res.code != 200 || userId <= 0 || !JwtUtils::isUserAuthorizedForOrder(userId, orderId, dbManager))
+                {
+                    if (res.code == 200) res = ResponseHelper::notFound(req, "Medical document not found");
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "修订诊疗单");
+                    return;
+                }
+                MedicalDocumentHandler handler(dbManager);
+                auto response = handler.amend(req, orderId, userId);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception &error)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", "修订诊疗单", error.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req);
+            }
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "医生", "修订诊疗单", Permissions::kMedicalRecordAmend, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        });
+
+    CROW_ROUTE(app, "/api/doctors/orders/<int>/medical-document/versions")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId)
+        {
+            int userId = -1;
+            try
+            {
+                userId = isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordRead);
+                if (res.code != 200 || userId <= 0 || !JwtUtils::isUserAuthorizedForOrder(userId, orderId, dbManager))
+                {
+                    if (res.code == 200) res = ResponseHelper::notFound(req, "Medical document not found");
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "查看诊疗单历史版本");
+                    return;
+                }
+                MedicalDocumentHandler handler(dbManager);
+                auto response = handler.listVersions(req, orderId);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception &error)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", "查看诊疗单历史版本", error.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req);
+            }
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "医生", "查看诊疗单历史版本", Permissions::kMedicalRecordRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        });
+
+    CROW_ROUTE(app, "/api/doctors/orders/<int>/medical-document/versions/<int>/pdf")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId, int revisionNo)
+        {
+            int userId = -1;
+            try
+            {
+                userId = isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordPrint);
+                if (res.code != 200 || userId <= 0 || !JwtUtils::isUserAuthorizedForOrder(userId, orderId, dbManager))
+                {
+                    if (res.code == 200) res = ResponseHelper::notFound(req, "Medical document not found");
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "打印诊疗单历史版本");
+                    return;
+                }
+                MedicalDocumentHandler handler(dbManager);
+                auto response = handler.downloadVersionPdf(req, orderId, revisionNo);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception &error)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", "打印诊疗单历史版本", error.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req);
+            }
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "医生", "打印诊疗单历史版本", Permissions::kMedicalRecordPrint, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        });
+
+    CROW_ROUTE(app, "/api/doctors/orders/<int>/medical-document/void")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int orderId)
+        {
+            int userId = -1;
+            try
+            {
+                userId = isValidPermissionToken(req, res, dbManager, Permissions::kMedicalRecordVoid);
+                if (res.code != 200 || userId <= 0 || !JwtUtils::isUserAuthorizedForOrder(userId, orderId, dbManager))
+                {
+                    if (res.code == 200) res = ResponseHelper::notFound(req, "Medical document not found");
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "医生", "作废诊疗单");
+                    return;
+                }
+                MedicalDocumentHandler handler(dbManager);
+                auto response = handler.voidDocument(req, orderId, userId);
+                ProcessHandlerResponse(req, res, response);
+            }
+            catch (const std::exception &error)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "医生", "作废诊疗单", error.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req);
+            }
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "医生", "作废诊疗单", Permissions::kMedicalRecordVoid, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+        });
+
     // 医生端管理指定用户的宠物档案路由
     CROW_ROUTE(app, "/api/doctors/user-profiles/<int>/pet-profiles")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int targetUserId)

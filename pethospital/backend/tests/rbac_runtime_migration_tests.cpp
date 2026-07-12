@@ -168,6 +168,14 @@ int main()
         assertNotContains(*source, "u.type_id");
     }
 
+    // Password changes must prove knowledge of the current password before writing a new hash.
+    assertContains(userHandler, "getRequestString(request_body, \"currentPassword\"");
+    assertContains(userHandler, "getRequestString(request_body, \"newPassword\"");
+    assertContains(userHandler, "verify_password_hash(currentPassword, storedPassword)");
+    assertContains(userHandler, "if (!currentPasswordMatches)");
+    assertContains(userHandler, "AuthSessionStore::bumpSessionVersionForUser(userId)");
+    assertNotContains(userHandler, "getRequestStringWithFallback(request_body, \"password\", \"newPassword\"");
+
     assertNotContains(financeHandler, "s.update_at");
     assertContains(financeHandler, "s.updated_at");
     assertContains(financeHandler, "buildHomeData(const crow::request &req)");

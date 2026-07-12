@@ -153,6 +153,14 @@ export const authApi = {
     return http.post("/api/users/sessions", requestData);
   },
 
+  changePassword(payload: { currentPassword: string; newPassword: string }) {
+    // 后端改密成功会返回一枚续签 token（当前设备无缝保持登录，其他端旧 token 仍失效）。
+    return http.patch<ApiResponse<{ token?: string }>>(
+      "/api/users/me/password",
+      payload
+    );
+  },
+
   /**
    * 登出：通知后端做服务端吊销（管理端会 bump session-version 让旧 token 立即失效）。
    * 携带当前 Bearer token，后端据此识别用户。
@@ -161,7 +169,9 @@ export const authApi = {
     return http.post("/api/auth/logout");
   },
 
-  getCurrentUserAccess(): Promise<AxiosResponse<ApiResponse<CurrentUserAccess>>> {
+  getCurrentUserAccess(): Promise<
+    AxiosResponse<ApiResponse<CurrentUserAccess>>
+  > {
     return http.get("/api/auth/me");
   },
 

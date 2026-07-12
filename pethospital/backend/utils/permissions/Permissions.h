@@ -6,6 +6,18 @@
 // 定义权限键值
 namespace Permissions
 {
+// 权限域模型（authoritative）：每个已知权限键唯一归属 general、medical、finance、
+// personnel、warehouse、management 之一；职位与个人授权都必须受目标职位允许域约束。
+enum class PermissionDomain
+{
+    General,
+    Medical,
+    Finance,
+    Personnel,
+    Warehouse,
+    Management,
+};
+
 inline constexpr const char *kPortalBoss = "portal:boss";
 inline constexpr const char *kPortalFinance = "portal:finance";
 inline constexpr const char *kPortalSuperAdmin = "portal:super-admin";
@@ -21,6 +33,8 @@ inline constexpr const char *kMedicalRecordRead = "medical-record:read";
 inline constexpr const char *kMedicalRecordWrite = "medical-record:write";
 inline constexpr const char *kMedicalRecordFinalize = "medical-record:finalize";
 inline constexpr const char *kMedicalRecordPrint = "medical-record:print";
+inline constexpr const char *kMedicalRecordAmend = "medical-record:amend";
+inline constexpr const char *kMedicalRecordVoid = "medical-record:void";
 inline constexpr const char *kReportTemplateRead = "report-template:read";
 inline constexpr const char *kReportTemplateManage = "report-template:manage";
 inline constexpr const char *kReportTemplatePublish = "report-template:publish";
@@ -39,6 +53,9 @@ inline constexpr const char *kRbacManage = "rbac:manage";
 
 std::vector<std::string> allPermissionKeys();
 std::vector<std::string> grantablePermissionKeys();
+PermissionDomain domainOfPermission(const std::string &permissionKey);
+std::string domainKey(PermissionDomain domain);
+std::string domainChineseName(PermissionDomain domain);
 
 // 检测权限键是否已知（在 kAllPermissionKeys 中），用于判定前端传入的权限键是否合法。
 bool isKnownPermissionKey(const std::string &permissionKey);

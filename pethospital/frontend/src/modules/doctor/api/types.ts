@@ -139,6 +139,18 @@ export interface MedicalDocument extends MedicalDocumentDraftFields {
   prescriptionItems: MedicalPrescriptionItem[];
 }
 
+export interface MedicalDocumentVersion {
+  id: number;
+  revisionNo: number;
+  changeReason: string;
+  contentHash: string;
+  createdAt: string;
+  hasPdf: boolean;
+  pdfSha256: string;
+  pdfByteSize: number;
+  snapshot: Record<string, unknown>;
+}
+
 /**
  * 药品搜索结果项数据类型定义
  */

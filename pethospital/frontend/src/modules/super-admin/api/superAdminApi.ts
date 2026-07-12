@@ -23,9 +23,76 @@ import {
   AttendanceRecordQuery,
   AttendanceRecordResult,
   AttendanceSecretResult,
+  PositionPermissionsPayload,
+  UserRbacPermissions,
 } from "./types";
 
 export const superAdminApi = {
+  async getMedicalDocumentDataContract(): Promise<{
+    version: string;
+    fields: Array<Record<string, unknown>>;
+  }> {
+    const { data } = await http.get(
+      "/api/admin/report-templates/data-contracts/medical-document"
+    );
+    return (data?.data ?? data) as {
+      version: string;
+      fields: Array<Record<string, unknown>>;
+    };
+  },
+
+  async getReportTemplates(): Promise<Array<Record<string, unknown>>> {
+    const { data } = await http.get("/api/admin/report-templates");
+    return unwrapList<Record<string, unknown>>(data);
+  },
+
+  async getReportTemplateVersions(
+    templateId: number
+  ): Promise<Array<Record<string, unknown>>> {
+    const { data } = await http.get(
+      `/api/admin/report-templates/${templateId}/versions`
+    );
+    return unwrapList<Record<string, unknown>>(data);
+  },
+
+  async getReportTemplateVersion(
+    templateId: number,
+    versionId: number
+  ): Promise<Record<string, unknown>> {
+    const { data } = await http.get(
+      `/api/admin/report-templates/${templateId}/versions/${versionId}`
+    );
+    return (data?.data ?? data) as Record<string, unknown>;
+  },
+
+  async previewReportTemplate(
+    templateId: number,
+    templateContent: string
+  ): Promise<string> {
+    const { data } = await http.post(
+      `/api/admin/report-templates/${templateId}/previews`,
+      { templateContent }
+    );
+    return String((data?.data ?? data)?.html ?? "");
+  },
+
+  async createReportTemplateVersion(
+    templateId: number,
+    templateContent: string
+  ): Promise<void> {
+    await http.post(`/api/admin/report-templates/${templateId}/versions`, {
+      templateContent,
+    });
+  },
+
+  async publishReportTemplateVersion(
+    templateId: number,
+    versionId: number
+  ): Promise<void> {
+    await http.post(`/api/admin/report-templates/${templateId}/publish`, {
+      versionId,
+    });
+  },
   /**
    * 刷新管理员会话
    * @returns 新的访问令牌字符串，或者在请求失败或原令牌无效时抛出错误。
@@ -263,20 +330,32 @@ export const superAdminApi = {
 
   async getRbacDepartments(): Promise<RbacDepartment[]> {
     const { data } = await http.get("/api/admin/org/departments");
-    return unwrapList<RbacDepartment>(data?.data?.departments ?? data?.departments ?? data);
+    return unwrapList<RbacDepartment>(
+      data?.data?.departments ?? data?.departments ?? data
+    );
   },
 
   async createRbacDepartment(payload: {
     name: string;
     branch_id?: number;
     description?: string;
+    business_domain?: string;
   }): Promise<void> {
     await http.post("/api/admin/org/departments", payload);
   },
 
+  async updateRbacDepartment(
+    departmentId: number,
+    payload: { name?: string; business_domain?: string }
+  ): Promise<void> {
+    await http.put(`/api/admin/org/departments/${departmentId}`, payload);
+  },
+
   async getRbacPositions(): Promise<RbacPosition[]> {
     const { data } = await http.get("/api/admin/org/positions");
-    return unwrapList<RbacPosition>(data?.data?.positions ?? data?.positions ?? data);
+    return unwrapList<RbacPosition>(
+      data?.data?.positions ?? data?.positions ?? data
+    );
   },
 
   async createRbacPosition(payload: {
@@ -290,14 +369,20 @@ export const superAdminApi = {
 
   async getPermissionCatalog(): Promise<string[]> {
     const { data } = await http.get("/api/admin/rbac/permissions/catalog");
-    return unwrapList<string>(data?.data?.permissions ?? data?.permissions ?? data);
+    return unwrapList<string>(
+      data?.data?.permissions ?? data?.permissions ?? data
+    );
   },
 
-  async getPositionPermissions(positionId: number): Promise<string[]> {
+  async getPositionPermissions(positionId: number): Promise<PositionPermissionsPayload> {
     const { data } = await http.get(
       `/api/admin/rbac/positions/${positionId}/permissions`
     );
-    return unwrapList<string>(data?.data?.permissions ?? data?.permissions ?? data);
+    const payload = data?.data ?? data;
+    return {
+      permissions: unwrapList<string>(payload?.permissions ?? payload),
+      grantableKeys: unwrapList<string>(payload?.grantableKeys),
+    };
   },
 
   async updatePositionPermissions(
@@ -307,6 +392,27 @@ export const superAdminApi = {
     await http.put(`/api/admin/rbac/positions/${positionId}/permissions`, {
       permissions,
     });
+  },
+
+  async resetPositionDefaults(positionId: number): Promise<void> {
+    await http.post(`/api/admin/rbac/positions/${positionId}/reset-defaults`);
+  },
+
+  async getUserRbacPermissions(userId: number): Promise<UserRbacPermissions> {
+    const { data } = await http.get(`/api/admin/rbac/users/${userId}/permissions`);
+    const payload = data?.data ?? data;
+    return {
+      positionId: Number(payload?.positionId ?? 0),
+      positionName: String(payload?.positionName ?? ""),
+      departmentName: String(payload?.departmentName ?? ""),
+      positionPermissions: unwrapList<string>(payload?.positionPermissions),
+      personalPermissions: unwrapList<string>(payload?.personalPermissions),
+      grantableKeys: unwrapList<string>(payload?.grantableKeys),
+    };
+  },
+
+  async updateUserRbacPermissions(userId: number, permissions: string[]): Promise<void> {
+    await http.put(`/api/admin/rbac/users/${userId}/permissions`, { permissions });
   },
 
   async applyPermissionTemplate(

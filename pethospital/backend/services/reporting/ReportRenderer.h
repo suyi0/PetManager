@@ -33,6 +33,7 @@ public:
 };
 
 std::string renderTemplate(const std::string &source, const std::string &payloadJson);
+std::string hardenReportHtml(const std::string &html);
 std::string reportStorageRoot();
 std::string sha256File(const std::string &path);
 }

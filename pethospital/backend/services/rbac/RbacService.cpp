@@ -22,6 +22,15 @@ namespace RbacService
         {
             return systemKey == "super-admin";
         }
+
+        std::optional<Permissions::PermissionDomain> businessDomainForStaffKind(const std::string &staffKind)
+        {
+            if (staffKind == "doctor" || staffKind == "nurse") return Permissions::PermissionDomain::Medical;
+            if (staffKind == "finance") return Permissions::PermissionDomain::Finance;
+            if (staffKind == "personnel") return Permissions::PermissionDomain::Personnel;
+            if (staffKind == "warehouse") return Permissions::PermissionDomain::Warehouse;
+            return std::nullopt;
+        }
     }
 
     std::vector<std::string> loadPermissionsForPosition(
@@ -112,6 +121,17 @@ namespace RbacService
             access->staffKind = row[4].get<std::string>();
             access->systemKey = row[5].get<std::string>();
             access->permissions = loadPermissionsForPosition(dbManager, access->positionId);
+            mysqlx::SqlResult personal = dbManager->getSession()->sql(
+                "SELECT permission_key FROM user_permissions WHERE user_id = ?").bind(userId).execute();
+            for (mysqlx::Row permissionRow = personal.fetchOne(); permissionRow; permissionRow = personal.fetchOne())
+            {
+                if (!permissionRow[0].isNull())
+                {
+                    const std::string key = permissionRow[0].get<std::string>();
+                    if (Permissions::isKnownPermissionKey(key) && !containsPermission(access->permissions, key))
+                        access->permissions.push_back(key);
+                }
+            }
             return access;
         }
         catch (const std::exception &e)
@@ -291,5 +311,40 @@ namespace RbacService
     bool isGrantablePermissionKey(const std::string &permissionKey)
     {
         return Permissions::isGrantablePermissionKey(permissionKey);
+    }
+
+    std::set<Permissions::PermissionDomain> allowedDomainsForPosition(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId)
+    {
+        using Domain = Permissions::PermissionDomain;
+        const std::set<Domain> generalOnly{Domain::General};
+        if (!dbManager || !dbManager->getSession() || positionId <= 0) return generalOnly;
+        try
+        {
+            mysqlx::Row row = dbManager->getSession()->sql(
+                "SELECT COALESCE(system_key, ''), staff_kind, department_id FROM positions WHERE id = ? LIMIT 1")
+                .bind(positionId).execute().fetchOne();
+            if (!row) return generalOnly;
+            const std::string systemKey = row[0].get<std::string>();
+            const std::string staffKind = row[1].get<std::string>();
+            if (systemKey == "president" || systemKey == "vice-president" || systemKey == "super-admin")
+                return {Domain::General, Domain::Medical, Domain::Finance, Domain::Personnel, Domain::Warehouse, Domain::Management};
+            if (auto domain = businessDomainForStaffKind(staffKind)) return {Domain::General, *domain};
+            if (staffKind != "management") return generalOnly;
+
+            std::set<Domain> domains{Domain::General, Domain::Management};
+            if (row[2].isNull()) return domains;
+            mysqlx::SqlResult kinds = dbManager->getSession()->sql(
+                "SELECT DISTINCT staff_kind FROM positions WHERE department_id = ? AND staff_kind <> 'management'")
+                .bind(row[2].get<int>()).execute();
+            for (mysqlx::Row kind = kinds.fetchOne(); kind; kind = kinds.fetchOne())
+                if (!kind[0].isNull()) if (auto domain = businessDomainForStaffKind(kind[0].get<std::string>())) domains.insert(*domain);
+            return domains;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error loading allowed permission domains for position " << positionId << ": " << e.what() << std::endl;
+            return generalOnly;
+        }
     }
 }

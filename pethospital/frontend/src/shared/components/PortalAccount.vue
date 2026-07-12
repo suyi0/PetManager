@@ -31,7 +31,11 @@
         </svg>
         个人设置
       </button>
-      <button type="button" class="portal-account__mi" @click="comingSoon">
+      <button
+        type="button"
+        class="portal-account__mi"
+        @click="openPasswordDialog"
+      >
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -83,6 +87,11 @@
         <path d="m6 9 6 6 6-6" />
       </svg>
     </button>
+
+    <ChangePasswordDialog
+      v-model="passwordDialogOpen"
+      @password-changed="onPasswordChanged"
+    />
   </div>
 </template>
 
@@ -91,9 +100,11 @@ import { computed, defineComponent, ref } from "vue";
 import { useStore } from "vuex";
 import { useRouter } from "vue-router";
 import { storeKey } from "@/app/store";
+import ChangePasswordDialog from "@/shared/components/ChangePasswordDialog.vue";
 
 export default defineComponent({
   name: "PortalAccount",
+  components: { ChangePasswordDialog },
   props: {
     // 无姓名信息时的兜底显示（通常传角色名）
     fallbackName: { type: String, default: "账号" },
@@ -107,6 +118,7 @@ export default defineComponent({
 
     // 菜单是 hover/focus 控制；点选项后用此开关立即收起，鼠标移开复位。
     const suppressed = ref(false);
+    const passwordDialogOpen = ref(false);
     const closeMenu = () => {
       suppressed.value = true;
       (document.activeElement as HTMLElement | null)?.blur();
@@ -147,6 +159,15 @@ export default defineComponent({
       }
     };
 
+    const openPasswordDialog = () => {
+      closeMenu();
+      passwordDialogOpen.value = true;
+    };
+
+    const onPasswordChanged = () => {
+      emit("logout");
+    };
+
     const onLogout = () => {
       closeMenu();
       emit("logout");
@@ -157,8 +178,11 @@ export default defineComponent({
       accountInitial,
       accountHeadImage,
       suppressed,
+      passwordDialogOpen,
       comingSoon,
       goProfile,
+      openPasswordDialog,
+      onPasswordChanged,
       onLogout,
     };
   },

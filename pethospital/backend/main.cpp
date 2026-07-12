@@ -70,12 +70,10 @@ int main(int argc, char *argv[])
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    if (!WebSocketServer::instance().isServerStopped())
-    {
-        // 由主线程触发关闭
-        std::cout << "Shutting down server..." << std::endl;
-        WebSocketServer::instance().gracefulShutdown();
-    }
+    // Crow may stop its IO service before the main loop observes our shutdown flag.
+    // Always join the server thread and stop background services before singleton destruction.
+    std::cout << "Shutting down server..." << std::endl;
+    WebSocketServer::instance().gracefulShutdown();
 
     // 停止定时任务管理器
     taskManager->stop();

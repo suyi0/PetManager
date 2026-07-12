@@ -40,6 +40,31 @@ bool textFieldsAreSafe(const nlohmann::json &body)
     return true;
 }
 
+bool structuredDataIsSafe(const nlohmann::json &body)
+{
+    if (!body.contains("structuredData")) return true;
+    return body["structuredData"].is_object() && body["structuredData"].dump().size() <= 100 * 1024;
+}
+
+bool prescriptionInstructionsAreSafe(const nlohmann::json &items)
+{
+    if (!items.is_array() || items.size() > 100) return false;
+    for (const auto &item : items)
+    {
+        if (!item.is_object() || !item.contains("id") || !item["id"].is_number_unsigned()) return false;
+        const std::pair<const char *, std::size_t> fields[] = {
+            {"dosage", 128}, {"frequency", 128}, {"route", 128}, {"instructions", 500},
+        };
+        for (const auto &[key, maximum] : fields)
+        {
+            if (item.contains(key) && (!item[key].is_string() || item[key].get<std::string>().size() > maximum)) return false;
+        }
+        const int durationDays = item.value("durationDays", 0);
+        if (durationDays < 0 || durationDays > 3650) return false;
+    }
+    return true;
+}
+
 nlohmann::json parseJsonColumn(const mysqlx::Value &value)
 {
     if (value.isNull()) return nlohmann::json::object();
@@ -54,34 +79,22 @@ nlohmann::json parseJsonColumn(const mysqlx::Value &value)
     }
 }
 
-void insertPrescriptionItems(
+void updatePrescriptionInstructions(
     mysqlx::Session &session,
     unsigned long long documentId,
     const nlohmann::json &items)
 {
     if (!items.is_array()) return;
-    int sortOrder = 0;
     for (const auto &item : items)
     {
         if (!item.is_object()) continue;
-        const int medicineId = item.value("medicineId", 0);
-        const int quantity = item.value("quantity", 0);
+        const unsigned long long itemId = item.value("id", 0ULL);
         const int durationDays = item.value("durationDays", 0);
-        const double unitPrice = item.value("unitPrice", item.value("price", 0.0));
-        const double totalPrice = item.value("totalPrice", unitPrice * quantity);
-        const std::string medicineName = item.value("medicineName", "");
-        if (medicineName.empty() || quantity <= 0) continue;
-
-        session.sql("INSERT INTO medical_prescription_items ("
-                    "medical_document_id, medicine_id, medicine_name, specification, unit, dosage, frequency, route, "
-                    "duration_days, quantity, instructions, unit_price, total_price, sort_order) "
-                    "VALUES (?, NULLIF(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-            .bind(documentId, medicineId, medicineName,
-                  item.value("specification", item.value("spec", "")),
-                  item.value("unit", ""), item.value("dosage", ""),
-                  item.value("frequency", ""), item.value("route", ""),
-                  durationDays, quantity, item.value("instructions", ""),
-                  unitPrice, totalPrice, sortOrder++)
+        if (itemId == 0 || durationDays < 0) continue;
+        session.sql("UPDATE medical_prescription_items SET dosage=?, frequency=?, route=?, duration_days=?, instructions=? "
+                    "WHERE id=? AND medical_document_id=?")
+            .bind(item.value("dosage", ""), item.value("frequency", ""), item.value("route", ""),
+                  durationDays, item.value("instructions", ""), itemId, documentId)
             .execute();
     }
 }
@@ -95,6 +108,17 @@ nlohmann::json artifactJson(const mysqlx::Row &row)
         {"byteSize", row[3].get<unsigned long long>()},
         {"generatedAt", row[4].get<std::string>()},
     };
+}
+
+nlohmann::json loadLatestSnapshot(mysqlx::Session &session, unsigned long long documentId)
+{
+    auto result = session.sql(
+        "SELECT CAST(snapshot_json AS CHAR) FROM medical_document_versions "
+        "WHERE medical_document_id=? ORDER BY revision_no DESC LIMIT 1")
+        .bind(documentId).execute();
+    auto row = result.fetchOne();
+    if (!row) return nlohmann::json::object();
+    return nlohmann::json::parse(row[0].get<std::string>());
 }
 }
 
@@ -214,7 +238,8 @@ crow::response MedicalDocumentHandler::updateDraft(const crow::request &req, int
         auto bodyOpt = validateRequest(req, response);
         if (!bodyOpt) return response;
         const auto &body = *bodyOpt;
-        if (!textFieldsAreSafe(body)) return ResponseHelper::validation(req, "诊疗内容格式不正确或超过 20000 字节");
+        if (!textFieldsAreSafe(body) || !structuredDataIsSafe(body))
+            return ResponseHelper::validation(req, "诊疗内容格式不正确或超过大小限制");
         const int lockVersion = body.value("lockVersion", -1);
         if (lockVersion < 0) return ResponseHelper::validation(req, "缺少 lockVersion");
 
@@ -241,9 +266,9 @@ crow::response MedicalDocumentHandler::updateDraft(const crow::request &req, int
         const auto documentId = idRow[0].get<unsigned long long>();
         if (body.contains("prescriptionItems"))
         {
-            if (!body["prescriptionItems"].is_array()) return ResponseHelper::validation(req, "prescriptionItems 必须是数组");
-            session->sql("DELETE FROM medical_prescription_items WHERE medical_document_id=?").bind(documentId).execute();
-            insertPrescriptionItems(*session, documentId, body["prescriptionItems"]);
+            if (!prescriptionInstructionsAreSafe(body["prescriptionItems"]))
+                return ResponseHelper::validation(req, "处方用法格式不正确或超过大小限制");
+            updatePrescriptionInstructions(*session, documentId, body["prescriptionItems"]);
         }
         transaction.commit();
         return ResponseHelper::success(req, loadDocument(orderId));
@@ -270,7 +295,7 @@ crow::response MedicalDocumentHandler::preview(const crow::request &req, int ord
         payload["document"]["status"] = "草稿预览";
         return ResponseHelper::success(req, {
             {"templateVersionId", templateRow[0].get<int>()},
-            {"html", Reporting::renderTemplate(templateRow[1].get<std::string>(), payload.dump())},
+            {"html", Reporting::hardenReportHtml(Reporting::renderTemplate(templateRow[1].get<std::string>(), payload.dump()))},
         });
     }
     catch (const std::exception &error)
@@ -354,15 +379,154 @@ crow::response MedicalDocumentHandler::finalize(const crow::request &req, int or
         if (!rendered.success)
             return ResponseHelper::unavailable(req, "诊疗单已定稿，但 PDF 生成失败：" + rendered.error);
 
-        auto insert = session->sql(
-            "INSERT INTO report_artifacts (medical_document_version_id, template_version_id, format, storage_key, sha256, payload_hash, byte_size, generated_by) "
-            "VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?)")
-            .bind(versionId, templateVersionId, rendered.storageKey, rendered.sha256, sha256_hash(payload.dump()),
-                  static_cast<unsigned long long>(rendered.byteSize), actorId).execute();
+        unsigned long long artifactId = 0;
+        try
+        {
+            auto insert = session->sql(
+                "INSERT INTO report_artifacts (medical_document_version_id, template_version_id, format, storage_key, sha256, payload_hash, byte_size, generated_by) "
+                "VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?)")
+                .bind(versionId, templateVersionId, rendered.storageKey, rendered.sha256, sha256_hash(payload.dump()),
+                      static_cast<unsigned long long>(rendered.byteSize), actorId).execute();
+            artifactId = insert.getAutoIncrementValue();
+        }
+        catch (const mysqlx::Error &)
+        {
+            auto concurrentResult = session->sql(
+                "SELECT id, format, sha256, byte_size, CAST(generated_at AS CHAR) FROM report_artifacts "
+                "WHERE medical_document_version_id=? AND template_version_id=? AND format='pdf' LIMIT 1")
+                .bind(versionId, templateVersionId).execute();
+            auto concurrentRow = concurrentResult.fetchOne();
+            if (!concurrentRow)
+            {
+                std::error_code removeError;
+                std::filesystem::remove(rendered.absolutePath, removeError);
+                throw;
+            }
+            return ResponseHelper::success(req, {{"document", loadDocument(orderId)}, {"artifact", artifactJson(concurrentRow)}});
+        }
         return ResponseHelper::success(req, {
             {"document", loadDocument(orderId)},
-            {"artifact", {{"id", insert.getAutoIncrementValue()}, {"format", "pdf"}, {"sha256", rendered.sha256}, {"byteSize", rendered.byteSize}}},
+            {"artifact", {{"id", artifactId}, {"format", "pdf"}, {"sha256", rendered.sha256}, {"byteSize", rendered.byteSize}}},
         });
+    }
+    catch (const std::exception &error)
+    {
+        return ResponseHelper::system_error(req, error.what());
+    }
+}
+
+crow::response MedicalDocumentHandler::amend(const crow::request &req, int orderId, int actorId)
+{
+    try
+    {
+        crow::response response;
+        auto bodyOpt = validateRequest(req, response);
+        if (!bodyOpt) return response;
+        const auto &body = *bodyOpt;
+        const std::string reason = bodyString(body, "reason");
+        if (reason.empty() || reason.size() > 500) return ResponseHelper::validation(req, "修订原因不能为空且不能超过 500 字节");
+        if (!textFieldsAreSafe(body) || !structuredDataIsSafe(body))
+            return ResponseHelper::validation(req, "诊疗内容格式不正确或超过大小限制");
+        if (bodyString(body, "diagnosis").empty()) return ResponseHelper::validation(req, "修订后的诊断不能为空");
+
+        auto current = loadDocument(orderId);
+        if (current.empty()) return ResponseHelper::notFound(req, "Medical document not found");
+        if (current.value("status", "") != "finalized" && current.value("status", "") != "amended")
+            return ResponseHelper::fail(req, 409, ResponseCode::BusinessConflict, "只有已定稿诊疗单可以修订", ResponseErrorType::BusinessConflict);
+        const int lockVersion = body.value("lockVersion", -1);
+        if (lockVersion < 0) return ResponseHelper::validation(req, "缺少 lockVersion");
+        if (body.contains("prescriptionItems") && !prescriptionInstructionsAreSafe(body["prescriptionItems"]))
+            return ResponseHelper::validation(req, "处方用法格式不正确或超过大小限制");
+
+        auto session = dbManager->getSession();
+        auto templateResult = session->sql(
+            "SELECT v.id FROM report_templates t JOIN report_template_versions v ON v.id=t.current_version_id "
+            "WHERE t.document_type='medical_document' AND t.status='published' AND v.status='published' LIMIT 1").execute();
+        auto templateRow = templateResult.fetchOne();
+        if (!templateRow) return ResponseHelper::unavailable(req, "没有已发布的诊疗单模板");
+        const int templateVersionId = templateRow[0].get<int>();
+        const int revisionNo = current.value("revisionNo", 0) + 1;
+        const auto documentId = current["id"].get<unsigned long long>();
+
+        TransactionGuard transaction(*session);
+        const auto previousSnapshot = loadLatestSnapshot(*session, documentId);
+        if (previousSnapshot.empty()) return ResponseHelper::system_error(req, "上一版诊疗单快照不存在");
+        auto update = session->sql(
+            "UPDATE medical_documents SET status='amended', chief_complaint=?, present_illness=?, past_history=?, allergies=?, "
+            "physical_exam=?, diagnosis=?, treatment_plan=?, discharge_advice=?, follow_up_at=NULLIF(?, ''), structured_data=?, "
+            "revision_no=?, template_version_id=?, lock_version=lock_version+1 "
+            "WHERE id=? AND status IN ('finalized','amended') AND lock_version=?")
+            .bind(bodyString(body, "chiefComplaint"), bodyString(body, "presentIllness"), bodyString(body, "pastHistory"),
+                  bodyString(body, "allergies"), bodyString(body, "physicalExam"), bodyString(body, "diagnosis"),
+                  bodyString(body, "treatmentPlan"), bodyString(body, "dischargeAdvice"), bodyString(body, "followUpAt"),
+                  body.value("structuredData", nlohmann::json::object()).dump(), revisionNo, templateVersionId,
+                  documentId, lockVersion).execute();
+        if (update.getAffectedItemsCount() == 0)
+            return ResponseHelper::fail(req, 409, ResponseCode::BusinessConflict, "诊疗单已被其他人修改", ResponseErrorType::BusinessConflict, "Reload the latest document");
+
+        if (body.contains("prescriptionItems"))
+        {
+            updatePrescriptionInstructions(*session, documentId, body["prescriptionItems"]);
+        }
+        auto amended = loadDocument(orderId);
+        amended["status"] = "amended";
+        amended["revisionNo"] = revisionNo;
+        const auto changedPayload = buildReportPayload(amended);
+        auto payload = previousSnapshot;
+        payload["document"]["status"] = "已修订";
+        payload["visit"] = changedPayload["visit"];
+        payload["prescription"]["items"] = changedPayload["prescription"]["items"];
+        const std::string snapshot = payload.dump();
+        session->sql(
+            "INSERT INTO medical_document_versions (medical_document_id, revision_no, snapshot_json, change_reason, content_hash, created_by) "
+            "VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(documentId, revisionNo, snapshot, reason, sha256_hash(snapshot), actorId).execute();
+        transaction.commit();
+        return finalize(req, orderId, actorId);
+    }
+    catch (const std::exception &error)
+    {
+        return ResponseHelper::system_error(req, error.what());
+    }
+}
+
+crow::response MedicalDocumentHandler::voidDocument(const crow::request &req, int orderId, int actorId)
+{
+    try
+    {
+        crow::response response;
+        auto bodyOpt = validateRequest(req, response);
+        if (!bodyOpt) return response;
+        const std::string reason = bodyString(*bodyOpt, "reason");
+        if (reason.empty() || reason.size() > 500) return ResponseHelper::validation(req, "作废原因不能为空且不能超过 500 字节");
+        const int lockVersion = bodyOpt->value("lockVersion", -1);
+        if (lockVersion < 0) return ResponseHelper::validation(req, "缺少 lockVersion");
+
+        auto current = loadDocument(orderId);
+        if (current.empty()) return ResponseHelper::notFound(req, "Medical document not found");
+        if (current.value("status", "") != "finalized" && current.value("status", "") != "amended")
+            return ResponseHelper::fail(req, 409, ResponseCode::BusinessConflict, "只有已定稿诊疗单可以作废", ResponseErrorType::BusinessConflict);
+        const int revisionNo = current.value("revisionNo", 0) + 1;
+        const auto documentId = current["id"].get<unsigned long long>();
+
+        auto session = dbManager->getSession();
+        TransactionGuard transaction(*session);
+        auto payload = loadLatestSnapshot(*session, documentId);
+        if (payload.empty()) return ResponseHelper::system_error(req, "上一版诊疗单快照不存在");
+        payload["document"]["status"] = "已作废";
+        const std::string snapshot = payload.dump();
+        auto update = session->sql(
+            "UPDATE medical_documents SET status='voided', revision_no=?, voided_by=?, voided_at=UTC_TIMESTAMP(), "
+            "void_reason=?, lock_version=lock_version+1 WHERE id=? AND status IN ('finalized','amended') AND lock_version=?")
+            .bind(revisionNo, actorId, reason, documentId, lockVersion).execute();
+        if (update.getAffectedItemsCount() == 0)
+            return ResponseHelper::fail(req, 409, ResponseCode::BusinessConflict, "诊疗单已被其他人修改", ResponseErrorType::BusinessConflict, "Reload the latest document");
+        session->sql(
+            "INSERT INTO medical_document_versions (medical_document_id, revision_no, snapshot_json, change_reason, content_hash, created_by) "
+            "VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(documentId, revisionNo, snapshot, "作废：" + reason, sha256_hash(snapshot), actorId).execute();
+        transaction.commit();
+        return ResponseHelper::success(req, loadDocument(orderId));
     }
     catch (const std::exception &error)
     {
@@ -378,8 +542,171 @@ crow::response MedicalDocumentHandler::downloadLatestPdf(const crow::request &re
             "SELECT a.storage_key, md.document_no FROM report_artifacts a "
             "JOIN medical_document_versions v ON v.id=a.medical_document_version_id "
             "JOIN medical_documents md ON md.id=v.medical_document_id "
-            "WHERE md.order_id=? AND a.format='pdf' ORDER BY v.revision_no DESC, a.generated_at DESC LIMIT 1")
+            "WHERE md.order_id=? AND md.status IN ('finalized','amended') AND v.revision_no=md.revision_no "
+            "AND a.format='pdf' ORDER BY a.generated_at DESC LIMIT 1")
             .bind(orderId).execute();
+        auto row = result.fetchOne();
+        if (!row) return ResponseHelper::notFound(req, "PDF artifact not found");
+        const std::string key = row[0].get<std::string>();
+        if (key.empty() || key.front() == '/' || key.find("..") != std::string::npos)
+            return ResponseHelper::system_error(req, "Invalid report storage key");
+        const std::filesystem::path path = std::filesystem::path(Reporting::reportStorageRoot()) / key;
+        std::ifstream file(path, std::ios::binary);
+        if (!file) return ResponseHelper::notFound(req, "PDF artifact file not found");
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        crow::response response(buffer.str());
+        response.code = 200;
+        response.set_header("Content-Type", "application/pdf");
+        response.set_header("Content-Disposition", "inline; filename=\"" + row[1].get<std::string>() + ".pdf\"");
+        response.set_header("Cache-Control", "private, no-store");
+        return response;
+    }
+    catch (const std::exception &error)
+    {
+        return ResponseHelper::system_error(req, error.what());
+    }
+}
+
+crow::response MedicalDocumentHandler::listVersions(const crow::request &req, int orderId)
+{
+    try
+    {
+        auto result = dbManager->getSession()->sql(
+            "SELECT v.id, v.revision_no, v.change_reason, v.content_hash, CAST(v.created_at AS CHAR), "
+            "CAST(v.snapshot_json AS CHAR), COALESCE(a.id, 0), COALESCE(a.sha256, ''), COALESCE(a.byte_size, 0) "
+            "FROM medical_document_versions v "
+            "JOIN medical_documents md ON md.id=v.medical_document_id "
+            "LEFT JOIN report_artifacts a ON a.medical_document_version_id=v.id AND a.format='pdf' "
+            "WHERE md.order_id=? ORDER BY v.revision_no DESC, a.generated_at DESC")
+            .bind(orderId).execute();
+        nlohmann::json versions = nlohmann::json::array();
+        int lastRevision = -1;
+        for (auto row : result)
+        {
+            const int revisionNo = row[1].get<int>();
+            if (revisionNo == lastRevision) continue;
+            lastRevision = revisionNo;
+            const auto snapshot = nlohmann::json::parse(row[5].get<std::string>());
+            versions.push_back({
+                {"id", row[0].get<unsigned long long>()}, {"revisionNo", revisionNo},
+                {"changeReason", row[2].get<std::string>()}, {"contentHash", row[3].get<std::string>()},
+                {"createdAt", row[4].get<std::string>()}, {"snapshot", snapshot},
+                {"hasPdf", row[6].get<unsigned long long>() > 0}, {"pdfSha256", row[7].get<std::string>()},
+                {"pdfByteSize", row[8].get<unsigned long long>()},
+            });
+        }
+        return ResponseHelper::success(req, versions);
+    }
+    catch (const std::exception &error)
+    {
+        return ResponseHelper::system_error(req, error.what());
+    }
+}
+
+crow::response MedicalDocumentHandler::downloadVersionPdf(const crow::request &req, int orderId, int revisionNo)
+{
+    try
+    {
+        auto result = dbManager->getSession()->sql(
+            "SELECT a.storage_key, md.document_no FROM report_artifacts a "
+            "JOIN medical_document_versions v ON v.id=a.medical_document_version_id "
+            "JOIN medical_documents md ON md.id=v.medical_document_id "
+            "WHERE md.order_id=? AND v.revision_no=? AND a.format='pdf' ORDER BY a.generated_at DESC LIMIT 1")
+            .bind(orderId, revisionNo).execute();
+        auto row = result.fetchOne();
+        if (!row) return ResponseHelper::notFound(req, "PDF artifact not found");
+        const std::string key = row[0].get<std::string>();
+        if (key.empty() || key.front() == '/' || key.find("..") != std::string::npos)
+            return ResponseHelper::system_error(req, "Invalid report storage key");
+        const std::filesystem::path path = std::filesystem::path(Reporting::reportStorageRoot()) / key;
+        std::ifstream file(path, std::ios::binary);
+        if (!file) return ResponseHelper::notFound(req, "PDF artifact file not found");
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        crow::response response(buffer.str());
+        response.code = 200;
+        response.set_header("Content-Type", "application/pdf");
+        response.set_header("Content-Disposition", "inline; filename=\"" + row[1].get<std::string>() + "-r" + std::to_string(revisionNo) + ".pdf\"");
+        response.set_header("Cache-Control", "private, no-store");
+        return response;
+    }
+    catch (const std::exception &error)
+    {
+        return ResponseHelper::system_error(req, error.what());
+    }
+}
+
+crow::response MedicalDocumentHandler::listForOwner(const crow::request &req, int ownerId)
+{
+    try
+    {
+        auto result = dbManager->getSession()->sql(
+            "SELECT md.id, md.document_no, md.status, md.revision_no, "
+            "COALESCE(CAST(md.finalized_at AS CHAR), ''), CAST(v.snapshot_json AS CHAR), md.void_reason "
+            "FROM medical_documents md "
+            "JOIN medical_document_versions v ON v.medical_document_id=md.id AND v.revision_no=md.revision_no "
+            "WHERE md.owner_id=? AND md.status IN ('finalized','amended','voided') "
+            "ORDER BY md.finalized_at DESC, md.id DESC")
+            .bind(ownerId).execute();
+        nlohmann::json data = nlohmann::json::array();
+        for (auto row : result)
+        {
+            nlohmann::json snapshot = nlohmann::json::parse(row[5].get<std::string>());
+            data.push_back({
+                {"id", row[0].get<unsigned long long>()}, {"documentNo", row[1].get<std::string>()},
+                {"status", row[2].get<std::string>()}, {"revisionNo", row[3].get<int>()},
+                {"finalizedAt", row[4].get<std::string>()}, {"voidReason", row[6].get<std::string>()},
+                {"pet", snapshot.value("pet", nlohmann::json::object())},
+                {"doctor", snapshot.value("doctor", nlohmann::json::object())},
+                {"diagnosis", snapshot.value("visit", nlohmann::json::object()).value("diagnosis", "")},
+            });
+        }
+        return ResponseHelper::success(req, data);
+    }
+    catch (const std::exception &error)
+    {
+        return ResponseHelper::system_error(req, error.what());
+    }
+}
+
+crow::response MedicalDocumentHandler::getForOwner(const crow::request &req, int documentId, int ownerId)
+{
+    try
+    {
+        auto result = dbManager->getSession()->sql(
+            "SELECT md.document_no, md.status, md.revision_no, md.void_reason, "
+            "COALESCE(CAST(md.finalized_at AS CHAR), ''), CAST(v.snapshot_json AS CHAR) "
+            "FROM medical_documents md "
+            "JOIN medical_document_versions v ON v.medical_document_id=md.id AND v.revision_no=md.revision_no "
+            "WHERE md.id=? AND md.owner_id=? AND md.status IN ('finalized','amended','voided') LIMIT 1")
+            .bind(documentId, ownerId).execute();
+        auto row = result.fetchOne();
+        if (!row) return ResponseHelper::notFound(req, "Medical document not found");
+        return ResponseHelper::success(req, {
+            {"id", documentId}, {"documentNo", row[0].get<std::string>()}, {"status", row[1].get<std::string>()},
+            {"revisionNo", row[2].get<int>()}, {"voidReason", row[3].get<std::string>()},
+            {"finalizedAt", row[4].get<std::string>()}, {"snapshot", nlohmann::json::parse(row[5].get<std::string>())},
+        });
+    }
+    catch (const std::exception &error)
+    {
+        return ResponseHelper::system_error(req, error.what());
+    }
+}
+
+crow::response MedicalDocumentHandler::downloadForOwner(const crow::request &req, int documentId, int ownerId)
+{
+    try
+    {
+        auto result = dbManager->getSession()->sql(
+            "SELECT a.storage_key, md.document_no FROM report_artifacts a "
+            "JOIN medical_document_versions v ON v.id=a.medical_document_version_id "
+            "JOIN medical_documents md ON md.id=v.medical_document_id "
+            "WHERE md.id=? AND md.owner_id=? AND md.status IN ('finalized','amended') "
+            "AND v.revision_no=md.revision_no AND a.format='pdf' "
+            "ORDER BY a.generated_at DESC LIMIT 1")
+            .bind(documentId, ownerId).execute();
         auto row = result.fetchOne();
         if (!row) return ResponseHelper::notFound(req, "PDF artifact not found");
         const std::string key = row[0].get<std::string>();

@@ -105,3 +105,31 @@ export interface UserAttendanceRecord {
   is_corrected: boolean;
   correction_note: string;
 }
+
+export interface UserMedicalDocumentSummary {
+  id: number;
+  documentNo: string;
+  status: "finalized" | "amended" | "voided";
+  revisionNo: number;
+  finalizedAt: string;
+  voidReason: string;
+  pet: { name?: string; species?: string };
+  doctor: { name?: string };
+  diagnosis: string;
+}
+
+export interface UserMedicalDocumentDetail {
+  id: number;
+  documentNo: string;
+  status: "finalized" | "amended" | "voided";
+  revisionNo: number;
+  finalizedAt: string;
+  voidReason: string;
+  snapshot: {
+    owner?: Record<string, unknown>;
+    pet?: Record<string, unknown>;
+    doctor?: Record<string, unknown>;
+    visit?: Record<string, unknown>;
+    prescription?: { items?: Array<Record<string, unknown>>; total?: number };
+  };
+}

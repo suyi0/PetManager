@@ -117,7 +117,7 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
             int userId = -1;
             try
             {
-                userId = isValidUserToken(req, res, dbManager);
+                userId = isValidAuthenticatedToken(req, res, dbManager);
 
                 if(res.code != 200 || userId == -1)
                 {
@@ -680,6 +680,78 @@ void UserRoutes::setupUserRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
 
             }
             OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "到院签到", userId > 0 ? std::optional<int>(userId) : std::nullopt); });
+
+    CROW_ROUTE(app, "/api/users/me/medical-documents")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+                if (res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "获取诊疗单列表");
+                    return;
+                }
+
+                MedicalDocumentHandler handler(dbManager);
+                crow::response handlerResponse = handler.listForOwner(req, userId);
+                ProcessHandlerResponse(req, res, handlerResponse);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "获取诊疗单列表", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取诊疗单列表", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
+    CROW_ROUTE(app, "/api/users/me/medical-documents/<int>")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int documentId)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+                if (res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "获取诊疗单详情");
+                    return;
+                }
+
+                MedicalDocumentHandler handler(dbManager);
+                crow::response handlerResponse = handler.getForOwner(req, documentId, userId);
+                ProcessHandlerResponse(req, res, handlerResponse);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "获取诊疗单详情", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "获取诊疗单详情", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
+
+    CROW_ROUTE(app, "/api/users/me/medical-documents/<int>/pdf")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int documentId)
+                                                                   {
+            int userId = -1;
+            try
+            {
+                userId = isValidUserToken(req, res, dbManager);
+                if (res.code != 200 || userId == -1)
+                {
+                    OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "用户", "下载诊疗单");
+                    return;
+                }
+
+                MedicalDocumentHandler handler(dbManager);
+                crow::response handlerResponse = handler.downloadForOwner(req, documentId, userId);
+                ProcessHandlerResponse(req, res, handlerResponse);
+            }
+            catch (const std::exception &e)
+            {
+                OperationLogger::LogExceptionOperation(dbManager, req, "用户", "下载诊疗单", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                res = ResponseHelper::system_error(req, "Internal error: " + std::string(e.what()));
+            }
+            OperationLogger::FinishLoggedRoute(dbManager, req, res, "用户", "下载诊疗单", userId > 0 ? std::optional<int>(userId) : std::nullopt, false); });
 
     routes_setup = true;
 }

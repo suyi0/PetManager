@@ -9,6 +9,7 @@ import {
   MedicineSearchItem,
   MedicalDocument,
   MedicalDocumentDraftFields,
+  MedicalDocumentVersion,
   MedicalPrescriptionItem,
   OrderDetailItem,
   QueueItem,
@@ -539,9 +540,60 @@ export const doctorApi = {
     await http.post(`/api/doctors/orders/${orderId}/medical-document/finalize`);
   },
 
+  async amendMedicalDocument(
+    orderId: number,
+    payload: MedicalDocumentDraftFields & {
+      reason: string;
+      lockVersion: number;
+      prescriptionItems: MedicalPrescriptionItem[];
+    }
+  ): Promise<MedicalDocument> {
+    const { data } = await http.post(
+      `/api/doctors/orders/${orderId}/medical-document/amendments`,
+      payload
+    );
+    const document = unwrapData<MedicalDocument>(data);
+    if (!document) throw new Error("修订接口未返回诊疗单");
+    return document;
+  },
+
+  async voidMedicalDocument(
+    orderId: number,
+    lockVersion: number,
+    reason: string
+  ): Promise<MedicalDocument> {
+    const { data } = await http.post(
+      `/api/doctors/orders/${orderId}/medical-document/void`,
+      { lockVersion, reason }
+    );
+    const document = unwrapData<MedicalDocument>(data);
+    if (!document) throw new Error("作废接口未返回诊疗单");
+    return document;
+  },
+
   async getMedicalDocumentPdf(orderId: number): Promise<Blob> {
     const { data } = await http.get(
       `/api/doctors/orders/${orderId}/medical-document/pdf`,
+      { responseType: "blob" }
+    );
+    return data as Blob;
+  },
+
+  async getMedicalDocumentVersions(
+    orderId: number
+  ): Promise<MedicalDocumentVersion[]> {
+    const { data } = await http.get(
+      `/api/doctors/orders/${orderId}/medical-document/versions`
+    );
+    return unwrapList<MedicalDocumentVersion>(data);
+  },
+
+  async getMedicalDocumentVersionPdf(
+    orderId: number,
+    revisionNo: number
+  ): Promise<Blob> {
+    const { data } = await http.get(
+      `/api/doctors/orders/${orderId}/medical-document/versions/${revisionNo}/pdf`,
       { responseType: "blob" }
     );
     return data as Blob;

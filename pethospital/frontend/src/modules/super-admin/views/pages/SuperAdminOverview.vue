@@ -274,7 +274,7 @@ export default defineComponent({
 .hub-tile:hover {
   background: #fff;
   border-color: #c7d2fe;
-  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.08);
+  box-shadow: 0 6px 16px rgba(47, 125, 208, 0.08);
 }
 
 .hub-tile__icon {
@@ -288,7 +288,7 @@ export default defineComponent({
 }
 
 .hub-tile__icon--users {
-  background: #eef2ff;
+  background: #e2eefb;
 }
 .hub-tile__icon--time {
   background: #ecfeff;
@@ -326,7 +326,7 @@ export default defineComponent({
 }
 
 .hub-tile:hover .hub-tile__arrow {
-  color: #4f46e5;
+  color: #2f7dd0;
 }
 
 .panel {
@@ -351,7 +351,7 @@ button {
   border: 0;
   padding: 8px 14px;
   border-radius: 10px;
-  background: #4f46e5;
+  background: #2f7dd0;
   color: #fff;
   cursor: pointer;
 }
@@ -366,7 +366,7 @@ th,
 td {
   text-align: left;
   padding: 10px;
-  border-bottom: 1px solid #eef2ff;
+  border-bottom: 1px solid #e2eefb;
 }
 
 .statCard {

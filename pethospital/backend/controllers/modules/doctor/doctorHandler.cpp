@@ -74,10 +74,27 @@ namespace
     {
         return medicine.is_object() &&
                medicine.contains("medicineId") && medicine["medicineId"].is_number_integer() &&
-               medicine.contains("medicineName") && medicine["medicineName"].is_string() &&
-               medicine.contains("quantity") && medicine["quantity"].is_number_integer() &&
-               medicine.contains("price") && medicine["price"].is_number() &&
-               medicine.contains("totalPrice") && medicine["totalPrice"].is_number();
+               medicine.contains("quantity") && medicine["quantity"].is_number_integer();
+    }
+
+    bool hasValidMedicalDocumentFields(const nlohmann::json &document)
+    {
+        const char *keys[] = {
+            "chiefComplaint", "presentIllness", "pastHistory", "allergies",
+            "physicalExam", "diagnosis", "treatmentPlan", "dischargeAdvice",
+        };
+        for (const char *key : keys)
+        {
+            if (document.contains(key) &&
+                (!document[key].is_string() || document[key].get<std::string>().size() > 20000))
+            {
+                return false;
+            }
+        }
+        if (document.contains("followUpAt") && !document["followUpAt"].is_string()) return false;
+        if (document.contains("structuredData") &&
+            (!document["structuredData"].is_object() || document["structuredData"].dump().size() > 100 * 1024)) return false;
+        return true;
     }
 }
 
@@ -246,11 +263,14 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         int queueId = request_body.value("queueId", 0);
         std::string orderType = request_body.value("orderType", "");
         std::string orderData = request_body.value("orderData", "");
-        double orderTotalPrice = request_body.value("orderTotalPrice", 0.0);
         nlohmann::json medicalDocument = request_body.value("medicalDocument", nlohmann::json::object());
         if (!medicalDocument.is_object())
         {
             return ResponseHelper::validation(req, "medicalDocument 必须是对象");
+        }
+        if (!hasValidMedicalDocumentFields(medicalDocument))
+        {
+            return ResponseHelper::validation(req, "诊疗内容格式不正确或单项超过 20000 字节");
         }
 
         nlohmann::json medicines = nlohmann::json::array();
@@ -263,6 +283,10 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         {
             return ResponseHelper::validation(req, "药品数据必须是数组");
         }
+        if (medicines.size() > 100)
+        {
+            return ResponseHelper::validation(req, "单个订单不能超过 100 条药品明细");
+        }
 
         auto session = dbManager->getSession();
         TransactionGuard transaction(*session);
@@ -270,8 +294,8 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         // 写入订单记录
         mysqlx::SqlResult ordersResult = session->sql("INSERT INTO orders ( "
                                                       "owner_id, pet_id, doctor_id, order_type, order_data, order_status, order_totalprice) "
-                                                      "VALUES (?, ?, ?, ?, ?, ?, ?)")
-                                             .bind(ownerId, petId, doctorId, orderType, orderData, "pending_payment", orderTotalPrice)
+                                                      "VALUES (?, ?, ?, ?, LEFT(?, 255), ?, 0.00)")
+                                             .bind(ownerId, petId, doctorId, orderType, orderData, "pending_payment")
                                              .execute();
 
         unsigned long long orderId = ordersResult.getAutoIncrementValue();
@@ -299,6 +323,7 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
 
         // 写入订单药品记录及诊疗文书中的处方快照。
         int prescriptionSortOrder = 0;
+        double trustedOrderTotal = 0.0;
         for (auto row : medicines)
         {
             if (!hasValidMedicineOrderFields(row))
@@ -312,6 +337,20 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
             {
                 return ResponseHelper::validation(req, "药品ID和数量必须有效");
             }
+
+            auto medicineResult = session->sql(
+                "SELECT item_name, item_price FROM warehouse "
+                "WHERE id=? AND is_deleted=0 FOR UPDATE")
+                .bind(medicineId).execute();
+            auto medicineRow = medicineResult.fetchOne();
+            if (!medicineRow)
+            {
+                return ResponseHelper::validation(req, "药品不存在，请刷新药品列表后重试");
+            }
+            const std::string medicineName = medicineRow[0].get<std::string>();
+            const double trustedUnitPrice = medicineRow[1].get<double>();
+            const double trustedTotalPrice = trustedUnitPrice * quantity;
+            trustedOrderTotal += trustedTotalPrice;
 
             // 更新仓库库存
             mysqlx::SqlResult stockResult = session->sql("UPDATE warehouse "
@@ -327,21 +366,24 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
             session->sql("INSERT INTO orderMedicines ( "
                          "order_id, medicine_id, medicine_name, quantity, price, total_price) "
                          "VALUES (?, ?, ?, ?, ?, ?)")
-                .bind(orderId, medicineId, row["medicineName"].get<std::string>(), quantity, row["price"].get<double>(), row["totalPrice"].get<double>())
+                .bind(orderId, medicineId, medicineName, quantity, trustedUnitPrice, trustedTotalPrice)
                 .execute();
 
             session->sql("INSERT INTO medical_prescription_items ("
                          "medical_document_id, medicine_id, medicine_name, specification, unit, dosage, frequency, route, "
                          "duration_days, quantity, instructions, unit_price, total_price, sort_order) "
                          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(medicalDocumentId, medicineId, row["medicineName"].get<std::string>(),
+                .bind(medicalDocumentId, medicineId, medicineName,
                       row.value("specification", row.value("spec", "")), row.value("unit", ""),
                       row.value("dosage", ""), row.value("frequency", ""), row.value("route", ""),
                       row.value("durationDays", 0), quantity, row.value("instructions", ""),
-                      row["price"].get<double>(), row["totalPrice"].get<double>(),
+                      trustedUnitPrice, trustedTotalPrice,
                       prescriptionSortOrder++)
                 .execute();
         }
+
+        session->sql("UPDATE orders SET order_totalprice=? WHERE id=?")
+            .bind(trustedOrderTotal, orderId).execute();
 
         if (queueId > 0)
         {

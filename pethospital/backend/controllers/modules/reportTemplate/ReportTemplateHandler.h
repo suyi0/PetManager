@@ -11,7 +11,9 @@ public:
     crow::response dataContract(const crow::request &req);
     crow::response list(const crow::request &req);
     crow::response versions(const crow::request &req, int templateId);
+    crow::response getVersion(const crow::request &req, int templateId, int versionId);
     crow::response createVersion(const crow::request &req, int templateId, int actorId);
+    crow::response preview(const crow::request &req, int templateId);
     crow::response publish(const crow::request &req, int templateId, int actorId);
 
 private:

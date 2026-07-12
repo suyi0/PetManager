@@ -190,6 +190,9 @@ void authRoutes::setupAuthRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
     CROW_ROUTE(app, "/api/auth/logout")
         .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res)
                                                                     {
+            // 本路由不走 OperationLogger::Finish*，必须靠守卫兜底 res.end()——
+            // 否则响应永远不发回，前端登出会卡满 axios 12s 超时（登出极慢的根因）。
+            ResponseEnder ender{res};
             try {
                 authHandler handler(dbManager);
                 crow::response handlerResponse = handler.logout(req);

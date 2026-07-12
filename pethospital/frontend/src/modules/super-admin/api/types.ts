@@ -86,6 +86,8 @@ export interface RbacDepartment {
   branch_name?: string;
   name: string;
   description?: string;
+  business_domain?: string;
+  is_system?: boolean;
 }
 
 export interface RbacPosition {
@@ -107,6 +109,20 @@ export interface UserScopePayload {
   user_id: number;
   branch_ids: number[];
   department_ids: number[];
+}
+
+export interface PositionPermissionsPayload {
+  permissions: string[];
+  grantableKeys: string[];
+}
+
+export interface UserRbacPermissions {
+  positionId: number;
+  positionName: string;
+  departmentName: string;
+  positionPermissions: string[];
+  personalPermissions: string[];
+  grantableKeys: string[];
 }
 
 export interface SalaryEmployeeRow {

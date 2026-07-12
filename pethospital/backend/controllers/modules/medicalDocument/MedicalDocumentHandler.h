@@ -12,7 +12,14 @@ public:
     crow::response updateDraft(const crow::request &req, int orderId, int actorId);
     crow::response preview(const crow::request &req, int orderId);
     crow::response finalize(const crow::request &req, int orderId, int actorId);
+    crow::response amend(const crow::request &req, int orderId, int actorId);
+    crow::response voidDocument(const crow::request &req, int orderId, int actorId);
     crow::response downloadLatestPdf(const crow::request &req, int orderId);
+    crow::response listVersions(const crow::request &req, int orderId);
+    crow::response downloadVersionPdf(const crow::request &req, int orderId, int revisionNo);
+    crow::response listForOwner(const crow::request &req, int ownerId);
+    crow::response getForOwner(const crow::request &req, int documentId, int ownerId);
+    crow::response downloadForOwner(const crow::request &req, int documentId, int ownerId);
 
 private:
     std::shared_ptr<DatabaseManagerInterface> dbManager;

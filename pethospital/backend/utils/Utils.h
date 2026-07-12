@@ -48,6 +48,23 @@ void initializeEnvironment();                                                   
 // 判断响应结果函数
 void ProcessHandlerResponse(const crow::request &req, crow::response &res, crow::response &handlerResponse);
 
+// Crow 的 (req, res) 形态路由必须显式 res.end()，否则响应永远不发回、
+// 连接一直挂到客户端超时（前端 axios 12s，表现为"接口极慢"）。
+// 多数路由靠 OperationLogger::Finish* 收尾 end；不走 Finish* 的路由在 lambda
+// 第一行放一个 ResponseEnder 作用域守卫，兜底所有 return / 异常路径。
+// 已完成的响应不会重复 end（幂等）。
+struct ResponseEnder
+{
+    crow::response &res;
+    ~ResponseEnder()
+    {
+        if (!res.is_completed())
+        {
+            res.end();
+        }
+    }
+};
+
 // 响应帮助类
 class ResponseHelper
 {

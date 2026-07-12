@@ -8,6 +8,9 @@ import {
   SalaryManagementPayload,
   SalarySummaryCache,
   SalarySummaryItem,
+  PayrollRowPayload,
+  SalaryProfilePayload,
+  PayrollPeriodSummary,
 } from "./types";
 
 interface SalaryEmployeeSearchResult {
@@ -16,6 +19,7 @@ interface SalaryEmployeeSearchResult {
   page: number;
   pageSize: number;
   summary: SalaryManagementPayload["summary"];
+  period?: PayrollPeriodSummary;
 }
 
 const createEmptySalaryManagementPayload = (): SalaryManagementPayload => ({
@@ -113,6 +117,14 @@ export const financeApi = {
         todayCost: Number(payload?.summary?.todayCost ?? 0),
         todayProfit: Number(payload?.summary?.todayProfit ?? 0),
       },
+      period: payload?.period
+        ? {
+            id: Number(payload.period.id ?? 0),
+            status: payload.period.status ?? "first_review",
+            versionNo: Number(payload.period.versionNo ?? 1),
+            totalSalary: Number(payload.period.totalSalary ?? 0),
+          }
+        : undefined,
     };
   },
 
@@ -180,5 +192,21 @@ export const financeApi = {
       PA_Award: payload.paAward,
       PB_Award: payload.pbAward,
     });
+  },
+
+  async saveSalaryProfile(payload: SalaryProfilePayload): Promise<void> {
+    await http.post(`/api/finance/employee-salaries/${payload.userId}`, payload);
+  },
+
+  async updatePayrollRow(userId: number, payload: PayrollRowPayload): Promise<void> {
+    await http.post(`/api/finance/employee-salaries/${userId}`, payload);
+  },
+
+  async submitPayrollReview(): Promise<void> {
+    await http.post("/api/finance/payroll-periods/current/submit-review");
+  },
+
+  async lockPayroll(): Promise<void> {
+    await http.post("/api/finance/payroll-periods/current/lock");
   },
 };

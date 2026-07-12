@@ -8,6 +8,7 @@
 #include "../../controllers/common/reservationCommon/reservationCommonHandler.h"
 #include "../../controllers/common/petCommon/petCommonHandler.h"
 #include "../../controllers/common/searchCommon/searchCommonHandler.h"
+#include "../../controllers/modules/medicalDocument/MedicalDocumentHandler.h"
 
 class UserRoutes
 {

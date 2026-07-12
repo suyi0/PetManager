@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <initializer_list>
+#include <stdexcept>
 
 namespace Permissions
 {
@@ -23,6 +24,8 @@ const std::array kAllPermissionKeys = {
     kMedicalRecordWrite,
     kMedicalRecordFinalize,
     kMedicalRecordPrint,
+    kMedicalRecordAmend,
+    kMedicalRecordVoid,
     kReportTemplateRead,
     kReportTemplateManage,
     kReportTemplatePublish,
@@ -73,5 +76,50 @@ bool isKnownPermissionKey(const std::string &permissionKey)
 bool isGrantablePermissionKey(const std::string &permissionKey)
 {
     return permissionKey != kRbacManage && isKnownPermissionKey(permissionKey);
+}
+
+PermissionDomain domainOfPermission(const std::string &key)
+{
+    if (key == kPortalUser || key == kAttendanceRead) return PermissionDomain::General;
+    if (key == kPortalMedical || key == kMedicalRecordRead || key == kMedicalRecordWrite ||
+        key == kMedicalRecordFinalize || key == kMedicalRecordPrint || key == kMedicalRecordAmend ||
+        key == kMedicalRecordVoid || key == kDoctorWorkWrite || key == kScopeMedicalAssigned)
+        return PermissionDomain::Medical;
+    if (key == kPortalFinance || key == kSalaryRead || key == kSalaryWrite ||
+        key == kEquityRead || key == kEquityWrite) return PermissionDomain::Finance;
+    if (key == kPortalPersonnel || key == kStaffRoleWrite || key == kAttendanceManage)
+        return PermissionDomain::Personnel;
+    if (key == kPortalWarehouse || key == kStockRead || key == kStockWrite)
+        return PermissionDomain::Warehouse;
+    if (key == kPortalBoss || key == kPortalSuperAdmin || key == kLogsRead || key == kUserDelete ||
+        key == kRbacManage || key == kScopeAll || key == kReportTemplateRead ||
+        key == kReportTemplateManage || key == kReportTemplatePublish) return PermissionDomain::Management;
+    throw std::invalid_argument("Unknown permission key: " + key);
+}
+
+std::string domainKey(PermissionDomain domain)
+{
+    switch (domain) {
+    case PermissionDomain::General: return "general";
+    case PermissionDomain::Medical: return "medical";
+    case PermissionDomain::Finance: return "finance";
+    case PermissionDomain::Personnel: return "personnel";
+    case PermissionDomain::Warehouse: return "warehouse";
+    case PermissionDomain::Management: return "management";
+    }
+    return "general";
+}
+
+std::string domainChineseName(PermissionDomain domain)
+{
+    switch (domain) {
+    case PermissionDomain::General: return "通用";
+    case PermissionDomain::Medical: return "医疗";
+    case PermissionDomain::Finance: return "财务";
+    case PermissionDomain::Personnel: return "人事";
+    case PermissionDomain::Warehouse: return "仓储";
+    case PermissionDomain::Management: return "管理";
+    }
+    return "通用";
 }
 }

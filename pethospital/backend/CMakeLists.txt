@@ -447,6 +447,39 @@ if(BUILD_TESTING)
     )
     add_test(NAME permission_model_tests COMMAND permission_model_tests)
 
+    add_executable(permission_domain_boundary_tests
+        tests/permission_domain_boundary_tests.cpp
+    )
+    target_compile_definitions(permission_domain_boundary_tests PRIVATE
+        RBAC_SERVICE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/rbac/RbacService.cpp"
+        ADMIN_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/adminRoutes/adminRoutes.cpp"
+    )
+    add_test(NAME permission_domain_boundary_tests COMMAND permission_domain_boundary_tests)
+
+    add_executable(report_renderer_tests
+        tests/report_renderer_tests.cpp
+        services/reporting/ReportRenderer.cpp
+    )
+    target_link_libraries(report_renderer_tests
+        ${OPENSSL_CRYPTO_LIBRARY}
+        ${MYSQLX_LIBRARIES}
+    )
+    add_test(NAME report_renderer_tests COMMAND report_renderer_tests)
+
+    add_executable(medical_document_contract_tests
+        tests/medical_document_contract_tests.cpp
+    )
+    target_compile_definitions(medical_document_contract_tests PRIVATE
+        DATABASE_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/DatabaseMigrations.cpp"
+        DOCTOR_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/doctorRoutes/doctorRoutes.cpp"
+        USER_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/user/UserRoutes.cpp"
+        ADMIN_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/adminRoutes/adminRoutes.cpp"
+        MEDICAL_DOCUMENT_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/medicalDocument/MedicalDocumentHandler.cpp"
+        REPORT_TEMPLATE_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/reportTemplate/ReportTemplateHandler.cpp"
+        MAIN_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
+    )
+    add_test(NAME medical_document_contract_tests COMMAND medical_document_contract_tests)
+
     add_executable(attendance_core_tests
         tests/attendance_core_tests.cpp
         services/attendance/AttendanceTypes.cpp

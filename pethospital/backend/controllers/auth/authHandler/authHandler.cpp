@@ -472,6 +472,10 @@ crow::response authHandler::getCurrentUserAccess(const crow::request &req)
         {
             return ResponseHelper::unauthorized(req, "Token expired or invalid");
         }
+        if (!AuthSessionStore::isSessionCurrent(claims->userId, claims->sessionVersion))
+        {
+            return ResponseHelper::unauthorized(req, "Session expired");
+        }
 
         auto access = RbacService::loadUserAccess(dbManager, claims->userId);
         if (!access)

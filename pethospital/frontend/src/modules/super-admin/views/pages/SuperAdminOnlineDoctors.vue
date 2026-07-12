@@ -631,8 +631,8 @@ export default defineComponent({
 
 .doctor-card--active {
   border-color: #a5b4fc;
-  background: linear-gradient(180deg, #eef2ff, #f8fafc);
-  box-shadow: 0 18px 34px rgba(79, 70, 229, 0.14);
+  background: linear-gradient(180deg, #e2eefb, #f8fafc);
+  box-shadow: 0 18px 34px rgba(47, 125, 208, 0.14);
 }
 
 .doctor-card__top {
@@ -708,7 +708,7 @@ export default defineComponent({
   padding: 10px 11px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(79, 70, 229, 0.1);
+  border: 1px solid rgba(47, 125, 208, 0.1);
 }
 
 .doctor-card__stats strong,
@@ -798,7 +798,7 @@ export default defineComponent({
   min-height: 40px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: #eef2ff;
+  background: #e2eefb;
   color: #2e6598;
   cursor: pointer;
   font-weight: 700;

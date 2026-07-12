@@ -55,12 +55,14 @@ int main()
     assert(source.find("RoleTypeUtils::isBossRole(claims.typeName)") == std::string::npos);
     assert(source.find("claims.typeName))\n            {\n                return true;") == std::string::npos);
     assert(jwtSource.find("RbacService::userHasPermission(dbManager, userId, permissionKey)") != std::string::npos);
+    assert(source.find("int isValidAuthenticatedToken") != std::string::npos);
+    assert(source.find("{ return true; }") != std::string::npos);
 
     // Function-level permission checks are authorization failures, not authentication failures.
     // Missing/expired tokens remain 401, but a valid token without a required permission must be 403.
     assert(source.find("AuthorizationFailureResponse::PermissionDenied") != std::string::npos);
     assert(source.find("ResponseHelper::permission_denied(req, \"用户无权限进行此操作\"") != std::string::npos);
-    assert(source.find("permissionKey); },\n                         AuthorizationFailureResponse::PermissionDenied") != std::string::npos);
+    assert(source.find("permissionKey); }, AuthorizationFailureResponse::PermissionDenied") != std::string::npos);
 
     // Resource-level order scope failures should hide resource existence.
     assert(source.find("ResponseHelper::notFound(req, \"Order not found\"") != std::string::npos);

@@ -4,14 +4,20 @@
 #include "migrations/columns/ColumnMigrations.h"
 #include "migrations/common/MigrationCommon.h"
 #include "migrations/foreign_keys/ForeignKeyMigrations.h"
+#include "../controllers/auth/encrypt/encrypt.h"
 #include "../services/redis/RedisClient.h"
 #include "../services/redis/redisLock/RedisLock.h"
 
+#include <openssl/rand.h>
+
+#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
+#include <sstream>
 #include <set>
 #include <string>
 #include <thread>
@@ -144,11 +150,15 @@ namespace
             JOIN (
                 SELECT 'president' AS system_key, 'medical-record:finalize' AS permission_key
                 UNION ALL SELECT 'president', 'medical-record:print'
+                UNION ALL SELECT 'president', 'medical-record:amend'
+                UNION ALL SELECT 'president', 'medical-record:void'
                 UNION ALL SELECT 'president', 'report-template:read'
                 UNION ALL SELECT 'president', 'report-template:manage'
                 UNION ALL SELECT 'president', 'report-template:publish'
                 UNION ALL SELECT 'vice-president', 'medical-record:finalize'
                 UNION ALL SELECT 'vice-president', 'medical-record:print'
+                UNION ALL SELECT 'vice-president', 'medical-record:amend'
+                UNION ALL SELECT 'vice-president', 'medical-record:void'
                 UNION ALL SELECT 'vice-president', 'report-template:read'
                 UNION ALL SELECT 'vice-president', 'report-template:manage'
                 UNION ALL SELECT 'vice-president', 'report-template:publish'
@@ -158,13 +168,12 @@ namespace
                 UNION ALL SELECT 'super-admin', 'report-template:publish'
                 UNION ALL SELECT 'doctor', 'medical-record:finalize'
                 UNION ALL SELECT 'doctor', 'medical-record:print'
+                UNION ALL SELECT 'doctor', 'medical-record:amend'
+                UNION ALL SELECT 'doctor', 'medical-record:void'
             ) v ON v.system_key = p.system_key
             WHERE NOT EXISTS (
                 SELECT 1 FROM position_permissions existing
-                WHERE existing.permission_key IN (
-                    'medical-record:finalize', 'medical-record:print',
-                    'report-template:read', 'report-template:manage', 'report-template:publish'
-                )
+                WHERE existing.position_id = p.id AND existing.permission_key = v.permission_key
             ))SQL")
             .execute();
     }
@@ -246,6 +255,14 @@ namespace
                 UNION ALL SELECT 'super-admin', 'user:delete'
                 UNION ALL SELECT 'super-admin', 'attendance:read'
                 UNION ALL SELECT 'super-admin', 'scope:all'
+                -- 超管巡检各业务端：授予除 boss 外的各端 portal 权限（不含 portal:boss，
+                -- 否则登录落地端优先级会被抢到 /boss；这些权限优先级均低于 portal:super-admin，
+                -- 超管默认仍落地 /super-admin，仅用于「快捷入口」跳入他端查功能）。
+                UNION ALL SELECT 'super-admin', 'portal:medical'
+                UNION ALL SELECT 'super-admin', 'portal:personnel'
+                UNION ALL SELECT 'super-admin', 'portal:warehouse'
+                UNION ALL SELECT 'super-admin', 'portal:finance'
+                UNION ALL SELECT 'super-admin', 'portal:user'
                 UNION ALL SELECT 'personnel-manager', 'portal:personnel'
                 UNION ALL SELECT 'personnel-manager', 'staff-role:write'
                 UNION ALL SELECT 'personnel-manager', 'attendance:read'
@@ -265,6 +282,12 @@ namespace
             ) v ON v.system_key = p.system_key
         )SQL")
             .execute();
+    }
+
+    void seedAllPositionPermissions(DatabaseManagerInterface &dbManager, mysqlx::Session &session)
+    {
+        seedPositionPermissions(dbManager, session);
+        seedMedicalDocumentPermissionsIfAbsent(dbManager, session);
     }
 
     void seedPermissionTemplates(DatabaseManagerInterface &, mysqlx::Session &session)
@@ -344,6 +367,8 @@ namespace
             JOIN (
                 SELECT 'Boss' AS template_name, 'medical-record:finalize' AS permission_key
                 UNION ALL SELECT 'Boss', 'medical-record:print'
+                UNION ALL SELECT 'Boss', 'medical-record:amend'
+                UNION ALL SELECT 'Boss', 'medical-record:void'
                 UNION ALL SELECT 'Boss', 'report-template:read'
                 UNION ALL SELECT 'Boss', 'report-template:manage'
                 UNION ALL SELECT 'Boss', 'report-template:publish'
@@ -353,15 +378,20 @@ namespace
                 UNION ALL SELECT 'SuperAdmin', 'report-template:publish'
                 UNION ALL SELECT 'Medical', 'medical-record:finalize'
                 UNION ALL SELECT 'Medical', 'medical-record:print'
+                UNION ALL SELECT 'Medical', 'medical-record:amend'
+                UNION ALL SELECT 'Medical', 'medical-record:void'
             ) v ON v.template_name = t.name
             WHERE NOT EXISTS (
                 SELECT 1 FROM permission_template_items existing
-                WHERE existing.permission_key IN (
-                    'medical-record:finalize', 'medical-record:print',
-                    'report-template:read', 'report-template:manage', 'report-template:publish'
-                )
+                WHERE existing.template_id = t.id AND existing.permission_key = v.permission_key
             ))SQL")
             .execute();
+    }
+
+    void seedAllPermissionTemplateItems(DatabaseManagerInterface &dbManager, mysqlx::Session &session)
+    {
+        seedPermissionTemplateItems(dbManager, session);
+        seedMedicalDocumentTemplatePermissionsIfAbsent(dbManager, session);
     }
 
     const char *defaultMedicalDocumentTemplate()
@@ -395,8 +425,26 @@ namespace
             .bind(defaultMedicalDocumentTemplate())
             .execute();
         session.sql("UPDATE report_templates t JOIN report_template_versions v ON v.template_id = t.id "
-                    "SET t.current_version_id = v.id WHERE t.code = 'medical-document-a4' AND v.version_no = 1")
+                    "SET t.current_version_id = v.id WHERE t.code = 'medical-document-a4' "
+                    "AND v.version_no = 1 AND t.current_version_id IS NULL")
             .execute();
+    }
+
+    void ensureReportTemplateCurrentVersionForeignKey(DatabaseManagerInterface &dbManager, mysqlx::Session &session)
+    {
+        session.sql("UPDATE report_templates t "
+                    "LEFT JOIN report_template_versions v ON v.id=t.current_version_id AND v.template_id=t.id "
+                    "SET t.current_version_id=NULL "
+                    "WHERE t.current_version_id IS NOT NULL AND v.id IS NULL")
+            .execute();
+        seedDefaultReportTemplateVersion(dbManager, session);
+        if (!Common::foreignKeyExists(dbManager, "report_templates", "fk_report_templates_current_version"))
+        {
+            session.sql("ALTER TABLE report_templates "
+                        "ADD CONSTRAINT fk_report_templates_current_version "
+                        "FOREIGN KEY (current_version_id) REFERENCES report_template_versions(id) ON DELETE RESTRICT")
+                .execute();
+        }
     }
 
     void migrateUserOperationsOrgScope(DatabaseManagerInterface &dbManager, mysqlx::Session &session)
@@ -429,6 +477,31 @@ namespace
                         "FOREIGN KEY (branch_id) REFERENCES branches(id)")
                 .execute();
         }
+
+        // 业务域：部门天然属于某业务域，用于约束该部门下可创建的职位工种（杜绝「管理部·财务」）。
+        // 取值与 Permissions::domainKey 一致：general/management/finance/personnel/medical/warehouse。
+        const bool domainColumnAdded =
+            Common::addColumnIfNotExists(dbManager, "departments", "business_domain", "VARCHAR(32) NOT NULL DEFAULT 'general'");
+        // 回填：种子部门的 system_key 恰为域 key，直接采用；其余按已有职位的工种推断。
+        session.sql("UPDATE departments SET business_domain = system_key "
+                    "WHERE business_domain = 'general' "
+                    "AND system_key IN ('management','finance','personnel','medical','warehouse')")
+            .execute();
+        session.sql(
+            "UPDATE departments d SET business_domain = ("
+            "  SELECT CASE"
+            "    WHEN SUM(p.staff_kind IN ('doctor','nurse')) > 0 THEN 'medical'"
+            "    WHEN SUM(p.staff_kind = 'finance') > 0 THEN 'finance'"
+            "    WHEN SUM(p.staff_kind = 'personnel') > 0 THEN 'personnel'"
+            "    WHEN SUM(p.staff_kind = 'warehouse') > 0 THEN 'warehouse'"
+            "    WHEN SUM(p.staff_kind = 'management') > 0 THEN 'management'"
+            "    ELSE 'general' END"
+            "  FROM positions p WHERE p.department_id = d.id)"
+            " WHERE d.business_domain = 'general' "
+            " AND EXISTS (SELECT 1 FROM positions p2 WHERE p2.department_id = d.id "
+            "             AND p2.staff_kind IN ('doctor','nurse','finance','personnel','warehouse','management'))")
+            .execute();
+        (void)domainColumnAdded;
     }
 
     void migratePositionDescriptionColumn(DatabaseManagerInterface &dbManager, mysqlx::Session &)
@@ -436,20 +509,34 @@ namespace
         Common::addColumnIfNotExists(dbManager, "positions", "description", "VARCHAR(255) NOT NULL DEFAULT ''");
     }
 
+    std::string generateBootstrapPassword()
+    {
+        std::array<unsigned char, 16> bytes{};
+        if (RAND_bytes(bytes.data(), static_cast<int>(bytes.size())) != 1)
+        {
+            throw std::runtime_error("Failed to generate bootstrap administrator password");
+        }
+
+        std::ostringstream password;
+        password << "Pm!";
+        for (const unsigned char byte : bytes)
+        {
+            password << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
+        }
+        return password.str();
+    }
+
     void ensureBootstrapSuperAdmin(DatabaseManagerInterface &, mysqlx::Session &session)
     {
-        mysqlx::Row userCountRow = session.sql("SELECT COUNT(*) FROM users WHERE is_deleted = 0").execute().fetchOne();
+        mysqlx::Row userCountRow = session.sql("SELECT COUNT(*) FROM users").execute().fetchOne();
         if (userCountRow && !userCountRow[0].isNull() && userCountRow[0].get<int>() > 0)
         {
             return;
         }
 
-        const char *password = std::getenv("PETMANAGER_BOOTSTRAP_ADMIN_PASSWORD");
-        if (password == nullptr || std::string(password).empty())
-        {
-            std::cout << "Bootstrap super-admin skipped: set PETMANAGER_BOOTSTRAP_ADMIN_PASSWORD when initializing an empty users table." << std::endl;
-            return;
-        }
+        const char *passwordEnv = std::getenv("PETMANAGER_BOOTSTRAP_ADMIN_PASSWORD");
+        const bool generatedPassword = passwordEnv == nullptr || std::string(passwordEnv).empty();
+        const std::string password = generatedPassword ? generateBootstrapPassword() : std::string(passwordEnv);
 
         const char *emailEnv = std::getenv("PETMANAGER_BOOTSTRAP_ADMIN_EMAIL");
         const std::string email = (emailEnv != nullptr && std::string(emailEnv).find('@') != std::string::npos)
@@ -464,10 +551,23 @@ namespace
         }
 
         session.sql("INSERT INTO users (account_type, position_id, name, password, email) "
-                    "VALUES ('staff', ?, '系统管理员', SHA2(?, 256), ?)")
-            .bind(positionRow[0].get<int>(), std::string(password), email)
+                    "VALUES ('staff', ?, '系统管理员', ?, ?)")
+            .bind(positionRow[0].get<int>(), hash_password(password), email)
             .execute();
-        std::cout << "Bootstrap super-admin user created from environment configuration." << std::endl;
+        std::cout << "\n============================================================\n"
+                  << "Bootstrap super-admin created\n"
+                  << "Email: " << email << "\n";
+        if (generatedPassword)
+        {
+            std::cout << "Temporary password: " << password << "\n"
+                      << "Store this password now; it will not be shown again.\n";
+        }
+        else
+        {
+            std::cout << "Password: configured by PETMANAGER_BOOTSTRAP_ADMIN_PASSWORD\n";
+        }
+        std::cout << "============================================================\n"
+                  << std::endl;
     }
 
     // 建表顺序即外键依赖顺序：RBAC lookup → users → 其余子表。
@@ -528,7 +628,7 @@ namespace
                 CONSTRAINT fk_pp_position FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE,
                 CONSTRAINT chk_position_permission_not_meta CHECK (permission_key <> 'rbac:manage')
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
-            seedPositionPermissions,
+            seedAllPositionPermissions,
             seedIncrementalPositionPermissions,
         },
         {
@@ -549,12 +649,12 @@ namespace
                 CONSTRAINT fk_pti_template FOREIGN KEY (template_id) REFERENCES permission_templates(id) ON DELETE CASCADE,
                 CONSTRAINT chk_template_permission_not_meta CHECK (permission_key <> 'rbac:manage')
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
-            seedPermissionTemplateItems,
+            seedAllPermissionTemplateItems,
             seedMedicalDocumentTemplatePermissionsIfAbsent,
         },
         {
-            "salaryRecord",
-            R"SQL(CREATE TABLE salaryRecord (
+            "financialRecord",
+            R"SQL(CREATE TABLE financialRecord (
                 id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
                 salesCount DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '销售金额',
                 costCount DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '成本金额',
@@ -565,7 +665,7 @@ namespace
                 deleted_by INT NULL COMMENT '执行删除的用户ID',
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_salaryRecord_is_deleted (is_deleted)
+                INDEX idx_financialRecord_is_deleted (is_deleted)
             ))SQL",
             nullptr,
             nullptr,
@@ -628,6 +728,22 @@ namespace
                 CONSTRAINT chk_user_scope_level CHECK (branch_id IS NOT NULL OR department_id IS NOT NULL),
                 UNIQUE KEY uq_user_scope_branch (user_id, branch_id),
                 UNIQUE KEY uq_user_scope_department (user_id, department_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "user_permissions",
+            R"SQL(CREATE TABLE user_permissions (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL,
+                permission_key VARCHAR(64) NOT NULL,
+                granted_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_user_permission (user_id, permission_key),
+                INDEX idx_user_permissions_user_id (user_id),
+                CONSTRAINT fk_user_permission_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_user_permission_granted_by FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
             nullptr,
             nullptr,
@@ -830,18 +946,114 @@ namespace
             nullptr,
         },
         {
-            "salary",
-            R"SQL(CREATE TABLE salary (
+            "salaryProfile",
+            R"SQL(CREATE TABLE salaryProfile (
                 id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
                 user_id INT NOT NULL,
-                base_salary DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '基本工资',
-                PA_Award DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '全勤奖',
-                PB_Award DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '绩效奖金',
-                total_salary DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '总工资',
+                pay_type ENUM('monthly', 'hourly') NOT NULL DEFAULT 'monthly' COMMENT '计薪方式：月薪或时薪',
+                base_salary DECIMAL(18, 2) NULL COMMENT '月薪工基础薪资',
+                hourly_rate DECIMAL(18, 2) NULL COMMENT '时薪工时效薪资',
+                social_insurance_housing_fund DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '默认五险一金扣款金额',
+                effective_from DATE NOT NULL COMMENT '配置生效日期',
+                effective_to DATE NULL COMMENT '配置失效日期，NULL 表示当前有效',
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                CONSTRAINT fk_salary_userId FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                UNIQUE KEY uq_salary_user_id (user_id)
+                CONSTRAINT fk_salaryProfile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT chk_salaryProfile_pay_basis CHECK (
+                    (pay_type = 'monthly' AND base_salary IS NOT NULL AND base_salary >= 0 AND hourly_rate IS NULL) OR
+                    (pay_type = 'hourly' AND hourly_rate IS NOT NULL AND hourly_rate >= 0 AND base_salary IS NULL)
+                ),
+                CONSTRAINT chk_salaryProfile_social_insurance CHECK (social_insurance_housing_fund >= 0),
+                UNIQUE KEY uq_salaryProfile_user_effective_from (user_id, effective_from),
+                INDEX idx_salaryProfile_user_effective (user_id, effective_from, effective_to),
+                INDEX idx_salaryProfile_pay_type (pay_type)
+            ))SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "payrollPeriod",
+            R"SQL(CREATE TABLE payrollPeriod (
+                id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                payroll_month DATE NOT NULL COMMENT '工资月份，固定保存为当月第一天',
+                status ENUM('calculating', 'first_review', 'second_review', 'locked', 'archived') NOT NULL DEFAULT 'calculating',
+                version_no INT NOT NULL DEFAULT 1 COMMENT '同一月份的工资版本号',
+                first_reviewed_by INT NULL,
+                first_reviewed_at DATETIME NULL,
+                reviewed_by INT NULL,
+                reviewed_at DATETIME NULL,
+                locked_by INT NULL,
+                locked_at DATETIME NULL,
+                total_salary DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '该工资周期实发总额',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_payrollPeriod_first_reviewed_by FOREIGN KEY (first_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_payrollPeriod_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_payrollPeriod_locked_by FOREIGN KEY (locked_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT chk_payrollPeriod_month_first_day CHECK (DAY(payroll_month) = 1),
+                CONSTRAINT chk_payrollPeriod_version CHECK (version_no > 0),
+                UNIQUE KEY uq_payrollPeriod_month_version (payroll_month, version_no),
+                INDEX idx_payrollPeriod_status_month (status, payroll_month)
+            ))SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "salary",
+            R"SQL(CREATE TABLE salary (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                payroll_period_id INT NOT NULL,
+                salary_profile_id INT NULL COMMENT '生成工资时采用的薪资配置',
+                user_id INT NOT NULL,
+                pay_type ENUM('monthly', 'hourly') NOT NULL COMMENT '当月计薪方式快照',
+                base_salary DECIMAL(18, 2) NULL COMMENT '当月月薪标准快照',
+                hourly_rate DECIMAL(18, 2) NULL COMMENT '当月时薪标准快照',
+                work_hours_month DECIMAL(10, 2) NOT NULL DEFAULT 0.00 COMMENT '本月工作时间（小时）',
+                attendance_award DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '全勤奖金',
+                performance_award DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '绩效奖金',
+                allowance DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '补贴',
+                deduction DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '财务依据罚款凭证录入的扣款',
+                social_insurance_housing_fund DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '五险一金扣款金额',
+                total_salary DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '当月实发工资',
+                review_status ENUM('pending', 'first_reviewed', 'second_reviewed', 'locked') NOT NULL DEFAULT 'pending',
+                is_manually_modified TINYINT NOT NULL DEFAULT 0 COMMENT '是否存在人工修改',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_salary_payroll_period FOREIGN KEY (payroll_period_id) REFERENCES payrollPeriod(id) ON DELETE CASCADE,
+                CONSTRAINT fk_salary_profile FOREIGN KEY (salary_profile_id) REFERENCES salaryProfile(id) ON DELETE SET NULL,
+                CONSTRAINT fk_salary_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+                CONSTRAINT chk_salary_pay_basis CHECK (
+                    (pay_type = 'monthly' AND base_salary IS NOT NULL AND base_salary >= 0 AND hourly_rate IS NULL) OR
+                    (pay_type = 'hourly' AND hourly_rate IS NOT NULL AND hourly_rate >= 0 AND base_salary IS NULL)
+                ),
+                CONSTRAINT chk_salary_non_negative CHECK (
+                    work_hours_month >= 0 AND attendance_award >= 0 AND performance_award >= 0 AND allowance >= 0 AND
+                    deduction >= 0 AND social_insurance_housing_fund >= 0
+                ),
+                UNIQUE KEY uq_salary_period_user (payroll_period_id, user_id),
+                INDEX idx_salary_user_period (user_id, payroll_period_id),
+                INDEX idx_salary_review_status (payroll_period_id, review_status),
+                INDEX idx_salary_manually_modified (payroll_period_id, is_manually_modified)
+            ))SQL",
+            nullptr,
+            nullptr,
+        },
+        {
+            "salaryChangeRecord",
+            R"SQL(CREATE TABLE salaryChangeRecord (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                salary_id BIGINT NOT NULL,
+                changed_field VARCHAR(64) NOT NULL COMMENT '被修改的工资字段',
+                before_value VARCHAR(255) NULL COMMENT '修改前值',
+                after_value VARCHAR(255) NULL COMMENT '修改后值',
+                changed_by INT NULL,
+                change_reason VARCHAR(500) NOT NULL DEFAULT '' COMMENT '人工修改原因或凭证说明',
+                evidence_path VARCHAR(500) NOT NULL DEFAULT '' COMMENT '相关凭证文件路径',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_salaryChangeRecord_salary FOREIGN KEY (salary_id) REFERENCES salary(id) ON DELETE CASCADE,
+                CONSTRAINT fk_salaryChangeRecord_changed_by FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL,
+                INDEX idx_salaryChangeRecord_salary_created (salary_id, created_at),
+                INDEX idx_salaryChangeRecord_changed_by (changed_by, created_at)
             ))SQL",
             nullptr,
             nullptr,
@@ -916,8 +1128,8 @@ namespace
             nullptr,
         },
         {
-            "monthlySalaryRecord",
-            R"SQL(CREATE TABLE monthlySalaryRecord (
+            "monthlyFinancialRecord",
+            R"SQL(CREATE TABLE monthlyFinancialRecord (
                 id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
                 salesCount DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '销售金额',
                 costCount DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '成本金额',
@@ -1130,8 +1342,8 @@ namespace
                 CONSTRAINT fk_report_template_versions_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_report_template_versions_published_by FOREIGN KEY (published_by) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
-            seedDefaultReportTemplateVersion,
-            seedDefaultReportTemplateVersion,
+            ensureReportTemplateCurrentVersionForeignKey,
+            ensureReportTemplateCurrentVersionForeignKey,
         },
         {
             "medical_documents",

@@ -487,6 +487,18 @@ export default defineComponent({
                 price: item.unitPrice,
                 totalPrice: item.subtotal,
               })),
+              medicalDocument: {
+                chiefComplaint: patientForm.symptom,
+                presentIllness: "",
+                pastHistory: "",
+                allergies: "",
+                physicalExam: "",
+                diagnosis: patientForm.symptom,
+                treatmentPlan: "",
+                dischargeAdvice: "",
+                followUpAt: "",
+                structuredData: {},
+              },
             },
             fallback: {
               pet_name: patientForm.petName || "未命名宠物",

@@ -114,7 +114,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     }
 
                     financeHandler handler(dbManager);
-                    crow::response response = handler.updateEmployeeSalary(req, goalUserId);
+                    crow::response response = handler.savePayrollEmployee(req, goalUserId);
                     ProcessHandlerResponse(req, res, response);
                 }
                 catch (const std::exception &e)
@@ -174,7 +174,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                         return;
                     }
 
-                    crow::response response = handler.searchSalaryEmployees(req, jsonOpt.value());
+                    crow::response response = handler.getPayrollEmployees(req, jsonOpt.value());
                     ProcessHandlerResponse(req, res, response);
                 }
                 catch (const std::exception &e)
@@ -183,6 +183,32 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "搜索员工工资", Permissions::kSalaryRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/finance/payroll-periods/current/submit-review")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                // 不走 Finish* 的路由必须守卫兜底 res.end()，含 401 早退路径，
+                // 否则响应不发回、前端卡满 12s 超时。
+                ResponseEnder ender{res};
+                int userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryWrite);
+                if (res.code != 200 || userId == -1) return;
+                financeHandler handler(dbManager);
+                crow::response response = handler.submitPayrollReview(req);
+                ProcessHandlerResponse(req, res, response);
+            });
+
+    CROW_ROUTE(app, "/api/finance/payroll-periods/current/lock")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                ResponseEnder ender{res};
+                int userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryWrite);
+                if (res.code != 200 || userId == -1) return;
+                financeHandler handler(dbManager);
+                crow::response response = handler.lockPayroll(req);
+                ProcessHandlerResponse(req, res, response);
             });
 
     // 获取员工工资详情路由

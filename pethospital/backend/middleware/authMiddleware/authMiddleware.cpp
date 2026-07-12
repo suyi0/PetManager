@@ -125,6 +125,12 @@ int isValidUserToken(const crow::request &req, crow::response &res, std::shared_
     return validateTokenWithScope(req, res, dbManager, TokenValidationScope::User);
 }
 
+int isValidAuthenticatedToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager)
+{
+    return validateToken(req, res, dbManager, [](const JwtUtils::TokenClaims &, std::string &)
+                         { return true; });
+}
+
 // 验证用户的订单token
 int isValidUserorderToken(const crow::request &req, crow::response &res, int &orderId, std::shared_ptr<DatabaseManagerInterface> dbManager)
 {
@@ -208,14 +214,12 @@ int isValidManagementToken(const crow::request &req, crow::response &res, std::s
 int isValidPermissionToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager, const std::string &permissionKey)
 {
     return validateToken(req, res, dbManager, [&](const JwtUtils::TokenClaims &claims, std::string &identifier)
-                         {
-        return JwtUtils::isUserAuthorizedForPermission(
-            claims.userId,
-            identifier,
-            claims.isEmailLogin,
-            dbManager,
-            permissionKey); },
-                         AuthorizationFailureResponse::PermissionDenied);
+                         { return JwtUtils::isUserAuthorizedForPermission(
+                               claims.userId,
+                               identifier,
+                               claims.isEmailLogin,
+                               dbManager,
+                               permissionKey); }, AuthorizationFailureResponse::PermissionDenied);
 }
 
 // 验证超级管理员门户 token。

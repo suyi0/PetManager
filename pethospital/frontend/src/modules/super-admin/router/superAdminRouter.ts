@@ -34,6 +34,16 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import("../views/pages/SuperAdminRbac.vue"),
       },
       {
+        path: "rbac/positions",
+        name: "superAdminRbacPositions",
+        component: () => import("../views/pages/SuperAdminRbacPositions.vue"),
+      },
+      {
+        path: "rbac/users",
+        name: "superAdminRbacUsers",
+        component: () => import("../views/pages/SuperAdminRbacUsers.vue"),
+      },
+      {
         path: "online-doctors",
         name: "superAdminOnlineDoctors",
         component: () => import("../views/pages/SuperAdminOnlineDoctors.vue"),
@@ -47,6 +57,12 @@ const routes: Array<RouteRecordRaw> = [
         path: "logs",
         name: "superAdminLogs",
         component: () => import("../views/pages/SuperAdminLogs.vue"),
+      },
+      {
+        path: "report-templates",
+        name: "superAdminReportTemplates",
+        component: () => import("../views/pages/SuperAdminReportTemplates.vue"),
+        meta: { allowedPermissions: ["report-template:read"] },
       },
       {
         path: "personal",

@@ -61,7 +61,27 @@ nlohmann::json rowToDepartmentJson(const mysqlx::Row &row)
         {"branch_name", row[2].isNull() ? "" : row[2].get<std::string>()},
         {"name", row[3].isNull() ? "" : row[3].get<std::string>()},
         {"description", row[4].isNull() ? "" : row[4].get<std::string>()},
+        {"business_domain", row[5].isNull() ? "general" : row[5].get<std::string>()},
+        {"is_system", !row[6].isNull() && row[6].get<int>() != 0},
     };
+}
+
+// 部门业务域 → 该部门下允许创建的职位工种。普通员工在任何部门可选；
+// 各业务域再叠加自己的专属工种。用于 createPosition 强校验（前端引导之外的兜底）。
+inline const std::set<std::string> &staffKindsForDomain(const std::string &domain)
+{
+    static const std::set<std::string> general = {"general_staff"};
+    static const std::set<std::string> management = {"general_staff", "management"};
+    static const std::set<std::string> finance = {"general_staff", "finance"};
+    static const std::set<std::string> personnel = {"general_staff", "personnel"};
+    static const std::set<std::string> medical = {"general_staff", "doctor", "nurse"};
+    static const std::set<std::string> warehouse = {"general_staff", "warehouse"};
+    if (domain == "management") return management;
+    if (domain == "finance") return finance;
+    if (domain == "personnel") return personnel;
+    if (domain == "medical") return medical;
+    if (domain == "warehouse") return warehouse;
+    return general;
 }
 
 nlohmann::json rowToPositionJson(const mysqlx::Row &row)
@@ -120,6 +140,30 @@ bool isSuperAdminPosition(const std::shared_ptr<DatabaseManagerInterface> &dbMan
                                   .bind(positionId)
                                   .execute();
     return static_cast<bool>(result.fetchOne());
+}
+
+std::vector<std::string> permissionsOutsideAllowedDomains(
+    const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId,
+    const std::vector<std::string> &permissions)
+{
+    const auto allowed = RbacService::allowedDomainsForPosition(dbManager, positionId);
+    std::vector<std::string> rejected;
+    for (const auto &key : permissions)
+        if (allowed.count(Permissions::domainOfPermission(key)) == 0) rejected.push_back(key);
+    return rejected;
+}
+
+crow::response domainBoundaryError(const crow::request &req, const std::vector<std::string> &rejected)
+{
+    std::string message = "权限超出目标职位允许域：";
+    for (std::size_t i = 0; i < rejected.size(); ++i)
+    {
+        if (i) message += "，";
+        message += rejected[i] + "（" + Permissions::domainChineseName(Permissions::domainOfPermission(rejected[i])) + "域）";
+    }
+    // 不用 422：Crow 1.2.x 状态码表没有它，未知码会被回落成 500。
+    // 400 + VALIDATION_ERROR + 明确中文域名信息足够前端与调用方判别。
+    return ResponseHelper::validation(req, message);
 }
 
 std::optional<std::vector<std::string>> parseGrantablePermissions(const crow::request &req, const nlohmann::json &body, crow::response &res)
@@ -261,7 +305,8 @@ void bumpUsersInPosition(const std::shared_ptr<DatabaseManagerInterface> &dbMana
 crow::response getDepartments(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager)
 {
     mysqlx::SqlResult result = dbManager->getSession()
-                                  ->sql("SELECT d.id, d.branch_id, COALESCE(b.name, ''), d.name, COALESCE(d.description, '') "
+                                  ->sql("SELECT d.id, d.branch_id, COALESCE(b.name, ''), d.name, COALESCE(d.description, ''), "
+                                        "COALESCE(d.business_domain, 'general'), COALESCE(d.is_system, 0) "
                                         "FROM departments AS d "
                                         "LEFT JOIN branches AS b ON b.id = d.branch_id "
                                         "ORDER BY d.branch_id, d.id")
@@ -287,13 +332,91 @@ crow::response createDepartment(const crow::request &req, const std::shared_ptr<
     {
         return ResponseHelper::validation(req, "分院不存在");
     }
+    // 业务域：决定该部门下能创建哪些职位工种。缺省 general（仅普通员工）。
+    const std::string businessDomain = jsonString(body, "business_domain", "general");
+    static const std::set<std::string> kDomains = {
+        "general", "management", "finance", "personnel", "medical", "warehouse"};
+    if (kDomains.find(businessDomain) == kDomains.end())
+    {
+        return ResponseHelper::validation(req, "business_domain 取值不合法");
+    }
 
     mysqlx::SqlResult result = dbManager->getSession()
-                                  ->sql("INSERT INTO departments (branch_id, name, description) VALUES (?, ?, ?)")
-                                  .bind(branchId, name, description)
+                                  ->sql("INSERT INTO departments (branch_id, name, description, business_domain) VALUES (?, ?, ?, ?)")
+                                  .bind(branchId, name, description, businessDomain)
                                   .execute();
 
-    return ResponseHelper::created(req, {{"id", static_cast<int>(result.getAutoIncrementValue())}, {"branch_id", branchId}, {"name", name}, {"description", description}});
+    return ResponseHelper::created(req, {{"id", static_cast<int>(result.getAutoIncrementValue())}, {"branch_id", branchId}, {"name", name}, {"description", description}, {"business_domain", businessDomain}});
+}
+
+crow::response updateDepartment(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int departmentId, const nlohmann::json &body)
+{
+    mysqlx::Row current = dbManager->getSession()
+                              ->sql("SELECT name, COALESCE(business_domain, 'general'), COALESCE(is_system, 0) "
+                                    "FROM departments WHERE id = ? LIMIT 1")
+                              .bind(departmentId)
+                              .execute()
+                              .fetchOne();
+    if (!current)
+    {
+        return ResponseHelper::notFound(req, "部门不存在");
+    }
+    // 系统种子部门（管理部等 5 个）是权限边界与业务身份的锚点，名称与业务域一律锁定。
+    if (current[2].get<int>() != 0)
+    {
+        return ResponseHelper::validation(req, "系统内置部门不可编辑");
+    }
+
+    const std::string name = jsonString(body, "name", current[0].get<std::string>());
+    if (name.empty())
+    {
+        return ResponseHelper::validation(req, "部门名称不能为空");
+    }
+    const std::string businessDomain = jsonString(body, "business_domain", current[1].get<std::string>());
+    static const std::set<std::string> kDomains = {
+        "general", "management", "finance", "personnel", "medical", "warehouse"};
+    if (kDomains.find(businessDomain) == kDomains.end())
+    {
+        return ResponseHelper::validation(req, "business_domain 取值不合法");
+    }
+
+    // 改域必须保证已有职位全部落在新域内（与建职位强校验同一条纪律），否则列出冲突职位让管理员先处理。
+    if (businessDomain != current[1].get<std::string>())
+    {
+        const std::set<std::string> &allowed = staffKindsForDomain(businessDomain);
+        std::string conflicts;
+        mysqlx::SqlResult rows = dbManager->getSession()
+                                     ->sql("SELECT name, staff_kind FROM positions WHERE department_id = ?")
+                                     .bind(departmentId)
+                                     .execute();
+        for (mysqlx::Row row = rows.fetchOne(); row; row = rows.fetchOne())
+        {
+            const std::string kind = row[1].isNull() ? "general_staff" : row[1].get<std::string>();
+            if (allowed.find(kind) == allowed.end())
+            {
+                if (!conflicts.empty()) conflicts += "、";
+                conflicts += row[0].get<std::string>();
+            }
+        }
+        if (!conflicts.empty())
+        {
+            return ResponseHelper::validation(req, "以下职位的工种不属于新业务域，请先调整或删除：" + conflicts);
+        }
+    }
+
+    try
+    {
+        dbManager->getSession()
+            ->sql("UPDATE departments SET name = ?, business_domain = ? WHERE id = ?")
+            .bind(name, businessDomain, departmentId)
+            .execute();
+    }
+    catch (const mysqlx::Error &)
+    {
+        // departments.name 唯一约束：重名给干净的 400 而不是 500
+        return ResponseHelper::validation(req, "部门名称已存在");
+    }
+    return ResponseHelper::success(req, {{"id", departmentId}, {"name", name}, {"business_domain", businessDomain}});
 }
 
 crow::response getPositions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager)
@@ -334,6 +457,20 @@ crow::response createPosition(const crow::request &req, const std::shared_ptr<Da
     {
         return ResponseHelper::validation(req, "staff_kind 取值不合法");
     }
+    // 工种必须属于所在部门的业务域（普通员工在任何部门可选），杜绝「管理部·财务」这类矛盾组合。
+    {
+        mysqlx::Row domainRow = dbManager->getSession()
+                                    ->sql("SELECT COALESCE(business_domain, 'general') FROM departments WHERE id = ? LIMIT 1")
+                                    .bind(departmentId.value())
+                                    .execute()
+                                    .fetchOne();
+        const std::string domain = domainRow ? domainRow[0].get<std::string>() : "general";
+        const std::set<std::string> &allowed = staffKindsForDomain(domain);
+        if (allowed.find(staffKind) == allowed.end())
+        {
+            return ResponseHelper::validation(req, "该工种不属于所选部门的业务域，请选择与部门匹配的工种");
+        }
+    }
     const std::string description = jsonString(body, "description");
 
     // system_key 是系统/seed 专用锚点（受保护职位、业务身份 findPositionIdBySystemKey 用），
@@ -361,7 +498,13 @@ crow::response getPositionPermissions(const crow::request &req, const std::share
             permissions.push_back(permissionKey);
         }
     }
-    return ResponseHelper::success(req, {{"position_id", positionId}, {"permissions", permissions}});
+    nlohmann::json grantableKeys = nlohmann::json::array();
+    const auto allowed = RbacService::allowedDomainsForPosition(dbManager, positionId);
+    for (const auto &key : Permissions::grantablePermissionKeys())
+    {
+        if (allowed.count(Permissions::domainOfPermission(key))) grantableKeys.push_back(key);
+    }
+    return ResponseHelper::success(req, {{"position_id", positionId}, {"permissions", permissions}, {"grantableKeys", grantableKeys}});
 }
 
 crow::response getPermissionTemplates(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager)
@@ -398,10 +541,62 @@ crow::response updatePositionPermissions(const crow::request &req, const std::sh
         return validationRes;
     }
 
+    const auto rejected = permissionsOutsideAllowedDomains(dbManager, positionId, permissions.value());
+    if (!rejected.empty()) return domainBoundaryError(req, rejected);
+
     replacePositionPermissions(dbManager, positionId, permissions.value());
     bumpUsersInPosition(dbManager, positionId);
     AccessRevocation::closeRealtimeConnections();
     return ResponseHelper::success(req, {{"position_id", positionId}, {"permissions", permissions.value()}});
+}
+
+crow::response getUserPermissions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int userId)
+{
+    mysqlx::Row user = dbManager->getSession()->sql(
+        "SELECT u.position_id, p.name, COALESCE(d.name, '') FROM users u "
+        "JOIN positions p ON p.id=u.position_id LEFT JOIN departments d ON d.id=p.department_id "
+        "WHERE u.id=? AND u.is_deleted=0 LIMIT 1").bind(userId).execute().fetchOne();
+    if (!user) return ResponseHelper::notFound(req, "用户不存在");
+    const int positionId = user[0].get<int>();
+    nlohmann::json positionPermissions = RbacService::loadPermissionsForPosition(dbManager, positionId);
+    nlohmann::json personalPermissions = nlohmann::json::array();
+    mysqlx::SqlResult personal = dbManager->getSession()->sql(
+        "SELECT permission_key FROM user_permissions WHERE user_id=? ORDER BY permission_key").bind(userId).execute();
+    for (mysqlx::Row row = personal.fetchOne(); row; row = personal.fetchOne())
+        if (!row[0].isNull() && Permissions::isKnownPermissionKey(row[0].get<std::string>())) personalPermissions.push_back(row[0].get<std::string>());
+    nlohmann::json grantableKeys = nlohmann::json::array();
+    const auto allowed = RbacService::allowedDomainsForPosition(dbManager, positionId);
+    for (const auto &key : Permissions::grantablePermissionKeys())
+        if (allowed.count(Permissions::domainOfPermission(key))) grantableKeys.push_back(key);
+    return ResponseHelper::success(req, {{"positionId", positionId}, {"positionName", user[1].get<std::string>()},
+        {"departmentName", user[2].get<std::string>()}, {"positionPermissions", positionPermissions},
+        {"personalPermissions", personalPermissions}, {"grantableKeys", grantableKeys}});
+}
+
+crow::response updateUserPermissions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+                                     int operatorId, int userId, const nlohmann::json &body)
+{
+    mysqlx::Row user = dbManager->getSession()->sql(
+        "SELECT position_id FROM users WHERE id=? AND is_deleted=0 LIMIT 1").bind(userId).execute().fetchOne();
+    if (!user) return ResponseHelper::notFound(req, "用户不存在");
+    crow::response validationRes;
+    auto permissions = parseGrantablePermissions(req, body, validationRes);
+    if (!permissions) return validationRes;
+    const auto rejected = permissionsOutsideAllowedDomains(dbManager, user[0].get<int>(), *permissions);
+    if (!rejected.empty()) return domainBoundaryError(req, rejected);
+    auto session = dbManager->getSession();
+    session->sql("START TRANSACTION").execute();
+    try
+    {
+        session->sql("DELETE FROM user_permissions WHERE user_id=?").bind(userId).execute();
+        for (const auto &key : *permissions)
+            session->sql("INSERT INTO user_permissions (user_id, permission_key, granted_by) VALUES (?, ?, ?)")
+                .bind(userId, key, operatorId).execute();
+        session->sql("COMMIT").execute();
+    }
+    catch (...) { rollbackTransactionQuietly(*session); throw; }
+    AccessRevocation::onUserAccessChanged(userId);
+    return ResponseHelper::success(req, {{"userId", userId}, {"permissions", *permissions}});
 }
 
 crow::response applyPermissionTemplate(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId, const nlohmann::json &body)
@@ -431,6 +626,35 @@ crow::response applyPermissionTemplate(const crow::request &req, const std::shar
     bumpUsersInPosition(dbManager, positionId);
     AccessRevocation::closeRealtimeConnections();
     return ResponseHelper::success(req, {{"position_id", positionId}, {"template_id", templateId.value()}, {"permissions", permissions}});
+}
+
+crow::response resetPositionDefaults(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId)
+{
+    mysqlx::Row position = dbManager->getSession()->sql(
+        "SELECT staff_kind, COALESCE(system_key, '') FROM positions WHERE id=? LIMIT 1").bind(positionId).execute().fetchOne();
+    if (!position) return ResponseHelper::notFound(req, "岗位不存在");
+    const std::string kind = position[0].get<std::string>();
+    const std::string systemKey = position[1].get<std::string>();
+    std::string templateName;
+    if (systemKey == "president" || systemKey == "vice-president") templateName = "Boss";
+    else if (systemKey == "super-admin") templateName = "SuperAdmin";
+    else if (kind == "doctor" || kind == "nurse") templateName = "Medical";
+    else if (kind == "finance") templateName = "Finance";
+    else if (kind == "personnel") templateName = "Personnel";
+    else if (kind == "warehouse") templateName = "Warehouse";
+
+    std::vector<std::string> permissions;
+    if (!templateName.empty())
+    {
+        mysqlx::Row tmpl = dbManager->getSession()->sql(
+            "SELECT id FROM permission_templates WHERE name=? LIMIT 1").bind(templateName).execute().fetchOne();
+        if (!tmpl) return ResponseHelper::notFound(req, "默认权限模板不存在");
+        permissions = loadTemplatePermissions(dbManager, tmpl[0].get<int>());
+    }
+    replacePositionPermissions(dbManager, positionId, permissions);
+    bumpUsersInPosition(dbManager, positionId);
+    AccessRevocation::closeRealtimeConnections();
+    return ResponseHelper::success(req, {{"position_id", positionId}, {"permissions", permissions}});
 }
 
 crow::response updateUserPosition(
@@ -479,20 +703,28 @@ crow::response updateUserPosition(
         return ResponseHelper::notFound(req, "用户不存在");
     }
 
-    if (assignCustomer)
+    auto session = dbManager->getSession();
+    session->sql("START TRANSACTION").execute();
+    try
     {
-        dbManager->getSession()
+      if (assignCustomer)
+      {
+        session
             ->sql("UPDATE users SET account_type = 'customer', position_id = NULL WHERE id = ?")
             .bind(targetUserId)
             .execute();
-    }
-    else
-    {
-        dbManager->getSession()
+      }
+      else
+      {
+        session
             ->sql("UPDATE users SET account_type = 'staff', position_id = ? WHERE id = ?")
             .bind(positionId.value(), targetUserId)
             .execute();
+      }
+      session->sql("DELETE FROM user_permissions WHERE user_id = ?").bind(targetUserId).execute();
+      session->sql("COMMIT").execute();
     }
+    catch (...) { rollbackTransactionQuietly(*session); throw; }
 
     AccessRevocation::revokeUserSessions(targetUserId);
     AccessRevocation::closeRealtimeConnections();
@@ -675,6 +907,42 @@ void adminRoutes::setupAdminRoutes(
                 OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, isCreate);
             });
 
+    CROW_ROUTE(app, "/api/admin/org/departments/<int>")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int departmentId)
+            {
+                int userId = -1;
+                const std::string action = "编辑部门";
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", action);
+                        return;
+                    }
+                    if (!hasUsableDb(dbManager))
+                    {
+                        res = ResponseHelper::system_error(req, "Database connection unavailable");
+                        return;
+                    }
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (!jsonOpt)
+                    {
+                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        return;
+                    }
+                    res = updateDepartment(req, dbManager, departmentId, jsonOpt.value());
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", action, e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, true);
+            });
+
     CROW_ROUTE(app, "/api/admin/org/positions")
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res)
@@ -806,6 +1074,40 @@ void adminRoutes::setupAdminRoutes(
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", action, Permissions::kRbacManage, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/admin/rbac/positions/<int>/reset-defaults")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int positionId)
+            {
+                int userId = isValidPermissionToken(req, res, dbManager, Permissions::kRbacManage);
+                const std::string action = "重置岗位默认权限";
+                if (res.code != 200 || userId == -1) { OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", action); return; }
+                try { res = resetPositionDefaults(req, dbManager, positionId); }
+                catch (const std::exception &e) { OperationLogger::LogExceptionOperation(dbManager, req, "管理", action, e.what(), userId); res = ResponseHelper::system_error(req); }
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", action, Permissions::kRbacManage, userId);
+            });
+
+    CROW_ROUTE(app, "/api/admin/rbac/users/<int>/permissions")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Put, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int targetUserId)
+            {
+                const bool isUpdate = req.method == crow::HTTPMethod::Put;
+                const std::string action = isUpdate ? "修改职工个人权限" : "获取职工个人权限";
+                int userId = isUpdate ? isValidPermissionToken(req, res, dbManager, Permissions::kRbacManage)
+                                      : isValidManagementToken(req, res, dbManager);
+                if (res.code != 200 || userId == -1) { OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", action); return; }
+                try
+                {
+                    if (isUpdate)
+                    {
+                        BaseHandler parser(dbManager); auto body = parser.parseJson(req, res);
+                        if (body) res = updateUserPermissions(req, dbManager, userId, targetUserId, *body);
+                    }
+                    else res = getUserPermissions(req, dbManager, targetUserId);
+                }
+                catch (const std::exception &e) { OperationLogger::LogExceptionOperation(dbManager, req, "管理", action, e.what(), userId); res = ResponseHelper::system_error(req); }
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", action, Permissions::kRbacManage, userId);
             });
 
     CROW_ROUTE(app, "/api/admin/rbac/permission-templates")
@@ -1389,6 +1691,36 @@ void adminRoutes::setupAdminRoutes(
             auto response = isCreate ? handler.createVersion(req, templateId, userId) : handler.versions(req, templateId);
             ProcessHandlerResponse(req, res, response);
             OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", isCreate ? "创建打印模板版本" : "读取打印模板版本", permission, userId);
+        });
+
+    CROW_ROUTE(app, "/api/admin/report-templates/<int>/versions/<int>")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int templateId, int versionId)
+        {
+            const int userId = isValidPermissionToken(req, res, dbManager, Permissions::kReportTemplateRead);
+            if (res.code != 200 || userId <= 0)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "读取打印模板正文");
+                return;
+            }
+            ReportTemplateHandler handler(dbManager);
+            auto response = handler.getVersion(req, templateId, versionId);
+            ProcessHandlerResponse(req, res, response);
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "读取打印模板正文", Permissions::kReportTemplateRead, userId);
+        });
+
+    CROW_ROUTE(app, "/api/admin/report-templates/<int>/previews")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)([dbManager](const crow::request &req, crow::response &res, int templateId)
+        {
+            const int userId = isValidPermissionToken(req, res, dbManager, Permissions::kReportTemplateManage);
+            if (res.code != 200 || userId <= 0)
+            {
+                OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", "预览打印模板");
+                return;
+            }
+            ReportTemplateHandler handler(dbManager);
+            auto response = handler.preview(req, templateId);
+            ProcessHandlerResponse(req, res, response);
+            OperationLogger::FinishSensitiveRoute(dbManager, req, res, "管理", "预览打印模板", Permissions::kReportTemplateManage, userId);
         });
 
     CROW_ROUTE(app, "/api/admin/report-templates/<int>/publish")

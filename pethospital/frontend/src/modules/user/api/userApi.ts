@@ -8,6 +8,8 @@ import {
   ReservationScheduleState,
   ReservationScheduleResponseItem,
   UserAttendanceRecord,
+  UserMedicalDocumentSummary,
+  UserMedicalDocumentDetail,
 } from "@/modules/user/api/types";
 import { DoctorDataItem } from "@/modules/doctor/api/types";
 
@@ -397,5 +399,27 @@ export const attendanceApi = {
       params: { month },
     });
     return unwrapAttendanceRecords(response);
+  },
+};
+
+export const medicalDocumentApi = {
+  async list(): Promise<UserMedicalDocumentSummary[]> {
+    const response = await http.get("/api/users/me/medical-documents");
+    return unwrapListData<UserMedicalDocumentSummary>(response);
+  },
+
+  async download(documentId: number): Promise<Blob> {
+    const { data } = await http.get(
+      `/api/users/me/medical-documents/${documentId}/pdf`,
+      { responseType: "blob" }
+    );
+    return data as Blob;
+  },
+
+  async get(documentId: number): Promise<UserMedicalDocumentDetail> {
+    const { data } = await http.get(
+      `/api/users/me/medical-documents/${documentId}`
+    );
+    return (data?.data ?? data) as UserMedicalDocumentDetail;
   },
 };

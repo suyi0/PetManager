@@ -541,21 +541,27 @@ crow::response userHandler::updatePassword(const crow::request &req, int userId)
             return res;
         auto &request_body = request_body_opt.value();
 
-        std::string password = getRequestStringWithFallback(request_body, "password", "newPassword", "");
+        const std::string currentPassword = getRequestString(request_body, "currentPassword", "");
+        const std::string newPassword = getRequestString(request_body, "newPassword", "");
         if (userId <= 0)
         {
             return ResponseHelper::error(req, "无效的用户ID");
         }
-        if (password.empty())
+        if (currentPassword.empty() || newPassword.empty())
         {
-            return ResponseHelper::validation(req, "新密码不能为空");
+            return ResponseHelper::validation(req, "当前密码和新密码不能为空");
+        }
+        if (newPassword.size() < 8 || newPassword.size() > 64 || !isValidPasswordFormat(newPassword))
+        {
+            return ResponseHelper::validation(req, "新密码需为8至64位，并同时包含字母和数字");
+        }
+        if (currentPassword == newPassword)
+        {
+            return ResponseHelper::validation(req, "新密码不能与当前密码相同");
         }
 
         mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("SELECT u.password, "
-                                             "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END AS type_name "
-                                             "FROM users AS u "
-                                             "LEFT JOIN positions AS pos ON pos.id = u.position_id "
+                                       ->sql("SELECT password FROM users AS u "
                                              "WHERE u.id = ? AND u.is_deleted = 0 "
                                              "LIMIT 1")
                                        .bind(userId)
@@ -566,45 +572,51 @@ crow::response userHandler::updatePassword(const crow::request &req, int userId)
             return ResponseHelper::notFound(req, "User not found");
         }
 
-        const std::string DBpassword = row[0].isNull() ? "" : row[0].get<std::string>();
-        const std::string roleName = row[1].isNull() ? "" : row[1].get<std::string>();
-        bool password_matches = false; // 密码匹配标志
+        const std::string storedPassword = row[0].isNull() ? "" : row[0].get<std::string>();
+        bool currentPasswordMatches = false;
         try
         {
-            password_matches = verify_password_hash(password, DBpassword);
+            currentPasswordMatches = verify_password_hash(currentPassword, storedPassword);
         }
         catch (...)
         {
-            password_matches = false;
+            currentPasswordMatches = false;
         }
 
-        bool password_needs_upgrade = false; // 密码需要升级标志
-        if (password_matches)
+        if (!currentPasswordMatches)
         {
-            try
-            {
-                password_needs_upgrade = password_hash_needs_upgrade(DBpassword);
-            }
-            catch (...)
-            {
-                password_needs_upgrade = true;
-            }
-        }
-
-        if (password_matches && !password_needs_upgrade)
-        {
-            return ResponseHelper::success(req, "No changes to update");
+            return ResponseHelper::validation(req, "当前密码不正确");
         }
 
         dbManager->getSession()
             ->sql("UPDATE users SET password = ? WHERE id = ?")
-            .bind(hash_password(password), userId)
+            .bind(hash_password(newPassword), userId)
             .execute();
 
-        // 改密后吊销该用户全部已签发 token（会话版本已全员生效，不再按角色名区分）
+        // 改密后 bump 会话版本：吊销该用户在其他设备/端已签发的旧 token（旧版本立即失效）。
         AuthSessionStore::bumpSessionVersionForUser(userId);
 
-        return ResponseHelper::success(req, "密码更新成功");
+        // 当前设备无缝续签：用当前身份重签一枚携带最新会话版本的 token 一并返回，
+        // 避免本机被这次 bump 连带踢下线（否则前端只能强制重新登录，体验割裂）。
+        // getTokenClaims 只解签名/过期取身份，不校验会话版本，故此刻旧 token 仍可解析。
+        nlohmann::json response;
+        response["message"] = "密码更新成功";
+        const std::string authHeader = req.get_header_value("Authorization");
+        if (authHeader.rfind("Bearer ", 0) == 0)
+        {
+            if (auto claims = JwtUtils::getTokenClaims(authHeader.substr(7)))
+            {
+                response["token"] = JwtUtils::createToken(
+                    userId,
+                    claims->typeId,
+                    claims->typeName,
+                    claims->identifier,
+                    claims->isEmailLogin,
+                    RbacService::userHasManagementAccess(dbManager, userId));
+            }
+        }
+
+        return ResponseHelper::success(req, response);
     }
     catch (const mysqlx::Error &e)
     {

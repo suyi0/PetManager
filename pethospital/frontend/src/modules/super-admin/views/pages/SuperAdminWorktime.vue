@@ -566,7 +566,7 @@ export default defineComponent({
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #2f9e8f;
+  color: #4f97e0;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -605,7 +605,7 @@ export default defineComponent({
 .mini-btn {
   border: 0;
   border-radius: 9px;
-  background: #2f9e8f;
+  background: #4f97e0;
   color: #fff;
   cursor: pointer;
   font-weight: 700;
@@ -724,7 +724,7 @@ textarea.field {
 }
 
 .message {
-  color: #2f9e8f;
+  color: #4f97e0;
   font-size: 13px;
   font-weight: 700;
 }
@@ -807,7 +807,7 @@ td small,
 
 .tag--ok {
   background: #e7f5f1;
-  color: #1f7a6c;
+  color: #2f7dd0;
 }
 
 .tag--warn {
@@ -828,7 +828,7 @@ td small,
 .link-button {
   border: 0;
   background: transparent;
-  color: #2f9e8f;
+  color: #4f97e0;
   cursor: pointer;
   font: inherit;
   font-weight: 800;

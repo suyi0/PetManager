@@ -38,5 +38,10 @@ public:
 
     crow::response getExpenseData(const crow::request &req); // 获取工资管理页数据 对应 /api/finance/expenses
 
+    crow::response getPayrollEmployees(const crow::request &req, const nlohmann::json &requestBody);
+    crow::response savePayrollEmployee(const crow::request &req, int goalUserId);
+    crow::response submitPayrollReview(const crow::request &req);
+    crow::response lockPayroll(const crow::request &req);
+
 };
 #endif

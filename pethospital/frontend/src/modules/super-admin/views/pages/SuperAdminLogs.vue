@@ -763,10 +763,10 @@ export default defineComponent({
 }
 
 .button {
-  border: 1px solid #4338ca;
+  border: 1px solid #245fa5;
   border-radius: 10px;
   padding: 10px 14px;
-  background: #4f46e5;
+  background: #2f7dd0;
   color: #ffffff;
   cursor: pointer;
   font-size: 12px;
@@ -775,8 +775,8 @@ export default defineComponent({
 
 .button--ghost {
   border-color: #e7e9ee;
-  background: #eef2ff;
-  color: #3730a3;
+  background: #e2eefb;
+  color: #1e5aa0;
 }
 
 .button:focus-visible,
@@ -785,7 +785,7 @@ input:focus-visible,
 select:focus-visible,
 .logs-row:focus-visible,
 .text-button:focus-visible {
-  outline: 3px solid rgba(79, 70, 229, 0.18);
+  outline: 3px solid rgba(47, 125, 208, 0.18);
   outline-offset: 2px;
 }
 
@@ -860,7 +860,7 @@ select:focus-visible,
 
 .major-tab--active {
   border-color: #a5b4fc;
-  background: #eef2ff;
+  background: #e2eefb;
 }
 
 .filter-grid {
@@ -886,7 +886,7 @@ select:focus-visible,
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  border: 1px solid #e0e7ff;
+  border: 1px solid #cfe0f5;
   border-radius: 10px;
   padding: 10px 11px;
   background: #ffffff;
@@ -923,7 +923,7 @@ select:focus-visible,
 .text-button {
   border: 0;
   background: transparent;
-  color: #4f46e5;
+  color: #2f7dd0;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -1077,7 +1077,7 @@ select:focus-visible,
 }
 
 .logs-badge--user {
-  background: #eef2ff;
+  background: #e2eefb;
   color: #4f67b5;
 }
 
@@ -1097,7 +1097,7 @@ select:focus-visible,
 }
 
 .logs-badge--system {
-  background: #eef2ff;
+  background: #e2eefb;
   color: #24759e;
 }
 
@@ -1141,7 +1141,7 @@ select:focus-visible,
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.72);
-  color: #4f46e5;
+  color: #2f7dd0;
   font-size: 13px;
   font-weight: 700;
 }

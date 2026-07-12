@@ -8,6 +8,9 @@
 // 用户端 token 校验。
 int isValidUserToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
 
+// 任意已登录账号 token 校验，仅用于修改本人密码等账号级自助操作。
+int isValidAuthenticatedToken(const crow::request &req, crow::response &res, std::shared_ptr<DatabaseManagerInterface> dbManager);
+
 // 用户订单资源 token 校验。
 int isValidUserorderToken(const crow::request &req, crow::response &res, int &orderId, std::shared_ptr<DatabaseManagerInterface> dbManager);
 

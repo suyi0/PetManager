@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <set>
+#include "../../utils/permissions/Permissions.h"
 
 namespace RbacService
 {
@@ -79,4 +81,9 @@ namespace RbacService
 
     // 检测权限键是否可授予（grantable），用于前端权限管理表单的选项过滤。
     bool isGrantablePermissionKey(const std::string &permissionKey);
+
+    // 目标职位允许承载的权限域；任何异常均 fail-closed 为仅 general。
+    std::set<Permissions::PermissionDomain> allowedDomainsForPosition(
+        const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+        int positionId);
 }

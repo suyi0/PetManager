@@ -42,7 +42,7 @@
           <path d="M19 12H5" />
           <path d="m12 19-7-7 7-7" />
         </svg>
-        返回总裁端
+        {{ returnLabel }}
       </button>
 
       <PortalAccount
@@ -76,7 +76,7 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const { showBossReturn, returnToBossPortal } = useBossPortalReturn(router);
+    const { showBossReturn, returnLabel, returnToBossPortal } = useBossPortalReturn(router);
 
     onMounted(() => {
       startFinanceSessionGuard(store, router);
@@ -104,6 +104,7 @@ export default defineComponent({
       routePrefix,
       currentRoleLabel,
       showBossReturn,
+      returnLabel,
       returnToBossPortal,
     };
   },

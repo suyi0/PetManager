@@ -461,7 +461,7 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
         try
         {
             auto dailyExists = session->sql("SELECT COUNT(*) "
-                                            "FROM monthlySalaryRecord "
+                                            "FROM monthlyFinancialRecord "
                                             "WHERE business_date = ?")
                                    .bind(recordDate)
                                    .execute()
@@ -493,12 +493,12 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
                     dailySummary[1].isNull() ? 0.0 : dailySummary[1].get<double>();
                 const double profitCount = salesCount - costCount;
 
-                mysqlx::SqlResult insertDailyResult = session->sql("INSERT INTO monthlySalaryRecord "
+                mysqlx::SqlResult insertDailyResult = session->sql("INSERT INTO monthlyFinancialRecord "
                                                                    "(salesCount, costCount, profitCount, business_date) "
                                                                    "SELECT ?, ?, ?, ? "
                                                                    "FROM DUAL "
                                                                    "WHERE NOT EXISTS ("
-                                                                   "    SELECT 1 FROM monthlySalaryRecord "
+                                                                   "    SELECT 1 FROM monthlyFinancialRecord "
                                                                    "    WHERE business_date = ?"
                                                                    ")")
                                                        .bind(salesCount, costCount, profitCount, recordDate, recordDate)
@@ -506,7 +506,7 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
 
                 if (insertDailyResult.getAffectedItemsCount() == 1)
                 {
-                    std::cout << "日工资汇总写入 monthlySalaryRecord 完成: "
+                    std::cout << "日经营统计写入 monthlyFinancialRecord 完成: "
                               << recordDate << std::endl;
                 }
             }
@@ -531,7 +531,7 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
                 boost::gregorian::to_iso_extended_string(targetMonthStartDate);
 
             auto monthRecordCount = session->sql("SELECT COUNT(*) "
-                                                 "FROM monthlySalaryRecord "
+                                                 "FROM monthlyFinancialRecord "
                                                  "WHERE business_date >= ? AND business_date < ?")
                                         .bind(monthBusinessDate)
                                         .bind(boost::gregorian::to_iso_extended_string(nextMonthStartDate))
@@ -544,13 +544,13 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
                 session->sql("START TRANSACTION").execute();
                 try
                 {
-                    mysqlx::SqlResult insertDayArchiveResult = session->sql("INSERT INTO salaryRecord "
+                    mysqlx::SqlResult insertDayArchiveResult = session->sql("INSERT INTO financialRecord "
                                                                             "(salesCount, costCount, profitCount, record_type, business_date, created_at, updated_at) "
                                                                             "SELECT msr.salesCount, msr.costCount, msr.profitCount, 'day', msr.business_date, msr.created_at, msr.updated_at "
-                                                                            "FROM monthlySalaryRecord AS msr "
+                                                                            "FROM monthlyFinancialRecord AS msr "
                                                                             "WHERE msr.business_date >= ? AND msr.business_date < ? "
                                                                             "AND NOT EXISTS ("
-                                                                            "    SELECT 1 FROM salaryRecord AS sr "
+                                                                            "    SELECT 1 FROM financialRecord AS sr "
                                                                             "    WHERE sr.record_type = 'day' "
                                                                             "      AND sr.business_date = msr.business_date"
                                                                             ")")
@@ -562,7 +562,7 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
                                                        "COALESCE(ROUND(SUM(salesCount)), 0), "
                                                        "COALESCE(ROUND(SUM(costCount)), 0), "
                                                        "COALESCE(ROUND(SUM(profitCount)), 0) "
-                                                       "FROM monthlySalaryRecord "
+                                                       "FROM monthlyFinancialRecord "
                                                        "WHERE business_date >= ? AND business_date < ?")
                                               .bind(monthBusinessDate)
                                               .bind(boost::gregorian::to_iso_extended_string(nextMonthStartDate))
@@ -576,18 +576,18 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
                     const double profitCount =
                         monthlySummary[2].isNull() ? 0.0 : monthlySummary[2].get<double>();
 
-                    session->sql("INSERT INTO salaryRecord "
+                    session->sql("INSERT INTO financialRecord "
                                  "(salesCount, costCount, profitCount, record_type, business_date) "
                                  "SELECT ?, ?, ?, 'month', ? "
                                  "FROM DUAL "
                                  "WHERE NOT EXISTS ("
-                                 "    SELECT 1 FROM salaryRecord "
+                                 "    SELECT 1 FROM financialRecord "
                                  "    WHERE record_type = 'month' AND business_date = ?"
                                  ")")
                         .bind(salesCount, costCount, profitCount, monthBusinessDate, monthBusinessDate)
                         .execute();
 
-                    session->sql("DELETE FROM monthlySalaryRecord "
+                    session->sql("DELETE FROM monthlyFinancialRecord "
                                  "WHERE business_date >= ? AND business_date < ?")
                         .bind(monthBusinessDate)
                         .bind(boost::gregorian::to_iso_extended_string(nextMonthStartDate))
@@ -595,7 +595,7 @@ void ScheduledTaskManager::Automatic_update_salaryRecord()
 
                     session->sql("COMMIT").execute();
 
-                    std::cout << "月工资明细与汇总归档完成并清理 monthlySalaryRecord: "
+                    std::cout << "月经营统计归档完成并清理 monthlyFinancialRecord: "
                               << targetYear << "-"
                               << std::setw(2) << std::setfill('0') << targetMonth
                               << "，归档日记录数: "

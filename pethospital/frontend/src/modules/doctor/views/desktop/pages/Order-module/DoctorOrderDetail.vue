@@ -106,6 +106,165 @@
         </div>
       </div>
     </section>
+
+    <section v-if="medicalDocument" class="panel medical-panel">
+      <div class="panel-head medical-head">
+        <div>
+          <h3>诊疗文书</h3>
+          <span
+            >{{ statusLabel }} · 第 {{ medicalDocument.revisionNo }} 版</span
+          >
+        </div>
+        <div class="document-actions">
+          <button type="button" @click="previewDocument">预览</button>
+          <button
+            v-if="
+              canPrint &&
+              medicalDocument.status !== 'draft' &&
+              medicalDocument.status !== 'voided'
+            "
+            type="button"
+            @click="openPdf"
+          >
+            打印
+          </button>
+          <button
+            v-if="canWrite && medicalDocument.status === 'draft'"
+            type="button"
+            @click="saveDocument"
+          >
+            保存
+          </button>
+          <button
+            v-if="canFinalize && medicalDocument.status === 'draft'"
+            class="primary"
+            type="button"
+            @click="finalizeDocument"
+          >
+            定稿
+          </button>
+          <button
+            v-if="
+              canAmend &&
+              (medicalDocument.status === 'finalized' ||
+                medicalDocument.status === 'amended')
+            "
+            type="button"
+            @click="amendDocument"
+          >
+            {{ editingAmendment ? "提交修订" : "修订" }}
+          </button>
+          <button
+            v-if="
+              canVoid &&
+              (medicalDocument.status === 'finalized' ||
+                medicalDocument.status === 'amended')
+            "
+            class="danger"
+            type="button"
+            @click="voidDocument"
+          >
+            作废
+          </button>
+        </div>
+      </div>
+      <div class="clinical-grid">
+        <label v-for="field in clinicalFields" :key="field.key">
+          <span>{{ field.label }}</span>
+          <textarea
+            v-model="medicalDocument[field.key]"
+            :readonly="medicalDocument.status !== 'draft' && !editingAmendment"
+            rows="4"
+          />
+        </label>
+      </div>
+      <label class="follow-up">
+        <span>复诊时间</span>
+        <input
+          v-model="medicalDocument.followUpAt"
+          :readonly="medicalDocument.status !== 'draft' && !editingAmendment"
+          type="datetime-local"
+        />
+      </label>
+      <p v-if="actionError" class="action-error">{{ actionError }}</p>
+      <div v-if="versions.length" class="version-list">
+        <div v-for="version in versions" :key="version.id">
+          <span>第 {{ version.revisionNo }} 版</span>
+          <strong>{{ version.changeReason }}</strong>
+          <small>{{ version.createdAt }}</small>
+          <button
+            v-if="version.hasPdf"
+            type="button"
+            @click="openVersionPdf(version.revisionNo)"
+          >
+            查看归档
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <div
+      v-if="previewHtml"
+      class="preview-overlay"
+      @click.self="previewHtml = ''"
+    >
+      <section class="preview-dialog">
+        <header>
+          <h3>诊疗单预览</h3>
+          <button type="button" @click="previewHtml = ''">关闭</button>
+        </header>
+        <iframe title="诊疗单预览" sandbox="" :srcdoc="previewHtml" />
+      </section>
+    </div>
+
+    <div
+      v-if="correctionMode"
+      class="preview-overlay"
+      @click.self="closeCorrectionDialog"
+    >
+      <section class="correction-dialog">
+        <header>
+          <div>
+            <small>{{
+              correctionMode === "amend" ? "补充修订" : "作废文书"
+            }}</small>
+            <h3>
+              {{
+                correctionMode === "amend" ? "确认提交新版本" : "确认作废诊疗单"
+              }}
+            </h3>
+          </div>
+          <button type="button" @click="closeCorrectionDialog">关闭</button>
+        </header>
+        <p>
+          {{
+            correctionMode === "amend"
+              ? "原版本将永久保留，本次内容会生成新的归档版本。"
+              : "作废后患者不能再下载当前 PDF，历史记录仍保留用于审计。"
+          }}
+        </p>
+        <label>
+          <span>操作原因</span>
+          <textarea
+            v-model.trim="correctionReason"
+            rows="4"
+            maxlength="500"
+            autofocus
+          />
+        </label>
+        <footer>
+          <button type="button" @click="closeCorrectionDialog">取消</button>
+          <button
+            class="primary"
+            type="button"
+            :disabled="!correctionReason"
+            @click="confirmCorrection"
+          >
+            {{ correctionMode === "amend" ? "确认修订" : "确认作废" }}
+          </button>
+        </footer>
+      </section>
+    </div>
   </section>
 
   <section v-else class="empty-page">
@@ -121,6 +280,11 @@ import { computed, defineComponent, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
+import { doctorApi } from "@/modules/doctor/api/doctorApi";
+import type {
+  MedicalDocument,
+  MedicalDocumentVersion,
+} from "@/modules/doctor/api/types";
 
 export default defineComponent({
   name: "DoctorOrderDetail",
@@ -131,6 +295,32 @@ export default defineComponent({
     const basePath = computed(() => "/doctor");
     const orderId = computed(() => Number(route.params.orderId ?? 0));
     const loading = ref(false);
+    const medicalDocument = ref<MedicalDocument | null>(null);
+    const previewHtml = ref("");
+    const actionError = ref("");
+    const editingAmendment = ref(false);
+    const correctionMode = ref<"amend" | "void" | null>(null);
+    const correctionReason = ref("");
+    const versions = ref<MedicalDocumentVersion[]>([]);
+    const hasPermission = (permission: string) =>
+      store.state.auth.permissions.includes(permission);
+    const canWrite = computed(() => hasPermission("medical-record:write"));
+    const canFinalize = computed(() =>
+      hasPermission("medical-record:finalize")
+    );
+    const canPrint = computed(() => hasPermission("medical-record:print"));
+    const canAmend = computed(() => hasPermission("medical-record:amend"));
+    const canVoid = computed(() => hasPermission("medical-record:void"));
+    const clinicalFields = [
+      { key: "chiefComplaint", label: "主诉" },
+      { key: "presentIllness", label: "现病史" },
+      { key: "pastHistory", label: "既往史" },
+      { key: "allergies", label: "过敏史" },
+      { key: "physicalExam", label: "体格检查" },
+      { key: "diagnosis", label: "诊断" },
+      { key: "treatmentPlan", label: "治疗方案" },
+      { key: "dischargeAdvice", label: "离院医嘱" },
+    ] as const;
 
     /**
      * 诊单详情只缓存当前选中的一条完整记录。
@@ -144,6 +334,12 @@ export default defineComponent({
       loading.value = true;
       try {
         await store.dispatch("doctor/ensureOrderDetail", orderId.value);
+        medicalDocument.value = await doctorApi.getMedicalDocument(
+          orderId.value
+        );
+        versions.value = await doctorApi.getMedicalDocumentVersions(
+          orderId.value
+        );
       } finally {
         loading.value = false;
       }
@@ -179,6 +375,139 @@ export default defineComponent({
       goBackToWorkbench();
     };
 
+    const statusLabel = computed(
+      () =>
+        ({
+          draft: "草稿",
+          finalized: "已定稿",
+          amended: "已修订",
+          voided: "已作废",
+        }[medicalDocument.value?.status ?? "draft"])
+    );
+    const documentPayload = () => {
+      const document = medicalDocument.value;
+      if (!document) throw new Error("诊疗单尚未加载");
+      return {
+        chiefComplaint: document.chiefComplaint,
+        presentIllness: document.presentIllness,
+        pastHistory: document.pastHistory,
+        allergies: document.allergies,
+        physicalExam: document.physicalExam,
+        diagnosis: document.diagnosis,
+        treatmentPlan: document.treatmentPlan,
+        dischargeAdvice: document.dischargeAdvice,
+        followUpAt: document.followUpAt,
+        structuredData: document.structuredData,
+        lockVersion: document.lockVersion,
+        prescriptionItems: document.prescriptionItems,
+      };
+    };
+    const runAction = async (action: () => Promise<void>) => {
+      actionError.value = "";
+      try {
+        await action();
+      } catch (error) {
+        const status = (error as { response?: { status?: number } })?.response
+          ?.status;
+        if (status === 409) {
+          actionError.value = "诊疗单已被其他人修改，已重新加载最新内容";
+        } else {
+          actionError.value =
+            error instanceof Error ? error.message : "操作失败";
+        }
+        medicalDocument.value = await doctorApi.getMedicalDocument(
+          orderId.value
+        );
+        versions.value = await doctorApi.getMedicalDocumentVersions(
+          orderId.value
+        );
+      }
+    };
+    const saveDocument = () =>
+      runAction(async () => {
+        medicalDocument.value = await doctorApi.updateMedicalDocument(
+          orderId.value,
+          documentPayload()
+        );
+      });
+    const previewDocument = () =>
+      runAction(async () => {
+        previewHtml.value = await doctorApi.previewMedicalDocument(
+          orderId.value
+        );
+      });
+    const finalizeDocument = () =>
+      runAction(async () => {
+        medicalDocument.value = await doctorApi.updateMedicalDocument(
+          orderId.value,
+          documentPayload()
+        );
+        await doctorApi.finalizeMedicalDocument(orderId.value);
+        medicalDocument.value = await doctorApi.getMedicalDocument(
+          orderId.value
+        );
+        versions.value = await doctorApi.getMedicalDocumentVersions(
+          orderId.value
+        );
+      });
+    const openPdf = () =>
+      runAction(async () => {
+        const blob = await doctorApi.getMedicalDocumentPdf(orderId.value);
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      });
+    const amendDocument = () =>
+      (() => {
+        if (!editingAmendment.value) {
+          editingAmendment.value = true;
+          return;
+        }
+        correctionReason.value = "";
+        correctionMode.value = "amend";
+      })();
+    const voidDocument = () => {
+      correctionReason.value = "";
+      correctionMode.value = "void";
+    };
+    const closeCorrectionDialog = () => {
+      correctionMode.value = null;
+      correctionReason.value = "";
+    };
+    const confirmCorrection = () =>
+      runAction(async () => {
+        const mode = correctionMode.value;
+        const reason = correctionReason.value;
+        if (!mode || !reason || !medicalDocument.value) return;
+        if (mode === "amend") {
+          medicalDocument.value = await doctorApi.amendMedicalDocument(
+            orderId.value,
+            { ...documentPayload(), reason }
+          );
+          editingAmendment.value = false;
+        } else {
+          medicalDocument.value = await doctorApi.voidMedicalDocument(
+            orderId.value,
+            medicalDocument.value.lockVersion,
+            reason
+          );
+        }
+        versions.value = await doctorApi.getMedicalDocumentVersions(
+          orderId.value
+        );
+        closeCorrectionDialog();
+      });
+    const openVersionPdf = (revisionNo: number) =>
+      runAction(async () => {
+        const blob = await doctorApi.getMedicalDocumentVersionPdf(
+          orderId.value,
+          revisionNo
+        );
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      });
+
     onMounted(() => {
       void loadOrderDetail();
     });
@@ -190,6 +519,29 @@ export default defineComponent({
       backLabel,
       goBack,
       goBackToWorkbench,
+      medicalDocument,
+      previewHtml,
+      actionError,
+      editingAmendment,
+      clinicalFields,
+      statusLabel,
+      saveDocument,
+      previewDocument,
+      finalizeDocument,
+      openPdf,
+      amendDocument,
+      voidDocument,
+      versions,
+      openVersionPdf,
+      correctionMode,
+      correctionReason,
+      closeCorrectionDialog,
+      confirmCorrection,
+      canWrite,
+      canFinalize,
+      canPrint,
+      canAmend,
+      canVoid,
     };
   },
 });
@@ -200,8 +552,7 @@ export default defineComponent({
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 20px;
-  height: var(--doctor-page-card-height, 860px);
-  overflow: hidden;
+  min-height: var(--doctor-page-card-height, 860px);
 }
 
 .detail-hero,
@@ -212,6 +563,180 @@ export default defineComponent({
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 252, 246, 0.96), #f5fbf8);
   box-shadow: 0 20px 40px rgba(43, 78, 75, 0.07);
+}
+
+.medical-panel {
+  display: grid;
+  gap: 18px;
+}
+.medical-head,
+.document-actions,
+.preview-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.medical-head span,
+.clinical-grid span,
+.follow-up span {
+  color: #6f8782;
+  font-size: 13px;
+}
+.document-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.document-actions button,
+.preview-dialog button {
+  border: 1px solid #b9d0c9;
+  background: #fff;
+  color: #28555b;
+  padding: 9px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.document-actions .primary {
+  background: #1f6159;
+  border-color: #1f6159;
+  color: #fff;
+}
+.document-actions .danger {
+  color: #a93f3f;
+  border-color: #d9aaaa;
+}
+.clinical-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.clinical-grid label,
+.follow-up {
+  display: grid;
+  gap: 7px;
+}
+.clinical-grid textarea,
+.follow-up input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dbe8e3;
+  border-radius: 6px;
+  padding: 11px;
+  background: #fff;
+  color: #264b4d;
+  font: inherit;
+  resize: vertical;
+}
+.action-error {
+  color: #a93f3f;
+  margin: 0;
+}
+.version-list {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #dbe8e3;
+}
+.version-list > div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 170px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #f7faf8;
+  border-radius: 5px;
+}
+.version-list small {
+  color: #72857f;
+}
+.version-list button {
+  border: 1px solid #b9d0c9;
+  border-radius: 5px;
+  background: #fff;
+  color: #28555b;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 44, 44, 0.48);
+}
+.preview-dialog {
+  width: min(920px, 96vw);
+  height: min(880px, 92vh);
+  padding: 18px;
+  background: #f4f8f6;
+  border-radius: 8px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+.preview-dialog h3 {
+  margin: 0;
+  color: #183d42;
+}
+.preview-dialog iframe {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #dbe8e3;
+  background: #fff;
+}
+.correction-dialog {
+  width: min(520px, 94vw);
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+}
+.correction-dialog header,
+.correction-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.correction-dialog h3,
+.correction-dialog p {
+  margin: 0;
+}
+.correction-dialog small,
+.correction-dialog p,
+.correction-dialog label span {
+  color: #6f8782;
+}
+.correction-dialog label {
+  display: grid;
+  gap: 7px;
+}
+.correction-dialog textarea {
+  border: 1px solid #dbe8e3;
+  border-radius: 6px;
+  padding: 11px;
+  font: inherit;
+  resize: vertical;
+}
+.correction-dialog button {
+  border: 1px solid #b9d0c9;
+  border-radius: 5px;
+  padding: 9px 14px;
+  background: #fff;
+  color: #28555b;
+  cursor: pointer;
+}
+.correction-dialog .primary {
+  border-color: #1f6159;
+  background: #1f6159;
+  color: #fff;
+}
+.correction-dialog .primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .detail-hero {
@@ -374,6 +899,12 @@ export default defineComponent({
 
   .detail-hero {
     flex-direction: column;
+  }
+  .clinical-grid {
+    grid-template-columns: 1fr;
+  }
+  .version-list > div {
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>

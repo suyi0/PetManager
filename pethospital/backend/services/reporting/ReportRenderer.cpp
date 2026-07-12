@@ -2,27 +2,28 @@
 
 #include "../../utils/Utils.h"
 
+#include <algorithm>
+#include <cerrno>
+#include <cctype>
 #include <cstdlib>
+#include <chrono>
+#include <condition_variable>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
+#include <signal.h>
 #include <sstream>
 #include <system_error>
+#include <sys/wait.h>
+#include <thread>
+#include <unistd.h>
 
 namespace
 {
-std::string shellQuote(const std::string &value)
-{
-    std::string result = "'";
-    for (char ch : value)
-    {
-        result += ch == '\'' ? "'\\''" : std::string(1, ch);
-    }
-    return result + "'";
-}
-
 std::string htmlEscape(const std::string &value)
 {
     std::string escaped;
@@ -72,17 +73,6 @@ const nlohmann::json *findPath(const nlohmann::json &root, const std::string &pa
     return current;
 }
 
-void replaceAll(std::string &text, const std::string &needle, const std::string &replacement)
-{
-    if (needle.empty()) return;
-    std::size_t offset = 0;
-    while ((offset = text.find(needle, offset)) != std::string::npos)
-    {
-        text.replace(offset, needle.size(), replacement);
-        offset += replacement.size();
-    }
-}
-
 std::string renderScalarTokens(std::string text, const nlohmann::json &scope, const nlohmann::json &root)
 {
     std::size_t start = 0;
@@ -120,6 +110,146 @@ std::string resolveChromeExecutable()
         if (!candidate.empty() && std::filesystem::exists(candidate)) return candidate;
     }
     return "";
+}
+
+int positiveEnvInt(const char *name, int fallback, int maximum)
+{
+    try
+    {
+        const int parsed = std::stoi(getEnvVar(name, std::to_string(fallback)));
+        return parsed > 0 ? std::min(parsed, maximum) : fallback;
+    }
+    catch (...)
+    {
+        return fallback;
+    }
+}
+
+class RenderLimiter
+{
+public:
+    bool acquire(std::chrono::seconds timeout)
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!condition_.wait_for(lock, timeout, [this] { return active_ < limit_; })) return false;
+        ++active_;
+        return true;
+    }
+
+    void release()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (active_ > 0) --active_;
+        condition_.notify_one();
+    }
+
+private:
+    const int limit_{positiveEnvInt("REPORT_RENDER_MAX_CONCURRENCY", 2, 8)};
+    int active_{0};
+    std::mutex mutex_;
+    std::condition_variable condition_;
+};
+
+RenderLimiter &renderLimiter()
+{
+    static RenderLimiter limiter;
+    return limiter;
+}
+
+class RenderSlotGuard
+{
+public:
+    explicit RenderSlotGuard(std::chrono::seconds timeout)
+        : acquired_(renderLimiter().acquire(timeout)) {}
+    ~RenderSlotGuard() { if (acquired_) renderLimiter().release(); }
+    bool acquired() const { return acquired_; }
+
+private:
+    bool acquired_{false};
+};
+
+std::string uniqueRenderToken()
+{
+    const auto ticks = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto threadId = std::hash<std::thread::id>{}(std::this_thread::get_id());
+    return std::to_string(static_cast<long long>(::getpid())) + "-" +
+           std::to_string(static_cast<unsigned long long>(threadId)) + "-" +
+           std::to_string(static_cast<long long>(ticks));
+}
+
+int runChromeWithTimeout(
+    const std::string &chrome,
+    const std::filesystem::path &htmlPath,
+    const std::filesystem::path &pdfPath,
+    const std::filesystem::path &profilePath,
+    std::chrono::seconds timeout,
+    bool &timedOut)
+{
+    const pid_t child = ::fork();
+    if (child < 0) return -1;
+    if (child == 0)
+    {
+        ::setpgid(0, 0);
+        const int nullFd = ::open("/dev/null", O_WRONLY);
+        if (nullFd >= 0)
+        {
+            ::dup2(nullFd, STDOUT_FILENO);
+            ::dup2(nullFd, STDERR_FILENO);
+            ::close(nullFd);
+        }
+
+        const std::string pdfArg = "--print-to-pdf=" + pdfPath.string();
+        const std::string profileArg = "--user-data-dir=" + profilePath.string();
+        const std::string htmlUrl = "file://" + htmlPath.string();
+        const char *arguments[] = {
+            chrome.c_str(),
+            "--headless=new",
+            "--disable-gpu",
+            "--disable-extensions",
+            "--disable-background-networking",
+            "--disable-sync",
+            "--no-first-run",
+            "--no-default-browser-check",
+            profileArg.c_str(),
+            "--no-pdf-header-footer",
+            "--blink-settings=scriptEnabled=false",
+            "--proxy-server=127.0.0.1:1",
+            "--host-resolver-rules=MAP * 0.0.0.0",
+            pdfArg.c_str(),
+            htmlUrl.c_str(),
+            nullptr,
+        };
+        ::execv(chrome.c_str(), const_cast<char *const *>(arguments));
+        ::_exit(127);
+    }
+
+    ::setpgid(child, child);
+
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    int status = 0;
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        const pid_t result = ::waitpid(child, &status, WNOHANG);
+        if (result == child)
+        {
+            if (WIFEXITED(status)) return WEXITSTATUS(status);
+            if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+            return -1;
+        }
+        if (result < 0)
+        {
+            if (errno == EINTR) continue;
+            ::kill(-child, SIGKILL);
+            ::waitpid(child, &status, 0);
+            return -1;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    timedOut = true;
+    ::kill(-child, SIGKILL);
+    ::waitpid(child, &status, 0);
+    return -1;
 }
 }
 
@@ -184,10 +314,68 @@ std::string renderTemplate(const std::string &source, const std::string &payload
     return renderScalarTokens(output, root, root);
 }
 
+std::string hardenReportHtml(const std::string &html)
+{
+    static const std::string policy =
+        "<meta http-equiv=\"Content-Security-Policy\" "
+        "content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'\">";
+    std::string hardened = html;
+    std::string normalized = html;
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    const auto findOpenTag = [&normalized](const std::string &tag) {
+        std::size_t position = normalized.find("<" + tag);
+        while (position != std::string::npos)
+        {
+            const std::size_t boundary = position + tag.size() + 1;
+            if (boundary < normalized.size() &&
+                (normalized[boundary] == '>' || std::isspace(static_cast<unsigned char>(normalized[boundary])))) return position;
+            position = normalized.find("<" + tag, boundary);
+        }
+        return std::string::npos;
+    };
+    const std::size_t head = findOpenTag("head");
+    if (head != std::string::npos)
+    {
+        const std::size_t headClose = normalized.find('>', head + 5);
+        if (headClose != std::string::npos)
+        {
+            hardened.insert(headClose + 1, policy);
+            return hardened;
+        }
+    }
+    const std::size_t htmlTag = findOpenTag("html");
+    if (htmlTag != std::string::npos)
+    {
+        const std::size_t htmlClose = normalized.find('>', htmlTag + 5);
+        if (htmlClose != std::string::npos)
+        {
+            hardened.insert(htmlClose + 1, "<head>" + policy + "</head>");
+            return hardened;
+        }
+    }
+    return "<!doctype html><html><head>" + policy + "</head><body>" + hardened + "</body></html>";
+}
+
 RenderedArtifact ChromeReportRenderer::renderPdf(const std::string &html, const std::string &storageKey) const
 {
     RenderedArtifact result;
     result.storageKey = storageKey;
+    const std::filesystem::path relativeKey(storageKey);
+    if (storageKey.empty() || relativeKey.is_absolute())
+    {
+        result.error = "Report storage key must be a non-empty relative path";
+        return result;
+    }
+    for (const auto &component : relativeKey)
+    {
+        if (component == "..")
+        {
+            result.error = "Report storage key cannot contain parent traversal";
+            return result;
+        }
+    }
     const std::string chrome = resolveChromeExecutable();
     if (chrome.empty())
     {
@@ -195,9 +383,21 @@ RenderedArtifact ChromeReportRenderer::renderPdf(const std::string &html, const 
         return result;
     }
 
+    const auto timeout = std::chrono::seconds(positiveEnvInt("REPORT_RENDER_TIMEOUT_SECONDS", 30, 120));
+    RenderSlotGuard renderSlot(timeout);
+    if (!renderSlot.acquired())
+    {
+        result.error = "Report renderer is busy; concurrency slot wait timed out";
+        return result;
+    }
+
     const std::filesystem::path root = reportStorageRoot();
-    const std::filesystem::path output = root / storageKey;
-    const std::filesystem::path temporary = output.string() + ".html";
+    const std::filesystem::path output = root / relativeKey;
+    const std::filesystem::path temporaryDir = root / ".tmp";
+    const std::string token = uniqueRenderToken();
+    const std::filesystem::path temporaryHtml = temporaryDir / (token + ".html");
+    const std::filesystem::path temporaryPdf = temporaryDir / (token + ".pdf");
+    const std::filesystem::path temporaryProfile = temporaryDir / (token + "-profile");
     std::error_code error;
     std::filesystem::create_directories(output.parent_path(), error);
     if (error)
@@ -205,33 +405,54 @@ RenderedArtifact ChromeReportRenderer::renderPdf(const std::string &html, const 
         result.error = "Failed to create report directory: " + error.message();
         return result;
     }
+    std::filesystem::create_directories(temporaryDir, error);
+    if (error)
+    {
+        result.error = "Failed to create report temporary directory: " + error.message();
+        return result;
+    }
 
     {
-        std::ofstream stream(temporary, std::ios::binary | std::ios::trunc);
+        std::ofstream stream(temporaryHtml, std::ios::binary | std::ios::trunc);
         if (!stream)
         {
             result.error = "Failed to create temporary report HTML";
             return result;
         }
-        stream << html;
+        stream << hardenReportHtml(html);
     }
 
-    const std::string command = shellQuote(chrome) +
-        " --headless=new --disable-gpu --no-pdf-header-footer --print-to-pdf=" +
-        shellQuote(output.string()) + " " + shellQuote("file://" + temporary.string()) + " >/dev/null 2>&1";
-    const int exitCode = std::system(command.c_str());
-    std::filesystem::remove(temporary, error);
-    if (exitCode != 0 || !std::filesystem::exists(output))
+    bool timedOut = false;
+    const int exitCode = runChromeWithTimeout(chrome, temporaryHtml, temporaryPdf, temporaryProfile, timeout, timedOut);
+    std::filesystem::remove(temporaryHtml, error);
+    std::filesystem::remove_all(temporaryProfile, error);
+    if (exitCode != 0 || !std::filesystem::exists(temporaryPdf))
     {
-        result.error = "Chrome PDF rendering failed with exit code " + std::to_string(exitCode);
+        std::filesystem::remove(temporaryPdf, error);
+        result.error = timedOut
+            ? "Chrome PDF rendering timed out after " + std::to_string(timeout.count()) + " seconds"
+            : "Chrome PDF rendering failed with exit code " + std::to_string(exitCode);
+        return result;
+    }
+
+    result.sha256 = sha256File(temporaryPdf.string());
+    result.byteSize = std::filesystem::file_size(temporaryPdf, error);
+    if (error || result.sha256.empty())
+    {
+        std::filesystem::remove(temporaryPdf, error);
+        result.error = "PDF was created but integrity metadata could not be calculated";
+        return result;
+    }
+
+    if (::rename(temporaryPdf.c_str(), output.c_str()) != 0)
+    {
+        std::filesystem::remove(temporaryPdf, error);
+        result.error = "Failed to atomically publish rendered PDF";
         return result;
     }
 
     result.absolutePath = output.string();
-    result.byteSize = std::filesystem::file_size(output, error);
-    result.sha256 = sha256File(output.string());
-    result.success = !error && !result.sha256.empty();
-    if (!result.success) result.error = "PDF was created but integrity metadata could not be calculated";
+    result.success = true;
     return result;
 }
 }

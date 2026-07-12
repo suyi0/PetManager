@@ -37,6 +37,13 @@ int main()
         Permissions::kLogsRead,
         Permissions::kMedicalRecordRead,
         Permissions::kMedicalRecordWrite,
+        Permissions::kMedicalRecordFinalize,
+        Permissions::kMedicalRecordPrint,
+        Permissions::kMedicalRecordAmend,
+        Permissions::kMedicalRecordVoid,
+        Permissions::kReportTemplateRead,
+        Permissions::kReportTemplateManage,
+        Permissions::kReportTemplatePublish,
         Permissions::kDoctorWorkWrite,
         Permissions::kUserDelete,
         Permissions::kEquityRead,
@@ -54,7 +61,18 @@ int main()
     {
         assert(contains(all, key));
         assert(Permissions::isKnownPermissionKey(key));
+        // 每个已知权限键必须有且仅有一个 authoritative 权限域映射。
+        const auto domain = Permissions::domainOfPermission(key);
+        assert(!Permissions::domainKey(domain).empty());
+        assert(!Permissions::domainChineseName(domain).empty());
     }
+
+    assert(Permissions::domainOfPermission(Permissions::kAttendanceRead) == Permissions::PermissionDomain::General);
+    assert(Permissions::domainOfPermission(Permissions::kMedicalRecordWrite) == Permissions::PermissionDomain::Medical);
+    assert(Permissions::domainOfPermission(Permissions::kSalaryRead) == Permissions::PermissionDomain::Finance);
+    assert(Permissions::domainOfPermission(Permissions::kStaffRoleWrite) == Permissions::PermissionDomain::Personnel);
+    assert(Permissions::domainOfPermission(Permissions::kStockWrite) == Permissions::PermissionDomain::Warehouse);
+    assert(Permissions::domainOfPermission(Permissions::kRbacManage) == Permissions::PermissionDomain::Management);
 
     // ---- 元权限不可委派：grantable = all − rbac:manage，仅此一项差异 ----
     assert(!contains(grantable, Permissions::kRbacManage));

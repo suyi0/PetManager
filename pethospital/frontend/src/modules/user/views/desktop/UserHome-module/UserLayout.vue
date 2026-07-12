@@ -37,7 +37,7 @@
           class="side-return"
           @click="returnToBossPortal"
         >
-          ← 返回总裁端
+          ← {{ returnLabel }}
         </button>
 
         <PortalAccount
@@ -66,7 +66,7 @@ import PortalAccount from "@/shared/components/PortalAccount.vue";
 const store = useStore(storeKey);
 const route = useRoute();
 const router = useRouter();
-const { showBossReturn, returnToBossPortal } = useBossPortalReturn(router);
+const { showBossReturn, returnLabel, returnToBossPortal } = useBossPortalReturn(router);
 
 const basePath = computed(() => "/user");
 
@@ -89,6 +89,12 @@ const navItems = computed(() => [
     icon: "⏱",
     label: "我的考勤",
     to: `${basePath.value}/attendance`,
+  },
+  {
+    key: "medical-documents",
+    icon: "📄",
+    label: "诊疗文书",
+    to: `${basePath.value}/medical-documents`,
   },
 ]);
 

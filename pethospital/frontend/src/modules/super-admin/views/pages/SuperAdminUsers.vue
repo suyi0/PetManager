@@ -619,10 +619,10 @@ export default defineComponent({
 }
 
 .panel {
-  border: 1px solid #e7e9ee;
+  border: 1px solid #d7e3f2;
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  box-shadow: 0 1px 3px rgba(18, 35, 58, 0.06);
 }
 
 .lp-head {
@@ -636,17 +636,26 @@ export default defineComponent({
 .lp-title {
   font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: #14263f;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+/* 标题前的青绿强调条，作为品牌视觉锚点，避免整屏纯白 */
+.lp-title::before {
+  content: "";
+  width: 4px;
+  height: 18px;
+  border-radius: 3px;
+  background: #2f7dd0;
 }
 
 .count-pill {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
-  background: #f1f2f5;
+  color: #1e5aa0;
+  background: #e2eefb;
   border-radius: 999px;
   padding: 2px 9px;
 }
@@ -695,10 +704,10 @@ export default defineComponent({
 }
 
 .button {
-  border: 1px solid #4338ca;
+  border: 1px solid #245fa5;
   border-radius: 10px;
   padding: 11px 16px;
-  background: #4f46e5;
+  background: #2f7dd0;
   color: #ffffff;
   cursor: pointer;
   font-size: 12px;
@@ -708,8 +717,8 @@ export default defineComponent({
 
 .button--ghost {
   border-color: #e7e9ee;
-  background: #eef2ff;
-  color: #3730a3;
+  background: #e2eefb;
+  color: #1e5aa0;
 }
 
 .button:disabled {
@@ -722,7 +731,7 @@ export default defineComponent({
 .role-filter:focus-visible,
 .table-action:focus-visible,
 .form input:focus-visible {
-  outline: 3px solid rgba(79, 70, 229, 0.18);
+  outline: 3px solid rgba(47, 125, 208, 0.18);
   outline-offset: 2px;
 }
 
@@ -761,7 +770,7 @@ export default defineComponent({
   min-width: 0;
   flex: 1;
   height: 36px;
-  border: 1px solid #e0e7ff;
+  border: 1px solid #cfe0f5;
   border-radius: 9px;
   padding: 0 12px;
   background: #ffffff;
@@ -781,7 +790,7 @@ export default defineComponent({
   border: 1px solid #e7e9ee;
   border-radius: 9px;
   padding: 0 10px;
-  background: #eef2ff;
+  background: #e2eefb;
   color: #64748b;
   font-size: 12px;
   font-weight: 700;
@@ -824,8 +833,8 @@ export default defineComponent({
 }
 
 .role-filter--active {
-  border-color: #4338ca;
-  background: #4f46e5;
+  border-color: #245fa5;
+  background: #2f7dd0;
   color: #ffffff;
 }
 
@@ -865,7 +874,7 @@ export default defineComponent({
 .table-shell {
   position: relative;
   overflow: hidden;
-  border: 1px solid #e7e9ee;
+  border: 1px solid #cfdcee;
   border-radius: 12px;
   flex: 1;
   min-height: 0;
@@ -880,18 +889,26 @@ export default defineComponent({
 
 .user-table th,
 .user-table td {
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #dbe6f2;
   padding: 0 14px;
   text-align: left;
-  color: #0f172a;
+  color: #14263f;
   font-size: 13px;
   vertical-align: middle;
 }
 
+/* 每列的值居中于其标头：首列（姓名）作为行标识保持左对齐，
+   其余属性列（角色/手机号/邮箱/状态/生日/操作）统一居中，
+   药丸与文本都落在标头正下方，视觉更整齐。 */
+.user-table th:not(:first-child),
+.user-table td:not(:first-child) {
+  text-align: center;
+}
+
 .user-table th {
-  height: 40px;
-  background: #f8fafc;
-  color: #64748b;
+  height: 42px;
+  background: #e6eff9;
+  color: #3f5b7e;
   font-size: 12px;
   font-weight: 700;
 }
@@ -901,12 +918,12 @@ export default defineComponent({
 }
 
 .user-table tbody tr:hover:not(.placeholder-row) {
-  background: #f8fafc;
+  background: #f1f6fd;
 }
 
 .user-table th:nth-child(1),
 .user-table td:nth-child(1) {
-  width: 22%;
+  width: 20%;
 }
 
 .user-table th:nth-child(2),
@@ -921,7 +938,7 @@ export default defineComponent({
 
 .user-table th:nth-child(4),
 .user-table td:nth-child(4) {
-  width: 20%;
+  width: 22%;
 }
 
 .user-table th:nth-child(5),
@@ -972,29 +989,31 @@ export default defineComponent({
   white-space: nowrap;
 }
 
+/* 三类角色药丸保持互相可辨：普通=中性灰蓝，医护=品牌晴空蓝，管理员=琥珀金 */
 .role-pill--normal {
-  background: #eef2ff;
-  color: #3730a3;
+  background: #eef1f6;
+  color: #4a5b6e;
 }
 
 .role-pill--medical {
-  background: #eef2ff;
-  color: #2863da;
+  background: #dde9fb;
+  color: #2263ad;
 }
 
 .role-pill--admin {
-  background: rgba(155, 104, 23, 0.12);
+  background: rgba(180, 83, 9, 0.12);
   color: #b45309;
 }
 
+/* 在线为语义色（绿），不跟随主题蓝，保证"需要注意的状态"一眼可辨 */
 .status-pill--online {
-  background: rgba(16, 185, 129, 0.1);
-  color: #247b62;
+  background: rgba(22, 163, 74, 0.14);
+  color: #157f3c;
 }
 
 .status-pill--offline {
-  background: #eef2ff;
-  color: #64748b;
+  background: #eef1f6;
+  color: #5c7085;
 }
 
 .table-action {
@@ -1002,7 +1021,7 @@ export default defineComponent({
   border-radius: 10px;
   padding: 8px 11px;
   background: #ffffff;
-  color: #3730a3;
+  color: #1e5aa0;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -1033,7 +1052,7 @@ export default defineComponent({
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.72);
-  color: #4f46e5;
+  color: #2f7dd0;
   font-size: 13px;
   font-weight: 700;
 }
@@ -1048,18 +1067,18 @@ export default defineComponent({
 :deep(.pager-button--ghost) {
   border-color: #e7e9ee;
   border-radius: 10px;
-  background: #4f46e5;
+  background: #2f7dd0;
   box-shadow: none;
   color: #ffffff;
 }
 
 :deep(.pager-button--ghost) {
-  background: #eef2ff;
-  color: #3730a3;
+  background: #e2eefb;
+  color: #1e5aa0;
 }
 
 :deep(.pager-jump input) {
-  border-color: #e0e7ff;
+  border-color: #cfe0f5;
   border-radius: 10px;
   background: #ffffff;
   color: #0f172a;
@@ -1120,7 +1139,7 @@ export default defineComponent({
 }
 
 .form input {
-  border: 1px solid #e0e7ff;
+  border: 1px solid #cfe0f5;
   border-radius: 10px;
   padding: 11px 12px;
   background: #ffffff;

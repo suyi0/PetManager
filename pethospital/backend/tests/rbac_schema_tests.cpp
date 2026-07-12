@@ -79,6 +79,12 @@ int main()
     assertContains(migrations, "'attendance:manage'");
     assertNotContains(migrations, "('super-admin', 'rbac:manage')");
 
+    assertContains(migrations, "\"user_permissions\"");
+    assertContains(migrations, "CREATE TABLE user_permissions");
+    assertContains(migrations, "UNIQUE KEY uq_user_permission (user_id, permission_key)");
+    assertContains(migrations, "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE");
+    assertContains(migrations, "FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL");
+
     assertContains(migrations, "\"permission_templates\"");
     assertContains(migrations, "\"permission_template_items\"");
     assertContains(migrations, "CONSTRAINT chk_template_permission_not_meta CHECK (permission_key <> 'rbac:manage')");
@@ -105,7 +111,9 @@ int main()
     assertContains(migrations, "ensureBootstrapSuperAdmin");
     assertContains(migrations, "PETMANAGER_BOOTSTRAP_ADMIN_PASSWORD");
     assertContains(migrations, "SELECT id FROM positions WHERE system_key = 'super-admin' LIMIT 1");
-    assertContains(migrations, "VALUES ('staff', ?, '系统管理员', SHA2(?, 256), ?)");
+    assertContains(migrations, "VALUES ('staff', ?, '系统管理员', ?, ?)");
+    assertContains(migrations, "hash_password(password)");
+    assertNotContains(migrations, "SHA2(?, 256)");
     assertNotContains(migrations, "password123");
     assertNotContains(migrations, "admin123");
 

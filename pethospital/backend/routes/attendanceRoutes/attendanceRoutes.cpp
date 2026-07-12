@@ -48,20 +48,8 @@ struct DevicePunchResult
     std::time_t punchedAt = 0;
 };
 
-// Crow 的 (req, res) 形态路由必须显式 res.end()，否则连接一直挂到客户端超时。
-// 项目其他路由靠 OperationLogger::Finish* 终结；考勤路由用作用域守卫兜底全部
-// return / 异常路径（已完成的响应不重复 end）。
-struct ResponseEnder
-{
-    crow::response &res;
-    ~ResponseEnder()
-    {
-        if (!res.is_completed())
-        {
-            res.end();
-        }
-    }
-};
+// ResponseEnder 作用域守卫已提升到 utils/Utils.h 共享（登出 / 财务路由同用），
+// 语义不变：兜底全部 return / 异常路径的 res.end()，已完成的响应不重复 end。
 
 std::string jsonString(const nlohmann::json &body, const std::string &key, const std::string &fallback = "")
 {

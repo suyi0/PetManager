@@ -64,6 +64,12 @@ const UserRoutes: Array<RouteRecordRaw> = [
         },
       },
       {
+        path: "/user/medical-documents",
+        name: "userMedicalDocuments",
+        component: () =>
+          import("../views/desktop/Personal-module/UserMedicalDocuments.vue"),
+      },
+      {
         path: "/user/orderDetail",
         component: () =>
           import(
