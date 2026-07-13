@@ -65,6 +65,15 @@
                   >
                     编辑
                   </button>
+                  <button
+                    type="button"
+                    class="edit-link edit-link--danger"
+                    :disabled="department.is_system"
+                    :title="department.is_system ? '系统内置部门不可删除' : '删除该部门'"
+                    @click="removeDepartment(department)"
+                  >
+                    删除
+                  </button>
                 </span>
               </div>
               <p v-if="departments.length === 0" class="existing__empty">
@@ -126,10 +135,21 @@
                 class="existing__item"
               >
                 <strong>{{ position.name }}</strong>
-                <small>
-                  {{ position.department_name || "未分部门" }} ·
-                  {{ staffKindLabel(position.staff_kind) }}
-                </small>
+                <span class="existing__meta">
+                  <small>
+                    {{ position.department_name || "未分部门" }} ·
+                    {{ staffKindLabel(position.staff_kind) }}
+                  </small>
+                  <button
+                    type="button"
+                    class="edit-link edit-link--danger"
+                    :disabled="!!position.system_key"
+                    :title="position.system_key ? '系统内置职位不可删除' : '删除该职位'"
+                    @click="removePosition(position)"
+                  >
+                    删除
+                  </button>
+                </span>
               </div>
               <p v-if="positions.length === 0" class="existing__empty">
                 暂无职位，请先在左侧新增。
@@ -383,6 +403,35 @@ export default defineComponent({
       }
     };
 
+    // 删除部门：内置部门后端也会拒绝，这里先做人可读的二次确认。
+    const removeDepartment = async (department: RbacDepartment) => {
+      if (department.is_system) return;
+      if (!window.confirm(`确认删除部门「${department.name}」？该操作不可撤销。`)) return;
+      try {
+        await superAdminApi.deleteRbacDepartment(department.id);
+        message.value = "部门已删除";
+        error.value = "";
+        await load();
+      } catch (e) {
+        // 后端会在部门下仍有职位/被历史数据引用时返回明确原因，原文展示
+        error.value = e instanceof Error ? e.message : "删除部门失败";
+      }
+    };
+
+    // 删除职位：内置（带 system_key）职位后端也会拒绝，这里先做二次确认。
+    const removePosition = async (position: RbacPosition) => {
+      if (position.system_key) return;
+      if (!window.confirm(`确认删除职位「${position.name}」？该操作不可撤销。`)) return;
+      try {
+        await superAdminApi.deleteRbacPosition(position.id);
+        message.value = "职位已删除";
+        error.value = "";
+        await load();
+      } catch (e) {
+        error.value = e instanceof Error ? e.message : "删除职位失败";
+      }
+    };
+
     onMounted(() => void load());
 
     return {
@@ -409,6 +458,8 @@ export default defineComponent({
       editForm,
       openEditDepartment,
       saveEditDepartment,
+      removeDepartment,
+      removePosition,
     };
   },
 });
@@ -638,6 +689,18 @@ select:disabled,
   color: #9aa7b6;
   cursor: not-allowed;
   background: #f3f6fa;
+}
+.edit-link--danger {
+  color: #b4232a;
+  border-color: #f4cdd0;
+}
+.edit-link--danger:hover:not(:disabled) {
+  background: #fdeced;
+  border-color: #db3b42;
+}
+.edit-link--danger:disabled {
+  color: #9aa7b6;
+  border-color: #e4e9f0;
 }
 
 /* 编辑部门弹窗 */

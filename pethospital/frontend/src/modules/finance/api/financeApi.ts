@@ -11,6 +11,7 @@ import {
   PayrollRowPayload,
   SalaryProfilePayload,
   PayrollPeriodSummary,
+  SalaryChangeRecord,
 } from "./types";
 
 interface SalaryEmployeeSearchResult {
@@ -95,11 +96,17 @@ export const financeApi = {
 
   async searchSalaryEmployees(params: {
     keyword: string;
+    payType?: string;
+    modified?: string;
+    reviewStatus?: string;
     page: number;
     pageSize: number;
   }): Promise<SalaryEmployeeSearchResult> {
     const { data } = await http.post("/api/finance/salary-employees/search", {
       keyword: params.keyword,
+      payType: params.payType ?? "all",
+      modified: params.modified ?? "all",
+      reviewStatus: params.reviewStatus ?? "all",
       page: params.page,
       pageSize: params.pageSize,
     });
@@ -123,6 +130,12 @@ export const financeApi = {
             status: payload.period.status ?? "first_review",
             versionNo: Number(payload.period.versionNo ?? 1),
             totalSalary: Number(payload.period.totalSalary ?? 0),
+            employeeCount: Number(payload.period.employeeCount ?? 0),
+            unconfiguredCount: Number(payload.period.unconfiguredCount ?? 0),
+            pendingReviewCount: Number(payload.period.pendingReviewCount ?? 0),
+            modifiedCount: Number(payload.period.modifiedCount ?? 0),
+            reviewedCount: Number(payload.period.reviewedCount ?? 0),
+            reviewNote: payload.period.reviewNote ?? "",
           }
         : undefined,
     };
@@ -195,18 +208,46 @@ export const financeApi = {
   },
 
   async saveSalaryProfile(payload: SalaryProfilePayload): Promise<void> {
-    await http.post(`/api/finance/employee-salaries/${payload.userId}`, payload);
+    await http.post(`/api/finance/employees/${payload.userId}/salary-profile`, payload);
+  },
+
+  async getSalaryProfile(userId: number): Promise<SalaryProfilePayload | null> {
+    const { data } = await http.get(`/api/finance/employees/${userId}/salary-profile`);
+    const payload = data?.data ?? data;
+    if (!payload) return null;
+    return {
+      userId,
+      pay_type: payload.pay_type === "hourly" ? "hourly" : "monthly",
+      base_salary: payload.base_salary == null ? null : Number(payload.base_salary),
+      hourly_rate: payload.hourly_rate == null ? null : Number(payload.hourly_rate),
+      social_insurance_housing_fund: Number(payload.social_insurance_housing_fund ?? 0),
+      effective_from: payload.effective_from ?? new Date().toISOString().slice(0, 10),
+    };
   },
 
   async updatePayrollRow(userId: number, payload: PayrollRowPayload): Promise<void> {
     await http.post(`/api/finance/employee-salaries/${userId}`, payload);
   },
 
-  async submitPayrollReview(): Promise<void> {
-    await http.post("/api/finance/payroll-periods/current/submit-review");
+  async getSalaryChangeHistory(salaryId: number): Promise<SalaryChangeRecord[]> {
+    const { data } = await http.get(`/api/finance/salary-records/${salaryId}/change-history`);
+    const payload = data?.data ?? data;
+    return unwrapList<SalaryChangeRecord>(payload?.items);
+  },
+
+  async reviewPayrollEmployee(userId: number): Promise<void> {
+    await http.post(`/api/finance/payroll-periods/current/employees/${userId}/first-review`);
+  },
+
+  async submitPayrollReview(reviewNote = ""): Promise<void> {
+    await http.post("/api/finance/payroll-periods/current/submit-review", { reviewNote });
   },
 
   async lockPayroll(): Promise<void> {
     await http.post("/api/finance/payroll-periods/current/lock");
+  },
+
+  async createPayrollRevision(): Promise<void> {
+    await http.post("/api/finance/payroll-periods/current/revisions");
   },
 };

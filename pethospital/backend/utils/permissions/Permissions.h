@@ -28,6 +28,8 @@ inline constexpr const char *kPortalUser = "portal:user";
 
 inline constexpr const char *kSalaryRead = "salary:read";
 inline constexpr const char *kSalaryWrite = "salary:write";
+inline constexpr const char *kSalaryReview = "salary:review";
+inline constexpr const char *kSalaryLock = "salary:lock";
 inline constexpr const char *kLogsRead = "logs:read";
 inline constexpr const char *kMedicalRecordRead = "medical-record:read";
 inline constexpr const char *kMedicalRecordWrite = "medical-record:write";

@@ -529,6 +529,7 @@ if(BUILD_TESTING)
     target_compile_definitions(sensitive_permission_route_tests PRIVATE
         ADMIN_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/adminRoutes/adminRoutes.cpp"
         FINANCE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/financeRoutes/financeRoutes.cpp"
+        SET_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/setRoutes/setRoutes.cpp"
         BOSS_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/bossRoutes/bossRoutes.cpp"
         WAREHOUSE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/warehouseManagerRoutes/warehouseManagerRoutes.cpp"
         PERSONNEL_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/personnelRoutes/personnelRoutes.cpp"

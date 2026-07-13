@@ -34,6 +34,8 @@ int main()
         Permissions::kPortalUser,
         Permissions::kSalaryRead,
         Permissions::kSalaryWrite,
+        Permissions::kSalaryReview,
+        Permissions::kSalaryLock,
         Permissions::kLogsRead,
         Permissions::kMedicalRecordRead,
         Permissions::kMedicalRecordWrite,

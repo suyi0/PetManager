@@ -31,6 +31,18 @@ export interface SalaryEmployeeRow {
   updated_at: string;
 }
 
+export interface SalaryChangeRecord {
+  id: number;
+  changed_field: string;
+  before_value: string;
+  after_value: string;
+  changed_by: number;
+  changed_by_name: string;
+  change_reason: string;
+  evidence_path: string;
+  created_at: string;
+}
+
 export interface SalaryRecordRow {
   id: string;
   salesCount: number;
@@ -110,4 +122,10 @@ export interface PayrollPeriodSummary {
   status: string;
   versionNo: number;
   totalSalary: number;
+  employeeCount?: number;
+  unconfiguredCount?: number;
+  pendingReviewCount?: number;
+  modifiedCount?: number;
+  reviewedCount?: number;
+  reviewNote?: string;
 }

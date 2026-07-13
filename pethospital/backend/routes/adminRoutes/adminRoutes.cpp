@@ -419,6 +419,48 @@ crow::response updateDepartment(const crow::request &req, const std::shared_ptr<
     return ResponseHelper::success(req, {{"id", departmentId}, {"name", name}, {"business_domain", businessDomain}});
 }
 
+crow::response deleteDepartment(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int departmentId)
+{
+    mysqlx::Row current = dbManager->getSession()
+                              ->sql("SELECT name, COALESCE(is_system, 0) FROM departments WHERE id = ? LIMIT 1")
+                              .bind(departmentId)
+                              .execute()
+                              .fetchOne();
+    if (!current)
+    {
+        return ResponseHelper::notFound(req, "部门不存在");
+    }
+    // 系统种子部门是权限边界与业务身份的锚点，与编辑同一条纪律：一律不可删除。
+    if (current[1].get<int>() != 0)
+    {
+        return ResponseHelper::validation(req, "系统内置部门不可删除");
+    }
+    // 部门下仍有职位时，positions.department_id 外键会阻止删除；先给出清晰的中文引导。
+    mysqlx::Row positionCount = dbManager->getSession()
+                                    ->sql("SELECT COUNT(*) FROM positions WHERE department_id = ?")
+                                    .bind(departmentId)
+                                    .execute()
+                                    .fetchOne();
+    if (positionCount && positionCount[0].get<int>() > 0)
+    {
+        return ResponseHelper::validation(req, "该部门下仍有 " + std::to_string(positionCount[0].get<int>()) + " 个职位，请先删除或迁移这些职位");
+    }
+
+    try
+    {
+        dbManager->getSession()
+            ->sql("DELETE FROM departments WHERE id = ?")
+            .bind(departmentId)
+            .execute();
+    }
+    catch (const mysqlx::Error &)
+    {
+        // 考勤记录 / 组织范围 / 操作日志等历史数据仍引用该部门时，外键会阻止删除。
+        return ResponseHelper::validation(req, "该部门仍被历史数据（如考勤、组织范围记录）引用，无法删除");
+    }
+    return ResponseHelper::success(req, {{"id", departmentId}});
+}
+
 crow::response getPositions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager)
 {
     mysqlx::SqlResult result = dbManager->getSession()
@@ -481,6 +523,49 @@ crow::response createPosition(const crow::request &req, const std::shared_ptr<Da
                                   .execute();
 
     return ResponseHelper::created(req, {{"id", static_cast<int>(result.getAutoIncrementValue())}, {"name", name}});
+}
+
+crow::response deletePosition(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId)
+{
+    mysqlx::Row current = dbManager->getSession()
+                              ->sql("SELECT name, COALESCE(system_key, '') FROM positions WHERE id = ? LIMIT 1")
+                              .bind(positionId)
+                              .execute()
+                              .fetchOne();
+    if (!current)
+    {
+        return ResponseHelper::notFound(req, "岗位不存在");
+    }
+    // 带 system_key 的都是系统/seed 锚点职位（含超管），业务身份 findPositionIdBySystemKey 依赖它们，禁止删除。
+    if (!current[1].get<std::string>().empty())
+    {
+        return ResponseHelper::validation(req, "系统内置职位不可删除");
+    }
+    // 仍有在职职工挂在该职位时，users.position_id 外键会阻止删除；先给出可操作的提示。
+    mysqlx::Row activeUsers = dbManager->getSession()
+                                  ->sql("SELECT COUNT(*) FROM users WHERE position_id = ? AND is_deleted = 0")
+                                  .bind(positionId)
+                                  .execute()
+                                  .fetchOne();
+    if (activeUsers && activeUsers[0].get<int>() > 0)
+    {
+        return ResponseHelper::validation(req, "该职位下仍有 " + std::to_string(activeUsers[0].get<int>()) + " 名在职职工，请先调岗后再删除");
+    }
+
+    // position_permissions 由外键 ON DELETE CASCADE 自动清理；此处只删职位本身。
+    try
+    {
+        dbManager->getSession()
+            ->sql("DELETE FROM positions WHERE id = ?")
+            .bind(positionId)
+            .execute();
+    }
+    catch (const mysqlx::Error &)
+    {
+        // 已离职职工、考勤记录等历史数据仍引用该职位时，外键会阻止删除。
+        return ResponseHelper::validation(req, "该职位仍被历史数据（如离职职工、考勤记录）引用，无法删除");
+    }
+    return ResponseHelper::success(req, {{"id", positionId}});
 }
 
 crow::response getPositionPermissions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId)
@@ -908,11 +993,12 @@ void adminRoutes::setupAdminRoutes(
             });
 
     CROW_ROUTE(app, "/api/admin/org/departments/<int>")
-        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)(
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Delete, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res, int departmentId)
             {
                 int userId = -1;
-                const std::string action = "编辑部门";
+                const bool isDelete = req.method == crow::HTTPMethod::Delete;
+                const std::string action = isDelete ? "删除部门" : "编辑部门";
                 try
                 {
                     userId = isValidManagementToken(req, res, dbManager);
@@ -926,14 +1012,50 @@ void adminRoutes::setupAdminRoutes(
                         res = ResponseHelper::system_error(req, "Database connection unavailable");
                         return;
                     }
-                    BaseHandler parser(dbManager);
-                    auto jsonOpt = parser.parseJson(req, res);
-                    if (!jsonOpt)
+                    if (isDelete)
                     {
-                        OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                        res = deleteDepartment(req, dbManager, departmentId);
+                    }
+                    else
+                    {
+                        BaseHandler parser(dbManager);
+                        auto jsonOpt = parser.parseJson(req, res);
+                        if (!jsonOpt)
+                        {
+                            OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                            return;
+                        }
+                        res = updateDepartment(req, dbManager, departmentId, jsonOpt.value());
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "管理", action, e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishLoggedRoute(dbManager, req, res, "管理", action, userId > 0 ? std::optional<int>(userId) : std::nullopt, true);
+            });
+
+    CROW_ROUTE(app, "/api/admin/org/positions/<int>")
+        .methods(crow::HTTPMethod::Delete, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int positionId)
+            {
+                int userId = -1;
+                const std::string action = "删除职位";
+                try
+                {
+                    userId = isValidManagementToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "管理", action);
                         return;
                     }
-                    res = updateDepartment(req, dbManager, departmentId, jsonOpt.value());
+                    if (!hasUsableDb(dbManager))
+                    {
+                        res = ResponseHelper::system_error(req, "Database connection unavailable");
+                        return;
+                    }
+                    res = deletePosition(req, dbManager, positionId);
                 }
                 catch (const std::exception &e)
                 {

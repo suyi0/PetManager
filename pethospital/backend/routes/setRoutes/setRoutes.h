@@ -24,6 +24,7 @@
 #include "../personnelRoutes/personnelRoutes.h"
 #include "../bossRoutes/bossRoutes.h"
 #include "../attendanceRoutes/attendanceRoutes.h"
+#include "../financeRoutes/financeRoutes.h"
 
 class WebSocketServer
 {

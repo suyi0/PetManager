@@ -11,6 +11,10 @@
 #error "FINANCE_ROUTES_SOURCE_PATH is required"
 #endif
 
+#ifndef SET_ROUTES_SOURCE_PATH
+#error "SET_ROUTES_SOURCE_PATH is required"
+#endif
+
 #ifndef BOSS_ROUTES_SOURCE_PATH
 #error "BOSS_ROUTES_SOURCE_PATH is required"
 #endif
@@ -88,6 +92,7 @@ int main()
 {
     const std::string adminRoutes = readFile(ADMIN_ROUTES_SOURCE_PATH);
     const std::string financeRoutes = readFile(FINANCE_ROUTES_SOURCE_PATH);
+    const std::string setRoutes = readFile(SET_ROUTES_SOURCE_PATH);
     const std::string bossRoutes = readFile(BOSS_ROUTES_SOURCE_PATH);
     const std::string warehouseRoutes = readFile(WAREHOUSE_ROUTES_SOURCE_PATH);
     const std::string personnelRoutes = readFile(PERSONNEL_ROUTES_SOURCE_PATH);
@@ -157,6 +162,14 @@ int main()
     const std::string salaryWriteSection = sectionBetween(
         financeRoutes,
         "CROW_ROUTE(app, \"/api/finance/employee-salaries/<int>\")",
+        "CROW_ROUTE(app, \"/api/finance/employees/<int>/salary-profile\")");
+    const std::string salaryProfileWriteSection = sectionBetween(
+        financeRoutes,
+        "CROW_ROUTE(app, \"/api/finance/employees/<int>/salary-profile\")",
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/employees/<int>/first-review\")");
+    const std::string salaryFirstReviewSection = sectionBetween(
+        financeRoutes,
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/employees/<int>/first-review\")",
         "CROW_ROUTE(app, \"/api/finance/salary-summaries/<int>\")");
     const std::string salarySummarySection = sectionBetween(
         financeRoutes,
@@ -165,6 +178,18 @@ int main()
     const std::string salarySearchSection = sectionBetween(
         financeRoutes,
         "CROW_ROUTE(app, \"/api/finance/salary-employees/search\")",
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/submit-review\")");
+    const std::string salarySubmitReviewSection = sectionBetween(
+        financeRoutes,
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/submit-review\")",
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/lock\")");
+    const std::string salaryLockSection = sectionBetween(
+        financeRoutes,
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/lock\")",
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/revisions\")");
+    const std::string salaryRevisionSection = sectionBetween(
+        financeRoutes,
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/revisions\")",
         "CROW_ROUTE(app, \"/api/finance/salary-records/<int>\")");
     const std::string salaryRecordSection = sectionBetween(
         financeRoutes,
@@ -172,13 +197,24 @@ int main()
         "CROW_ROUTE(app, \"/api/finance/expenses\")");
 
     assertNotContains(financeHomeSection, "isValidPermissionToken(");
+    assertContains(setRoutes, "financeRoutes::setupFinanceRoutes(*app_ptr_, DatabaseManager::getInstance())");
     assertContains(salaryWriteSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryWrite)");
+    assertContains(salaryProfileWriteSection, "isWrite ? Permissions::kSalaryWrite : Permissions::kSalaryRead");
+    assertContains(salaryFirstReviewSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryReview)");
     assertContains(salarySummarySection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
     assertContains(salarySearchSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
+    assertContains(salarySubmitReviewSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryReview)");
+    assertContains(salaryLockSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryLock)");
+    assertContains(salaryRevisionSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryWrite)");
     assertContains(salaryRecordSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
     assertSensitiveAudit(salaryWriteSection, "Permissions::kSalaryWrite");
+    assertContains(salaryProfileWriteSection, "FinishSensitiveRoute");
+    assertSensitiveAudit(salaryFirstReviewSection, "Permissions::kSalaryReview");
     assertSensitiveAudit(salarySummarySection, "Permissions::kSalaryRead");
     assertSensitiveAudit(salarySearchSection, "Permissions::kSalaryRead");
+    assertSensitiveAudit(salarySubmitReviewSection, "Permissions::kSalaryReview");
+    assertSensitiveAudit(salaryLockSection, "Permissions::kSalaryLock");
+    assertSensitiveAudit(salaryRevisionSection, "Permissions::kSalaryWrite");
     assertSensitiveAudit(salaryRecordSection, "Permissions::kSalaryRead");
 
     const std::string totalStockAllocationSection = sectionBetween(

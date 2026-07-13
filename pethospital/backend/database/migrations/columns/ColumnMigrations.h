@@ -31,4 +31,8 @@ void migrateOrders(DatabaseManagerInterface &database_manager);
 // reservations 表的列级迁移。
 // 当前负责为旧库补 active_slot_key 生成列与 uq_active_slot 唯一索引。
 void migrateReservations(DatabaseManagerInterface &database_manager);
+
+// payrollPeriod 表的列级迁移。
+// 当前负责为存量库补主管复审说明字段。
+void migratePayrollPeriod(DatabaseManagerInterface &database_manager);
 }

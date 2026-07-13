@@ -27,6 +27,8 @@ export const PERMISSION_META: Record<string, PermissionMeta> = {
   "attendance:manage": { group: "考勤管理", label: "管理考勤", desc: "补卡、调整班次并管理考勤设备。" },
   "salary:read": { group: "薪资与股份", label: "查看薪资", desc: "查看员工薪资记录与月度报表。" },
   "salary:write": { group: "薪资与股份", label: "管理薪资", desc: "新增或调整员工薪资记录，涉及资金发放。", danger: true },
+  "salary:review": { group: "薪资与股份", label: "审核薪资", desc: "执行工资初审并提交主管复审。", danger: true },
+  "salary:lock": { group: "薪资与股份", label: "锁定工资周期", desc: "锁定并归档已完成复审的工资周期。", danger: true },
   "equity:read": { group: "薪资与股份", label: "查看股份", desc: "查看股份与权益数据。" },
   "equity:write": { group: "薪资与股份", label: "管理股份", desc: "调整股份与权益数据。", danger: true },
   "stock:read": { group: "库存物资", label: "查看库存", desc: "查看库存、台账与预警。" },

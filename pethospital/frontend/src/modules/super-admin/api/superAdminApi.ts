@@ -351,6 +351,10 @@ export const superAdminApi = {
     await http.put(`/api/admin/org/departments/${departmentId}`, payload);
   },
 
+  async deleteRbacDepartment(departmentId: number): Promise<void> {
+    await http.delete(`/api/admin/org/departments/${departmentId}`);
+  },
+
   async getRbacPositions(): Promise<RbacPosition[]> {
     const { data } = await http.get("/api/admin/org/positions");
     return unwrapList<RbacPosition>(
@@ -365,6 +369,10 @@ export const superAdminApi = {
     description?: string;
   }): Promise<void> {
     await http.post("/api/admin/org/positions", payload);
+  },
+
+  async deleteRbacPosition(positionId: number): Promise<void> {
+    await http.delete(`/api/admin/org/positions/${positionId}`);
   },
 
   async getPermissionCatalog(): Promise<string[]> {

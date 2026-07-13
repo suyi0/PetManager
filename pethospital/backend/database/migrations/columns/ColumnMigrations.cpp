@@ -162,6 +162,15 @@ void migrateReservations(DatabaseManagerInterface &database_manager)
     }
 }
 
+void migratePayrollPeriod(DatabaseManagerInterface &database_manager)
+{
+    Common::addColumnIfNotExists(
+        database_manager,
+        "payrollPeriod",
+        "review_note",
+        "VARCHAR(1000) NOT NULL DEFAULT ''");
+}
+
 void migrateOrders(DatabaseManagerInterface &database_manager)
 {
     if (!shouldAutoMigrateLegacyColumns())

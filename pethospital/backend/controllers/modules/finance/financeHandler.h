@@ -28,7 +28,6 @@ public:
 
     crow::response getHomeData(const crow::request &req); // 获取总览数据 对应 /api/finance/home-data
 
-    crow::response updateEmployeeSalary(const crow::request &req, int goalUserId); // 添加或修改员工工资并返回工资摘要 对应 /api/finance/employee-salaries/<int>
 
     crow::response getSalarySummary(const crow::request &req, int page = 1); // 获取员工工资列表摘要 对应 /api/finance/salary-summaries/<int>
 
@@ -40,8 +39,13 @@ public:
 
     crow::response getPayrollEmployees(const crow::request &req, const nlohmann::json &requestBody);
     crow::response savePayrollEmployee(const crow::request &req, int goalUserId);
+    crow::response saveSalaryProfile(const crow::request &req, int goalUserId);
+    crow::response getSalaryChangeHistory(const crow::request &req, long long salaryId);
+    crow::response getSalaryProfile(const crow::request &req, int goalUserId);
+    crow::response reviewPayrollEmployee(const crow::request &req, int goalUserId);
     crow::response submitPayrollReview(const crow::request &req);
     crow::response lockPayroll(const crow::request &req);
+    crow::response createPayrollRevision(const crow::request &req);
 
 };
 #endif

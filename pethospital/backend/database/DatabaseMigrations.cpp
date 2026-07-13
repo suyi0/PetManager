@@ -182,6 +182,23 @@ namespace
     {
         seedAttendancePermissionsIfAbsent(dbManager, session);
         seedMedicalDocumentPermissionsIfAbsent(dbManager, session);
+        session.sql(R"SQL(INSERT IGNORE INTO position_permissions (position_id, permission_key)
+            SELECT p.id, v.permission_key
+            FROM positions p
+            JOIN (
+                SELECT 'president' AS system_key, 'salary:review' AS permission_key
+                UNION ALL SELECT 'president', 'salary:lock'
+                UNION ALL SELECT 'vice-president', 'salary:review'
+                UNION ALL SELECT 'vice-president', 'salary:lock'
+                UNION ALL SELECT 'finance-director', 'salary:review'
+                UNION ALL SELECT 'finance-director', 'salary:lock'
+                UNION ALL SELECT 'finance-manager', 'salary:review'
+                UNION ALL SELECT 'finance-manager', 'salary:lock'
+            ) v ON v.system_key = p.system_key
+            WHERE NOT EXISTS (
+                SELECT 1 FROM position_permissions existing
+                WHERE existing.position_id = p.id AND existing.permission_key = v.permission_key
+            ))SQL").execute();
     }
 
     void seedPositionPermissions(DatabaseManagerInterface &, mysqlx::Session &session)
@@ -392,6 +409,24 @@ namespace
     {
         seedPermissionTemplateItems(dbManager, session);
         seedMedicalDocumentTemplatePermissionsIfAbsent(dbManager, session);
+        session.sql(R"SQL(INSERT IGNORE INTO permission_template_items (template_id, permission_key)
+            SELECT t.id, v.permission_key
+            FROM permission_templates t
+            JOIN (
+                SELECT 'Boss' AS template_name, 'salary:review' AS permission_key
+                UNION ALL SELECT 'Boss', 'salary:lock'
+                UNION ALL SELECT 'Finance', 'salary:review'
+                UNION ALL SELECT 'Finance', 'salary:lock'
+            ) v ON v.template_name = t.name
+            WHERE NOT EXISTS (
+                SELECT 1 FROM permission_template_items existing
+                WHERE existing.template_id = t.id AND existing.permission_key = v.permission_key
+            ))SQL").execute();
+    }
+
+    void migratePayrollPeriodColumns(DatabaseManagerInterface &dbManager, mysqlx::Session &)
+    {
+        Columns::migratePayrollPeriod(dbManager);
     }
 
     const char *defaultMedicalDocumentTemplate()
@@ -650,7 +685,19 @@ namespace
                 CONSTRAINT chk_template_permission_not_meta CHECK (permission_key <> 'rbac:manage')
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
             seedAllPermissionTemplateItems,
-            seedMedicalDocumentTemplatePermissionsIfAbsent,
+            [](DatabaseManagerInterface &dbManager, mysqlx::Session &session) {
+                seedMedicalDocumentTemplatePermissionsIfAbsent(dbManager, session);
+                session.sql(R"SQL(INSERT IGNORE INTO permission_template_items (template_id, permission_key)
+                    SELECT t.id, v.permission_key FROM permission_templates t
+                    JOIN (
+                        SELECT 'Boss' AS template_name, 'salary:review' AS permission_key
+                        UNION ALL SELECT 'Boss', 'salary:lock'
+                        UNION ALL SELECT 'Finance', 'salary:review'
+                        UNION ALL SELECT 'Finance', 'salary:lock'
+                    ) v ON v.template_name=t.name
+                    WHERE NOT EXISTS (SELECT 1 FROM permission_template_items e
+                        WHERE e.template_id=t.id AND e.permission_key=v.permission_key))SQL").execute();
+            },
         },
         {
             "financialRecord",
@@ -995,8 +1042,8 @@ namespace
                 UNIQUE KEY uq_payrollPeriod_month_version (payroll_month, version_no),
                 INDEX idx_payrollPeriod_status_month (status, payroll_month)
             ))SQL",
-            nullptr,
-            nullptr,
+            migratePayrollPeriodColumns,
+            migratePayrollPeriodColumns,
         },
         {
             "salary",
