@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <string>
 
 namespace DatabaseMigrations::Columns
 {
@@ -164,22 +165,152 @@ void migrateReservations(DatabaseManagerInterface &database_manager)
 
 void migratePayrollPeriod(DatabaseManagerInterface &database_manager)
 {
-    Common::addColumnIfNotExists(
-        database_manager,
-        "payrollPeriod",
-        "review_note",
-        "VARCHAR(1000) NOT NULL DEFAULT ''");
+    auto *session = database_manager.getSession();
+    if (!session)
+    {
+        return;
+    }
+
+    // --- payrollPeriod columns (nullable first; backfill later) ---
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "review_note",
+                                 "VARCHAR(1000) NOT NULL DEFAULT ''");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "submitted_by", "INT NULL");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "submitted_at", "DATETIME NULL");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "supervisor_reviewed_by", "INT NULL");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "supervisor_reviewed_at", "DATETIME NULL");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "supervisor_decision",
+                                 "ENUM('approve','return') NULL");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "supervisor_note",
+                                 "VARCHAR(1000) NOT NULL DEFAULT ''");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "revision_of_period_id", "INT NULL");
+    Common::addColumnIfNotExists(database_manager, "payrollPeriod", "row_version",
+                                 "INT NOT NULL DEFAULT 1");
+
+    // --- salary columns ---
+    Common::addColumnIfNotExists(database_manager, "salary", "first_reviewed_by", "INT NULL");
+    Common::addColumnIfNotExists(database_manager, "salary", "first_reviewed_at", "DATETIME NULL");
+    Common::addColumnIfNotExists(database_manager, "salary", "review_note",
+                                 "VARCHAR(1000) NOT NULL DEFAULT ''");
+
+    try
+    {
+        // Expand period status enum to include submitted_for_supervisor / correction_required.
+        // Always rewrite to the full target set so restarts stay idempotent.
+        const auto periodStatusType = Common::getColumnType(database_manager, "payrollPeriod", "status");
+        const std::string periodStatusTarget =
+            "ENUM('calculating','first_review','submitted_for_supervisor','second_review',"
+            "'correction_required','locked','archived') NOT NULL DEFAULT 'calculating'";
+        if (!periodStatusType ||
+            Common::normalizeSqlType(*periodStatusType).find("submitted_for_supervisor") == std::string::npos)
+        {
+            session->sql("ALTER TABLE payrollPeriod MODIFY COLUMN status " + periodStatusTarget).execute();
+            std::cout << "payrollPeriod.status enum expanded for supervisor review." << std::endl;
+        }
+
+        // Keep legacy second_reviewed/locked readable; new flow only writes pending/first_reviewed/returned.
+        const auto salaryStatusType = Common::getColumnType(database_manager, "salary", "review_status");
+        const std::string salaryStatusTarget =
+            "ENUM('pending','first_reviewed','returned','second_reviewed','locked') NOT NULL DEFAULT 'pending'";
+        if (!salaryStatusType ||
+            Common::normalizeSqlType(*salaryStatusType).find("returned") == std::string::npos)
+        {
+            session->sql("ALTER TABLE salary MODIFY COLUMN review_status " + salaryStatusTarget).execute();
+            std::cout << "salary.review_status enum expanded with returned." << std::endl;
+        }
+
+        // Legacy second_review was "submitted but no trusted supervisor decision" — map to waiting state.
+        // Do not invent supervisor_* fields for these rows.
+        session->sql(
+                   "UPDATE payrollPeriod SET status='submitted_for_supervisor' "
+                   "WHERE status='second_review' "
+                   "AND (supervisor_decision IS NULL OR supervisor_decision='')")
+            .execute();
+
+        // Legacy second_reviewed rows represented completion of the old second-review step.
+        // After the period is moved to the new supervisor queue, they must re-enter the
+        // first-review state so a supervisor return can be corrected and resubmitted.
+        session->sql(
+                   "UPDATE salary s JOIN payrollPeriod p ON p.id=s.payroll_period_id "
+                   "SET s.review_status='first_reviewed' "
+                   "WHERE p.status='submitted_for_supervisor' "
+                   "AND (p.supervisor_decision IS NULL OR p.supervisor_decision='') "
+                   "AND s.review_status='second_reviewed'")
+            .execute();
+
+        // Old reviewed_by/reviewed_at meant "who submitted for second review", not supervisor approval.
+        session->sql(
+                   "UPDATE payrollPeriod SET submitted_by=COALESCE(submitted_by, reviewed_by), "
+                   "submitted_at=COALESCE(submitted_at, reviewed_at) "
+                   "WHERE reviewed_by IS NOT NULL AND submitted_by IS NULL")
+            .execute();
+
+        session->sql(
+                   "CREATE TABLE IF NOT EXISTS payrollPeriodAuditEvent ("
+                   "id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,"
+                   "period_id INT NOT NULL,"
+                   "version_no INT NOT NULL DEFAULT 1,"
+                   "before_row_version INT NULL,"
+                   "after_row_version INT NULL,"
+                   "action VARCHAR(64) NOT NULL,"
+                   "decision VARCHAR(32) NULL,"
+                   "operator_id INT NULL,"
+                   "operator_department_id INT NULL,"
+                   "before_status VARCHAR(64) NULL,"
+                   "after_status VARCHAR(64) NULL,"
+                   "note VARCHAR(1000) NOT NULL DEFAULT '',"
+                   "request_id VARCHAR(64) NOT NULL DEFAULT '',"
+                   "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                   "INDEX idx_payroll_audit_period_created (period_id, created_at),"
+                   "INDEX idx_payroll_audit_operator (operator_id, created_at),"
+                   "CONSTRAINT fk_payroll_audit_period FOREIGN KEY (period_id) "
+                   "REFERENCES payrollPeriod(id) ON DELETE CASCADE,"
+                   "CONSTRAINT fk_payroll_audit_operator FOREIGN KEY (operator_id) "
+                   "REFERENCES users(id) ON DELETE SET NULL"
+                   ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+            .execute();
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "payroll supervisor-review migration failed: " << e.what() << std::endl;
+    }
 }
 
 void migrateOrders(DatabaseManagerInterface &database_manager)
 {
+    auto *session = database_manager.getSession();
+
+    // 必需列（与旧列清理开关无关，任何已部署库都必须补齐）：
+    // orders.department_id 快照开单医生所属部门，财务按部门/分院归集营收。运行时下单/财务首页 SQL
+    // 已强依赖此列，若延后到 legacy 开关才补列会导致「未知列」运行时错误。
+    try
+    {
+        const bool departmentColumnExisted = Common::columnExists(database_manager, "orders", "department_id");
+        Common::addColumnIfNotExists(database_manager, "orders", "department_id", "INT NULL");
+        Common::addIndexIfNotExists(database_manager, "orders", "idx_orders_department", "department_id");
+        if (!departmentColumnExisted)
+        {
+            // 首次加列后一次性回填历史订单，按开单医生当前所属部门推断；无法推断的保持 NULL（仅 scope:all 可见）。
+            // 用 columnExists 预判确保只回填一次，避免每次启动全表扫描。
+            session->sql("UPDATE orders AS o "
+                         "JOIN users AS u ON u.id = o.doctor_id AND u.is_deleted = 0 "
+                         "JOIN positions AS p ON p.id = u.position_id "
+                         "SET o.department_id = p.department_id "
+                         "WHERE o.department_id IS NULL AND p.department_id IS NOT NULL")
+                .execute();
+            std::cout << "orders.department_id added and backfilled from doctor's current department." << std::endl;
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "orders.department_id migration failed: " << e.what() << std::endl;
+    }
+
     if (!shouldAutoMigrateLegacyColumns())
     {
         std::cout << "Skipping orders legacy column migration. Set DB_AUTO_MIGRATE_LEGACY_COLUMNS=true to enable." << std::endl;
         return;
     }
 
-    auto *session = database_manager.getSession();
     try
     {
         if (!Common::columnExists(database_manager, "orders", "order_data"))

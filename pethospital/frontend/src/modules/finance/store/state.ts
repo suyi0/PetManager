@@ -7,6 +7,7 @@ const createFinanceHomeData = (): FinanceHomeData => ({
   dailyCost: 0,
   dailySales: 0,
   dailyProfit: 0,
+  dailyUnassignedSales: 0,
 });
 
 const createSalaryManagementPayload = (): SalaryManagementPayload => ({

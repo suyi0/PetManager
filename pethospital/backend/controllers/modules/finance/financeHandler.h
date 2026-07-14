@@ -14,6 +14,8 @@ public:
 
     double calculateSalesCount();
 
+    double calculateSalesCount(const std::string &orderScopeFilter); // 按订单部门范围过滤的当日销售额
+
     double calculateCostCount();
 
     double calculateCostCount(const crow::request &req);
@@ -44,8 +46,10 @@ public:
     crow::response getSalaryProfile(const crow::request &req, int goalUserId);
     crow::response reviewPayrollEmployee(const crow::request &req, int goalUserId);
     crow::response submitPayrollReview(const crow::request &req);
+    crow::response supervisorReviewPayroll(const crow::request &req);
     crow::response lockPayroll(const crow::request &req);
     crow::response createPayrollRevision(const crow::request &req);
+    crow::response getPayrollAuditEvents(const crow::request &req);
 
 };
 #endif

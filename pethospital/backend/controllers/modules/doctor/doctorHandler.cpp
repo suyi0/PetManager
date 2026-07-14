@@ -291,11 +291,14 @@ crow::response doctorHandler::createOrderRecord(const crow::request &req, int do
         auto session = dbManager->getSession();
         TransactionGuard transaction(*session);
 
-        // 写入订单记录
+        // 写入订单记录。department_id 快照开单医生当前所属部门，供财务按部门/分院归集营收；
+        // 医生无部门时取 NULL（该笔营收仅 scope:all 可见），不阻断开单。
         mysqlx::SqlResult ordersResult = session->sql("INSERT INTO orders ( "
-                                                      "owner_id, pet_id, doctor_id, order_type, order_data, order_status, order_totalprice) "
-                                                      "VALUES (?, ?, ?, ?, LEFT(?, 255), ?, 0.00)")
-                                             .bind(ownerId, petId, doctorId, orderType, orderData, "pending_payment")
+                                                      "owner_id, pet_id, doctor_id, department_id, order_type, order_data, order_status, order_totalprice) "
+                                                      "VALUES (?, ?, ?, "
+                                                      "(SELECT p.department_id FROM users AS u JOIN positions AS p ON p.id = u.position_id WHERE u.id = ? AND u.is_deleted = 0), "
+                                                      "?, LEFT(?, 255), ?, 0.00)")
+                                             .bind(ownerId, petId, doctorId, doctorId, orderType, orderData, "pending_payment")
                                              .execute();
 
         unsigned long long orderId = ordersResult.getAutoIncrementValue();

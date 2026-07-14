@@ -182,6 +182,10 @@ int main()
     const std::string salarySubmitReviewSection = sectionBetween(
         financeRoutes,
         "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/submit-review\")",
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/supervisor-review\")");
+    const std::string salarySupervisorReviewSection = sectionBetween(
+        financeRoutes,
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/supervisor-review\")",
         "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/lock\")");
     const std::string salaryLockSection = sectionBetween(
         financeRoutes,
@@ -190,6 +194,10 @@ int main()
     const std::string salaryRevisionSection = sectionBetween(
         financeRoutes,
         "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/revisions\")",
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/audit-events\")");
+    const std::string salaryAuditEventsSection = sectionBetween(
+        financeRoutes,
+        "CROW_ROUTE(app, \"/api/finance/payroll-periods/current/audit-events\")",
         "CROW_ROUTE(app, \"/api/finance/salary-records/<int>\")");
     const std::string salaryRecordSection = sectionBetween(
         financeRoutes,
@@ -203,18 +211,22 @@ int main()
     assertContains(salaryFirstReviewSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryReview)");
     assertContains(salarySummarySection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
     assertContains(salarySearchSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
-    assertContains(salarySubmitReviewSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryReview)");
+    assertContains(salarySubmitReviewSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalarySubmitReview)");
+    assertContains(salarySupervisorReviewSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalarySupervisorReview)");
     assertContains(salaryLockSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryLock)");
     assertContains(salaryRevisionSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryWrite)");
+    assertContains(salaryAuditEventsSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
     assertContains(salaryRecordSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
     assertSensitiveAudit(salaryWriteSection, "Permissions::kSalaryWrite");
     assertContains(salaryProfileWriteSection, "FinishSensitiveRoute");
     assertSensitiveAudit(salaryFirstReviewSection, "Permissions::kSalaryReview");
     assertSensitiveAudit(salarySummarySection, "Permissions::kSalaryRead");
     assertSensitiveAudit(salarySearchSection, "Permissions::kSalaryRead");
-    assertSensitiveAudit(salarySubmitReviewSection, "Permissions::kSalaryReview");
+    assertSensitiveAudit(salarySubmitReviewSection, "Permissions::kSalarySubmitReview");
+    assertSensitiveAudit(salarySupervisorReviewSection, "Permissions::kSalarySupervisorReview");
     assertSensitiveAudit(salaryLockSection, "Permissions::kSalaryLock");
     assertSensitiveAudit(salaryRevisionSection, "Permissions::kSalaryWrite");
+    assertSensitiveAudit(salaryAuditEventsSection, "Permissions::kSalaryRead");
     assertSensitiveAudit(salaryRecordSection, "Permissions::kSalaryRead");
 
     const std::string totalStockAllocationSection = sectionBetween(

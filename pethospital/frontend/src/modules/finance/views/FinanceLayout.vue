@@ -115,6 +115,11 @@ export default defineComponent({
 /* 外壳来自全局 saas.css；顶栏已移除，内容区作自然滚动列。 */
 .saas-content {
   display: block;
-  overflow-y: auto;
+  height: 100vh;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 14px 20px;
+  background: #f7f9fc;
+  overflow: hidden;
 }
 </style>

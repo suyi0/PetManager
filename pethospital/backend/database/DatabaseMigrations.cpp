@@ -182,18 +182,24 @@ namespace
     {
         seedAttendancePermissionsIfAbsent(dbManager, session);
         seedMedicalDocumentPermissionsIfAbsent(dbManager, session);
+        // 主管复审权限拆分：
+        // - 财务负责人：初审 + 提交主管（不默认给 lock，避免提交人天然可锁定）
+        // - 管理层：主管复审 + 锁定（不默认给 submit-review，避免同人复审）
+        // 旧 salary:review 保留为财务初审语义；已授予的 lock 不在此删除。
         session.sql(R"SQL(INSERT IGNORE INTO position_permissions (position_id, permission_key)
             SELECT p.id, v.permission_key
             FROM positions p
             JOIN (
                 SELECT 'president' AS system_key, 'salary:review' AS permission_key
+                UNION ALL SELECT 'president', 'salary:supervisor-review'
                 UNION ALL SELECT 'president', 'salary:lock'
                 UNION ALL SELECT 'vice-president', 'salary:review'
+                UNION ALL SELECT 'vice-president', 'salary:supervisor-review'
                 UNION ALL SELECT 'vice-president', 'salary:lock'
                 UNION ALL SELECT 'finance-director', 'salary:review'
-                UNION ALL SELECT 'finance-director', 'salary:lock'
+                UNION ALL SELECT 'finance-director', 'salary:submit-review'
                 UNION ALL SELECT 'finance-manager', 'salary:review'
-                UNION ALL SELECT 'finance-manager', 'salary:lock'
+                UNION ALL SELECT 'finance-manager', 'salary:submit-review'
             ) v ON v.system_key = p.system_key
             WHERE NOT EXISTS (
                 SELECT 1 FROM position_permissions existing
@@ -414,9 +420,10 @@ namespace
             FROM permission_templates t
             JOIN (
                 SELECT 'Boss' AS template_name, 'salary:review' AS permission_key
+                UNION ALL SELECT 'Boss', 'salary:supervisor-review'
                 UNION ALL SELECT 'Boss', 'salary:lock'
                 UNION ALL SELECT 'Finance', 'salary:review'
-                UNION ALL SELECT 'Finance', 'salary:lock'
+                UNION ALL SELECT 'Finance', 'salary:submit-review'
             ) v ON v.template_name = t.name
             WHERE NOT EXISTS (
                 SELECT 1 FROM permission_template_items existing
@@ -691,9 +698,10 @@ namespace
                     SELECT t.id, v.permission_key FROM permission_templates t
                     JOIN (
                         SELECT 'Boss' AS template_name, 'salary:review' AS permission_key
+                        UNION ALL SELECT 'Boss', 'salary:supervisor-review'
                         UNION ALL SELECT 'Boss', 'salary:lock'
                         UNION ALL SELECT 'Finance', 'salary:review'
-                        UNION ALL SELECT 'Finance', 'salary:lock'
+                        UNION ALL SELECT 'Finance', 'salary:submit-review'
                     ) v ON v.template_name=t.name
                     WHERE NOT EXISTS (SELECT 1 FROM permission_template_items e
                         WHERE e.template_id=t.id AND e.permission_key=v.permission_key))SQL").execute();
@@ -1023,12 +1031,21 @@ namespace
             R"SQL(CREATE TABLE payrollPeriod (
                 id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
                 payroll_month DATE NOT NULL COMMENT '工资月份，固定保存为当月第一天',
-                status ENUM('calculating', 'first_review', 'second_review', 'locked', 'archived') NOT NULL DEFAULT 'calculating',
-                version_no INT NOT NULL DEFAULT 1 COMMENT '同一月份的工资版本号',
+                status ENUM('calculating', 'first_review', 'submitted_for_supervisor', 'second_review', 'correction_required', 'locked', 'archived') NOT NULL DEFAULT 'calculating',
+                version_no INT NOT NULL DEFAULT 1 COMMENT '同一月份的工资版本号（业务修订版）',
+                row_version INT NOT NULL DEFAULT 1 COMMENT '乐观并发版本，状态/审核信息变更时递增',
                 first_reviewed_by INT NULL,
                 first_reviewed_at DATETIME NULL,
-                reviewed_by INT NULL,
+                reviewed_by INT NULL COMMENT '旧字段：兼容读取，新流程写 submitted_* / supervisor_*',
                 reviewed_at DATETIME NULL,
+                submitted_by INT NULL,
+                submitted_at DATETIME NULL,
+                supervisor_reviewed_by INT NULL,
+                supervisor_reviewed_at DATETIME NULL,
+                supervisor_decision ENUM('approve', 'return') NULL,
+                supervisor_note VARCHAR(1000) NOT NULL DEFAULT '',
+                review_note VARCHAR(1000) NOT NULL DEFAULT '' COMMENT '财务提交说明',
+                revision_of_period_id INT NULL,
                 locked_by INT NULL,
                 locked_at DATETIME NULL,
                 total_salary DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '该工资周期实发总额',
@@ -1036,9 +1053,13 @@ namespace
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 CONSTRAINT fk_payrollPeriod_first_reviewed_by FOREIGN KEY (first_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_payrollPeriod_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_payrollPeriod_submitted_by FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_payrollPeriod_supervisor_reviewed_by FOREIGN KEY (supervisor_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT fk_payrollPeriod_locked_by FOREIGN KEY (locked_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_payrollPeriod_revision_of FOREIGN KEY (revision_of_period_id) REFERENCES payrollPeriod(id) ON DELETE SET NULL,
                 CONSTRAINT chk_payrollPeriod_month_first_day CHECK (DAY(payroll_month) = 1),
                 CONSTRAINT chk_payrollPeriod_version CHECK (version_no > 0),
+                CONSTRAINT chk_payrollPeriod_row_version CHECK (row_version > 0),
                 UNIQUE KEY uq_payrollPeriod_month_version (payroll_month, version_no),
                 INDEX idx_payrollPeriod_status_month (status, payroll_month)
             ))SQL",
@@ -1062,13 +1083,17 @@ namespace
                 deduction DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '财务依据罚款凭证录入的扣款',
                 social_insurance_housing_fund DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '五险一金扣款金额',
                 total_salary DECIMAL(18, 2) NOT NULL DEFAULT 0.00 COMMENT '当月实发工资',
-                review_status ENUM('pending', 'first_reviewed', 'second_reviewed', 'locked') NOT NULL DEFAULT 'pending',
+                review_status ENUM('pending', 'first_reviewed', 'returned', 'second_reviewed', 'locked') NOT NULL DEFAULT 'pending',
+                first_reviewed_by INT NULL,
+                first_reviewed_at DATETIME NULL,
+                review_note VARCHAR(1000) NOT NULL DEFAULT '',
                 is_manually_modified TINYINT NOT NULL DEFAULT 0 COMMENT '是否存在人工修改',
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 CONSTRAINT fk_salary_payroll_period FOREIGN KEY (payroll_period_id) REFERENCES payrollPeriod(id) ON DELETE CASCADE,
                 CONSTRAINT fk_salary_profile FOREIGN KEY (salary_profile_id) REFERENCES salaryProfile(id) ON DELETE SET NULL,
                 CONSTRAINT fk_salary_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT,
+                CONSTRAINT fk_salary_first_reviewed_by FOREIGN KEY (first_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
                 CONSTRAINT chk_salary_pay_basis CHECK (
                     (pay_type = 'monthly' AND base_salary IS NOT NULL AND base_salary >= 0 AND hourly_rate IS NULL) OR
                     (pay_type = 'hourly' AND hourly_rate IS NOT NULL AND hourly_rate >= 0 AND base_salary IS NULL)
@@ -1082,8 +1107,33 @@ namespace
                 INDEX idx_salary_review_status (payroll_period_id, review_status),
                 INDEX idx_salary_manually_modified (payroll_period_id, is_manually_modified)
             ))SQL",
+            migratePayrollPeriodColumns,
+            migratePayrollPeriodColumns,
+        },
+        {
+            "payrollPeriodAuditEvent",
+            R"SQL(CREATE TABLE payrollPeriodAuditEvent (
+                id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+                period_id INT NOT NULL,
+                version_no INT NOT NULL DEFAULT 1,
+                before_row_version INT NULL,
+                after_row_version INT NULL,
+                action VARCHAR(64) NOT NULL,
+                decision VARCHAR(32) NULL,
+                operator_id INT NULL,
+                operator_department_id INT NULL,
+                before_status VARCHAR(64) NULL,
+                after_status VARCHAR(64) NULL,
+                note VARCHAR(1000) NOT NULL DEFAULT '',
+                request_id VARCHAR(64) NOT NULL DEFAULT '',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_payroll_audit_period_created (period_id, created_at),
+                INDEX idx_payroll_audit_operator (operator_id, created_at),
+                CONSTRAINT fk_payroll_audit_period FOREIGN KEY (period_id) REFERENCES payrollPeriod(id) ON DELETE CASCADE,
+                CONSTRAINT fk_payroll_audit_operator FOREIGN KEY (operator_id) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
             nullptr,
-            nullptr,
+            migratePayrollPeriodColumns,
         },
         {
             "salaryChangeRecord",
@@ -1301,6 +1351,7 @@ namespace
                 owner_id INT NOT NULL,
                 pet_id INT NOT NULL,
                 doctor_id INT NOT NULL,
+                department_id INT NULL COMMENT '开单医生所属部门快照，用于财务按部门/分院归集营收',
                 order_type VARCHAR(255) NOT NULL DEFAULT '',
                 order_data VARCHAR(255) NOT NULL DEFAULT '',
                 order_status ENUM('pending_payment', 'paid', 'cancelled', 'refunded', 'partial_refund') NOT NULL DEFAULT 'pending_payment',
@@ -1313,15 +1364,18 @@ namespace
                 CONSTRAINT fk_orders_owner_id FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
                 CONSTRAINT fk_orders_pet_id FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE,
                 CONSTRAINT fk_orders_doctor_id FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE CASCADE,
+                CONSTRAINT fk_orders_department_id FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
                 INDEX idx_orders_owner_deleted (owner_id, is_deleted),
                 INDEX idx_orders_doctor_time (doctor_id, created_at),
+                INDEX idx_orders_department (department_id),
                 INDEX idx_petId_time (pet_id, created_at)
             ))SQL",
             nullptr,
             [](DatabaseManagerInterface &dbManager, mysqlx::Session &)
             {
-                ForeignKeys::migrateOrders(dbManager);
+                // 先补列（含必需的 department_id），再补外键：fk_orders_department_id 依赖该列先存在。
                 Columns::migrateOrders(dbManager);
+                ForeignKeys::migrateOrders(dbManager);
             },
         },
         {

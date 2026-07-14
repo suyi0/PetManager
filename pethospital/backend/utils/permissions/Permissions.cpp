@@ -20,6 +20,8 @@ const std::array kAllPermissionKeys = {
     kSalaryRead,
     kSalaryWrite,
     kSalaryReview,
+    kSalarySubmitReview,
+    kSalarySupervisorReview,
     kSalaryLock,
     kLogsRead,
     kMedicalRecordRead,
@@ -87,7 +89,8 @@ PermissionDomain domainOfPermission(const std::string &key)
         key == kMedicalRecordFinalize || key == kMedicalRecordPrint || key == kMedicalRecordAmend ||
         key == kMedicalRecordVoid || key == kDoctorWorkWrite || key == kScopeMedicalAssigned)
         return PermissionDomain::Medical;
-    if (key == kPortalFinance || key == kSalaryRead || key == kSalaryWrite || key == kSalaryReview || key == kSalaryLock ||
+    if (key == kPortalFinance || key == kSalaryRead || key == kSalaryWrite || key == kSalaryReview ||
+        key == kSalarySubmitReview || key == kSalarySupervisorReview || key == kSalaryLock ||
         key == kEquityRead || key == kEquityWrite) return PermissionDomain::Finance;
     if (key == kPortalPersonnel || key == kStaffRoleWrite || key == kAttendanceManage)
         return PermissionDomain::Personnel;

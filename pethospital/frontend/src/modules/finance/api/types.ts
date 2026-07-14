@@ -3,6 +3,8 @@ export interface FinanceHomeData {
   dailyCost: number;
   dailySales: number;
   dailyProfit: number;
+  /** 未归属到任何部门的当日营收，仅总院（scope:all）账号非零，用于「各部门之和 + 未归属 = 全院」对账。 */
+  dailyUnassignedSales: number;
 }
 
 export interface SalaryEmployeeRow {
@@ -119,13 +121,48 @@ export interface PayrollRowPayload {
 
 export interface PayrollPeriodSummary {
   id: number;
+  periodId?: number;
   status: string;
   versionNo: number;
+  rowVersion?: number;
   totalSalary: number;
   employeeCount?: number;
   unconfiguredCount?: number;
   pendingReviewCount?: number;
   modifiedCount?: number;
   reviewedCount?: number;
+  returnedCount?: number;
   reviewNote?: string;
+  submittedBy?: number;
+  submittedAt?: string;
+  supervisorReviewedBy?: number;
+  supervisorReviewedAt?: string;
+  supervisorDecision?: string;
+  supervisorNote?: string;
+}
+
+export interface SupervisorReviewPayload {
+  decision: "approve" | "return";
+  note?: string;
+  returnedSalaryIds?: number[];
+  returnAll?: boolean;
+  expectedRowVersion?: number;
+}
+
+export interface PayrollAuditEvent {
+  id: number;
+  periodId: number;
+  versionNo: number;
+  beforeRowVersion: number;
+  afterRowVersion: number;
+  action: string;
+  decision: string;
+  operatorId: number;
+  operatorName: string;
+  operatorDepartmentId: number;
+  beforeStatus: string;
+  afterStatus: string;
+  note: string;
+  requestId: string;
+  createdAt: string;
 }

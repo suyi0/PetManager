@@ -11,6 +11,7 @@ import {
   PayrollRowPayload,
   SalaryProfilePayload,
   PayrollPeriodSummary,
+  PayrollAuditEvent,
   SalaryChangeRecord,
 } from "./types";
 
@@ -47,6 +48,7 @@ const createEmptyFinanceHomeData = (): FinanceHomeData => ({
   dailyCost: 0,
   dailySales: 0,
   dailyProfit: 0,
+  dailyUnassignedSales: 0,
 });
 
 export const financeApi = {
@@ -64,6 +66,7 @@ export const financeApi = {
         dailyCost: Number(payload?.dailyCost ?? payload?.costCount ?? 0),
         dailySales: Number(payload?.dailySales ?? payload?.salesCount ?? 0),
         dailyProfit: Number(payload?.dailyProfit ?? payload?.profitCount ?? 0),
+        dailyUnassignedSales: Number(payload?.dailyUnassignedSales ?? 0),
       };
     } catch {
       return createEmptyFinanceHomeData();
@@ -126,16 +129,25 @@ export const financeApi = {
       },
       period: payload?.period
         ? {
-            id: Number(payload.period.id ?? 0),
+            id: Number(payload.period.id ?? payload.period.periodId ?? 0),
+            periodId: Number(payload.period.periodId ?? payload.period.id ?? 0),
             status: payload.period.status ?? "first_review",
             versionNo: Number(payload.period.versionNo ?? 1),
+            rowVersion: Number(payload.period.rowVersion ?? 1),
             totalSalary: Number(payload.period.totalSalary ?? 0),
             employeeCount: Number(payload.period.employeeCount ?? 0),
             unconfiguredCount: Number(payload.period.unconfiguredCount ?? 0),
             pendingReviewCount: Number(payload.period.pendingReviewCount ?? 0),
             modifiedCount: Number(payload.period.modifiedCount ?? 0),
             reviewedCount: Number(payload.period.reviewedCount ?? 0),
+            returnedCount: Number(payload.period.returnedCount ?? 0),
             reviewNote: payload.period.reviewNote ?? "",
+            submittedBy: Number(payload.period.submittedBy ?? 0),
+            submittedAt: payload.period.submittedAt ?? "",
+            supervisorReviewedBy: Number(payload.period.supervisorReviewedBy ?? 0),
+            supervisorReviewedAt: payload.period.supervisorReviewedAt ?? "",
+            supervisorDecision: payload.period.supervisorDecision ?? "",
+            supervisorNote: payload.period.supervisorNote ?? "",
           }
         : undefined,
     };
@@ -239,15 +251,39 @@ export const financeApi = {
     await http.post(`/api/finance/payroll-periods/current/employees/${userId}/first-review`);
   },
 
-  async submitPayrollReview(reviewNote = ""): Promise<void> {
-    await http.post("/api/finance/payroll-periods/current/submit-review", { reviewNote });
+  async submitPayrollReview(payload: {
+    reviewNote?: string;
+    expectedRowVersion?: number;
+  } = {}): Promise<void> {
+    await http.post("/api/finance/payroll-periods/current/submit-review", {
+      reviewNote: payload.reviewNote ?? "",
+      expectedRowVersion: payload.expectedRowVersion,
+    });
   },
 
-  async lockPayroll(): Promise<void> {
-    await http.post("/api/finance/payroll-periods/current/lock");
+  async supervisorReviewPayroll(payload: {
+    decision: "approve" | "return";
+    note?: string;
+    returnedSalaryIds?: number[];
+    returnAll?: boolean;
+    expectedRowVersion?: number;
+  }): Promise<void> {
+    await http.post("/api/finance/payroll-periods/current/supervisor-review", payload);
+  },
+
+  async lockPayroll(expectedRowVersion?: number): Promise<void> {
+    await http.post("/api/finance/payroll-periods/current/lock", {
+      expectedRowVersion,
+    });
   },
 
   async createPayrollRevision(): Promise<void> {
     await http.post("/api/finance/payroll-periods/current/revisions");
+  },
+
+  async getPayrollAuditEvents(): Promise<PayrollAuditEvent[]> {
+    const { data } = await http.get("/api/finance/payroll-periods/current/audit-events");
+    const payload = data?.data ?? data;
+    return unwrapList<PayrollAuditEvent>(payload?.items);
   },
 };

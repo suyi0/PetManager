@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RBAC 权限组织管理 - 界面方案切换对比</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ----------------------------------------------------
+       THEME VARIABLES DEFINITIONS 
+       ---------------------------------------------------- */
+    
+    /* 1. Theme A: Modern Bento Box SaaS */
+    body.theme-a-bento {
+      --bg-app: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-panel: #ffffff;
+      --bg-input: #f8fafc;
+      --border-color: #e2e8f0;
+      --border-focus: #2563eb;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-light: #94a3b8;
+      
+      --color-primary: #2563eb;
+      --color-primary-hover: #1d4ed8;
+      --color-primary-light: #eff6ff;
+      --color-danger: #ef4444;
+      --color-danger-light: #fef2f2;
+      
+      --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+      --shadow-panel: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      --glass-filter: none;
+      --border-accent: 1px solid var(--border-color);
+      --glow-effect: none;
+      --glow-text: none;
+      --card-radius: 12px;
+      --panel-radius: 16px;
+    }
+
+    /* 2. Theme B: Sleek Tech Dark Mode */
+    body.theme-b-dark {
+      --bg-app: #030712;
+      --bg-card: #111827;
+      --bg-panel: #0f172a;
+      --bg-input: #1e293b;
+      --border-color: #334155;
+      --border-focus: #06b6d4;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-light: #4b5563;
+      
+      --color-primary: #06b6d4;
+      --color-primary-hover: #0891b2;
+      --color-primary-light: rgba(6, 182, 212, 0.08);
+      --color-danger: #ef4444;
+      --color-danger-light: rgba(239, 68, 68, 0.08);
+      
+      --shadow-card: 0 4px 18px rgba(0, 0, 0, 0.2);
+      --shadow-panel: 0 10px 30px rgba(0, 0, 0, 0.35);
+      --glass-filter: none;
+      --border-accent: 1px solid var(--border-color);
+      --glow-effect: 0 0 12px rgba(6, 182, 212, 0.15);
+      --glow-text: 0 0 8px rgba(6, 182, 212, 0.25);
+      --card-radius: 12px;
+      --panel-radius: 16px;
+    }
+
+    /* 3. Theme C: Glassmorphism (Classic Deep Blue) */
+    body.theme-c-glass {
+      --bg-app: transparent;
+      --bg-card: rgba(255, 255, 255, 0.28);
+      --bg-panel: rgba(255, 255, 255, 0.45);
+      --bg-input: rgba(255, 255, 255, 0.5);
+      --border-color: rgba(255, 255, 255, 0.4);
+      --border-focus: rgba(47, 125, 208, 0.3);
+      --text-main: #14263f;
+      --text-muted: #536a81;
+      --text-light: #8193a5;
+      
+      --color-primary: #2f7dd0;
+      --color-primary-hover: #1e5aa0;
+      --color-primary-light: rgba(47, 125, 208, 0.08);
+      --color-danger: #b4232a;
+      --color-danger-light: rgba(180, 35, 42, 0.08);
+      
+      --shadow-card: 0 6px 20px rgba(39, 75, 111, 0.04);
+      --shadow-panel: 0 8px 32px 0 rgba(39, 75, 111, 0.06);
+      --glass-filter: blur(24px);
+      --border-accent: 1px solid rgba(255, 255, 255, 0.6);
+      --glow-effect: none;
+      --glow-text: none;
+      --card-radius: 14px;
+      --panel-radius: 20px;
+    }
+
+    /* ----------------------------------------------------
+       GENERAL LAYOUT & STRUCTURE (Desktop Constraints)
+       ---------------------------------------------------- */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto; /* Permit horizontal/vertical overflow scrollbar only when viewport is smaller than min limits */
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-width: 1024px; /* Ensure body never squishes below standard desktop width */
+      transition: background-color 0.3s ease;
+    }
+
+    body.theme-a-bento { background-color: #f1f5f9; }
+    body.theme-b-dark { background-color: #030712; }
+    body.theme-c-glass { background: linear-gradient(135deg, #e0f2fe 0%, #ecfdf5 50%, #fef3c7 100%); }
+
+    /* Ambient glow blobs for glass mode */
+    .blob {
+      position: absolute;
+      width: 520px;
+      height: 520px;
+      border-radius: 50%;
+      filter: blur(100px);
+      z-index: -1;
+      opacity: 0.85;
+      display: none;
+      transition: all 0.3s ease;
+    }
+    .blob-1 { top: -5%; left: 10%; background: rgba(56, 189, 248, 0.3); }
+    .blob-2 { bottom: 5%; right: 5%; background: rgba(52, 211, 153, 0.25); }
+    
+    body.theme-c-glass .blob { display: block; }
+
+    /* Theme Switcher Header Console */
+    .theme-console {
+      background-color: #0b0f19;
+      border-bottom: 1px solid #1f2937;
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+      flex-shrink: 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .console-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .console-logo span {
+      background: linear-gradient(135deg, #2f7dd0, #06b6d4);
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .console-switcher {
+      display: flex;
+      gap: 6px;
+    }
+
+    .console-btn {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .console-btn:hover {
+      background-color: #334155;
+      color: white;
+    }
+
+    .console-btn.active {
+      background: linear-gradient(135deg, #2f7dd0, #1e5aa0);
+      border-color: #3b82f6;
+      color: white;
+      box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35);
+    }
+
+    /* Main App Window Content - Desktop Proportion Locked */
+    .rbac-page {
+      flex: 1;
+      width: 100%;
+      max-width: 1440px;
+      min-height: 660px; /* Lock minimum layout height to keep lower regions visible */
+      margin: 0 auto;
+      padding: 20px 24px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+      min-height: 0;
+      box-sizing: border-box;
+      background: var(--bg-app);
+      transition: background 0.3s ease;
+    }
+
+    /* Header section */
+    .page-head {
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      transition: all 0.3s ease;
+    }
+
+    .page-head p {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-primary);
+      margin-bottom: 4px;
+      text-shadow: var(--glow-text);
+    }
+
+    .page-head h2 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .page-head span {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Primary Panel Container */
+    .panel {
+      flex: 1;
+      min-height: 320px; /* Guard to prevent collapse of center panels */
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      background-color: var(--bg-panel);
+      border: var(--border-accent);
+      border-radius: var(--panel-radius, 16px);
+      box-shadow: var(--shadow-panel);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      transition: all 0.3s ease;
+    }
+
+    .panel-title {
+      flex: 0 0 auto;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-main);
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      letter-spacing: -0.2px;
+    }
+
+    /* Main Creation Split Grid Layout - Desktop Locked to 2 columns */
+    .create-layout {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-top: 16px;
+    }
+
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 0;
+    }
+
+    /* Divider border */
+    .col:first-child {
+      border-right: 1px solid var(--border-color);
+      padding-right: 32px;
+    }
+
+    /* Form Design */
+    .create-form {
+      flex: 0 0 auto;
+      padding: 16px;
+      background-color: var(--bg-card);
+      border: var(--border-accent);
+      border-radius: var(--card-radius, 12px);
+      box-shadow: var(--shadow-card);
+      transition: all 0.3s ease;
+    }
+
+    .create-form__title {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .create-form__fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* Inputs & Select Elements */
+    input, select {
+      height: 38px;
+      width: 100%;
+      min-width: 0;
+      padding: 0 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      background-color: var(--bg-input);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+      box-sizing: border-box;
+      transition: all 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--border-focus);
+    }
+
+    /* Standard Button */
+    .button {
+      height: 38px;
+      padding: 0 16px;
+      border: none;
+      border-radius: 8px;
+      background: var(--color-primary);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    body.theme-b-dark .button {
+      color: #030712;
+    }
+
+    .button:hover:not(:disabled) {
+      background: var(--color-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .create-form__hint {
+      margin-top: 10px;
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    /* Existing list list wrap block */
+    .existing__block {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100px; /* Shrinks but never collapses entirely */
+      border: 1px solid var(--border-color);
+      border-radius: var(--card-radius, 12px);
+      background-color: var(--bg-card);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+      transition: all 0.3s ease;
+    }
+
+    .existing__head {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+      background-color: rgba(0,0,0,0.02);
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    body.theme-b-dark .existing__head {
+      background-color: rgba(255,255,255,0.03);
+    }
+
+    .existing__head .count {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background-color: var(--color-primary-light);
+      color: var(--color-primary);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* Scrolling list */
+    .existing__list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .existing__item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background-color: var(--bg-input);
+      min-width: 0;
+      transition: all 0.2s ease;
+    }
+
+    .existing__item:hover {
+      transform: translateX(2px);
+      border-color: var(--border-focus);
+      background-color: var(--bg-card);
+    }
+
+    .existing__item strong {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .existing__meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .existing__meta small {
+      color: var(--text-muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    /* Edit links */
+    .edit-link {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 3px 8px;
+      background-color: var(--bg-card);
+      color: var(--color-primary);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      outline: none;
+    }
+
+    .edit-link:hover:not(:disabled) {
+      background-color: var(--color-primary-light);
+      border-color: var(--color-primary);
+    }
+
+    .edit-link:disabled {
+      color: var(--text-light);
+      background-color: transparent;
+      border-color: var(--border-color);
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .edit-link--danger {
+      color: var(--color-danger);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .edit-link--danger:hover:not(:disabled) {
+      background-color: var(--color-danger-light);
+      border-color: var(--color-danger);
+    }
+
+    .existing__empty {
+      color: var(--text-light);
+      font-size: 12px;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    /* ----------------------------------------------------
+       BOTTOM NAVIGATION ENTRY TILES (Entry cards)
+       ---------------------------------------------------- */
+    .entry-grid {
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr; /* Desktop always keeps 2 columns side-by-side */
+      gap: 20px;
+    }
+
+    .entry-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 24px;
+      background-color: var(--bg-panel);
+      border: var(--border-accent);
+      border-radius: 16px;
+      box-shadow: var(--shadow-card);
+      color: var(--text-main);
+      text-decoration: none;
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      position: relative;
+      overflow: hidden;
+      min-width: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .entry-card::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--color-primary);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .entry-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-panel), 0 10px 25px rgba(20, 38, 63, 0.05);
+      border-color: var(--color-primary);
+    }
+
+    body.theme-b-dark .entry-card:hover {
+      box-shadow: 0 8px 30px rgba(6, 182, 212, 0.1);
+    }
+
+    .entry-card:hover::after {
+      opacity: 1;
+    }
+
+    .entry-card__index {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background-color: var(--color-primary-light);
+      color: var(--color-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 800;
+      transition: all 0.25s ease;
+    }
+
+    body.theme-b-dark .entry-card__index {
+      color: var(--color-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .entry-card:hover .entry-card__index {
+      transform: scale(1.05) rotate(-5deg);
+      background-color: var(--color-primary);
+      color: white;
+    }
+    
+    body.theme-b-dark .entry-card:hover .entry-card__index {
+      color: #030712;
+    }
+
+    .entry-card h3 {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 3px;
+    }
+
+    .entry-card p {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .entry-card-chevron {
+      justify-self: end;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--color-primary);
+      transition: transform 0.2s ease;
+    }
+
+    .entry-card:hover .entry-card-chevron {
+      transform: translateX(4px);
+    }
+
+    /* ----------------------------------------------------
+       EDIT DIALOG MODAL (POPUP)
+       ---------------------------------------------------- */
+    .dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .dialog {
+      width: min(440px, 100%);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      background-color: var(--bg-panel);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+      padding: 24px;
+      animation: dialogZoomIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
+      transition: all 0.3s ease;
+    }
+
+    @keyframes dialogZoomIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .dialog__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .dialog__head h3 {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .dialog-close {
+      border: none;
+      background: none;
+      font-size: 20px;
+      color: var(--text-muted);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .dialog__form {
+      display: grid;
+      gap: 16px;
+    }
+
+    .dialog__form label {
+      display: grid;
+      gap: 6px;
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .dialog__hint {
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .dialog__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .btn-ghost:hover {
+      background-color: var(--color-primary-light);
+      color: var(--color-primary);
+    }
+  </style>
+</head>
+<body class="theme-c-glass">
+  
+  <!-- Glowing backdrops for Glass style -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <!-- Theme Console Header Control Panel -->
+  <header class="theme-console">
+    <div class="console-logo">
+      RBAC CONFIGURATION SCREEN <span>PROTOTYPE PREVIEW</span>
+    </div>
+    <div class="console-switcher">
+      <button class="console-btn" onclick="switchTheme('theme-a-bento', this)">方案 A：现代便当盒极简 SaaS 风</button>
+      <button class="console-btn" onclick="switchTheme('theme-b-dark', this)">方案 B：高端极简科技暗黑风</button>
+      <button class="console-btn active" onclick="switchTheme('theme-c-glass', this)">方案 C：磨砂玻璃亚克力风 (经典深海蓝)</button>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <section class="rbac-page">
+    <header class="page-head">
+      <div>
+        <p>Organization</p>
+        <h2>权限组织管理</h2>
+        <span>先维护组织结构与职位关系，再授权职位默认权限或职工个人例外。</span>
+      </div>
+      <div>
+        <button class="button btn-ghost" onclick="toggleEditDialog(true)" style="height: 34px; padding: 0 12px; border-radius: 6px; font-size: 11px;">模拟编辑弹窗</button>
+      </div>
+    </header>
+
+    <!-- Content Panel -->
+    <section class="panel">
+      <div class="panel-title">创建部门与职位关系网</div>
+
+      <div class="create-layout">
+        <!-- Col 1: Department setup -->
+        <div class="col">
+          <form class="create-form" onsubmit="event.preventDefault();">
+            <strong class="create-form__title">新增分院与部门</strong>
+            <div class="create-form__fields">
+              <select>
+                <option value="0">默认分院 (第一门诊总院)</option>
+                <option value="1">徐汇分院 (第二门诊部)</option>
+                <option value="2">浦东旗舰院 (第三门诊部)</option>
+              </select>
+              <select title="业务域决定该部门下能创建哪些工种的职位">
+                <option value="general">通用（仅普通员工）</option>
+                <option value="management">管理（行政/高管）</option>
+                <option value="finance" selected>财务（收支/薪酬）</option>
+                <option value="personnel">人事（考勤/绩效）</option>
+                <option value="medical">医疗（医生/护士）</option>
+                <option value="warehouse">仓储（药品/器械）</option>
+              </select>
+              <input type="text" placeholder="新部门名称 (如: 财务处)" value="财务结算中心" />
+              <button type="button" class="button">新增部门</button>
+            </div>
+            <p class="create-form__hint">
+              业务域与职位工种存在逻辑关联，限制对应部门能创建哪些职业特性的岗位（如财务部不能创建主治医生职位）。
+            </p>
+          </form>
+
+          <!-- Existing list -->
+          <div class="existing__block">
+            <div class="existing__head">
+              已有部门 <span class="count">4</span>
+            </div>
+            <div class="existing__list">
+              <div class="existing__item">
+                <strong>财务管理部</strong>
+                <span class="existing__meta">
+                  <small>总院 · 财务域</small>
+                  <button type="button" class="edit-link" onclick="toggleEditDialog(true)">编辑</button>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>骨科与软组织门诊</strong>
+                <span class="existing__meta">
+                  <small>总院 · 医疗域</small>
+                  <button type="button" class="edit-link" onclick="toggleEditDialog(true)">编辑</button>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>猫科专家诊室</strong>
+                <span class="existing__meta">
+                  <small>浦东院 · 医疗域</small>
+                  <button type="button" class="edit-link" onclick="toggleEditDialog(true)">编辑</button>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>仓储发药处</strong>
+                <span class="existing__meta">
+                  <small>总院 · 仓储域</small>
+                  <button type="button" class="edit-link" onclick="toggleEditDialog(true)">编辑</button>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Col 2: Position setup -->
+        <div class="col">
+          <form class="create-form" onsubmit="event.preventDefault();">
+            <strong class="create-form__title">新增具体职业岗位</strong>
+            <div class="create-form__fields">
+              <select>
+                <option value="0">选择部门</option>
+                <option value="1" selected>财务管理部（财务域）</option>
+                <option value="2">骨科与软组织门诊（医疗域）</option>
+                <option value="3">猫科专家诊室（医疗域）</option>
+              </select>
+              <select>
+                <option value="general_staff">普通员工</option>
+                <option value="finance" selected>财务</option>
+                <option value="doctor">医生</option>
+                <option value="nurse">护士</option>
+              </select>
+              <input type="text" placeholder="新职位名称 (如: 出纳员)" value="资深财务稽核" />
+              <button type="button" class="button">新增职位</button>
+            </div>
+            <p class="create-form__hint">
+              岗位级别决定此职位的初始权限模板。新增后，可在下方快捷键配置模板授权或例外规则。
+            </p>
+          </form>
+
+          <!-- Existing positions -->
+          <div class="existing__block">
+            <div class="existing__head">
+              已有职位 <span class="count">6</span>
+            </div>
+            <div class="existing__list">
+              <div class="existing__item">
+                <strong>财务总监</strong>
+                <span class="existing__meta">
+                  <small>财务管理部 · 财务</small>
+                  <button type="button" class="edit-link edit-link--danger" disabled title="系统内置角色不可删除">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>骨科主治医师</strong>
+                <span class="existing__meta">
+                  <small>骨科门诊 · 医生</small>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>住院部看护长</strong>
+                <span class="existing__meta">
+                  <small>骨科门诊 · 护士</small>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>药库发药员</strong>
+                <span class="existing__meta">
+                  <small>仓储发药处 · 仓储</small>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>前台出纳员</strong>
+                <span class="existing__meta">
+                  <small>财务管理部 · 财务</small>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+              <div class="existing__item">
+                <strong>高级前台客服</strong>
+                <span class="existing__meta">
+                  <small>通用部门 · 普通员工</small>
+                  <button type="button" class="edit-link edit-link--danger">删除</button>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Entry Redirect Console -->
+    <div class="entry-grid">
+      <a class="entry-card" href="javascript:void(0);">
+        <span class="entry-card__index">01</span>
+        <div>
+          <h3>职位权限管理控制台</h3>
+          <p>维护不同职位的系统最低授权模板，直接应用到该职位下所有的职员账户。</p>
+        </div>
+        <span class="entry-card-chevron">进入职位权限管理 &rarr;</span>
+      </a>
+      <a class="entry-card" href="javascript:void(0);">
+        <span class="entry-card__index">02</span>
+        <div>
+          <h3>职工个人特别授权</h3>
+          <p>给具体职员在原有职位模板之上独立加授或限制，提供针对性例外管理。</p>
+        </div>
+        <span class="entry-card-chevron">进入职工个人授权 &rarr;</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- Dialog box (Modal popup) simulation -->
+  <div class="dialog-backdrop" id="edit-dialog" style="display: none;">
+    <div class="dialog">
+      <div class="dialog__head">
+        <h3>编辑部门信息</h3>
+        <button class="dialog-close" onclick="toggleEditDialog(false)">&times;</button>
+      </div>
+      <form class="dialog__form" onsubmit="event.preventDefault(); toggleEditDialog(false);">
+        <label>
+          <span>部门名称</span>
+          <input type="text" value="猫科专家诊室" />
+        </label>
+        <label>
+          <span>业务域关联</span>
+          <select>
+            <option value="general">通用（仅普通员工）</option>
+            <option value="management">管理</option>
+            <option value="finance">财务</option>
+            <option value="personnel">人事</option>
+            <option value="medical" selected>医疗</option>
+            <option value="warehouse">仓储</option>
+          </select>
+        </label>
+        <p class="dialog__hint">
+          注意：更改关联业务域时，若旧的职位岗位与新关联 of 业务域存在冲突（如将医疗部门改配为财务部，而该部门下存在医生职位），系统将自动列出所有冲突项并拦截保存。
+        </p>
+        <div class="dialog__actions">
+          <button type="button" class="button btn-ghost" onclick="toggleEditDialog(false)">取消</button>
+          <button type="submit" class="button">保存修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function switchTheme(themeName, btnElement) {
+      document.body.className = themeName;
+      // Switch active button state
+      const buttons = document.querySelectorAll('.console-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      btnElement.classList.add('active');
+    }
+
+    function toggleEditDialog(isOpen) {
+      const dialog = document.getElementById('edit-dialog');
+      dialog.style.display = isOpen ? 'grid' : 'none';
+    }
+
+    // Auto theme switcher via URL Hash (immediately invoked)
+    const hash = window.location.hash.replace('#', '');
+    if (hash && ['theme-a-bento', 'theme-b-dark', 'theme-c-glass'].includes(hash)) {
+      const btn = document.querySelector(`.console-btn[onclick*="${hash}"]`);
+      if (btn) {
+        switchTheme(hash, btn);
+      }
+    }
+  </script>
+</body>
+</html>

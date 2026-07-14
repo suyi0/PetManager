@@ -32,7 +32,7 @@ void migrateOrders(DatabaseManagerInterface &database_manager);
 // 当前负责为旧库补 active_slot_key 生成列与 uq_active_slot 唯一索引。
 void migrateReservations(DatabaseManagerInterface &database_manager);
 
-// payrollPeriod 表的列级迁移。
-// 当前负责为存量库补主管复审说明字段。
+// payrollPeriod / salary 表的主管复审字段、状态枚举与审计表迁移。
+// 补齐提交/主管决定/row_version/退回状态，并对存量 second_review 做兼容回填。
 void migratePayrollPeriod(DatabaseManagerInterface &database_manager);
 }

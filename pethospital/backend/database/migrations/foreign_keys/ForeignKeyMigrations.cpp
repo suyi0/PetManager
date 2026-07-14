@@ -321,6 +321,11 @@ namespace DatabaseMigrations::ForeignKeys
             {"orders", "fk_orders_doctor_id", "doctor_id", "users", "id", "CASCADE"},
             shouldUtilAutoMigrateForeignKeys("DB_AUTO_MIGRATE_ORDERS_FOREIGN_KEYS"),
             "DB_AUTO_MIGRATE_ORDERS_FOREIGN_KEYS");
+        migrateForeignKeyIfEnabled(
+            database_manager,
+            {"orders", "fk_orders_department_id", "department_id", "departments", "id", "SET NULL"},
+            shouldUtilAutoMigrateForeignKeys("DB_AUTO_MIGRATE_ORDERS_FOREIGN_KEYS"),
+            "DB_AUTO_MIGRATE_ORDERS_FOREIGN_KEYS");
     }
 
     // 为 orderMedicines 表补齐其外键迁移逻辑。

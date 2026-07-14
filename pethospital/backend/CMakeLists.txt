@@ -538,6 +538,15 @@ if(BUILD_TESTING)
     )
     add_test(NAME sensitive_permission_route_tests COMMAND sensitive_permission_route_tests)
 
+    add_executable(payroll_supervisor_review_contract_tests
+        tests/payroll_supervisor_review_contract_tests.cpp
+    )
+    target_compile_definitions(payroll_supervisor_review_contract_tests PRIVATE
+        COLUMN_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/migrations/columns/ColumnMigrations.cpp"
+        FINANCE_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/finance/financeHandler.cpp"
+    )
+    add_test(NAME payroll_supervisor_review_contract_tests COMMAND payroll_supervisor_review_contract_tests)
+
     add_executable(operation_log_schema_tests
         tests/operation_log_schema_tests.cpp
     )

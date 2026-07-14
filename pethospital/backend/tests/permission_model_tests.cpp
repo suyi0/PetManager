@@ -35,6 +35,8 @@ int main()
         Permissions::kSalaryRead,
         Permissions::kSalaryWrite,
         Permissions::kSalaryReview,
+        Permissions::kSalarySubmitReview,
+        Permissions::kSalarySupervisorReview,
         Permissions::kSalaryLock,
         Permissions::kLogsRead,
         Permissions::kMedicalRecordRead,

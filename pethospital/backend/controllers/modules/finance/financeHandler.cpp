@@ -8,6 +8,8 @@
 #include <iomanip>
 #include <optional>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace
 {
@@ -123,15 +125,19 @@ namespace
         return stream.str();
     }
 
+    constexpr const char *kOpenPayrollStatuses =
+        "'calculating','first_review','submitted_for_supervisor','second_review','correction_required'";
+
     int ensureCurrentPayrollPeriod(mysqlx::Session &session)
     {
         try
         {
-            session.sql("INSERT INTO payrollPeriod (payroll_month, status, version_no) "
-                        "SELECT DATE_FORMAT(CURDATE(), '%Y-%m-01'), 'first_review', 1 "
+            session.sql("INSERT INTO payrollPeriod (payroll_month, status, version_no, row_version) "
+                        "SELECT DATE_FORMAT(CURDATE(), '%Y-%m-01'), 'first_review', 1, 1 "
                         "FROM DUAL WHERE NOT EXISTS ("
                         "SELECT 1 FROM payrollPeriod WHERE payroll_month = DATE_FORMAT(CURDATE(), '%Y-%m-01') "
-                        "AND status IN ('calculating','first_review','second_review'))")
+                        "AND status IN (" +
+                        std::string(kOpenPayrollStatuses) + "))")
                 .execute();
         }
         catch (const mysqlx::Error &e)
@@ -162,9 +168,147 @@ namespace
             .bind(periodId)
             .execute();
     }
+
+    crow::response payrollBusinessError(
+        const crow::request &req,
+        int httpStatus,
+        const std::string &errorCode,
+        const std::string &message)
+    {
+        const int businessCode = httpStatus == 409
+                                     ? ResponseCode::BusinessConflict
+                                     : (httpStatus == 403 ? ResponseCode::PermissionDenied
+                                                          : (httpStatus == 404 ? ResponseCode::NotFound
+                                                                               : ResponseCode::ValidationError));
+        return ResponseHelper::fail(req, httpStatus, businessCode, message, errorCode, message);
+    }
+
+    bool isEditablePayrollStatus(const std::string &status)
+    {
+        return status == "first_review" || status == "correction_required";
+    }
+
+    bool isFrozenPayrollStatus(const std::string &status)
+    {
+        return status == "submitted_for_supervisor" || status == "second_review" ||
+               status == "locked" || status == "archived";
+    }
+
+    std::optional<int> parseExpectedRowVersion(const nlohmann::json &body)
+    {
+        if (body.contains("expectedRowVersion") && body["expectedRowVersion"].is_number_integer())
+        {
+            return body["expectedRowVersion"].get<int>();
+        }
+        if (body.contains("expected_row_version") && body["expected_row_version"].is_number_integer())
+        {
+            return body["expected_row_version"].get<int>();
+        }
+        return std::nullopt;
+    }
+
+    std::optional<int> operatorDepartmentId(mysqlx::Session &session, int operatorId)
+    {
+        if (operatorId <= 0)
+        {
+            return std::nullopt;
+        }
+        const auto row = session.sql(
+                                    "SELECT pos.department_id FROM users u "
+                                    "LEFT JOIN positions pos ON pos.id=u.position_id "
+                                    "WHERE u.id=? LIMIT 1")
+                             .bind(operatorId)
+                             .execute()
+                             .fetchOne();
+        if (!row || row[0].isNull())
+        {
+            return std::nullopt;
+        }
+        return row[0].get<int>();
+    }
+
+    void insertPayrollAuditEvent(
+        mysqlx::Session &session,
+        int periodId,
+        int versionNo,
+        int beforeRowVersion,
+        int afterRowVersion,
+        const std::string &action,
+        const std::string &decision,
+        int operatorId,
+        const std::string &beforeStatus,
+        const std::string &afterStatus,
+        const std::string &note,
+        const std::string &requestId)
+    {
+        const auto deptId = operatorDepartmentId(session, operatorId);
+        session.sql(
+                   "INSERT INTO payrollPeriodAuditEvent "
+                   "(period_id,version_no,before_row_version,after_row_version,action,decision,"
+                   "operator_id,operator_department_id,before_status,after_status,note,request_id) "
+                   "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+            .bind(periodId, versionNo, beforeRowVersion, afterRowVersion, action,
+                  decision.empty() ? mysqlx::Value() : mysqlx::Value(decision),
+                  operatorId > 0 ? mysqlx::Value(operatorId) : mysqlx::Value(),
+                  deptId.has_value() ? mysqlx::Value(deptId.value()) : mysqlx::Value(),
+                  beforeStatus, afterStatus, note, requestId)
+            .execute();
+    }
+
+    nlohmann::json periodPayloadFromRow(
+        int periodId,
+        const mysqlx::Row &period,
+        int employeeCount,
+        int unconfiguredCount,
+        int pendingReviewCount,
+        int modifiedCount,
+        int reviewedCount,
+        int returnedCount,
+        double computedTotal)
+    {
+        // SELECT status,version_no,total_salary,review_note,row_version,
+        //        submitted_by,CAST(submitted_at AS CHAR),
+        //        supervisor_reviewed_by,CAST(supervisor_reviewed_at AS CHAR),
+        //        supervisor_decision,supervisor_note
+        return {
+            {"id", periodId},
+            {"periodId", periodId},
+            {"status", period[0].isNull() ? "first_review" : period[0].get<std::string>()},
+            {"versionNo", period[1].isNull() ? 1 : period[1].get<int>()},
+            {"totalSalary", period[2].isNull() ? computedTotal : period[2].get<double>()},
+            {"reviewNote", period[3].isNull() ? "" : period[3].get<std::string>()},
+            {"rowVersion", period[4].isNull() ? 1 : period[4].get<int>()},
+            {"submittedBy", period[5].isNull() ? 0 : period[5].get<int>()},
+            {"submittedAt", period[6].isNull() ? "" : period[6].get<std::string>()},
+            {"supervisorReviewedBy", period[7].isNull() ? 0 : period[7].get<int>()},
+            {"supervisorReviewedAt", period[8].isNull() ? "" : period[8].get<std::string>()},
+            {"supervisorDecision", period[9].isNull() ? "" : period[9].get<std::string>()},
+            {"supervisorNote", period[10].isNull() ? "" : period[10].get<std::string>()},
+            {"employeeCount", employeeCount},
+            {"unconfiguredCount", unconfiguredCount},
+            {"pendingReviewCount", pendingReviewCount},
+            {"modifiedCount", modifiedCount},
+            {"reviewedCount", reviewedCount},
+            {"returnedCount", returnedCount},
+        };
+    }
+
+    const char *periodSelectColumns()
+    {
+        return "status,version_no,total_salary,COALESCE(review_note,''),COALESCE(row_version,1),"
+               "submitted_by,CAST(submitted_at AS CHAR),"
+               "supervisor_reviewed_by,CAST(supervisor_reviewed_at AS CHAR),"
+               "supervisor_decision,COALESCE(supervisor_note,'')";
+    }
 }
 
 double financeHandler::calculateSalesCount()
+{
+    // 无参版为全院口径（老板/总裁看板等 scope:all 场景使用）。
+    return calculateSalesCount(std::string());
+}
+
+double financeHandler::calculateSalesCount(const std::string &orderScopeFilter)
 {
     try
     {
@@ -175,10 +319,13 @@ double financeHandler::calculateSalesCount()
 
         const auto [dayStart, nextDayStart] = getTodayRange();
 
+        // orderScopeFilter 形如 " AND o.department_id IN (...) "，由调用方按当前用户组织范围生成；
+        // 空串表示不限制（全院）。部门为 NULL 的历史订单不会命中 IN 过滤，仅在全院口径下计入。
         const double salesCount = dbManager->getSession()
-                                      ->sql("SELECT COALESCE(ROUND(SUM(order_totalprice)), 0) "
-                                            "FROM orders "
-                                            "WHERE created_at >= ? AND created_at < ?")
+                                      ->sql("SELECT COALESCE(ROUND(SUM(o.order_totalprice)), 0) "
+                                            "FROM orders AS o "
+                                            "WHERE o.created_at >= ? AND o.created_at < ? " +
+                                            orderScopeFilter)
                                       .bind(dayStart)
                                       .bind(nextDayStart)
                                       .execute()
@@ -245,6 +392,7 @@ double financeHandler::calculateCostCount(const crow::request &req)
 
         const auto [dayStart, nextDayStart] = getTodayRange();
         const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
+        const std::string orderScopeFilter = orgScopeCondition(req, dbManager, "o.department_id");
 
         const double employeeCostCount = dbManager->getSession()
                                              ->sql("SELECT COALESCE(ROUND(SUM(s.total_salary / 31)), 0) "
@@ -261,7 +409,8 @@ double financeHandler::calculateCostCount(const crow::request &req)
                                          ->sql("SELECT COALESCE(ROUND(SUM(om.total_price)), 0) "
                                                "FROM orderMedicines AS om "
                                                "JOIN orders AS o ON om.order_id = o.id "
-                                               "WHERE o.created_at >= ? AND o.created_at < ?")
+                                               "WHERE o.created_at >= ? AND o.created_at < ? " +
+                                               orderScopeFilter)
                                          .bind(dayStart)
                                          .bind(nextDayStart)
                                          .execute()
@@ -287,6 +436,7 @@ double financeHandler::calculateCostCount(int userId)
 
         const auto [dayStart, nextDayStart] = getTodayRange();
         const std::string scopeFilter = orgScopeConditionForUser(userId, dbManager, "pos.department_id");
+        const std::string orderScopeFilter = orgScopeConditionForUser(userId, dbManager, "o.department_id");
 
         const double employeeCostCount = dbManager->getSession()
                                              ->sql("SELECT COALESCE(ROUND(SUM(s.total_salary / 31)), 0) "
@@ -303,7 +453,8 @@ double financeHandler::calculateCostCount(int userId)
                                          ->sql("SELECT COALESCE(ROUND(SUM(om.total_price)), 0) "
                                                "FROM orderMedicines AS om "
                                                "JOIN orders AS o ON om.order_id = o.id "
-                                               "WHERE o.created_at >= ? AND o.created_at < ?")
+                                               "WHERE o.created_at >= ? AND o.created_at < ? " +
+                                               orderScopeFilter)
                                          .bind(dayStart)
                                          .bind(nextDayStart)
                                          .execute()
@@ -362,14 +513,20 @@ nlohmann::json financeHandler::buildHomeData(const crow::request &req)
 
     auto dailyRow = dailyExpensesResult.fetchOne();
 
-    double salesCount = calculateSalesCount();
+    double salesCount = calculateSalesCount(orgScopeCondition(req, dbManager, "o.department_id"));
     double costCount = calculateCostCount(req);
+    // 未归属营收：department_id 为 NULL 的订单（历史存量/医生无部门/部门已删）。
+    // 仅总院（scope:all）口径下有对账意义——各部门之和 + 未归属 = 全院；受限用户恒为 0。
+    const double unassignedSales = hasUnrestrictedOrgScope(req, dbManager)
+                                       ? calculateSalesCount(" AND o.department_id IS NULL ")
+                                       : 0.0;
 
     return {
         {"dailyExpense", dailyRow && !dailyRow[0].isNull() ? dailyRow[0].get<double>() : 0.0},
         {"dailyCost", costCount},
         {"dailySales", salesCount},
-        {"dailyProfit", salesCount - costCount}};
+        {"dailyProfit", salesCount - costCount},
+        {"dailyUnassignedSales", unassignedSales}};
 }
 
 nlohmann::json financeHandler::buildHomeData(int userId)
@@ -391,14 +548,19 @@ nlohmann::json financeHandler::buildHomeData(int userId)
 
     auto dailyRow = dailyExpensesResult.fetchOne();
 
-    double salesCount = calculateSalesCount();
+    double salesCount = calculateSalesCount(orgScopeConditionForUser(userId, dbManager, "o.department_id"));
     double costCount = calculateCostCount(userId);
+    // 与 buildHomeData(req) 同一口径：未归属营收仅总院（scope:all）可见，供实时通道对账。
+    const double unassignedSales = RbacService::loadEffectiveOrgScope(dbManager, userId).unrestricted
+                                       ? calculateSalesCount(" AND o.department_id IS NULL ")
+                                       : 0.0;
 
     return {
         {"dailyExpense", dailyRow && !dailyRow[0].isNull() ? dailyRow[0].get<double>() : 0.0},
         {"dailyCost", costCount},
         {"dailySales", salesCount},
-        {"dailyProfit", salesCount - costCount}};
+        {"dailyProfit", salesCount - costCount},
+        {"dailyUnassignedSales", unassignedSales}};
 }
 
 crow::response financeHandler::getHomeData(const crow::request &req)
@@ -788,28 +950,46 @@ crow::response financeHandler::getPayrollEmployees(const crow::request &req, con
         const auto periodStats = session->sql(
             "SELECT COUNT(DISTINCT u.id), "
             "SUM(CASE WHEN sp.id IS NULL THEN 1 ELSE 0 END), "
-            "SUM(CASE WHEN s.id IS NULL OR s.review_status='pending' THEN 1 ELSE 0 END), "
+            "SUM(CASE WHEN s.id IS NULL OR s.review_status IN ('pending','returned') THEN 1 ELSE 0 END), "
             "SUM(CASE WHEN COALESCE(s.is_manually_modified,0)=1 THEN 1 ELSE 0 END), "
-            "SUM(CASE WHEN s.review_status IN ('first_reviewed','second_reviewed','locked') THEN 1 ELSE 0 END), "
+            "SUM(CASE WHEN s.review_status='first_reviewed' THEN 1 ELSE 0 END), "
+            "SUM(CASE WHEN s.review_status='returned' THEN 1 ELSE 0 END), "
             "COALESCE(SUM(COALESCE(s.total_salary,0)),0)" + periodFrom)
             .bind(periodId)
             .execute()
             .fetchOne();
-        const auto period = session->sql("SELECT status,version_no,total_salary,review_note FROM payrollPeriod WHERE id=?").bind(periodId).execute().fetchOne();
+        const auto period = session->sql(std::string("SELECT ") + periodSelectColumns() + " FROM payrollPeriod WHERE id=?")
+                                .bind(periodId)
+                                .execute()
+                                .fetchOne();
         const int periodEmployeeCount = periodStats && !periodStats[0].isNull() ? periodStats[0].get<int>() : 0;
         const int unconfiguredCount = periodStats && !periodStats[1].isNull() ? periodStats[1].get<int>() : 0;
         const int pendingReviewCount = periodStats && !periodStats[2].isNull() ? periodStats[2].get<int>() : 0;
         const int modifiedCount = periodStats && !periodStats[3].isNull() ? periodStats[3].get<int>() : 0;
         const int reviewedCount = periodStats && !periodStats[4].isNull() ? periodStats[4].get<int>() : 0;
-        const double computedTotal = periodStats && !periodStats[5].isNull() ? periodStats[5].get<double>() : 0.0;
-        return ResponseHelper::success(req, { {"employees", employees}, {"total", total}, {"page", page}, {"pageSize", pageSize},
-            {"period", {{"id", periodId}, {"status", period ? period[0].get<std::string>() : "first_review"},
-                         {"versionNo", period ? period[1].get<int>() : 1},
-                         {"totalSalary", period ? period[2].get<double>() : computedTotal},
-                         {"reviewNote", period && !period[3].isNull() ? period[3].get<std::string>() : ""},
-                         {"employeeCount", periodEmployeeCount}, {"unconfiguredCount", unconfiguredCount},
-                         {"pendingReviewCount", pendingReviewCount}, {"modifiedCount", modifiedCount},
-                         {"reviewedCount", reviewedCount}}} });
+        const int returnedCount = periodStats && !periodStats[5].isNull() ? periodStats[5].get<int>() : 0;
+        const double computedTotal = periodStats && !periodStats[6].isNull() ? periodStats[6].get<double>() : 0.0;
+        nlohmann::json periodJson = period
+                                        ? periodPayloadFromRow(periodId, period, periodEmployeeCount, unconfiguredCount,
+                                                               pendingReviewCount, modifiedCount, reviewedCount,
+                                                               returnedCount, computedTotal)
+                                        : nlohmann::json{{"id", periodId},
+                                                         {"periodId", periodId},
+                                                         {"status", "first_review"},
+                                                         {"versionNo", 1},
+                                                         {"rowVersion", 1},
+                                                         {"employeeCount", periodEmployeeCount},
+                                                         {"unconfiguredCount", unconfiguredCount},
+                                                         {"pendingReviewCount", pendingReviewCount},
+                                                         {"modifiedCount", modifiedCount},
+                                                         {"reviewedCount", reviewedCount},
+                                                         {"returnedCount", returnedCount},
+                                                         {"totalSalary", computedTotal}};
+        return ResponseHelper::success(req, {{"employees", employees},
+                                             {"total", total},
+                                             {"page", page},
+                                             {"pageSize", pageSize},
+                                             {"period", periodJson}});
     }
     catch (const std::exception &e) { return ResponseHelper::system_error(req, e.what()); }
 }
@@ -844,10 +1024,21 @@ crow::response financeHandler::savePayrollEmployee(const crow::request &req, int
             return ResponseHelper::notFound(req, "员工不存在");
         }
         const auto periodState = session->sql("SELECT status FROM payrollPeriod WHERE id=? FOR UPDATE").bind(periodId).execute().fetchOne();
-        if (!periodState || periodState[0].isNull() || periodState[0].get<std::string>() != "first_review")
+        if (!periodState || periodState[0].isNull())
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "仅财务初审阶段允许修改工资快照");
+            return payrollBusinessError(req, 404, "PERIOD_NOT_FOUND", "工资周期不存在");
+        }
+        const std::string periodStatus = periodState[0].get<std::string>();
+        if (isFrozenPayrollStatus(periodStatus))
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "SNAPSHOT_FROZEN", "当前周期工资快照已冻结，禁止修改");
+        }
+        if (!isEditablePayrollStatus(periodStatus))
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "INVALID_STATUS", "仅财务初审或整改阶段允许修改工资快照");
         }
 
         const auto existing = session->sql(
@@ -911,11 +1102,25 @@ crow::response financeHandler::savePayrollEmployee(const crow::request &req, int
             return ResponseHelper::success(req, "工资快照未发生变化");
         }
 
-        auto upsert = session->sql("INSERT INTO salary (payroll_period_id,salary_profile_id,user_id,pay_type,base_salary,hourly_rate,work_hours_month,attendance_award,performance_award,allowance,deduction,social_insurance_housing_fund,total_salary,review_status,is_manually_modified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?) ON DUPLICATE KEY UPDATE salary_profile_id=VALUES(salary_profile_id),pay_type=VALUES(pay_type),base_salary=VALUES(base_salary),hourly_rate=VALUES(hourly_rate),work_hours_month=VALUES(work_hours_month),attendance_award=VALUES(attendance_award),performance_award=VALUES(performance_award),allowance=VALUES(allowance),deduction=VALUES(deduction),social_insurance_housing_fund=VALUES(social_insurance_housing_fund),total_salary=VALUES(total_salary),is_manually_modified=IF(?=1,1,is_manually_modified),review_status=IF(review_status='locked',review_status,'pending')")
-            .bind(periodId, profileId > 0 ? mysqlx::Value(profileId) : mysqlx::Value(), goalUserId, payType,
-                  payType == "monthly" ? mysqlx::Value(base) : mysqlx::Value(),
-                  payType == "hourly" ? mysqlx::Value(hourly) : mysqlx::Value(),
-                  hours, attendance, performance, allowance, deduction, social, total, 1, 1);
+        // 人工编辑后行状态回到 pending（含 returned 整改行），锁定行保持锁定。
+        auto upsert = session->sql(
+                                 "INSERT INTO salary (payroll_period_id,salary_profile_id,user_id,pay_type,base_salary,hourly_rate,"
+                                 "work_hours_month,attendance_award,performance_award,allowance,deduction,"
+                                 "social_insurance_housing_fund,total_salary,review_status,is_manually_modified) "
+                                 "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?) "
+                                 "ON DUPLICATE KEY UPDATE salary_profile_id=VALUES(salary_profile_id),pay_type=VALUES(pay_type),"
+                                 "base_salary=VALUES(base_salary),hourly_rate=VALUES(hourly_rate),"
+                                 "work_hours_month=VALUES(work_hours_month),attendance_award=VALUES(attendance_award),"
+                                 "performance_award=VALUES(performance_award),allowance=VALUES(allowance),"
+                                 "deduction=VALUES(deduction),social_insurance_housing_fund=VALUES(social_insurance_housing_fund),"
+                                 "total_salary=VALUES(total_salary),is_manually_modified=IF(?=1,1,is_manually_modified),"
+                                 "review_status=IF(review_status='locked',review_status,'pending'),"
+                                 "first_reviewed_by=IF(review_status='locked',first_reviewed_by,NULL),"
+                                 "first_reviewed_at=IF(review_status='locked',first_reviewed_at,NULL)")
+                          .bind(periodId, profileId > 0 ? mysqlx::Value(profileId) : mysqlx::Value(), goalUserId, payType,
+                                payType == "monthly" ? mysqlx::Value(base) : mysqlx::Value(),
+                                payType == "hourly" ? mysqlx::Value(hourly) : mysqlx::Value(),
+                                hours, attendance, performance, allowance, deduction, social, total, 1, 1);
         upsert.execute();
         const auto salary = session->sql("SELECT id FROM salary WHERE payroll_period_id=? AND user_id=?")
             .bind(periodId, goalUserId).execute().fetchOne();
@@ -1098,12 +1303,15 @@ crow::response financeHandler::reviewPayrollEmployee(const crow::request &req, i
     try
     {
         if (goalUserId <= 0) return ResponseHelper::validation(req, "无效的用户ID");
+        const int operatorId = currentRequestUserId(req).value_or(0);
+        if (operatorId <= 0) return ResponseHelper::permission_denied(req, "无法识别初审操作人");
+
         auto session = dbManager->getSession();
         session->sql("START TRANSACTION").execute();
         const int periodId = ensureCurrentPayrollPeriod(*session);
         const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
         const auto employee = session->sql(
-            "SELECT s.id,p.status FROM salary s JOIN users u ON u.id=s.user_id "
+            "SELECT s.id,p.status,s.review_status FROM salary s JOIN users u ON u.id=s.user_id "
             "LEFT JOIN positions pos ON pos.id=u.position_id JOIN payrollPeriod p ON p.id=s.payroll_period_id "
             "WHERE s.user_id=? AND s.payroll_period_id=? AND u.is_deleted=0 " + scopeFilter + " FOR UPDATE")
             .bind(goalUserId, periodId).execute().fetchOne();
@@ -1112,22 +1320,40 @@ crow::response financeHandler::reviewPayrollEmployee(const crow::request &req, i
             rollbackTransactionQuietly(*session);
             return ResponseHelper::notFound(req, "当前周期工资快照未找到");
         }
-        if (employee[1].get<std::string>() != "first_review")
+        const std::string periodStatus = employee[1].get<std::string>();
+        if (isFrozenPayrollStatus(periodStatus))
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "当前周期不在财务初审阶段");
+            return payrollBusinessError(req, 409, "SNAPSHOT_FROZEN", "当前周期工资快照已冻结，禁止初审");
         }
-        const auto result = session->sql("UPDATE salary SET review_status='first_reviewed' WHERE id=? AND review_status='pending'")
-            .bind(employee[0].get<long long>()).execute();
+        if (!isEditablePayrollStatus(periodStatus))
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "INVALID_STATUS", "当前周期不在财务初审或整改阶段");
+        }
+        // 允许 pending / returned 完成初审；已初审行幂等成功。
+        if (employee[2].get<std::string>() == "first_reviewed")
+        {
+            session->sql("COMMIT").execute();
+            return ResponseHelper::success(req, "员工工资已完成初审");
+        }
+        const auto result = session->sql(
+            "UPDATE salary SET review_status='first_reviewed', first_reviewed_by=?, first_reviewed_at=NOW() "
+            "WHERE id=? AND review_status IN ('pending','returned')")
+            .bind(operatorId, employee[0].get<long long>()).execute();
         if (result.getAffectedItemsCount() != 1)
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "该员工工资已初审或状态已变化");
+            return payrollBusinessError(req, 409, "INVALID_STATUS", "该员工工资已初审或状态已变化");
         }
         session->sql("COMMIT").execute();
         return ResponseHelper::success(req, "员工工资已完成初审");
     }
-    catch (const std::exception &e) { return ResponseHelper::system_error(req, e.what()); }
+    catch (const std::exception &e)
+    {
+        try { if (auto s = dbManager->getSession()) rollbackTransactionQuietly(*s); } catch (...) {}
+        return ResponseHelper::system_error(req, e.what());
+    }
 }
 
 crow::response financeHandler::submitPayrollReview(const crow::request &req)
@@ -1136,32 +1362,59 @@ crow::response financeHandler::submitPayrollReview(const crow::request &req)
     {
         if (!hasUnrestrictedOrgScope(req, dbManager))
         {
-            return ResponseHelper::permission_denied(req, "提交全局工资复审需要全部组织数据范围");
+            return payrollBusinessError(req, 403, "FORBIDDEN_SCOPE", "提交全局工资复审需要全部组织数据范围");
         }
+        const int operatorId = currentRequestUserId(req).value_or(0);
+        if (operatorId <= 0) return ResponseHelper::permission_denied(req, "无法识别提交人");
+
         nlohmann::json body = nlohmann::json::object();
         if (!req.body.empty())
         {
             body = nlohmann::json::parse(req.body, nullptr, false);
             if (body.is_discarded() || !body.is_object())
             {
-                return ResponseHelper::validation(req, "复审说明格式无效");
+                return ResponseHelper::validation(req, "提交说明格式无效");
             }
         }
         const std::string reviewNote = body.value("reviewNote", body.value("review_note", std::string{}));
         if (reviewNote.size() > 1000)
         {
-            return ResponseHelper::validation(req, "复审说明不能超过1000个字符");
+            return ResponseHelper::validation(req, "提交说明不能超过1000个字符");
         }
+        const auto expectedRowVersion = parseExpectedRowVersion(body);
+
         auto session = dbManager->getSession();
         session->sql("START TRANSACTION").execute();
         const int periodId = ensureCurrentPayrollPeriod(*session);
-        const auto period = session->sql("SELECT status FROM payrollPeriod WHERE id=? FOR UPDATE")
+        const auto period = session->sql(
+            "SELECT status,version_no,COALESCE(row_version,1),COALESCE(review_note,''),submitted_by "
+            "FROM payrollPeriod WHERE id=? FOR UPDATE")
             .bind(periodId).execute().fetchOne();
-        if (!period || period[0].get<std::string>() != "first_review")
+        if (!period)
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "当前工资周期不允许提交复审");
+            return payrollBusinessError(req, 404, "PERIOD_NOT_FOUND", "工资周期不存在");
         }
+        const std::string status = period[0].get<std::string>();
+        const int versionNo = period[1].get<int>();
+        const int rowVersion = period[2].get<int>();
+        if (status == "submitted_for_supervisor" || status == "second_review" || status == "locked" || status == "archived")
+        {
+            // 幂等：已提交或更后状态不重复写审计。
+            session->sql("COMMIT").execute();
+            return payrollBusinessError(req, 409, "ALREADY_DECIDED", "当前周期已提交主管或已进入后续阶段");
+        }
+        if (status != "first_review" && status != "correction_required")
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "INVALID_STATUS", "当前工资周期不允许提交主管复审");
+        }
+        if (expectedRowVersion.has_value() && expectedRowVersion.value() != rowVersion)
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "STALE_VERSION", "周期版本已变化，请刷新后重试");
+        }
+
         const auto blockers = session->sql(
             "SELECT COUNT(*) FROM users u JOIN payrollPeriod p ON p.id=? "
             "LEFT JOIN salaryProfile sp ON sp.id=(SELECT sp2.id FROM salaryProfile sp2 WHERE sp2.user_id=u.id "
@@ -1177,23 +1430,184 @@ crow::response financeHandler::submitPayrollReview(const crow::request &req)
         if (!staffCount || staffCount[0].get<int>() == 0 || (blockers && blockers[0].get<int>() > 0))
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "仍有员工缺少当前薪资配置、工资快照或未完成初审");
+            return payrollBusinessError(req, 400, "REVIEW_BLOCKED",
+                                        "仍有员工缺少当前薪资配置、工资快照，或存在待初审/退回未重审行");
         }
+
+        const int nextRowVersion = rowVersion + 1;
         const auto result = session->sql(
-            "UPDATE payrollPeriod SET status='second_review',reviewed_by=?,reviewed_at=NOW(),review_note=? "
-            "WHERE id=? AND status='first_review'")
-            .bind(currentRequestUserId(req).value_or(0), reviewNote, periodId).execute();
+            "UPDATE payrollPeriod SET status='submitted_for_supervisor',"
+            "submitted_by=?,submitted_at=NOW(),"
+            "reviewed_by=?,reviewed_at=NOW(),"
+            "review_note=?,"
+            "supervisor_reviewed_by=NULL,supervisor_reviewed_at=NULL,"
+            "supervisor_decision=NULL,supervisor_note='',"
+            "row_version=? "
+            "WHERE id=? AND status IN ('first_review','correction_required') AND COALESCE(row_version,1)=?")
+            .bind(operatorId, operatorId, reviewNote, nextRowVersion, periodId, rowVersion).execute();
         if (result.getAffectedItemsCount() != 1)
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "当前工资周期不允许提交复审");
+            return payrollBusinessError(req, 409, "STALE_VERSION", "提交失败，周期状态或版本已变化");
         }
-        session->sql("UPDATE salary SET review_status='second_reviewed' WHERE payroll_period_id=? AND review_status='first_reviewed'")
-            .bind(periodId).execute();
+        // 主管批准是周期级事实，不再批量伪造 salary.second_reviewed。
+        insertPayrollAuditEvent(*session, periodId, versionNo, rowVersion, nextRowVersion,
+                                "submit_review", "", operatorId, status, "submitted_for_supervisor",
+                                reviewNote, req.get_header_value("X-Request-Id"));
         session->sql("COMMIT").execute();
-        return ResponseHelper::success(req, "已提交主管复审");
+        return ResponseHelper::success(req, {{"periodId", periodId},
+                                             {"versionNo", versionNo},
+                                             {"rowVersion", nextRowVersion},
+                                             {"status", "submitted_for_supervisor"}});
     }
-    catch (const std::exception &e) { return ResponseHelper::system_error(req, e.what()); }
+    catch (const std::exception &e)
+    {
+        try { if (auto s = dbManager->getSession()) rollbackTransactionQuietly(*s); } catch (...) {}
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response financeHandler::supervisorReviewPayroll(const crow::request &req)
+{
+    try
+    {
+        if (!hasUnrestrictedOrgScope(req, dbManager))
+        {
+            return payrollBusinessError(req, 403, "FORBIDDEN_SCOPE", "主管复审全局工资周期需要全部组织数据范围");
+        }
+        const int operatorId = currentRequestUserId(req).value_or(0);
+        if (operatorId <= 0) return ResponseHelper::permission_denied(req, "无法识别主管复审人");
+
+        crow::response res;
+        auto bodyOpt = validateRequest(req, res);
+        if (!bodyOpt) return res;
+        const nlohmann::json &body = *bodyOpt;
+        const std::string decision = body.value("decision", std::string{});
+        if (decision != "approve" && decision != "return")
+        {
+            return ResponseHelper::validation(req, "decision 必须为 approve 或 return");
+        }
+        const std::string note = body.value("note", body.value("supervisorNote", std::string{}));
+        if (note.size() > 1000)
+        {
+            return ResponseHelper::validation(req, "复审意见不能超过1000个字符");
+        }
+        if (decision == "return" && note.empty())
+        {
+            return ResponseHelper::validation(req, "退回时必须填写复审意见");
+        }
+        const bool returnAll = body.value("returnAll", body.value("return_all", false));
+        std::vector<long long> returnedSalaryIds;
+        if (body.contains("returnedSalaryIds") && body["returnedSalaryIds"].is_array())
+        {
+            for (const auto &item : body["returnedSalaryIds"])
+            {
+                if (item.is_number_integer()) returnedSalaryIds.push_back(item.get<long long>());
+            }
+        }
+        if (decision == "return" && !returnAll && returnedSalaryIds.empty())
+        {
+            return ResponseHelper::validation(req, "退回时必须指定 returnedSalaryIds 或 returnAll=true");
+        }
+        const auto expectedRowVersion = parseExpectedRowVersion(body);
+
+        auto session = dbManager->getSession();
+        session->sql("START TRANSACTION").execute();
+        const int periodId = ensureCurrentPayrollPeriod(*session);
+        const auto period = session->sql(
+            "SELECT status,version_no,COALESCE(row_version,1),submitted_by,supervisor_decision "
+            "FROM payrollPeriod WHERE id=? FOR UPDATE")
+            .bind(periodId).execute().fetchOne();
+        if (!period)
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 404, "PERIOD_NOT_FOUND", "工资周期不存在");
+        }
+        const std::string status = period[0].get<std::string>();
+        const int versionNo = period[1].get<int>();
+        const int rowVersion = period[2].get<int>();
+        const int submittedBy = period[3].isNull() ? 0 : period[3].get<int>();
+        if (status == "second_review" || status == "correction_required" || status == "locked" || status == "archived")
+        {
+            session->sql("COMMIT").execute();
+            return payrollBusinessError(req, 409, "ALREADY_DECIDED", "当前周期已作出主管决定或进入后续阶段");
+        }
+        if (status != "submitted_for_supervisor")
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "INVALID_STATUS", "仅待主管处理的周期可批准或退回");
+        }
+        if (expectedRowVersion.has_value() && expectedRowVersion.value() != rowVersion)
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "STALE_VERSION", "周期版本已变化，请刷新后重试");
+        }
+        if (submittedBy > 0 && submittedBy == operatorId)
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 403, "SEPARATION_OF_DUTIES", "提交人不能对本周期执行主管批准或退回");
+        }
+
+        const int nextRowVersion = rowVersion + 1;
+        const std::string afterStatus = decision == "approve" ? "second_review" : "correction_required";
+        const auto result = session->sql(
+            "UPDATE payrollPeriod SET status=?,"
+            "supervisor_reviewed_by=?,supervisor_reviewed_at=NOW(),"
+            "supervisor_decision=?,supervisor_note=?,"
+            "row_version=? "
+            "WHERE id=? AND status='submitted_for_supervisor' AND COALESCE(row_version,1)=?")
+            .bind(afterStatus, operatorId, decision, note, nextRowVersion, periodId, rowVersion)
+            .execute();
+        if (result.getAffectedItemsCount() != 1)
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "STALE_VERSION", "主管复审失败，周期状态或版本已变化");
+        }
+
+        if (decision == "return")
+        {
+            if (returnAll)
+            {
+                session->sql(
+                    "UPDATE salary SET review_status='returned', review_note=? "
+                    "WHERE payroll_period_id=? AND review_status='first_reviewed'")
+                    .bind(note, periodId)
+                    .execute();
+            }
+            else
+            {
+                for (const long long salaryId : returnedSalaryIds)
+                {
+                    const auto updated = session->sql(
+                        "UPDATE salary SET review_status='returned', review_note=? "
+                        "WHERE id=? AND payroll_period_id=? AND review_status='first_reviewed'")
+                        .bind(note, salaryId, periodId)
+                        .execute();
+                    if (updated.getAffectedItemsCount() != 1)
+                    {
+                        rollbackTransactionQuietly(*session);
+                        return payrollBusinessError(req, 400, "REVIEW_BLOCKED",
+                                                    "退回的工资行不存在或不属于当前周期");
+                    }
+                }
+            }
+        }
+
+        insertPayrollAuditEvent(*session, periodId, versionNo, rowVersion, nextRowVersion,
+                                "supervisor_review", decision, operatorId, status, afterStatus, note,
+                                req.get_header_value("X-Request-Id"));
+        session->sql("COMMIT").execute();
+        return ResponseHelper::success(req, {{"periodId", periodId},
+                                             {"versionNo", versionNo},
+                                             {"rowVersion", nextRowVersion},
+                                             {"status", afterStatus},
+                                             {"decision", decision}});
+    }
+    catch (const std::exception &e)
+    {
+        try { if (auto s = dbManager->getSession()) rollbackTransactionQuietly(*s); } catch (...) {}
+        return ResponseHelper::system_error(req, e.what());
+    }
 }
 
 crow::response financeHandler::lockPayroll(const crow::request &req)
@@ -1202,41 +1616,80 @@ crow::response financeHandler::lockPayroll(const crow::request &req)
     {
         if (!hasUnrestrictedOrgScope(req, dbManager))
         {
-            return ResponseHelper::permission_denied(req, "锁定全局工资周期需要全部组织数据范围");
+            return payrollBusinessError(req, 403, "FORBIDDEN_SCOPE", "锁定全局工资周期需要全部组织数据范围");
         }
+        const int operatorId = currentRequestUserId(req).value_or(0);
+        if (operatorId <= 0) return ResponseHelper::permission_denied(req, "无法识别锁定操作人");
+
+        nlohmann::json body = nlohmann::json::object();
+        if (!req.body.empty())
+        {
+            body = nlohmann::json::parse(req.body, nullptr, false);
+            if (body.is_discarded() || !body.is_object())
+            {
+                return ResponseHelper::validation(req, "请求体格式无效");
+            }
+        }
+        const auto expectedRowVersion = parseExpectedRowVersion(body);
+
         auto session = dbManager->getSession();
         session->sql("START TRANSACTION").execute();
         const int periodId = ensureCurrentPayrollPeriod(*session);
-        const auto period = session->sql("SELECT status FROM payrollPeriod WHERE id=? FOR UPDATE")
+        const auto period = session->sql(
+            "SELECT status,version_no,COALESCE(row_version,1),supervisor_decision "
+            "FROM payrollPeriod WHERE id=? FOR UPDATE")
             .bind(periodId).execute().fetchOne();
-        if (!period || period[0].get<std::string>() != "second_review")
+        if (!period)
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "当前工资周期尚未进入主管复审阶段");
+            return payrollBusinessError(req, 404, "PERIOD_NOT_FOUND", "工资周期不存在");
         }
-        const auto blockers = session->sql(
-            "SELECT COUNT(*) FROM users u LEFT JOIN salary s ON s.user_id=u.id AND s.payroll_period_id=? "
-            "WHERE u.account_type='staff' AND u.is_deleted=0 "
-            "AND (s.id IS NULL OR s.review_status<>'second_reviewed')")
-            .bind(periodId).execute().fetchOne();
-        if (blockers && blockers[0].get<int>() > 0)
+        const std::string status = period[0].get<std::string>();
+        const int versionNo = period[1].get<int>();
+        const int rowVersion = period[2].get<int>();
+        const std::string supervisorDecision = period[3].isNull() ? "" : period[3].get<std::string>();
+        if (status == "locked" || status == "archived")
+        {
+            session->sql("COMMIT").execute();
+            return payrollBusinessError(req, 409, "ALREADY_DECIDED", "当前周期已锁定或归档");
+        }
+        if (status != "second_review" || supervisorDecision != "approve")
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "仍有工资记录未完成复审");
+            return payrollBusinessError(req, 409, "INVALID_STATUS", "仅主管批准后的周期可以锁定");
         }
-        const auto result = session->sql("UPDATE payrollPeriod SET status='locked',locked_by=?,locked_at=NOW() WHERE id=? AND status='second_review'")
-            .bind(currentRequestUserId(req).value_or(0), periodId).execute();
+        if (expectedRowVersion.has_value() && expectedRowVersion.value() != rowVersion)
+        {
+            rollbackTransactionQuietly(*session);
+            return payrollBusinessError(req, 409, "STALE_VERSION", "周期版本已变化，请刷新后重试");
+        }
+
+        // 不再依赖工资行 second_reviewed；周期存在有效主管批准即可锁定。
+        const int nextRowVersion = rowVersion + 1;
+        const auto result = session->sql(
+            "UPDATE payrollPeriod SET status='locked',locked_by=?,locked_at=NOW(),row_version=? "
+            "WHERE id=? AND status='second_review' AND supervisor_decision='approve' AND COALESCE(row_version,1)=?")
+            .bind(operatorId, nextRowVersion, periodId, rowVersion).execute();
         if (result.getAffectedItemsCount() != 1)
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "当前工资周期尚未完成复审");
+            return payrollBusinessError(req, 409, "STALE_VERSION", "锁定失败，周期状态或版本已变化");
         }
-        session->sql("UPDATE salary SET review_status='locked' WHERE payroll_period_id=?").bind(periodId).execute();
         refreshPayrollPeriodTotal(*session, periodId);
+        insertPayrollAuditEvent(*session, periodId, versionNo, rowVersion, nextRowVersion,
+                                "lock", "", operatorId, status, "locked", "",
+                                req.get_header_value("X-Request-Id"));
         session->sql("COMMIT").execute();
-        return ResponseHelper::success(req, "工资周期已锁定");
+        return ResponseHelper::success(req, {{"periodId", periodId},
+                                             {"versionNo", versionNo},
+                                             {"rowVersion", nextRowVersion},
+                                             {"status", "locked"}});
     }
-    catch (const std::exception &e) { return ResponseHelper::system_error(req, e.what()); }
+    catch (const std::exception &e)
+    {
+        try { if (auto s = dbManager->getSession()) rollbackTransactionQuietly(*s); } catch (...) {}
+        return ResponseHelper::system_error(req, e.what());
+    }
 }
 
 crow::response financeHandler::createPayrollRevision(const crow::request &req)
@@ -1245,26 +1698,31 @@ crow::response financeHandler::createPayrollRevision(const crow::request &req)
     {
         if (!hasUnrestrictedOrgScope(req, dbManager))
         {
-            return ResponseHelper::permission_denied(req, "创建全局工资修订版需要全部组织数据范围");
+            return payrollBusinessError(req, 403, "FORBIDDEN_SCOPE", "创建全局工资修订版需要全部组织数据范围");
         }
+        const int operatorId = currentRequestUserId(req).value_or(0);
+        if (operatorId <= 0) return ResponseHelper::permission_denied(req, "无法识别修订操作人");
+
         auto session = dbManager->getSession();
         session->sql("START TRANSACTION").execute();
         const auto latest = session->sql(
-            "SELECT id,status,version_no FROM payrollPeriod "
+            "SELECT id,status,version_no,COALESCE(row_version,1) FROM payrollPeriod "
             "WHERE payroll_month=DATE_FORMAT(CURDATE(), '%Y-%m-01') "
             "ORDER BY version_no DESC LIMIT 1 FOR UPDATE").execute().fetchOne();
         if (!latest || (latest[1].get<std::string>() != "locked" && latest[1].get<std::string>() != "archived"))
         {
             rollbackTransactionQuietly(*session);
-            return ResponseHelper::validation(req, "仅已锁定或已归档周期可创建同月修订版");
+            return payrollBusinessError(req, 409, "INVALID_STATUS", "仅已锁定或已归档周期可创建同月修订版");
         }
         const int sourcePeriodId = latest[0].get<int>();
         const int nextVersion = latest[2].get<int>() + 1;
+        const int sourceRowVersion = latest[3].get<int>();
         auto inserted = session->sql(
-            "INSERT INTO payrollPeriod (payroll_month,status,version_no) "
-            "VALUES (DATE_FORMAT(CURDATE(), '%Y-%m-01'),'first_review',?)")
-            .bind(nextVersion).execute();
+            "INSERT INTO payrollPeriod (payroll_month,status,version_no,row_version,revision_of_period_id) "
+            "VALUES (DATE_FORMAT(CURDATE(), '%Y-%m-01'),'first_review',?,1,?)")
+            .bind(nextVersion, sourcePeriodId).execute();
         const int revisionId = static_cast<int>(inserted.getAutoIncrementValue());
+        // 修订版工资行统一回到 pending，必须重新完成财务初审与主管复审。
         session->sql(
             "INSERT INTO salary (payroll_period_id,salary_profile_id,user_id,pay_type,base_salary,hourly_rate,"
             "work_hours_month,attendance_award,performance_award,allowance,deduction,social_insurance_housing_fund,"
@@ -1274,9 +1732,62 @@ crow::response financeHandler::createPayrollRevision(const crow::request &req)
             "FROM salary WHERE payroll_period_id=?")
             .bind(revisionId, sourcePeriodId).execute();
         refreshPayrollPeriodTotal(*session, revisionId);
+        insertPayrollAuditEvent(*session, revisionId, nextVersion, 0, 1,
+                                "create_revision", "", operatorId, latest[1].get<std::string>(), "first_review",
+                                "revision of period " + std::to_string(sourcePeriodId),
+                                req.get_header_value("X-Request-Id"));
+        insertPayrollAuditEvent(*session, sourcePeriodId, latest[2].get<int>(), sourceRowVersion, sourceRowVersion,
+                                "revision_spawned", "", operatorId, latest[1].get<std::string>(),
+                                latest[1].get<std::string>(),
+                                "spawned revision period " + std::to_string(revisionId),
+                                req.get_header_value("X-Request-Id"));
         session->sql("COMMIT").execute();
         FinanceHomeDataBroadcaster::instance().notifyHomeDataChanged();
-        return ResponseHelper::success(req, {{"periodId", revisionId}, {"versionNo", nextVersion}});
+        return ResponseHelper::success(req, {{"periodId", revisionId}, {"versionNo", nextVersion}, {"rowVersion", 1},
+                                             {"status", "first_review"}});
+    }
+    catch (const std::exception &e)
+    {
+        try { if (auto s = dbManager->getSession()) rollbackTransactionQuietly(*s); } catch (...) {}
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response financeHandler::getPayrollAuditEvents(const crow::request &req)
+{
+    try
+    {
+        auto session = dbManager->getSession();
+        const int periodId = ensureCurrentPayrollPeriod(*session);
+        nlohmann::json items = nlohmann::json::array();
+        auto result = session->sql(
+            "SELECT e.id,e.period_id,e.version_no,e.before_row_version,e.after_row_version,"
+            "e.action,e.decision,e.operator_id,COALESCE(u.name,''),e.operator_department_id,"
+            "e.before_status,e.after_status,e.note,e.request_id,CAST(e.created_at AS CHAR) "
+            "FROM payrollPeriodAuditEvent e LEFT JOIN users u ON u.id=e.operator_id "
+            "WHERE e.period_id=? ORDER BY e.created_at DESC,e.id DESC LIMIT 200")
+            .bind(periodId).execute();
+        for (auto row : result)
+        {
+            items.push_back({
+                {"id", row[0].get<long long>()},
+                {"periodId", row[1].get<int>()},
+                {"versionNo", row[2].get<int>()},
+                {"beforeRowVersion", row[3].isNull() ? 0 : row[3].get<int>()},
+                {"afterRowVersion", row[4].isNull() ? 0 : row[4].get<int>()},
+                {"action", row[5].get<std::string>()},
+                {"decision", row[6].isNull() ? "" : row[6].get<std::string>()},
+                {"operatorId", row[7].isNull() ? 0 : row[7].get<int>()},
+                {"operatorName", row[8].isNull() ? "" : clean_string(row[8].get<std::string>())},
+                {"operatorDepartmentId", row[9].isNull() ? 0 : row[9].get<int>()},
+                {"beforeStatus", row[10].isNull() ? "" : row[10].get<std::string>()},
+                {"afterStatus", row[11].isNull() ? "" : row[11].get<std::string>()},
+                {"note", row[12].isNull() ? "" : row[12].get<std::string>()},
+                {"requestId", row[13].isNull() ? "" : row[13].get<std::string>()},
+                {"createdAt", row[14].isNull() ? "" : row[14].get<std::string>()},
+            });
+        }
+        return ResponseHelper::success(req, {{"periodId", periodId}, {"items", items}});
     }
     catch (const std::exception &e) { return ResponseHelper::system_error(req, e.what()); }
 }

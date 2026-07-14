@@ -247,7 +247,7 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                 int userId = -1;
                 try
                 {
-                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryReview);
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalarySubmitReview);
                     if (res.code != 200 || userId == -1)
                     {
                         OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "提交工资主管复审");
@@ -262,7 +262,32 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     OperationLogger::LogExceptionOperation(dbManager, req, "财务", "提交工资主管复审", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
                     res = ResponseHelper::system_error(req);
                 }
-                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "提交工资主管复审", Permissions::kSalaryReview, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "提交工资主管复审", Permissions::kSalarySubmitReview, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/finance/payroll-periods/current/supervisor-review")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalarySupervisorReview);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "主管工资复审");
+                        return;
+                    }
+                    financeHandler handler(dbManager);
+                    crow::response response = handler.supervisorReviewPayroll(req);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "财务", "主管工资复审", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "主管工资复审", Permissions::kSalarySupervisorReview, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/finance/payroll-periods/current/lock")
@@ -313,6 +338,31 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "创建工资修订版", Permissions::kSalaryWrite, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/finance/payroll-periods/current/audit-events")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "财务", "查看工资周期审计");
+                        return;
+                    }
+                    financeHandler handler(dbManager);
+                    crow::response response = handler.getPayrollAuditEvents(req);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "财务", "查看工资周期审计", e.what(), userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", "查看工资周期审计", Permissions::kSalaryRead, userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     // 获取员工工资详情路由
