@@ -12,6 +12,7 @@
 #include <openssl/rand.h>
 
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -63,6 +64,16 @@ namespace
         // 表已存在时的增量迁移；可为 nullptr。
         void (*onExists)(DatabaseManagerInterface &, mysqlx::Session &);
     };
+
+    std::string normalizeTableName(std::string name)
+    {
+        for (char &character : name)
+        {
+            character = static_cast<char>(
+                std::tolower(static_cast<unsigned char>(character)));
+        }
+        return name;
+    }
 
     void seedBranches(DatabaseManagerInterface &, mysqlx::Session &session)
     {
@@ -1043,8 +1054,8 @@ namespace
                 CONSTRAINT fk_ea_department FOREIGN KEY (department_id) REFERENCES departments(id),
                 CONSTRAINT fk_ea_from_position FOREIGN KEY (from_position_id) REFERENCES positions(id),
                 CONSTRAINT fk_ea_to_position FOREIGN KEY (to_position_id) REFERENCES positions(id),
-                CONSTRAINT fk_ea_requested_by FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT fk_ea_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_ea_requested_by FOREIGN KEY (requested_by) REFERENCES users(id),
+                CONSTRAINT fk_ea_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id),
                 CONSTRAINT chk_ea_request_source CHECK (
                     (request_source='user' AND requested_by IS NOT NULL AND migration_batch_id IS NULL) OR
                     (request_source='migration' AND requested_by IS NULL AND migration_batch_id IS NOT NULL)
@@ -1455,8 +1466,8 @@ namespace
                 CONSTRAINT fk_cp_assignee FOREIGN KEY (assignee_user_id) REFERENCES users(id),
                 CONSTRAINT fk_cp_proposed_by FOREIGN KEY (proposed_by) REFERENCES users(id),
                 CONSTRAINT fk_cp_submitted_by FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT fk_cp_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT fk_cp_finance_by FOREIGN KEY (finance_confirmed_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_cp_approved_by FOREIGN KEY (approved_by) REFERENCES users(id),
+                CONSTRAINT fk_cp_finance_by FOREIGN KEY (finance_confirmed_by) REFERENCES users(id),
                 CONSTRAINT fk_cp_salary_profile FOREIGN KEY (salary_profile_id) REFERENCES salaryProfile(id) ON DELETE SET NULL,
                 CONSTRAINT chk_cp_pay_basis CHECK (
                     (pay_type = 'monthly' AND base_salary IS NOT NULL AND base_salary >= 0 AND hourly_rate IS NULL) OR
@@ -2293,12 +2304,12 @@ namespace DatabaseMigrations
         std::set<std::string> existing;
         for (const auto &table : schema->getTables())
         {
-            existing.insert(table.getName());
+            existing.insert(normalizeTableName(table.getName()));
         }
 
         for (const TableSpec &spec : kTables)
         {
-            if (existing.count(spec.name))
+            if (existing.count(normalizeTableName(spec.name)))
             {
                 std::cout << spec.name << " table already exists." << std::endl;
                 if (spec.onExists)

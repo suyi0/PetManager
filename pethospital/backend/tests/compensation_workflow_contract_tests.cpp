@@ -99,6 +99,10 @@ int main()
     contains(migrations, "CONSTRAINT chk_cp_sod_propose_approve CHECK");
     contains(migrations, "CONSTRAINT chk_cp_sod_approve_finance CHECK");
     contains(migrations, "CONSTRAINT chk_cp_sod_propose_finance CHECK");
+    contains(migrations, "CONSTRAINT fk_cp_approved_by FOREIGN KEY (approved_by) REFERENCES users(id),");
+    contains(migrations, "CONSTRAINT fk_cp_finance_by FOREIGN KEY (finance_confirmed_by) REFERENCES users(id),");
+    notContains(migrations, "fk_cp_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL");
+    notContains(migrations, "fk_cp_finance_by FOREIGN KEY (finance_confirmed_by) REFERENCES users(id) ON DELETE SET NULL");
     contains(migrations, "open_slot TINYINT GENERATED ALWAYS AS");
     // v6 open_slot 含 finance_confirmed，与 isOpenStatus 对齐
     contains(migrations,

@@ -88,6 +88,12 @@ int main()
     assertContains(migrations, "positionRows.push_back");
     assertContains(migrations, "positions SqlResult 已离开作用域");
 
+    // MySQL table-name casing varies by lower_case_table_names and filesystem.
+    // Migration existence checks must be case-insensitive to stay idempotent.
+    assertContains(migrations, "std::string normalizeTableName(std::string name)");
+    assertContains(migrations, "existing.insert(normalizeTableName(table.getName()))");
+    assertContains(migrations, "existing.count(normalizeTableName(spec.name))");
+
     assertContains(migrations, "\"employment\"");
     assertContains(migrations, "CREATE TABLE employment");
     assertContains(migrations, "row_version INT NOT NULL DEFAULT 1");
@@ -97,6 +103,12 @@ int main()
     assertContains(migrations, "uq_employment_assignment_open");
     assertContains(migrations, "expected_employment_row_version");
     assertContains(migrations, "request_source ENUM('user','migration')");
+    // MySQL forbids referential SET NULL actions on columns referenced by CHECK constraints.
+    // Actor rows are soft-deleted, so retaining these references also preserves the audit trail.
+    assertContains(migrations, "CONSTRAINT fk_ea_requested_by FOREIGN KEY (requested_by) REFERENCES users(id),");
+    assertContains(migrations, "CONSTRAINT fk_ea_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id),");
+    assertNotContains(migrations, "fk_ea_requested_by FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL");
+    assertNotContains(migrations, "fk_ea_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL");
     assertContains(migrations, "\"employment_event_outbox\"");
     assertContains(migrations, "CREATE TABLE employment_event_outbox");
     assertContains(migrations, "assignment_changed");
