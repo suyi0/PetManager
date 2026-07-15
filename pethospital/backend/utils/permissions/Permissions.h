@@ -18,6 +18,23 @@ enum class PermissionDomain
     Management,
 };
 
+// 职位派岗策略（authoritative）：人事可直接派岗 / 需管理审批 / 仅超管。
+// 权限目录为每个 key 显式声明 minimum_assignment_policy；未知 key fail-closed 为 SuperAdminOnly。
+enum class AssignmentPolicy
+{
+    PersonnelDirect = 0,
+    ApprovalRequired = 1,
+    SuperAdminOnly = 2,
+};
+
+// 目录条目：key / domain / minimum_assignment_policy 三位一体，单一权威源。
+struct PermissionCatalogEntry
+{
+    const char *key;
+    PermissionDomain domain;
+    AssignmentPolicy minimumPolicy;
+};
+
 inline constexpr const char *kPortalBoss = "portal:boss";
 inline constexpr const char *kPortalFinance = "portal:finance";
 inline constexpr const char *kPortalSuperAdmin = "portal:super-admin";
@@ -32,6 +49,7 @@ inline constexpr const char *kSalaryReview = "salary:review";
 inline constexpr const char *kSalarySubmitReview = "salary:submit-review";
 inline constexpr const char *kSalarySupervisorReview = "salary:supervisor-review";
 inline constexpr const char *kSalaryLock = "salary:lock";
+inline constexpr const char *kSalaryProfileActivate = "salary-profile:activate";
 inline constexpr const char *kLogsRead = "logs:read";
 inline constexpr const char *kMedicalRecordRead = "medical-record:read";
 inline constexpr const char *kMedicalRecordWrite = "medical-record:write";
@@ -55,15 +73,42 @@ inline constexpr const char *kScopeAll = "scope:all";
 inline constexpr const char *kScopeMedicalAssigned = "scope:medical-assigned";
 inline constexpr const char *kRbacManage = "rbac:manage";
 
+inline constexpr const char *kEmploymentRead = "employment:read";
+inline constexpr const char *kEmploymentOnboard = "employment:onboard";
+inline constexpr const char *kEmploymentAssign = "employment:assign";
+inline constexpr const char *kEmploymentRegularize = "employment:regularize";
+inline constexpr const char *kEmploymentOffboard = "employment:offboard";
+inline constexpr const char *kCompensationPropose = "compensation:propose";
+inline constexpr const char *kCompensationReassignCase = "compensation:reassign-case";
+inline constexpr const char *kEmploymentAssignmentApprove = "employment-assignment:approve";
+inline constexpr const char *kCompensationApprove = "compensation:approve";
+
+inline constexpr const char *kAssignmentPolicyPersonnelDirect = "personnel_direct";
+inline constexpr const char *kAssignmentPolicyApprovalRequired = "approval_required";
+inline constexpr const char *kAssignmentPolicySuperAdminOnly = "super_admin_only";
+
+// 权威目录：allPermissionKeys / isKnown / domain / minimum 均由此派生。
+const PermissionCatalogEntry *permissionCatalog();
+std::size_t permissionCatalogSize();
+
 std::vector<std::string> allPermissionKeys();
 std::vector<std::string> grantablePermissionKeys();
 PermissionDomain domainOfPermission(const std::string &permissionKey);
 std::string domainKey(PermissionDomain domain);
 std::string domainChineseName(PermissionDomain domain);
 
-// 检测权限键是否已知（在 kAllPermissionKeys 中），用于判定前端传入的权限键是否合法。
 bool isKnownPermissionKey(const std::string &permissionKey);
-
-// 检测权限键是否可授予（grantable），用于前端权限管理表单的选项过滤。
 bool isGrantablePermissionKey(const std::string &permissionKey);
+
+// 未知 key → SuperAdminOnly。已知 key 必须在目录中显式声明，无隐式 direct 兜底。
+AssignmentPolicy minimumAssignmentPolicy(const std::string &permissionKey);
+
+// 一组权限的综合安全下限：取各 key 下限最大值；任一未知 key → SuperAdminOnly。
+AssignmentPolicy requiredAssignmentPolicy(const std::vector<std::string> &permissionKeys);
+
+int assignmentPolicyRank(AssignmentPolicy policy);
+AssignmentPolicy maxAssignmentPolicy(AssignmentPolicy a, AssignmentPolicy b);
+const char *assignmentPolicyKey(AssignmentPolicy policy);
+AssignmentPolicy parseAssignmentPolicy(const std::string &value);
+bool isValidAssignmentPolicyKey(const std::string &value);
 }

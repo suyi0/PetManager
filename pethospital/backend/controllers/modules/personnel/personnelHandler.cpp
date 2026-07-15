@@ -1,12 +1,111 @@
 #include "personnelHandler.h"
 #include "../user/userPhoneSync/userPhoneSync.h"
+#include "../../../services/employment/EmploymentAssignmentService.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
-#include "../../../services/realtime/doctorListBroadcaster/doctorListBroadcaster.h"
-#include "../../../services/redis/doctorListCache/DoctorListCache.h"
-#include "../../../services/attendance/DevicePersonSync.h"
-#include "../../../services/auth/AccessRevocation.h"
 #include "../../../services/rbac/RbacService.h"
-#include "../../../services/redis/userRoleCache/UserRoleCache.h"
+#include "../../../utils/permissions/Permissions.h"
+#include "../../../utils/requestUtils/RequestUtils.h"
+
+#include <sstream>
+
+namespace
+{
+using RequestUtils::getJsonInt;
+using RequestUtils::getJsonString;
+using RequestUtils::normalizePage;
+using RequestUtils::normalizePageSize;
+
+std::string joinIds(const std::vector<int> &ids)
+{
+    std::ostringstream stream;
+    for (std::size_t i = 0; i < ids.size(); ++i)
+    {
+        if (i > 0)
+        {
+            stream << ",";
+        }
+        stream << ids[i];
+    }
+    return stream.str();
+}
+
+std::string orgScopeConditionForUser(
+    int userId,
+    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+    const std::string &departmentColumn)
+{
+    if (userId <= 0)
+    {
+        return " AND 1 = 0 ";
+    }
+    const RbacService::EffectiveOrgScope scope =
+        RbacService::loadEffectiveOrgScope(dbManager, userId);
+    if (scope.unrestricted)
+    {
+        return "";
+    }
+    if (scope.departmentIds.empty())
+    {
+        return " AND 1 = 0 ";
+    }
+    return " AND " + departmentColumn + " IN (" + joinIds(scope.departmentIds) + ") ";
+}
+
+// 隐藏超管职位、持 rbac:manage（职位或个人）、已删除账号。
+std::string highPrivilegeExcludeSql(const std::string &userAlias = "u", const std::string &posAlias = "pos")
+{
+    return " AND " + userAlias + ".is_deleted = 0 "
+           " AND COALESCE(" + posAlias + ".system_key, '') <> 'super-admin' "
+           " AND NOT EXISTS ("
+           "   SELECT 1 FROM position_permissions pp "
+           "   WHERE pp.position_id = " + userAlias + ".position_id "
+           "     AND pp.permission_key = 'rbac:manage'"
+           " ) "
+           " AND NOT EXISTS ("
+           "   SELECT 1 FROM user_permissions up "
+           "   WHERE up.user_id = " + userAlias + ".id "
+           "     AND up.permission_key = 'rbac:manage'"
+           " ) ";
+}
+
+crow::response assignmentResultToResponse(
+    const crow::request &req,
+    const EmploymentAssignmentService::AssignResult &result)
+{
+    if (!result.ok)
+    {
+        if (result.httpStatus == 404)
+        {
+            return ResponseHelper::notFound(req, result.message);
+        }
+        if (result.httpStatus == 403)
+        {
+            return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+        }
+        if (result.httpStatus == 409)
+        {
+            return ResponseHelper::fail(
+                req, 409, ResponseCode::BusinessConflict, result.message,
+                ResponseErrorType::BusinessConflict, result.errorCode.empty() ? result.message : result.errorCode);
+        }
+        if (result.httpStatus >= 500)
+        {
+            return ResponseHelper::system_error(req, result.message);
+        }
+        return ResponseHelper::validation(req, result.message);
+    }
+
+    return ResponseHelper::success(req, {
+        {"user_id", result.userId},
+        {"position_id", result.positionId > 0 ? nlohmann::json(result.positionId) : nlohmann::json(nullptr)},
+        {"account_type", result.accountType},
+        {"assignment_status", result.assignmentStatus},
+        {"assignment_id", result.assignmentId},
+        {"employment_id", result.employmentId},
+        {"message", result.message},
+    });
+}
+}
 
 crow::response personnelHandler::createUser(const crow::request &req)
 {
@@ -122,7 +221,6 @@ crow::response personnelHandler::createUser(const crow::request &req)
     }
 }
 
-
 crow::response personnelHandler::deleteUser(const crow::request &req, int &userId)
 {
     try
@@ -182,78 +280,291 @@ crow::response personnelHandler::deleteUser(const crow::request &req, int &userI
     }
 }
 
-
-crow::response personnelHandler::createDoctor(const crow::request &req)
+crow::response personnelHandler::searchEmployees(
+    const crow::request &req,
+    const nlohmann::json &body,
+    int operatorUserId)
 {
     try
     {
-        crow::response res;
-        auto request_body_opt = validateRequest(req, res);
-        if (!request_body_opt)
-            return res;
-        auto &request_body = request_body_opt.value();
+        const std::string keyword = getJsonString(body, "keyword");
+        const std::string likeKeyword = "%" + keyword + "%";
+        const int page = normalizePage(getJsonInt(body, "page", 1));
+        const int pageSize = normalizePageSize(getJsonInt(body, "pageSize", 10), 10, 100);
+        const int offset = (page - 1) * pageSize;
 
-        int userId = request_body.value("user_id", 0);
-
-        if (userId == 0)
+        // B12: 无 candidate scope 模型时，仅 unrestricted 人事可见未任职 customer。
+        // 受限人事只能见组织范围内的 staff，不能搜索/猜 ID 读无归属 customer。
+        const RbacService::EffectiveOrgScope scope =
+            RbacService::loadEffectiveOrgScope(dbManager, operatorUserId);
+        std::string scopeFilter;
+        if (scope.unrestricted)
         {
-            return ResponseHelper::unavailable(req, "用户ID不能为空");
+            scopeFilter = "";
+        }
+        else if (scope.departmentIds.empty())
+        {
+            scopeFilter = " AND 1 = 0 ";
+        }
+        else
+        {
+            scopeFilter = " AND u.account_type = 'staff' AND pos.department_id IN (" +
+                          joinIds(scope.departmentIds) + ") ";
         }
 
-        const int doctorRoleId = RbacService::findPositionIdBySystemKey(dbManager, "doctor");
-        if (doctorRoleId <= 0)
+        const std::string hideHigh = highPrivilegeExcludeSql("u", "pos");
+
+        auto listQuery = dbManager->getSession()
+                             ->sql(std::string(
+                                       "SELECT u.id, COALESCE(u.position_id, 0), "
+                                       "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END, "
+                                       "u.name, ph.phone, u.email, "
+                                       "COALESCE(pos.staff_kind, ''), COALESCE(pos.assignment_policy, ''), "
+                                       "COALESCE(d.name, ''), COALESCE(u.account_type, '') "
+                                       "FROM users u "
+                                       "LEFT JOIN positions pos ON pos.id = u.position_id "
+                                       "LEFT JOIN departments d ON d.id = pos.department_id "
+                                       "LEFT JOIN phones ph ON ph.user_id = u.id "
+                                       "WHERE 1=1 ") +
+                                   hideHigh + scopeFilter +
+                                   " AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(ph.phone, '') LIKE ? "
+                                   "      OR COALESCE(u.email, '') LIKE ?) "
+                                   "ORDER BY u.id ASC LIMIT ?, ?")
+                             .bind(keyword, likeKeyword, likeKeyword, likeKeyword, offset, pageSize);
+        mysqlx::SqlResult result = listQuery.execute();
+
+        auto countQuery = dbManager->getSession()
+                              ->sql(std::string(
+                                        "SELECT COUNT(DISTINCT u.id) FROM users u "
+                                        "LEFT JOIN positions pos ON pos.id = u.position_id "
+                                        "LEFT JOIN phones ph ON ph.user_id = u.id "
+                                        "WHERE 1=1 ") +
+                                    hideHigh + scopeFilter +
+                                    " AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(ph.phone, '') LIKE ? "
+                                    "      OR COALESCE(u.email, '') LIKE ?)")
+                              .bind(keyword, likeKeyword, likeKeyword, likeKeyword);
+        const int total = countQuery.execute().fetchOne()[0].get<int>();
+
+        nlohmann::json items = nlohmann::json::array();
+        for (mysqlx::Row row = result.fetchOne(); row; row = result.fetchOne())
         {
-            return ResponseHelper::system_error(req, "医生角色不存在");
+            items.push_back({
+                {"id", row[0].get<int>()},
+                {"position_id", row[1].isNull() || row[1].get<int>() == 0
+                                    ? nlohmann::json(nullptr)
+                                    : nlohmann::json(row[1].get<int>())},
+                {"position_name", row[2].isNull() ? "" : row[2].get<std::string>()},
+                {"name", row[3].isNull() ? "" : clean_string(row[3].get<std::string>())},
+                {"phone", row[4].isNull() ? "" : clean_string(row[4].get<std::string>())},
+                {"email", row[5].isNull() ? "" : clean_string(row[5].get<std::string>())},
+                {"staff_kind", row[6].isNull() ? "" : row[6].get<std::string>()},
+                {"assignment_policy", row[7].isNull() ? "" : row[7].get<std::string>()},
+                {"department_name", row[8].isNull() ? "" : row[8].get<std::string>()},
+                {"account_type", row[9].isNull() ? "" : row[9].get<std::string>()},
+            });
         }
 
-        auto session = dbManager->getSession();
-        session->sql("START TRANSACTION").execute();
-        try
-        {
-            mysqlx::SqlResult result = session->sql("UPDATE users SET account_type = 'staff', position_id = ? WHERE id = ?")
-                                           .bind(doctorRoleId, userId)
-                                           .execute();
+        return ResponseHelper::success(req, {
+            {"items", items},
+            {"total", total},
+            {"page", page},
+            {"pageSize", pageSize},
+        });
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
 
-            if (result.getAffectedItemsCount() == 0)
+crow::response personnelHandler::getEmployee(
+    const crow::request &req,
+    int operatorUserId,
+    int employeeId)
+{
+    try
+    {
+        if (employeeId <= 0)
+        {
+            return ResponseHelper::notFound(req, "用户不存在");
+        }
+
+        const std::string hideHigh = highPrivilegeExcludeSql("u", "pos");
+        const RbacService::EffectiveOrgScope scope =
+            RbacService::loadEffectiveOrgScope(dbManager, operatorUserId);
+        // B12: 受限 fail-closed — 不可靠猜 ID 读 customer 或范围外 staff
+        std::string visibleFilter;
+        if (scope.unrestricted)
+        {
+            visibleFilter = "";
+        }
+        else if (scope.departmentIds.empty())
+        {
+            visibleFilter = " AND 1 = 0 ";
+        }
+        else
+        {
+            visibleFilter = " AND u.account_type = 'staff' AND pos.department_id IN (" +
+                            joinIds(scope.departmentIds) + ") ";
+        }
+
+        mysqlx::Row row = dbManager->getSession()
+                              ->sql(std::string(
+                                        "SELECT u.id, COALESCE(u.position_id, 0), "
+                                        "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END, "
+                                        "u.name, ph.phone, u.email, "
+                                        "COALESCE(pos.staff_kind, ''), COALESCE(pos.assignment_policy, ''), "
+                                        "COALESCE(d.name, ''), COALESCE(u.account_type, ''), "
+                                        "COALESCE(pos.status, ''), COALESCE(d.id, 0) "
+                                        "FROM users u "
+                                        "LEFT JOIN positions pos ON pos.id = u.position_id "
+                                        "LEFT JOIN departments d ON d.id = pos.department_id "
+                                        "LEFT JOIN phones ph ON ph.user_id = u.id "
+                                        "WHERE u.id = ? ") +
+                                    hideHigh + visibleFilter + " LIMIT 1")
+                              .bind(employeeId)
+                              .execute()
+                              .fetchOne();
+        if (!row)
+        {
+            return ResponseHelper::notFound(req, "用户不存在");
+        }
+
+        nlohmann::json data = {
+            {"id", row[0].get<int>()},
+            {"position_id", row[1].isNull() || row[1].get<int>() == 0
+                                ? nlohmann::json(nullptr)
+                                : nlohmann::json(row[1].get<int>())},
+            {"position_name", row[2].isNull() ? "" : row[2].get<std::string>()},
+            {"name", row[3].isNull() ? "" : clean_string(row[3].get<std::string>())},
+            {"phone", row[4].isNull() ? "" : clean_string(row[4].get<std::string>())},
+            {"email", row[5].isNull() ? "" : clean_string(row[5].get<std::string>())},
+            {"staff_kind", row[6].isNull() ? "" : row[6].get<std::string>()},
+            {"assignment_policy", row[7].isNull() ? "" : row[7].get<std::string>()},
+            {"department_name", row[8].isNull() ? "" : row[8].get<std::string>()},
+            {"account_type", row[9].isNull() ? "" : row[9].get<std::string>()},
+            {"position_status", row[10].isNull() ? "" : row[10].get<std::string>()},
+            {"department_id", row[11].isNull() || row[11].get<int>() == 0
+                                  ? nlohmann::json(nullptr)
+                                  : nlohmann::json(row[11].get<int>())},
+        };
+
+        // 权限摘要只读
+        if (row[1].get<int>() > 0)
+        {
+            nlohmann::json summary = nlohmann::json::array();
+            for (const auto &key : RbacService::loadPermissionsForPosition(dbManager, row[1].get<int>()))
             {
-                rollbackTransactionQuietly(*session);
-                return ResponseHelper::notFound(req);
+                summary.push_back(key);
             }
+            data["permission_summary"] = summary;
+        }
+        else
+        {
+            data["permission_summary"] = nlohmann::json::array();
+        }
 
-            boost::posix_time::ptime currentDateTime = boost::posix_time::second_clock::local_time();
-            std::string todayDate = formatDateOnly(currentDateTime);
+        return ResponseHelper::success(req, data);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
 
-            mysqlx::SqlResult onlineDoctorResult = session->sql("SELECT doctor_id FROM onlineDoctors WHERE doctor_id = ? LIMIT 1")
-                                                       .bind(userId)
-                                                       .execute();
+crow::response personnelHandler::listDepartments(const crow::request &req, int operatorUserId)
+{
+    try
+    {
+        const std::string scopeFilter = orgScopeConditionForUser(operatorUserId, dbManager, "d.id");
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT d.id, d.branch_id, COALESCE(b.name, ''), d.name, "
+                                             "COALESCE(d.description, ''), COALESCE(d.business_domain, 'general') "
+                                             "FROM departments d "
+                                             "LEFT JOIN branches b ON b.id = d.branch_id "
+                                             "WHERE 1=1 " +
+                                             scopeFilter +
+                                             " ORDER BY d.branch_id, d.id")
+                                       .execute();
+        nlohmann::json departments = nlohmann::json::array();
+        for (mysqlx::Row row = result.fetchOne(); row; row = result.fetchOne())
+        {
+            departments.push_back({
+                {"id", row[0].get<int>()},
+                {"branch_id", row[1].isNull() ? 0 : row[1].get<int>()},
+                {"branch_name", row[2].isNull() ? "" : row[2].get<std::string>()},
+                {"name", row[3].isNull() ? "" : row[3].get<std::string>()},
+                {"description", row[4].isNull() ? "" : row[4].get<std::string>()},
+                {"business_domain", row[5].isNull() ? "general" : row[5].get<std::string>()},
+            });
+        }
+        return ResponseHelper::success(req, {{"departments", departments}});
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
 
-            if (onlineDoctorResult.count() == 0)
+crow::response personnelHandler::listPositions(
+    const crow::request &req,
+    int operatorUserId,
+    const nlohmann::json &query)
+{
+    try
+    {
+        const int departmentId = getJsonInt(query, "departmentId", 0);
+        const bool assignableOnly = query.contains("assignableOnly") && query["assignableOnly"].is_boolean()
+                                        ? query["assignableOnly"].get<bool>()
+                                        : false;
+
+        const std::string scopeFilter = orgScopeConditionForUser(operatorUserId, dbManager, "p.department_id");
+        std::string filters = " WHERE p.status = 'published' " + scopeFilter;
+        if (departmentId > 0)
+        {
+            filters += " AND p.department_id = " + std::to_string(departmentId) + " ";
+        }
+        if (assignableOnly)
+        {
+            // 人事可见可直接派 + 需审批的职位（可发起申请）；隐藏 super_admin_only
+            filters += " AND COALESCE(p.assignment_policy, 'super_admin_only') <> 'super_admin_only' ";
+            filters += " AND COALESCE(p.system_key, '') <> 'super-admin' ";
+        }
+
+        mysqlx::SqlResult result = dbManager->getSession()
+                                       ->sql("SELECT p.id, p.department_id, COALESCE(d.name, ''), p.name, "
+                                             "COALESCE(p.system_key, ''), COALESCE(p.staff_kind, ''), "
+                                             "COALESCE(p.description, ''), COALESCE(p.assignment_policy, 'super_admin_only'), "
+                                             "COALESCE(p.status, 'draft') "
+                                             "FROM positions p "
+                                             "LEFT JOIN departments d ON d.id = p.department_id " +
+                                             filters +
+                                             " ORDER BY p.department_id, p.id")
+                                       .execute();
+
+        nlohmann::json positions = nlohmann::json::array();
+        for (mysqlx::Row row = result.fetchOne(); row; row = result.fetchOne())
+        {
+            const int positionId = row[0].get<int>();
+            nlohmann::json permissionSummary = nlohmann::json::array();
+            for (const auto &key : RbacService::loadPermissionsForPosition(dbManager, positionId))
             {
-                mysqlx::SqlResult insertResult = session->sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, check_out_time, status) "
-                                                              "VALUES (?, ?, NULL, NULL, 'offline')")
-                                                     .bind(userId)
-                                                     .bind(todayDate)
-                                                     .execute();
-                if (insertResult.getAffectedItemsCount() != 1)
-                {
-                    rollbackTransactionQuietly(*session);
-                    return ResponseHelper::operation_failed(req, "医生排班初始化失败");
-                }
+                permissionSummary.push_back(key);
             }
-
-            session->sql("COMMIT").execute();
-            AccessRevocation::onUserAccessChanged(userId);
-            DevicePersonSync::enqueueUpsert(dbManager, userId);
-            DoctorListCache::invalidateDoctorList();
-            DoctorListBroadcaster::instance().notifyDoctorListChanged();
+            positions.push_back({
+                {"id", positionId},
+                {"department_id", row[1].isNull() ? nlohmann::json(nullptr) : nlohmann::json(row[1].get<int>())},
+                {"department_name", row[2].isNull() ? "" : row[2].get<std::string>()},
+                {"name", row[3].isNull() ? "" : row[3].get<std::string>()},
+                {"system_key", row[4].isNull() ? "" : row[4].get<std::string>()},
+                {"staff_kind", row[5].isNull() ? "" : row[5].get<std::string>()},
+                {"description", row[6].isNull() ? "" : row[6].get<std::string>()},
+                {"assignment_policy", row[7].isNull() ? "super_admin_only" : row[7].get<std::string>()},
+                {"status", row[8].isNull() ? "draft" : row[8].get<std::string>()},
+                {"permission_summary", permissionSummary},
+            });
         }
-        catch (...)
-        {
-            rollbackTransactionQuietly(*session);
-            throw;
-        }
-
-        return ResponseHelper::success(req, "给予权限成功");
+        return ResponseHelper::success(req, {{"positions", positions}});
     }
     catch (const std::exception &e)
     {
@@ -261,124 +572,79 @@ crow::response personnelHandler::createDoctor(const crow::request &req)
     }
 }
 
-
-crow::response personnelHandler::deleteDoctor(const crow::request &req)
+crow::response personnelHandler::updateEmployeeAssignment(
+    const crow::request &req,
+    int operatorUserId,
+    int employeeId,
+    const nlohmann::json &body)
 {
     try
     {
-        crow::response res;
-        auto request_body_opt = validateRequest(req, res);
-        if (!request_body_opt)
-            return res;
-        auto &request_body = request_body_opt.value();
-
-        int userId = request_body.value("user_id", 0);
-
-        if (userId == 0)
+        if (employeeId <= 0)
         {
-            return ResponseHelper::unavailable(req, "用户ID不能为空");
+            return ResponseHelper::notFound(req, "用户不存在");
         }
 
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("UPDATE users SET account_type = 'customer', position_id = NULL WHERE id = ?")
-                                       .bind(userId)
-                                       .execute();
+        EmploymentAssignmentService::AssignRequest assignReq;
+        assignReq.operatorUserId = operatorUserId;
+        assignReq.targetUserId = employeeId;
+        assignReq.mode = EmploymentAssignmentService::ActorMode::Personnel;
+        assignReq.reason = getJsonString(body, "reason");
+        assignReq.effectiveFrom = getJsonString(body, "effective_from");
 
-        if (result.getAffectedItemsCount() == 0)
+        if (!body.contains("expected_current_position_id") || body["expected_current_position_id"].is_null())
         {
-            return ResponseHelper::notFound(req);
+            // 允许数字 0 表示客户；null/缺失均拒绝
+            return ResponseHelper::validation(req, "expected_current_position_id 必填");
+        }
+        if (!body["expected_current_position_id"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expected_current_position_id 必须是整数");
+        }
+        assignReq.expectedCurrentPositionId = body["expected_current_position_id"].get<int>();
+        assignReq.hasExpectedCurrentPosition = true;
+
+        // B16: action 必须显式为 onboard/transfer/offboard，禁止空值推断。
+        const std::string action = getJsonString(body, "action");
+        if (action.empty())
+        {
+            return ResponseHelper::validation(req, "action 必填");
+        }
+        if (action == "regularize")
+        {
+            return ResponseHelper::validation(req, "转正请使用独立 regularization 接口");
+        }
+        if (action == "offboard")
+        {
+            assignReq.action = EmploymentAssignmentService::Action::Offboard;
+        }
+        else if (action == "transfer")
+        {
+            assignReq.action = EmploymentAssignmentService::Action::Transfer;
+            const int positionId = getJsonInt(body, "position_id", 0);
+            if (positionId <= 0)
+            {
+                return ResponseHelper::validation(req, "position_id 不能为空");
+            }
+            assignReq.targetPositionId = positionId;
+        }
+        else if (action == "onboard")
+        {
+            const int positionId = getJsonInt(body, "position_id", 0);
+            if (positionId <= 0)
+            {
+                return ResponseHelper::validation(req, "position_id 不能为空");
+            }
+            assignReq.targetPositionId = positionId;
+            assignReq.action = EmploymentAssignmentService::Action::Onboard;
+        }
+        else
+        {
+            return ResponseHelper::validation(req, "action 取值不合法");
         }
 
-        AccessRevocation::onUserAccessChanged(userId);
-        // 离职物理撤权第四件套：设备端人员模板必须删（设计 §0），与缓存/会话/WS 并列。
-        DevicePersonSync::enqueueRemove(dbManager, userId);
-        DoctorListCache::invalidateDoctorList();
-        DoctorListBroadcaster::instance().notifyDoctorListChanged();
-
-        return ResponseHelper::success(req, "删除权限成功");
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
-
-
-crow::response personnelHandler::createWarehouserManager(const crow::request &req)
-{
-    try
-    {
-        crow::response res;
-        auto request_body_opt = validateRequest(req, res);
-        if (!request_body_opt)
-            return res;
-        auto &request_body = request_body_opt.value();
-
-        int userId = request_body.value("user_id", 0);
-
-        if (userId == 0)
-        {
-            return ResponseHelper::unavailable(req, "用户ID不能为空");
-        }
-
-        const int warehouseRoleId =
-            RbacService::findPositionIdBySystemKey(dbManager, "warehouse-admin");
-        if (warehouseRoleId <= 0)
-        {
-            return ResponseHelper::system_error(req, "仓库管理员角色不存在");
-        }
-
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("UPDATE users SET account_type = 'staff', position_id = ? WHERE id = ?")
-                                       .bind(warehouseRoleId, userId)
-                                       .execute();
-
-        if (result.getAffectedItemsCount() == 0)
-        {
-            return ResponseHelper::notFound(req);
-        }
-
-        AccessRevocation::onUserAccessChanged(userId);
-        DevicePersonSync::enqueueUpsert(dbManager, userId);
-        return ResponseHelper::success(req, "给予权限成功");
-    }
-    catch (const std::exception &e)
-    {
-        return ResponseHelper::system_error(req, e.what());
-    }
-}
-
-
-crow::response personnelHandler::deleteWarehouserManager(const crow::request &req)
-{
-    try
-    {
-        crow::response res;
-        auto request_body_opt = validateRequest(req, res);
-        if (!request_body_opt)
-            return res;
-        auto &request_body = request_body_opt.value();
-
-        int userId = request_body.value("user_id", 0);
-
-        if (userId == 0)
-        {
-            return ResponseHelper::unavailable(req, "用户ID不能为空");
-        }
-
-        mysqlx::SqlResult result = dbManager->getSession()
-                                       ->sql("UPDATE users SET account_type = 'customer', position_id = NULL WHERE id = ?")
-                                       .bind(userId)
-                                       .execute();
-
-        if (result.getAffectedItemsCount() == 0)
-        {
-            return ResponseHelper::notFound(req);
-        }
-
-        AccessRevocation::onUserAccessChanged(userId);
-        DevicePersonSync::enqueueRemove(dbManager, userId);
-        return ResponseHelper::success(req, "删除权限成功");
+        const auto result = EmploymentAssignmentService::assign(dbManager, assignReq);
+        return assignmentResultToResponse(req, result);
     }
     catch (const std::exception &e)
     {

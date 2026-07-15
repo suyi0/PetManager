@@ -48,17 +48,25 @@ int main()
     assertContains(adminRoutes, "Permissions::isGrantablePermissionKey(permissionKey)");
     assertContains(adminRoutes, "permissionKey == Permissions::kRbacManage");
     assertContains(adminRoutes, "system_key = 'super-admin'");
-    // 访问权变更后的会话吊销统一走 AccessRevocation（内部 = 角色缓存失效 + 会话版本 bump）
-    assertContains(adminRoutes, "AccessRevocation::revokeUserSessions(targetUserId)");
     assertContains(adminRoutes, "bumpUsersInPosition(dbManager, positionId)");
     assertContains(adminRoutes, "replaceUserScopes(dbManager, userId, targetUserId");
     assertContains(adminRoutes, "department_id");
     assertContains(adminRoutes, "branch_id");
-    assertContains(adminRoutes, "targetPositionHasPermissions");
-    assertContains(adminRoutes, "分配带权限的岗位需要权限管理权限");
     assertContains(adminRoutes, "userId = isValidManagementToken(req, res, dbManager);");
     assertContains(adminRoutes, "AccessRevocation::closeRealtimeConnections()");
     assertNotContains(adminRoutes, "Permissions::allPermissionKeys()");
+
+    // 任职写入口统一服务（禁止平行 UPDATE users.position_id）
+    assertContains(adminRoutes, "EmploymentAssignmentService::assign");
+    assertContains(adminRoutes, "PositionPermissionService::replacePermissions");
+    assertContains(adminRoutes, "expected_current_position_id");
+    assertContains(adminRoutes, "assignment_policy");
+    assertNotContains(adminRoutes, "UPDATE users SET account_type = 'staff', position_id = ? WHERE id = ?");
+    assertNotContains(adminRoutes, "UPDATE users SET account_type = 'customer', position_id = NULL WHERE id = ?");
+
+    // B15: admin 派岗 reason 必填，无默认兜底文本
+    assertContains(adminRoutes, "reason 不能为空");
+    assertNotContains(adminRoutes, "Admin position assignment");
 
     return 0;
 }

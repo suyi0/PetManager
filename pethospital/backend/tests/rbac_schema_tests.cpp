@@ -60,11 +60,50 @@ int main()
     assertContains(migrations, "migratePositionDescriptionColumn");
     assertContains(migrations, "staff_kind ENUM('doctor','nurse','warehouse','finance','management','personnel','general_staff')");
     assertContains(migrations, "system_key VARCHAR(32) NULL UNIQUE");
+    assertContains(migrations, "assignment_policy ENUM('personnel_direct','approval_required','super_admin_only')");
     assertContains(migrations, "CONSTRAINT fk_position_dept FOREIGN KEY (department_id) REFERENCES departments(id)");
     assertContains(migrations, "INSERT INTO positions");
     assertContains(migrations, "'super-admin'");
     assertContains(migrations, "'doctor'");
     assertContains(migrations, "'nurse'");
+    assertContains(migrations, "'personnel_direct'");
+    assertContains(migrations, "seedEmploymentPermissionKeysIfAbsent");
+    // B9: 管理职位不拿 employment 写权限；人事权限按域+staff-role:write 迁入
+    assertNotContains(migrations, "UNION ALL SELECT 'president', 'employment:onboard'");
+    assertNotContains(migrations, "UNION ALL SELECT 'Boss', 'employment:offboard'");
+    assertContains(migrations, "UNION ALL SELECT 'president', 'employment-assignment:approve'");
+    assertContains(migrations, "staff_kind = 'personnel' OR COALESCE(d.business_domain, '') = 'personnel'");
+    assertContains(migrations, "locked_at DATETIME NULL");
+
+    // B17: 迁移安全下限用权威 catalog，无第二份 permission_key IN 清单
+    assertContains(migrations, "Permissions::requiredAssignmentPolicy");
+    assertContains(migrations, "maxAssignmentPolicy");
+    assertContains(migrations, "systemKey == \"super-admin\"");
+    assertNotContains(migrations, "pp.permission_key IN (");
+    assertNotContains(migrations, "AND pp.permission_key IN");
+
+    // B18: 先完整 fetch positions 到本地 vector，再逐项 permission query/update（避免活动结果集嵌套）
+    assertContains(migrations, "struct PositionPolicyRow");
+    assertContains(migrations, "std::vector<PositionPolicyRow> positionRows");
+    assertContains(migrations, "positionRows.push_back");
+    assertContains(migrations, "positions SqlResult 已离开作用域");
+
+    assertContains(migrations, "\"employment\"");
+    assertContains(migrations, "CREATE TABLE employment");
+    assertContains(migrations, "row_version INT NOT NULL DEFAULT 1");
+    assertContains(migrations, "legacy_imported");
+    assertContains(migrations, "\"employment_assignment\"");
+    assertContains(migrations, "CREATE TABLE employment_assignment");
+    assertContains(migrations, "uq_employment_assignment_open");
+    assertContains(migrations, "expected_employment_row_version");
+    assertContains(migrations, "request_source ENUM('user','migration')");
+    assertContains(migrations, "\"employment_event_outbox\"");
+    assertContains(migrations, "CREATE TABLE employment_event_outbox");
+    assertContains(migrations, "assignment_changed");
+    assertContains(migrations, "employment_separated");
+    assertContains(migrations, "\"employment_workflow_audit\"");
+    assertContains(migrations, "CREATE TABLE employment_workflow_audit");
+    assertContains(migrations, "Legacy employment import");
 
     assertContains(migrations, "\"position_permissions\"");
     assertContains(migrations, "CREATE TABLE position_permissions");

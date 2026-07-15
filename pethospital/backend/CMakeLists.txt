@@ -579,6 +579,37 @@ if(BUILD_TESTING)
     )
     add_test(NAME rbac_route_tests COMMAND rbac_route_tests)
 
+    add_executable(employment_assignment_contract_tests
+        tests/employment_assignment_contract_tests.cpp
+    )
+    target_compile_definitions(employment_assignment_contract_tests PRIVATE
+        EMPLOYMENT_ASSIGNMENT_SERVICE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/employment/EmploymentAssignmentService.cpp"
+        POSITION_PERMISSION_SERVICE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/rbac/PositionPermissionService.cpp"
+        PERSONNEL_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/personnel/personnelHandler.cpp"
+        PERSONNEL_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/personnelRoutes/personnelRoutes.cpp"
+        PERSONNEL_ACCESS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/employment/PersonnelAccess.cpp"
+        EMPLOYMENT_OUTBOX_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/employment/EmploymentOutboxDispatcher.cpp"
+        DATABASE_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/DatabaseMigrations.cpp"
+    )
+    add_test(NAME employment_assignment_contract_tests COMMAND employment_assignment_contract_tests)
+
+    add_executable(personnel_access_tests
+        tests/personnel_access_tests.cpp
+        services/employment/PersonnelAccess.cpp
+        services/rbac/RbacService.cpp
+        services/redis/userRoleCache/UserRoleCache.cpp
+        services/redis/RedisClient.cpp
+        utils/permissions/Permissions.cpp
+    )
+    target_link_libraries(personnel_access_tests
+        ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}
+        ${MYSQLX_LIBRARIES}
+    )
+    if(HIREDIS_FOUND)
+        target_link_libraries(personnel_access_tests ${HIREDIS_LIBRARIES})
+    endif()
+    add_test(NAME personnel_access_tests COMMAND personnel_access_tests)
+
     add_executable(rbac_runtime_migration_tests
         tests/rbac_runtime_migration_tests.cpp
     )

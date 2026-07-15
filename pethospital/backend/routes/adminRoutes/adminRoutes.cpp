@@ -12,6 +12,8 @@
 #include "../../services/attendance/DevicePersonSync.h"
 #include "../../services/auth/AccessRevocation.h"
 #include "../../services/auth/AuthSessionStore.h"
+#include "../../services/employment/EmploymentAssignmentService.h"
+#include "../../services/rbac/PositionPermissionService.h"
 #include "../../services/rbac/RbacService.h"
 #include "../../services/redis/userRoleCache/UserRoleCache.h"
 #include "../../utils/permissions/Permissions.h"
@@ -94,6 +96,7 @@ nlohmann::json rowToPositionJson(const mysqlx::Row &row)
         {"system_key", row[4].isNull() ? "" : row[4].get<std::string>()},
         {"staff_kind", row[5].isNull() ? "" : row[5].get<std::string>()},
         {"description", row[6].isNull() ? "" : row[6].get<std::string>()},
+        {"assignment_policy", row[7].isNull() ? "super_admin_only" : row[7].get<std::string>()},
     };
 }
 
@@ -253,35 +256,7 @@ std::optional<std::set<int>> parseIntSet(const crow::request &req, const nlohman
     return values;
 }
 
-bool replacePositionPermissions(
-    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
-    int positionId,
-    const std::vector<std::string> &permissions)
-{
-    auto session = dbManager->getSession();
-    session->sql("START TRANSACTION").execute();
-    try
-    {
-        session->sql("DELETE FROM position_permissions WHERE position_id = ?")
-            .bind(positionId)
-            .execute();
-
-        for (const std::string &permissionKey : permissions)
-        {
-            session->sql("INSERT INTO position_permissions (position_id, permission_key) VALUES (?, ?)")
-                .bind(positionId, permissionKey)
-                .execute();
-        }
-
-        session->sql("COMMIT").execute();
-        return true;
-    }
-    catch (...)
-    {
-        rollbackTransactionQuietly(*session);
-        throw;
-    }
-}
+// 职位权限替换统一走 PositionPermissionService（事务内锁行 + 安全下限 + policy 抬升）。
 
 void bumpUsersInPosition(const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId)
 {
@@ -465,7 +440,8 @@ crow::response getPositions(const crow::request &req, const std::shared_ptr<Data
 {
     mysqlx::SqlResult result = dbManager->getSession()
                                   ->sql("SELECT p.id, p.department_id, COALESCE(d.name, ''), p.name, "
-                                        "COALESCE(p.system_key, ''), COALESCE(p.staff_kind, ''), COALESCE(p.description, '') "
+                                        "COALESCE(p.system_key, ''), COALESCE(p.staff_kind, ''), COALESCE(p.description, ''), "
+                                        "COALESCE(p.assignment_policy, 'super_admin_only') "
                                         "FROM positions AS p "
                                         "LEFT JOIN departments AS d ON d.id = p.department_id "
                                         "ORDER BY COALESCE(p.department_id, 0), p.id")
@@ -589,7 +565,30 @@ crow::response getPositionPermissions(const crow::request &req, const std::share
     {
         if (allowed.count(Permissions::domainOfPermission(key))) grantableKeys.push_back(key);
     }
-    return ResponseHelper::success(req, {{"position_id", positionId}, {"permissions", permissions}, {"grantableKeys", grantableKeys}});
+    const auto policy = PositionPermissionService::loadAssignmentPolicy(dbManager, positionId);
+    // 地板按原始权限行计算（含未知 key → SuperAdminOnly），与写路径一致。
+    std::vector<std::string> rawKeys;
+    {
+        mysqlx::SqlResult raw = dbManager->getSession()
+                                    ->sql("SELECT permission_key FROM position_permissions WHERE position_id = ?")
+                                    .bind(positionId)
+                                    .execute();
+        for (mysqlx::Row r = raw.fetchOne(); r; r = raw.fetchOne())
+        {
+            if (!r[0].isNull())
+            {
+                rawKeys.push_back(r[0].get<std::string>());
+            }
+        }
+    }
+    const auto floor = Permissions::requiredAssignmentPolicy(rawKeys);
+    return ResponseHelper::success(req, {
+        {"position_id", positionId},
+        {"permissions", permissions},
+        {"grantableKeys", grantableKeys},
+        {"assignment_policy", Permissions::assignmentPolicyKey(policy)},
+        {"minimum_assignment_policy", Permissions::assignmentPolicyKey(floor)},
+    });
 }
 
 crow::response getPermissionTemplates(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager)
@@ -629,10 +628,35 @@ crow::response updatePositionPermissions(const crow::request &req, const std::sh
     const auto rejected = permissionsOutsideAllowedDomains(dbManager, positionId, permissions.value());
     if (!rejected.empty()) return domainBoundaryError(req, rejected);
 
-    replacePositionPermissions(dbManager, positionId, permissions.value());
+    std::optional<std::string> requestedPolicy;
+    if (body.contains("assignment_policy") && body["assignment_policy"].is_string())
+    {
+        requestedPolicy = body["assignment_policy"].get<std::string>();
+    }
+
+    const auto result = PositionPermissionService::replacePermissions(
+        dbManager, positionId, permissions.value(), requestedPolicy);
+    if (!result.ok)
+    {
+        if (result.errorCode == "NOT_FOUND")
+        {
+            return ResponseHelper::notFound(req, result.errorMessage);
+        }
+        if (result.errorCode == "SUPER_ADMIN_LOCKED" || result.errorCode == "POLICY_BELOW_FLOOR")
+        {
+            return ResponseHelper::permission_denied(req, result.errorMessage, result.errorCode);
+        }
+        return ResponseHelper::validation(req, result.errorMessage);
+    }
+
     bumpUsersInPosition(dbManager, positionId);
     AccessRevocation::closeRealtimeConnections();
-    return ResponseHelper::success(req, {{"position_id", positionId}, {"permissions", permissions.value()}});
+    return ResponseHelper::success(req, {
+        {"position_id", positionId},
+        {"permissions", result.permissions},
+        {"assignment_policy", Permissions::assignmentPolicyKey(result.effectivePolicy)},
+        {"minimum_assignment_policy", Permissions::assignmentPolicyKey(result.requiredFloor)},
+    });
 }
 
 crow::response getUserPermissions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int userId)
@@ -707,10 +731,28 @@ crow::response applyPermissionTemplate(const crow::request &req, const std::shar
         return ResponseHelper::notFound(req, "权限模板不存在或为空");
     }
 
-    replacePositionPermissions(dbManager, positionId, permissions);
+    const auto result = PositionPermissionService::replacePermissions(dbManager, positionId, permissions, std::nullopt);
+    if (!result.ok)
+    {
+        if (result.errorCode == "NOT_FOUND")
+        {
+            return ResponseHelper::notFound(req, result.errorMessage);
+        }
+        if (result.errorCode == "SUPER_ADMIN_LOCKED" || result.errorCode == "POLICY_BELOW_FLOOR")
+        {
+            return ResponseHelper::permission_denied(req, result.errorMessage, result.errorCode);
+        }
+        return ResponseHelper::validation(req, result.errorMessage);
+    }
     bumpUsersInPosition(dbManager, positionId);
     AccessRevocation::closeRealtimeConnections();
-    return ResponseHelper::success(req, {{"position_id", positionId}, {"template_id", templateId.value()}, {"permissions", permissions}});
+    return ResponseHelper::success(req, {
+        {"position_id", positionId},
+        {"template_id", templateId.value()},
+        {"permissions", result.permissions},
+        {"assignment_policy", Permissions::assignmentPolicyKey(result.effectivePolicy)},
+        {"minimum_assignment_policy", Permissions::assignmentPolicyKey(result.requiredFloor)},
+    });
 }
 
 crow::response resetPositionDefaults(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int positionId)
@@ -736,10 +778,26 @@ crow::response resetPositionDefaults(const crow::request &req, const std::shared
         if (!tmpl) return ResponseHelper::notFound(req, "默认权限模板不存在");
         permissions = loadTemplatePermissions(dbManager, tmpl[0].get<int>());
     }
-    replacePositionPermissions(dbManager, positionId, permissions);
+    const auto result = PositionPermissionService::replacePermissions(dbManager, positionId, permissions, std::nullopt);
+    if (!result.ok)
+    {
+        if (result.errorCode == "NOT_FOUND")
+        {
+            return ResponseHelper::notFound(req, result.errorMessage);
+        }
+        if (result.errorCode == "SUPER_ADMIN_LOCKED")
+        {
+            return ResponseHelper::permission_denied(req, result.errorMessage, result.errorCode);
+        }
+        return ResponseHelper::validation(req, result.errorMessage);
+    }
     bumpUsersInPosition(dbManager, positionId);
     AccessRevocation::closeRealtimeConnections();
-    return ResponseHelper::success(req, {{"position_id", positionId}, {"permissions", permissions}});
+    return ResponseHelper::success(req, {
+        {"position_id", positionId},
+        {"permissions", result.permissions},
+        {"assignment_policy", Permissions::assignmentPolicyKey(result.effectivePolicy)},
+    });
 }
 
 crow::response updateUserPosition(
@@ -754,76 +812,93 @@ crow::response updateUserPosition(
         return ResponseHelper::validation(req, "用户ID无效");
     }
 
-    const std::optional<int> positionId = jsonInt(body, "position_id");
-    const bool assignCustomer = !positionId.has_value() || positionId.value() <= 0;
-    bool targetPositionHasPermissions = false;
-    if (!assignCustomer)
+    EmploymentAssignmentService::AssignRequest assignReq;
+    assignReq.operatorUserId = operatorUserId;
+    assignReq.targetUserId = targetUserId;
+    assignReq.mode = EmploymentAssignmentService::ActorMode::Admin;
+    assignReq.reason = jsonString(body, "reason");
+    // B15: break-glass/管理派岗必须显式提供 reason，禁止默认兜底文本。
+    if (assignReq.reason.empty())
     {
-        if (!positionExists(dbManager, positionId.value()))
+        return ResponseHelper::validation(req, "reason 不能为空");
+    }
+    assignReq.effectiveFrom = jsonString(body, "effective_from");
+
+    if (!body.contains("expected_current_position_id") ||
+        (!body["expected_current_position_id"].is_number_integer() && !body["expected_current_position_id"].is_null()))
+    {
+        // null 表示期望客户(0)；整数表示期望职位
+        if (!(body.contains("expected_current_position_id") && body["expected_current_position_id"].is_null()))
         {
-            return ResponseHelper::notFound(req, "岗位不存在");
-        }
-        if (isSuperAdminPosition(dbManager, positionId.value()))
-        {
-            return ResponseHelper::permission_denied(req, "不能通过接口授予系统超级管理员岗位");
-        }
-        targetPositionHasPermissions = !RbacService::loadPermissionsForPosition(dbManager, positionId.value()).empty();
-        if (targetPositionHasPermissions &&
-            !RbacService::userHasPermission(dbManager, operatorUserId, Permissions::kRbacManage))
-        {
-            return ResponseHelper::permission_denied(req, "分配带权限的岗位需要权限管理权限");
-        }
-        if (operatorUserId == targetUserId && targetPositionHasPermissions)
-        {
-            return ResponseHelper::permission_denied(req, "不能给自己改派到带权限的岗位");
+            return ResponseHelper::validation(req, "expected_current_position_id 必填");
         }
     }
-
-    mysqlx::SqlResult userResult = dbManager->getSession()
-                                      ->sql("SELECT id FROM users WHERE id = ? AND is_deleted = 0 LIMIT 1")
-                                      .bind(targetUserId)
-                                      .execute();
-    if (!userResult.fetchOne())
+    if (!body.contains("expected_current_position_id"))
     {
-        return ResponseHelper::notFound(req, "用户不存在");
+        return ResponseHelper::validation(req, "expected_current_position_id 必填");
     }
-
-    auto session = dbManager->getSession();
-    session->sql("START TRANSACTION").execute();
-    try
+    if (body["expected_current_position_id"].is_null())
     {
-      if (assignCustomer)
-      {
-        session
-            ->sql("UPDATE users SET account_type = 'customer', position_id = NULL WHERE id = ?")
-            .bind(targetUserId)
-            .execute();
-      }
-      else
-      {
-        session
-            ->sql("UPDATE users SET account_type = 'staff', position_id = ? WHERE id = ?")
-            .bind(positionId.value(), targetUserId)
-            .execute();
-      }
-      session->sql("DELETE FROM user_permissions WHERE user_id = ?").bind(targetUserId).execute();
-      session->sql("COMMIT").execute();
-    }
-    catch (...) { rollbackTransactionQuietly(*session); throw; }
-
-    AccessRevocation::revokeUserSessions(targetUserId);
-    AccessRevocation::closeRealtimeConnections();
-    // 考勤设备联动：转客户=删设备模板（撤权第四件套），派职=下发模板（内部会初始化 attendance_no）。
-    if (assignCustomer)
-    {
-        DevicePersonSync::enqueueRemove(dbManager, targetUserId);
+        assignReq.expectedCurrentPositionId = 0;
     }
     else
     {
-        DevicePersonSync::enqueueUpsert(dbManager, targetUserId);
+        assignReq.expectedCurrentPositionId = body["expected_current_position_id"].get<int>();
+    }
+    assignReq.hasExpectedCurrentPosition = true;
+
+    const std::optional<int> positionId = jsonInt(body, "position_id");
+    const bool assignCustomer = !positionId.has_value() || positionId.value() <= 0;
+    if (assignCustomer)
+    {
+        assignReq.action = EmploymentAssignmentService::Action::Offboard;
+    }
+    else
+    {
+        assignReq.targetPositionId = positionId.value();
+        if (assignReq.expectedCurrentPositionId > 0)
+        {
+            assignReq.action = EmploymentAssignmentService::Action::Transfer;
+        }
+        else
+        {
+            assignReq.action = EmploymentAssignmentService::Action::Onboard;
+        }
     }
 
-    return ResponseHelper::success(req, {{"user_id", targetUserId}, {"position_id", assignCustomer ? nullptr : nlohmann::json(positionId.value())}});
+    const auto result = EmploymentAssignmentService::assign(dbManager, assignReq);
+    if (!result.ok)
+    {
+        if (result.httpStatus == 404)
+        {
+            return ResponseHelper::notFound(req, result.message);
+        }
+        if (result.httpStatus == 403)
+        {
+            return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+        }
+        if (result.httpStatus == 409)
+        {
+            return ResponseHelper::fail(
+                req, 409, ResponseCode::BusinessConflict, result.message,
+                ResponseErrorType::BusinessConflict,
+                result.errorCode.empty() ? result.message : result.errorCode);
+        }
+        if (result.httpStatus >= 500)
+        {
+            return ResponseHelper::system_error(req, result.message);
+        }
+        return ResponseHelper::validation(req, result.message);
+    }
+
+    return ResponseHelper::success(req, {
+        {"user_id", result.userId},
+        {"position_id", result.positionId > 0 ? nlohmann::json(result.positionId) : nlohmann::json(nullptr)},
+        {"account_type", result.accountType},
+        {"assignment_status", result.assignmentStatus},
+        {"assignment_id", result.assignmentId},
+        {"employment_id", result.employmentId},
+    });
 }
 
 crow::response getUserScopes(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int targetUserId)

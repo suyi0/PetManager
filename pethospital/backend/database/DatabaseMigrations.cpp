@@ -7,6 +7,7 @@
 #include "../controllers/auth/encrypt/encrypt.h"
 #include "../services/redis/RedisClient.h"
 #include "../services/redis/redisLock/RedisLock.h"
+#include "../utils/permissions/Permissions.h"
 
 #include <openssl/rand.h>
 
@@ -21,6 +22,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <vector>
 
 // 每张表一条 TableSpec —— 建表 DDL 原样保留（仅由字符串拼接改为 raw string），
 // 表不存在时执行 createSql + afterCreate（种子/回填），已存在时执行 onExists（补列/补外键等增量迁移）。
@@ -97,17 +99,17 @@ namespace
 
     void seedPositions(DatabaseManagerInterface &, mysqlx::Session &session)
     {
-        session.sql(R"SQL(INSERT INTO positions (department_id, name, staff_kind, system_key, status)
-            SELECT id, '总裁', 'management', 'president', 'published' FROM departments WHERE system_key = 'management'
-            UNION ALL SELECT id, '副总裁', 'management', 'vice-president', 'published' FROM departments WHERE system_key = 'management'
-            UNION ALL SELECT id, '部门经理', 'management', 'department-manager', 'published' FROM departments WHERE system_key = 'management'
-            UNION ALL SELECT id, '超级管理员', 'management', 'super-admin', 'published' FROM departments WHERE system_key = 'management'
-            UNION ALL SELECT id, '财务总监', 'finance', 'finance-director', 'published' FROM departments WHERE system_key = 'finance'
-            UNION ALL SELECT id, '财务经理', 'finance', 'finance-manager', 'published' FROM departments WHERE system_key = 'finance'
-            UNION ALL SELECT id, '人事经理', 'personnel', 'personnel-manager', 'published' FROM departments WHERE system_key = 'personnel'
-            UNION ALL SELECT id, '医生', 'doctor', 'doctor', 'published' FROM departments WHERE system_key = 'medical'
-            UNION ALL SELECT id, '护士', 'nurse', 'nurse', 'published' FROM departments WHERE system_key = 'medical'
-            UNION ALL SELECT id, '仓库管理员', 'warehouse', 'warehouse-admin', 'published' FROM departments WHERE system_key = 'warehouse'
+        session.sql(R"SQL(INSERT INTO positions (department_id, name, staff_kind, system_key, status, assignment_policy)
+            SELECT id, '总裁', 'management', 'president', 'published', 'approval_required' FROM departments WHERE system_key = 'management'
+            UNION ALL SELECT id, '副总裁', 'management', 'vice-president', 'published', 'approval_required' FROM departments WHERE system_key = 'management'
+            UNION ALL SELECT id, '部门经理', 'management', 'department-manager', 'published', 'approval_required' FROM departments WHERE system_key = 'management'
+            UNION ALL SELECT id, '超级管理员', 'management', 'super-admin', 'published', 'super_admin_only' FROM departments WHERE system_key = 'management'
+            UNION ALL SELECT id, '财务总监', 'finance', 'finance-director', 'published', 'approval_required' FROM departments WHERE system_key = 'finance'
+            UNION ALL SELECT id, '财务经理', 'finance', 'finance-manager', 'published', 'approval_required' FROM departments WHERE system_key = 'finance'
+            UNION ALL SELECT id, '人事经理', 'personnel', 'personnel-manager', 'published', 'approval_required' FROM departments WHERE system_key = 'personnel'
+            UNION ALL SELECT id, '医生', 'doctor', 'doctor', 'published', 'personnel_direct' FROM departments WHERE system_key = 'medical'
+            UNION ALL SELECT id, '护士', 'nurse', 'nurse', 'published', 'personnel_direct' FROM departments WHERE system_key = 'medical'
+            UNION ALL SELECT id, '仓库管理员', 'warehouse', 'warehouse-admin', 'published', 'personnel_direct' FROM departments WHERE system_key = 'warehouse'
         )SQL")
             .execute();
     }
@@ -178,6 +180,81 @@ namespace
             .execute();
     }
 
+    void seedEmploymentPermissionKeysIfAbsent(DatabaseManagerInterface &, mysqlx::Session &session)
+    {
+        // v6 seed 纪律：
+        // - 管理职位（president/vice-president/department-manager）：仅 portal:boss + 两个审批权
+        // - Personnel 新权限：仅人事域且当前持 staff-role:write 的职位（含 personnel-manager）
+        // - Finance：system_key finance-* 仅 salary-profile:activate
+        // - SuperAdmin：不默认薪酬批准/财务激活
+        session.sql(R"SQL(INSERT IGNORE INTO position_permissions (position_id, permission_key)
+            SELECT p.id, v.permission_key
+            FROM positions p
+            JOIN (
+                SELECT 'president' AS system_key, 'portal:boss' AS permission_key
+                UNION ALL SELECT 'president', 'employment-assignment:approve'
+                UNION ALL SELECT 'president', 'compensation:approve'
+                UNION ALL SELECT 'vice-president', 'portal:boss'
+                UNION ALL SELECT 'vice-president', 'employment-assignment:approve'
+                UNION ALL SELECT 'vice-president', 'compensation:approve'
+                UNION ALL SELECT 'department-manager', 'portal:boss'
+                UNION ALL SELECT 'department-manager', 'employment-assignment:approve'
+                UNION ALL SELECT 'department-manager', 'compensation:approve'
+                UNION ALL SELECT 'finance-director', 'salary-profile:activate'
+                UNION ALL SELECT 'finance-manager', 'salary-profile:activate'
+            ) v ON v.system_key = p.system_key
+            WHERE NOT EXISTS (
+                SELECT 1 FROM position_permissions existing
+                WHERE existing.position_id = p.id AND existing.permission_key = v.permission_key
+            ))SQL")
+            .execute();
+
+        // 人事域 + 已持 staff-role:write → 幂等插入 employment/compensation 人事键
+        session.sql(R"SQL(INSERT IGNORE INTO position_permissions (position_id, permission_key)
+            SELECT p.id, v.permission_key
+            FROM positions p
+            LEFT JOIN departments d ON d.id = p.department_id
+            JOIN position_permissions srw
+              ON srw.position_id = p.id AND srw.permission_key = 'staff-role:write'
+            JOIN (
+                SELECT 'employment:read' AS permission_key
+                UNION ALL SELECT 'employment:onboard'
+                UNION ALL SELECT 'employment:assign'
+                UNION ALL SELECT 'employment:regularize'
+                UNION ALL SELECT 'employment:offboard'
+                UNION ALL SELECT 'compensation:propose'
+                UNION ALL SELECT 'compensation:reassign-case'
+            ) v
+            WHERE (p.staff_kind = 'personnel' OR COALESCE(d.business_domain, '') = 'personnel')
+              AND NOT EXISTS (
+                SELECT 1 FROM position_permissions existing
+                WHERE existing.position_id = p.id AND existing.permission_key = v.permission_key
+              ))SQL")
+            .execute();
+
+        session.sql(R"SQL(INSERT IGNORE INTO permission_template_items (template_id, permission_key)
+            SELECT t.id, v.permission_key
+            FROM permission_templates t
+            JOIN (
+                SELECT 'Personnel' AS template_name, 'employment:read' AS permission_key
+                UNION ALL SELECT 'Personnel', 'employment:onboard'
+                UNION ALL SELECT 'Personnel', 'employment:assign'
+                UNION ALL SELECT 'Personnel', 'employment:regularize'
+                UNION ALL SELECT 'Personnel', 'employment:offboard'
+                UNION ALL SELECT 'Personnel', 'compensation:propose'
+                UNION ALL SELECT 'Personnel', 'compensation:reassign-case'
+                UNION ALL SELECT 'Boss', 'portal:boss'
+                UNION ALL SELECT 'Boss', 'employment-assignment:approve'
+                UNION ALL SELECT 'Boss', 'compensation:approve'
+                UNION ALL SELECT 'Finance', 'salary-profile:activate'
+            ) v ON v.template_name = t.name
+            WHERE NOT EXISTS (
+                SELECT 1 FROM permission_template_items existing
+                WHERE existing.template_id = t.id AND existing.permission_key = v.permission_key
+            ))SQL")
+            .execute();
+    }
+
     void seedIncrementalPositionPermissions(DatabaseManagerInterface &dbManager, mysqlx::Session &session)
     {
         seedAttendancePermissionsIfAbsent(dbManager, session);
@@ -205,6 +282,7 @@ namespace
                 SELECT 1 FROM position_permissions existing
                 WHERE existing.position_id = p.id AND existing.permission_key = v.permission_key
             ))SQL").execute();
+        seedEmploymentPermissionKeysIfAbsent(dbManager, session);
     }
 
     void seedPositionPermissions(DatabaseManagerInterface &, mysqlx::Session &session)
@@ -232,6 +310,8 @@ namespace
                 UNION ALL SELECT 'president', 'stock:read'
                 UNION ALL SELECT 'president', 'stock:write'
                 UNION ALL SELECT 'president', 'staff-role:write'
+                UNION ALL SELECT 'president', 'employment-assignment:approve'
+                UNION ALL SELECT 'president', 'compensation:approve'
                 UNION ALL SELECT 'president', 'attendance:read'
                 UNION ALL SELECT 'president', 'attendance:manage'
                 UNION ALL SELECT 'president', 'scope:all'
@@ -254,22 +334,29 @@ namespace
                 UNION ALL SELECT 'vice-president', 'stock:read'
                 UNION ALL SELECT 'vice-president', 'stock:write'
                 UNION ALL SELECT 'vice-president', 'staff-role:write'
+                UNION ALL SELECT 'vice-president', 'employment-assignment:approve'
+                UNION ALL SELECT 'vice-president', 'compensation:approve'
                 UNION ALL SELECT 'vice-president', 'attendance:read'
                 UNION ALL SELECT 'vice-president', 'attendance:manage'
                 UNION ALL SELECT 'vice-president', 'scope:all'
                 UNION ALL SELECT 'finance-director', 'portal:finance'
                 UNION ALL SELECT 'finance-director', 'salary:read'
                 UNION ALL SELECT 'finance-director', 'salary:write'
+                UNION ALL SELECT 'finance-director', 'salary-profile:activate'
                 UNION ALL SELECT 'finance-director', 'scope:all'
                 UNION ALL SELECT 'finance-manager', 'portal:finance'
                 UNION ALL SELECT 'finance-manager', 'salary:read'
                 UNION ALL SELECT 'finance-manager', 'salary:write'
+                UNION ALL SELECT 'finance-manager', 'salary-profile:activate'
                 UNION ALL SELECT 'finance-manager', 'scope:all'
                 UNION ALL SELECT 'department-manager', 'portal:super-admin'
+                UNION ALL SELECT 'department-manager', 'portal:boss'
                 UNION ALL SELECT 'department-manager', 'logs:read'
                 UNION ALL SELECT 'department-manager', 'medical-record:read'
                 UNION ALL SELECT 'department-manager', 'doctor-work:write'
                 UNION ALL SELECT 'department-manager', 'user:delete'
+                UNION ALL SELECT 'department-manager', 'employment-assignment:approve'
+                UNION ALL SELECT 'department-manager', 'compensation:approve'
                 UNION ALL SELECT 'department-manager', 'scope:all'
                 UNION ALL SELECT 'super-admin', 'portal:super-admin'
                 UNION ALL SELECT 'super-admin', 'logs:read'
@@ -288,6 +375,13 @@ namespace
                 UNION ALL SELECT 'super-admin', 'portal:user'
                 UNION ALL SELECT 'personnel-manager', 'portal:personnel'
                 UNION ALL SELECT 'personnel-manager', 'staff-role:write'
+                UNION ALL SELECT 'personnel-manager', 'employment:read'
+                UNION ALL SELECT 'personnel-manager', 'employment:onboard'
+                UNION ALL SELECT 'personnel-manager', 'employment:assign'
+                UNION ALL SELECT 'personnel-manager', 'employment:regularize'
+                UNION ALL SELECT 'personnel-manager', 'employment:offboard'
+                UNION ALL SELECT 'personnel-manager', 'compensation:propose'
+                UNION ALL SELECT 'personnel-manager', 'compensation:reassign-case'
                 UNION ALL SELECT 'personnel-manager', 'attendance:read'
                 UNION ALL SELECT 'personnel-manager', 'attendance:manage'
                 UNION ALL SELECT 'personnel-manager', 'scope:all'
@@ -351,12 +445,15 @@ namespace
                 UNION ALL SELECT 'Boss', 'stock:read'
                 UNION ALL SELECT 'Boss', 'stock:write'
                 UNION ALL SELECT 'Boss', 'staff-role:write'
+                UNION ALL SELECT 'Boss', 'employment-assignment:approve'
+                UNION ALL SELECT 'Boss', 'compensation:approve'
                 UNION ALL SELECT 'Boss', 'attendance:read'
                 UNION ALL SELECT 'Boss', 'attendance:manage'
                 UNION ALL SELECT 'Boss', 'scope:all'
                 UNION ALL SELECT 'Finance', 'portal:finance'
                 UNION ALL SELECT 'Finance', 'salary:read'
                 UNION ALL SELECT 'Finance', 'salary:write'
+                UNION ALL SELECT 'Finance', 'salary-profile:activate'
                 UNION ALL SELECT 'Finance', 'scope:all'
                 UNION ALL SELECT 'SuperAdmin', 'portal:super-admin'
                 UNION ALL SELECT 'SuperAdmin', 'logs:read'
@@ -367,6 +464,13 @@ namespace
                 UNION ALL SELECT 'SuperAdmin', 'scope:all'
                 UNION ALL SELECT 'Personnel', 'portal:personnel'
                 UNION ALL SELECT 'Personnel', 'staff-role:write'
+                UNION ALL SELECT 'Personnel', 'employment:read'
+                UNION ALL SELECT 'Personnel', 'employment:onboard'
+                UNION ALL SELECT 'Personnel', 'employment:assign'
+                UNION ALL SELECT 'Personnel', 'employment:regularize'
+                UNION ALL SELECT 'Personnel', 'employment:offboard'
+                UNION ALL SELECT 'Personnel', 'compensation:propose'
+                UNION ALL SELECT 'Personnel', 'compensation:reassign-case'
                 UNION ALL SELECT 'Personnel', 'attendance:read'
                 UNION ALL SELECT 'Personnel', 'attendance:manage'
                 UNION ALL SELECT 'Personnel', 'scope:all'
@@ -546,9 +650,105 @@ namespace
         (void)domainColumnAdded;
     }
 
-    void migratePositionDescriptionColumn(DatabaseManagerInterface &dbManager, mysqlx::Session &)
+    void migratePositionDescriptionColumn(DatabaseManagerInterface &dbManager, mysqlx::Session &session)
     {
         Common::addColumnIfNotExists(dbManager, "positions", "description", "VARCHAR(255) NOT NULL DEFAULT ''");
+        // 派岗策略列：默认 super_admin_only（fail-closed）。
+        Common::addColumnIfNotExists(
+            dbManager,
+            "positions",
+            "assignment_policy",
+            "ENUM('personnel_direct','approval_required','super_admin_only') NOT NULL DEFAULT 'super_admin_only'");
+
+        // 系统 seed 初始策略（非安全判断清单）：锚点职位合理默认值。
+        // 随后由权威 Permissions catalog 仅抬升，不自动降级。
+        session.sql("UPDATE positions SET assignment_policy = 'super_admin_only' "
+                    "WHERE system_key = 'super-admin'")
+            .execute();
+        session.sql("UPDATE positions SET assignment_policy = 'approval_required' "
+                    "WHERE system_key IN ("
+                    "'president','vice-president','department-manager',"
+                    "'finance-director','finance-manager','personnel-manager'"
+                    ") AND assignment_policy = 'personnel_direct'")
+            .execute();
+        session.sql("UPDATE positions SET assignment_policy = 'personnel_direct' "
+                    "WHERE system_key IN ('doctor','nurse','warehouse-admin') "
+                    "AND assignment_policy = 'super_admin_only'")
+            .execute();
+
+        // B17: 安全下限唯一来源 = 权威 catalog 的 requiredAssignmentPolicy(原始 DB keys)。
+        // 未知 key fail-closed → SuperAdminOnly；只抬升 stored policy，不降级。
+        // super-admin 永远 super_admin_only。
+        // B18: 先完整消费 positions 结果集到本地 vector，再逐项查询/更新，避免同一 Session
+        // 在活动 SqlResult 未耗尽时嵌套执行（MySQL X 不可重入）。
+        try
+        {
+            struct PositionPolicyRow
+            {
+                int id = 0;
+                std::string systemKey;
+                std::string storedPolicy;
+            };
+            std::vector<PositionPolicyRow> positionRows;
+            {
+                mysqlx::SqlResult positions = session.sql(
+                                                         "SELECT id, COALESCE(system_key, ''), "
+                                                         "COALESCE(assignment_policy, 'super_admin_only') "
+                                                         "FROM positions")
+                                                  .execute();
+                for (mysqlx::Row pos = positions.fetchOne(); pos; pos = positions.fetchOne())
+                {
+                    if (pos[0].isNull())
+                    {
+                        continue;
+                    }
+                    PositionPolicyRow row;
+                    row.id = pos[0].get<int>();
+                    row.systemKey = pos[1].isNull() ? "" : pos[1].get<std::string>();
+                    row.storedPolicy = pos[2].isNull() ? "super_admin_only" : pos[2].get<std::string>();
+                    positionRows.push_back(std::move(row));
+                }
+            } // positions SqlResult 已离开作用域 / 结果集已完整消费
+
+            for (const PositionPolicyRow &pos : positionRows)
+            {
+                if (pos.systemKey == "super-admin")
+                {
+                    session.sql("UPDATE positions SET assignment_policy = 'super_admin_only' WHERE id = ?")
+                        .bind(pos.id)
+                        .execute();
+                    continue;
+                }
+
+                std::vector<std::string> rawKeys;
+                mysqlx::SqlResult perms = session.sql(
+                                                    "SELECT permission_key FROM position_permissions WHERE position_id = ?")
+                                             .bind(pos.id)
+                                             .execute();
+                for (mysqlx::Row keyRow = perms.fetchOne(); keyRow; keyRow = perms.fetchOne())
+                {
+                    if (!keyRow[0].isNull())
+                    {
+                        rawKeys.push_back(keyRow[0].get<std::string>());
+                    }
+                }
+
+                const auto floor = Permissions::requiredAssignmentPolicy(rawKeys);
+                const auto stored = Permissions::parseAssignmentPolicy(pos.storedPolicy);
+                const auto raised = Permissions::maxAssignmentPolicy(stored, floor);
+                if (Permissions::assignmentPolicyRank(raised) > Permissions::assignmentPolicyRank(stored))
+                {
+                    session.sql("UPDATE positions SET assignment_policy = ? WHERE id = ?")
+                        .bind(Permissions::assignmentPolicyKey(raised), pos.id)
+                        .execute();
+                }
+            }
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "assignment_policy catalog raise failed: " << e.what() << std::endl;
+            throw;
+        }
     }
 
     std::string generateBootstrapPassword()
@@ -652,6 +852,7 @@ namespace
                 staff_kind ENUM('doctor','nurse','warehouse','finance','management','personnel','general_staff') NOT NULL DEFAULT 'general_staff',
                 system_key VARCHAR(32) NULL UNIQUE,
                 status ENUM('draft','published') NOT NULL DEFAULT 'published',
+                assignment_policy ENUM('personnel_direct','approval_required','super_admin_only') NOT NULL DEFAULT 'super_admin_only',
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT fk_position_dept FOREIGN KEY (department_id) REFERENCES departments(id),
                 UNIQUE KEY uq_position (department_id, name)
@@ -766,6 +967,186 @@ namespace
                 Columns::migrateUsers(dbManager);
                 ForeignKeys::migrateUsers(dbManager);
             },
+        },
+        {
+            "employment",
+            R"SQL(CREATE TABLE employment (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL UNIQUE,
+                status ENUM(
+                    'draft', 'onboarding', 'probation',
+                    'regularization_pending', 'active',
+                    'rejected', 'separated'
+                ) NOT NULL DEFAULT 'draft',
+                hire_date DATE NULL,
+                probation_start DATE NULL,
+                probation_end DATE NULL,
+                probation_waived TINYINT NOT NULL DEFAULT 0,
+                legacy_imported TINYINT NOT NULL DEFAULT 0,
+                regularized_at DATETIME NULL,
+                separated_at DATETIME NULL,
+                row_version INT NOT NULL DEFAULT 1,
+                created_by INT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_employment_user FOREIGN KEY (user_id) REFERENCES users(id),
+                CONSTRAINT fk_employment_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            [](DatabaseManagerInterface &, mysqlx::Session &session) {
+                // 现有 staff 建 active employment + legacy 任职历史（request_source=migration）
+                session.sql(R"SQL(
+                    INSERT INTO employment (user_id, status, hire_date, legacy_imported, created_by)
+                    SELECT u.id, 'active', DATE(u.created_at), 1, NULL
+                    FROM users u
+                    WHERE u.account_type = 'staff' AND u.is_deleted = 0
+                      AND NOT EXISTS (SELECT 1 FROM employment e WHERE e.user_id = u.id)
+                )SQL").execute();
+            },
+            [](DatabaseManagerInterface &, mysqlx::Session &session) {
+                session.sql(R"SQL(
+                    INSERT INTO employment (user_id, status, hire_date, legacy_imported, created_by)
+                    SELECT u.id, 'active', DATE(u.created_at), 1, NULL
+                    FROM users u
+                    WHERE u.account_type = 'staff' AND u.is_deleted = 0
+                      AND NOT EXISTS (SELECT 1 FROM employment e WHERE e.user_id = u.id)
+                )SQL").execute();
+            },
+        },
+        {
+            "employment_assignment",
+            R"SQL(CREATE TABLE employment_assignment (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                employment_id BIGINT NOT NULL,
+                branch_id INT NOT NULL,
+                department_id INT NOT NULL,
+                from_position_id INT NULL,
+                to_position_id INT NULL,
+                action ENUM('onboard','transfer','regularize','offboard') NOT NULL,
+                status ENUM('pending','approved','rejected','effective','cancelled') NOT NULL,
+                effective_from DATE NOT NULL,
+                reason VARCHAR(500) NOT NULL,
+                request_source ENUM('user','migration') NOT NULL DEFAULT 'user',
+                requested_by INT NULL,
+                migration_batch_id VARCHAR(64) NULL,
+                reviewed_by INT NULL,
+                reviewed_at DATETIME NULL,
+                expected_employment_row_version INT NOT NULL,
+                row_version INT NOT NULL DEFAULT 1,
+                open_slot TINYINT GENERATED ALWAYS AS (
+                    CASE WHEN status IN ('pending','approved') THEN 1 ELSE NULL END
+                ) STORED,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_employment_assignment_open (employment_id, open_slot),
+                INDEX idx_employment_assignment_scope_status (branch_id, department_id, status),
+                CONSTRAINT fk_ea_employment FOREIGN KEY (employment_id) REFERENCES employment(id) ON DELETE CASCADE,
+                CONSTRAINT fk_ea_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
+                CONSTRAINT fk_ea_department FOREIGN KEY (department_id) REFERENCES departments(id),
+                CONSTRAINT fk_ea_from_position FOREIGN KEY (from_position_id) REFERENCES positions(id),
+                CONSTRAINT fk_ea_to_position FOREIGN KEY (to_position_id) REFERENCES positions(id),
+                CONSTRAINT fk_ea_requested_by FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_ea_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT chk_ea_request_source CHECK (
+                    (request_source='user' AND requested_by IS NOT NULL AND migration_batch_id IS NULL) OR
+                    (request_source='migration' AND requested_by IS NULL AND migration_batch_id IS NOT NULL)
+                ),
+                CONSTRAINT chk_ea_separation_of_duties CHECK (
+                    reviewed_by IS NULL OR requested_by IS NULL OR reviewed_by <> requested_by
+                )
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            [](DatabaseManagerInterface &, mysqlx::Session &session) {
+                session.sql(R"SQL(
+                    INSERT INTO employment_assignment (
+                        employment_id, branch_id, department_id, from_position_id, to_position_id,
+                        action, status, effective_from, reason, request_source, requested_by,
+                        migration_batch_id, reviewed_by, reviewed_at, expected_employment_row_version)
+                    SELECT e.id, d.branch_id, p.department_id, NULL, u.position_id,
+                           'onboard', 'effective', DATE(u.created_at),
+                           'Legacy employment import', 'migration', NULL,
+                           'legacy-employment-v1', NULL, NULL, e.row_version
+                    FROM employment e
+                    JOIN users u ON u.id = e.user_id
+                    JOIN positions p ON p.id = u.position_id
+                    JOIN departments d ON d.id = p.department_id
+                    WHERE e.legacy_imported = 1
+                      AND NOT EXISTS (
+                        SELECT 1 FROM employment_assignment ea WHERE ea.employment_id = e.id
+                      )
+                )SQL").execute();
+            },
+            [](DatabaseManagerInterface &, mysqlx::Session &session) {
+                session.sql(R"SQL(
+                    INSERT INTO employment_assignment (
+                        employment_id, branch_id, department_id, from_position_id, to_position_id,
+                        action, status, effective_from, reason, request_source, requested_by,
+                        migration_batch_id, reviewed_by, reviewed_at, expected_employment_row_version)
+                    SELECT e.id, d.branch_id, p.department_id, NULL, u.position_id,
+                           'onboard', 'effective', DATE(u.created_at),
+                           'Legacy employment import', 'migration', NULL,
+                           'legacy-employment-v1', NULL, NULL, e.row_version
+                    FROM employment e
+                    JOIN users u ON u.id = e.user_id
+                    JOIN positions p ON p.id = u.position_id
+                    JOIN departments d ON d.id = p.department_id
+                    WHERE e.legacy_imported = 1
+                      AND u.account_type = 'staff'
+                      AND u.position_id IS NOT NULL
+                      AND NOT EXISTS (
+                        SELECT 1 FROM employment_assignment ea WHERE ea.employment_id = e.id
+                      )
+                )SQL").execute();
+            },
+        },
+        {
+            "employment_event_outbox",
+            R"SQL(CREATE TABLE employment_event_outbox (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                event_key VARCHAR(96) NOT NULL UNIQUE,
+                employment_id BIGINT NOT NULL,
+                user_id INT NOT NULL,
+                event_type ENUM('assignment_changed','employment_separated') NOT NULL,
+                payload JSON NOT NULL,
+                status ENUM('pending','processing','completed','failed') NOT NULL DEFAULT 'pending',
+                attempts INT NOT NULL DEFAULT 0,
+                last_error VARCHAR(1000) NOT NULL DEFAULT '',
+                next_attempt_at DATETIME NULL,
+                locked_at DATETIME NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                completed_at DATETIME NULL,
+                INDEX idx_employment_outbox_dispatch (status, next_attempt_at),
+                INDEX idx_employment_outbox_locked (status, locked_at),
+                CONSTRAINT fk_employment_outbox_employment FOREIGN KEY (employment_id) REFERENCES employment(id),
+                CONSTRAINT fk_employment_outbox_user FOREIGN KEY (user_id) REFERENCES users(id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            [](DatabaseManagerInterface &dbManager, mysqlx::Session &) {
+                Common::addColumnIfNotExists(
+                    dbManager, "employment_event_outbox", "locked_at", "DATETIME NULL");
+                Common::addIndexIfNotExists(
+                    dbManager, "employment_event_outbox", "idx_employment_outbox_locked",
+                    "locked_at");
+            },
+        },
+        {
+            "employment_workflow_audit",
+            R"SQL(CREATE TABLE employment_workflow_audit (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                resource_type ENUM('employment','assignment','compensation') NOT NULL,
+                resource_id BIGINT NOT NULL,
+                action VARCHAR(64) NOT NULL,
+                operator_id INT NULL,
+                branch_id INT NULL,
+                department_id INT NULL,
+                before_snapshot JSON NULL,
+                after_snapshot JSON NULL,
+                reason VARCHAR(1000) NOT NULL DEFAULT '',
+                request_id VARCHAR(64) NOT NULL DEFAULT '',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_workflow_audit_resource (resource_type, resource_id, created_at),
+                INDEX idx_workflow_audit_operator (operator_id, created_at),
+                CONSTRAINT fk_workflow_audit_operator FOREIGN KEY (operator_id) REFERENCES users(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            nullptr,
         },
         {
             "user_scopes",

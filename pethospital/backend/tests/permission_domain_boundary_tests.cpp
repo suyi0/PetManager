@@ -32,6 +32,8 @@ int main()
     contains(routes, "domainBoundaryError");
     // 越域用 400（ValidationError），不用 422：Crow 1.2.x 状态码表无 422，未知码回落 500。
     contains(routes, "ResponseHelper::validation(req, message)");
-    contains(routes, "DELETE FROM user_permissions WHERE user_id = ?");
+    contains(routes, "DELETE FROM user_permissions WHERE user_id=?");
+    contains(routes, "PositionPermissionService::replacePermissions");
+    contains(routes, "EmploymentAssignmentService::assign");
     return 0;
 }

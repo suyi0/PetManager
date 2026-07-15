@@ -293,38 +293,30 @@ int main()
     assertNotContains(warehouseUpdateSection, "isValidWarehouseStaffToken(");
     assertNotContains(warehouseDeleteSection, "isValidWarehouseStaffToken(");
 
-    const std::string doctorAssignmentSection = sectionBetween(
+    // 旧医生/仓管四接口硬删；统一任职写入口 + 人事自有搜索/组织接口。
+    assertNotContains(personnelRoutes, "/api/personnel/doctor-assignments");
+    assertNotContains(personnelRoutes, "/api/personnel/doctor-removals");
+    assertNotContains(personnelRoutes, "/api/personnel/warehouse-manager-assignments");
+    assertNotContains(personnelRoutes, "/api/personnel/warehouse-manager-removals");
+    assertContains(personnelRoutes, "/api/personnel/employees/search");
+    assertContains(personnelRoutes, "/api/personnel/employees/<int>");
+    assertContains(personnelRoutes, "/api/personnel/org/departments");
+    assertContains(personnelRoutes, "/api/personnel/org/positions");
+    assertContains(personnelRoutes, "/api/personnel/employees/<int>/assignment");
+    assertContains(personnelRoutes, "PersonnelAccess::canReadEmployment");
+    assertContains(personnelRoutes, "PersonnelAccess::canPerformAssignmentAction");
+    assertContains(personnelRoutes, "PersonnelAccess::parseAssignmentAction");
+    assertContains(personnelRoutes, "isValidPersonnelToken");
+    assertContains(personnelRoutes, "regularize");
+    assertContains(personnelRoutes, "action 必填");
+    assertNotContains(personnelRoutes, "expected > 0 ? \"transfer\" : \"onboard\"");
+    const std::string assignmentSection = sectionBetween(
         personnelRoutes,
-        "CROW_ROUTE(app, \"/api/personnel/doctor-assignments\")",
-        "CROW_ROUTE(app, \"/api/personnel/doctor-removals\")");
-    const std::string doctorRemovalSection = sectionBetween(
-        personnelRoutes,
-        "CROW_ROUTE(app, \"/api/personnel/doctor-removals\")",
-        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-assignments\")");
-    const std::string warehouseManagerAssignmentSection = sectionBetween(
-        personnelRoutes,
-        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-assignments\")",
-        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-removals\")");
-    const std::string warehouseManagerRemovalSection = sectionBetween(
-        personnelRoutes,
-        "CROW_ROUTE(app, \"/api/personnel/warehouse-manager-removals\")",
+        "CROW_ROUTE(app, \"/api/personnel/employees/<int>/assignment\")",
         "routes_setup = true;");
-
-    // 派职（委任医生/仓管）= 把人派进含权限职位 = 授权，须 rbac:manage（超管独占），
-    // 不能用可委派的 staff-role:write（否则 personnel 成二级授权旁路，DESIGN §8）。
-    assertContains(doctorAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kRbacManage)");
-    assertContains(warehouseManagerAssignmentSection, "isValidPermissionToken(req, res, dbManager, Permissions::kRbacManage)");
-    assertSensitiveAudit(doctorAssignmentSection, "Permissions::kRbacManage");
-    assertSensitiveAudit(warehouseManagerAssignmentSection, "Permissions::kRbacManage");
-    // 摘除（医生/仓管降级为普通用户）= 收权，安全，保留 staff-role:write。
-    assertContains(doctorRemovalSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
-    assertContains(warehouseManagerRemovalSection, "isValidPermissionToken(req, res, dbManager, Permissions::kStaffRoleWrite)");
-    assertSensitiveAudit(doctorRemovalSection, "Permissions::kStaffRoleWrite");
-    assertSensitiveAudit(warehouseManagerRemovalSection, "Permissions::kStaffRoleWrite");
-    assertNotContains(doctorAssignmentSection, "isValidPersonnelToken(");
-    assertNotContains(doctorRemovalSection, "isValidPersonnelToken(");
-    assertNotContains(warehouseManagerAssignmentSection, "isValidPersonnelToken(");
-    assertNotContains(warehouseManagerRemovalSection, "isValidPersonnelToken(");
+    assertContains(assignmentSection, "FinishSensitiveRoute");
+    assertContains(assignmentSection, "permissionKeyForAction");
+    assertContains(assignmentSection, "action 必填");
 
     const std::string doctorOrderRecordSection = sectionBetween(
         doctorRoutes,
