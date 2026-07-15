@@ -207,6 +207,12 @@ DatabaseManager::DatabaseManager()
         std::cerr << "❌ 数据库连接发生异常: " << e.what() << std::endl;
         thread_session_.reset();
         thread_schema_.reset();
+        // 显式开启启动迁移时必须 fail closed：连接或任一 DDL/回填失败都不能
+        // 让服务带着部分 schema 继续监听请求。未开启迁移时保留原有降级启动语义。
+        if (shouldRunStartupMigrations())
+        {
+            throw;
+        }
     }
 }
 

@@ -72,6 +72,10 @@
 #error "USER_HANDLER_RESERVATION_SOURCE_PATH is required"
 #endif
 
+#ifndef DATABASE_MANAGER_SOURCE_PATH
+#error "DATABASE_MANAGER_SOURCE_PATH is required"
+#endif
+
 namespace
 {
 std::string readFile(const char *path)
@@ -121,6 +125,7 @@ int main()
     const std::string personnelHandler = readFile(PERSONNEL_HANDLER_SOURCE_PATH);
     const std::string userHandler = readFile(USER_HANDLER_SOURCE_PATH);
     const std::string userReservationHandler = readFile(USER_HANDLER_RESERVATION_SOURCE_PATH);
+    const std::string databaseManager = readFile(DATABASE_MANAGER_SOURCE_PATH);
 
     assertContains(scheduledTasks, "u.account_type = 'staff'");
     assertNotContains(scheduledTasks, "getRoleId(dbManager, \"普通用户\")");
@@ -207,6 +212,12 @@ int main()
     assertContains(financeRoutes, "auto *context = new FinanceHomeDataBroadcaster::ConnectionContext");
     assertContains(financeRoutes, "static_cast<FinanceHomeDataBroadcaster::ConnectionContext *>(conn.userdata())");
     assertContains(financeRoutes, "FinanceHomeDataBroadcaster::instance().addConnection(&conn, *context)");
+
+    // DB_AUTO_RUN_MIGRATIONS=true is an explicit startup contract: partial migrations
+    // must abort startup instead of serving requests against a half-upgraded schema.
+    assertContains(databaseManager, "if (shouldRunStartupMigrations())");
+    assertContains(databaseManager, "让服务带着部分 schema 继续监听请求");
+    assertContains(databaseManager, "throw;");
 
     return 0;
 }

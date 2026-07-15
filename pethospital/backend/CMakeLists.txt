@@ -650,6 +650,7 @@ if(BUILD_TESTING)
         PERSONNEL_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/personnel/personnelHandler.cpp"
         USER_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/user/userHandler/userHandler.cpp"
         USER_HANDLER_RESERVATION_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/user/userHandler/userHandlerReservation.cpp"
+        DATABASE_MANAGER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/DatabaseManager.cpp"
     )
     add_test(NAME rbac_runtime_migration_tests COMMAND rbac_runtime_migration_tests)
 
