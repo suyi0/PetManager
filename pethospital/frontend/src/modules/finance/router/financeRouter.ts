@@ -19,6 +19,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import("../views/pages/FinanceSalary.vue"),
       },
       {
+        path: "compensation",
+        name: "financeCompensation",
+        component: () => import("../views/pages/FinanceCompensation.vue"),
+      },
+      {
         path: "personal",
         name: "financePersonal",
         component: () =>

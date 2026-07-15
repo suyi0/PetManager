@@ -8,7 +8,7 @@
       </div>
       <div class="header-actions">
         <button class="dark-button" type="button" :disabled="!canOpenReviewCenter" @click="reviewDrawerOpen = true">复审中心</button>
-        <button class="dark-button" type="button" :disabled="!canWriteSalary" @click="openProfileDrawer">薪资标准设置</button>
+        <button class="dark-button" type="button" :disabled="!canActivateSalaryProfile" @click="openCompensationQueue">薪资激活队列</button>
         <button class="light-button" type="button" :disabled="!canSubmitReview" @click="submitReview">提交主管复审</button>
       </div>
     </header>
@@ -131,7 +131,7 @@
         <article class="check-item" :class="statusTone"><b>{{ periodStatusLabel }}</b><small>{{ statusHint }}</small></article>
         <span class="label">周期检查</span>
         <article class="check-item done"><b>✓　工资快照已生成</b><small>{{ period.employeeCount }} 名员工，版本 v{{ period.versionNo }}</small></article>
-        <article class="check-item danger"><b>!　{{ period.unconfiguredCount }} 人缺少生效薪资配置</b><small>阻断提交复审</small><button type="button" @click="profileDrawerOpen = true">处理 →</button></article>
+        <article class="check-item danger"><b>!　{{ period.unconfiguredCount }} 人缺少生效薪资配置</b><small>阻断提交复审</small><button type="button" @click="openCompensationQueue">处理 →</button></article>
         <article class="check-item warning"><b>!　{{ period.modifiedCount }} 人存在人工改动</b><small>复审时逐项查看前后值和凭证</small><button type="button" @click="modifiedFilter = 'modified'">查看 →</button></article>
         <article class="check-item neutral"><b>!　{{ period.reviewedCount }} / {{ period.employeeCount }} 已完成初审</b><small>全部 first_reviewed 后才能提交</small></article>
         <article v-if="period.returnedCount > 0" class="check-item danger"><b>!　{{ period.returnedCount }} 人被主管退回</b><small>{{ period.supervisorNote || '请按退回意见整改后重审' }}</small></article>
@@ -154,11 +154,10 @@
       </aside>
     </div>
 
-    <div v-if="editDrawerOpen || profileDrawerOpen" class="drawer-backdrop" @click.self="closeDrawers">
+    <div v-if="editDrawerOpen" class="drawer-backdrop" @click.self="closeDrawers">
       <aside class="drawer panel">
         <button class="drawer-close" type="button" @click="closeDrawers">×</button>
-        <template v-if="profileDrawerOpen"><span class="kicker">SALARY PROFILE</span><h3>薪资标准设置</h3><p>保存后只影响未来工资周期，不覆盖已有 salary 快照。</p><label>计薪方式<select v-model="profileForm.pay_type"><option value="monthly">月薪</option><option value="hourly">时薪</option></select></label><label v-if="profileForm.pay_type === 'monthly'">基础薪资<input v-model.number="profileForm.base_salary" type="number" min="0" /></label><label v-else>时效薪资 / 小时<input v-model.number="profileForm.hourly_rate" type="number" min="0" /></label><label>默认五险一金<input v-model.number="profileForm.social_insurance_housing_fund" type="number" min="0" /></label><label>生效日期<input v-model="profileForm.effective_from" type="date" /></label><button class="primary-button" type="button" :disabled="saving" @click="saveProfile">保存薪资配置</button></template>
-        <template v-else><span class="kicker">PAYROLL SNAPSHOT</span><h3>{{ selectedEmployee?.name }} · 快照编辑</h3><p>修改已有记录必须填写原因，并写入 salaryChangeRecord。</p><label>工作时间 / 月<input v-model.number="editForm.work_hours_month" type="number" min="0" /></label><label>全勤奖金<input v-model.number="editForm.attendance_award" type="number" min="0" /></label><label>绩效奖金<input v-model.number="editForm.performance_award" type="number" min="0" /></label><label>补贴<input v-model.number="editForm.allowance" type="number" min="0" /></label><label>扣款<input v-model.number="editForm.deduction" type="number" min="0" /></label><label>五险一金<input v-model.number="editForm.social_insurance_housing_fund" type="number" min="0" /></label><label>修改原因<textarea v-model.trim="editForm.change_reason" placeholder="必填：说明数据来源或凭证编号" /></label><button class="primary-button" type="button" :disabled="saving" @click="savePayrollRow">保存并记录修改</button></template>
+        <span class="kicker">PAYROLL SNAPSHOT</span><h3>{{ selectedEmployee?.name }} · 快照编辑</h3><p>修改已有记录必须填写原因，并写入 salaryChangeRecord。</p><label>工作时间 / 月<input v-model.number="editForm.work_hours_month" type="number" min="0" /></label><label>全勤奖金<input v-model.number="editForm.attendance_award" type="number" min="0" /></label><label>绩效奖金<input v-model.number="editForm.performance_award" type="number" min="0" /></label><label>补贴<input v-model.number="editForm.allowance" type="number" min="0" /></label><label>扣款<input v-model.number="editForm.deduction" type="number" min="0" /></label><label>五险一金<input v-model.number="editForm.social_insurance_housing_fund" type="number" min="0" /></label><label>修改原因<textarea v-model.trim="editForm.change_reason" placeholder="必填：说明数据来源或凭证编号" /></label><button class="primary-button" type="button" :disabled="saving" @click="savePayrollRow">保存并记录修改</button>
       </aside>
     </div>
     </template>
@@ -167,6 +166,7 @@
 
 <script lang="ts">
 import { computed, defineComponent, onMounted, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 import { useStore } from "vuex";
 import { storeKey } from "@/app/store";
 import { AppHttpError, getHttpErrorMessage } from "@/api/httpError";
@@ -181,6 +181,7 @@ export default defineComponent({
     const uiPageSize = 5;
     const fetchPageSize = uiPageSize * 2;
     const store = useStore(storeKey);
+    const router = useRouter();
     const employees = ref<SalaryEmployeeRow[]>([]);
     const currentPage = ref(1);
     const totalEmployees = ref(0);
@@ -189,7 +190,6 @@ export default defineComponent({
     const payTypeFilter = ref("all");
     const modifiedFilter = ref("all");
     const selectedEmployee = ref<SalaryEmployeeRow | null>(null);
-    const profileDrawerOpen = ref(false);
     const editDrawerOpen = ref(false);
     const reviewDrawerOpen = ref(false);
     const detailDrawerOpen = ref(false); // 侧拉明细抽屉状态
@@ -219,7 +219,6 @@ export default defineComponent({
       supervisorDecision: "",
       supervisorNote: "",
     });
-    const profileForm = reactive({ pay_type: "monthly", base_salary: 0, hourly_rate: 0, social_insurance_housing_fund: 0, effective_from: new Date().toISOString().slice(0, 10) });
     const editForm = reactive({ work_hours_month: 0, attendance_award: 0, performance_award: 0, allowance: 0, deduction: 0, social_insurance_housing_fund: 0, change_reason: "" });
     const periodLabel = computed(() => new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long" }));
     const periodStatusLabel = computed(() => ({
@@ -250,6 +249,7 @@ export default defineComponent({
     const hasPermission = (permission: string) => store.state.auth.permissions.includes(permission);
     const canReadSalary = computed(() => hasPermission("salary:read"));
     const canWriteSalary = computed(() => hasPermission("salary:write"));
+    const canActivateSalaryProfile = computed(() => hasPermission("salary-profile:activate"));
     const canReviewSalary = computed(() => hasPermission("salary:review"));
     const canSubmitReviewPermission = computed(() => hasPermission("salary:submit-review"));
     const canSupervisorReview = computed(() => hasPermission("salary:supervisor-review"));
@@ -326,17 +326,9 @@ export default defineComponent({
       editDrawerOpen.value = true;
     };
 
-    const openProfileDrawer = async () => {
-      if (!selectedEmployee.value) return;
-      profileDrawerOpen.value = true;
-      try {
-        const profile = await financeApi.getSalaryProfile(selectedEmployee.value.id);
-        if (profile) Object.assign(profileForm, profile);
-      } catch { /* 新员工尚未配置时保留空表单 */ }
-    };
+    const openCompensationQueue = () => void router.push("/finance/compensation");
 
     const closeDrawers = () => {
-      profileDrawerOpen.value = false;
       editDrawerOpen.value = false;
       reviewDrawerOpen.value = false;
       detailDrawerOpen.value = false;
@@ -386,7 +378,6 @@ export default defineComponent({
       actionError.value = message;
     };
     const goToPage = (page: number) => { if (page >= 1 && page <= totalPages.value) void loadEmployees(page); };
-    const saveProfile = async () => { if (!selectedEmployee.value) return; saving.value = true; try { await financeApi.saveSalaryProfile({ userId: selectedEmployee.value.id, ...profileForm, pay_type: profileForm.pay_type as "monthly" | "hourly" }); await refreshEmployees(); closeDrawers(); } finally { saving.value = false; } };
     const savePayrollRow = async () => { if (!selectedEmployee.value || !editForm.change_reason) return; saving.value = true; actionError.value = ""; try { await financeApi.updatePayrollRow(selectedEmployee.value.id, editForm); await refreshEmployees(); closeDrawers(); } catch (error) { await refreshAfterConflict(error); } finally { saving.value = false; } };
     const reviewSelected = async () => { if (!selectedEmployee.value) return; saving.value = true; actionError.value = ""; try { await financeApi.reviewPayrollEmployee(selectedEmployee.value.id); await refreshEmployees(); } catch (error) { await refreshAfterConflict(error); } finally { saving.value = false; } };
     const reviewSelectedAndClose = async () => { if (!selectedEmployee.value) return; saving.value = true; actionError.value = ""; try { await financeApi.reviewPayrollEmployee(selectedEmployee.value.id); await refreshEmployees(); detailDrawerOpen.value = false; } catch (error) { await refreshAfterConflict(error); } finally { saving.value = false; } };
@@ -470,13 +461,13 @@ export default defineComponent({
       employees, visibleEmployees, selectedEmployee, keywordInput, payTypeFilter, modifiedFilter, period, reviewNote,
       supervisorNote, returnAll, actionError, periodLabel, periodStatusLabel, statusTone, statusHint, workflowSteps, summaryMetrics,
       canSubmitReview, canSubmitReviewPermission, canSupervisorReview, canOpenReviewCenter, canEditSnapshot,
-      canReadSalary, canWriteSalary, canReviewSalary, canLockSalary, canCreateRevision,
-      profileDrawerOpen, editDrawerOpen, reviewDrawerOpen, detailDrawerOpen, summaryComfortable,
-      showHistory, history, historyLoading, historyError, saving, profileForm, editForm,
+      canReadSalary, canWriteSalary, canActivateSalaryProfile, canReviewSalary, canLockSalary, canCreateRevision,
+      editDrawerOpen, reviewDrawerOpen, detailDrawerOpen, summaryComfortable,
+      showHistory, history, historyLoading, historyError, saving, editForm,
       money, brief, additions, deductions, standardLabel, reviewStatusLabel, formula,
-      selectEmployee, toggleHistory, reviewSelected, reviewSelectedAndClose, openEditDrawer, openProfileDrawer, closeDrawers,
+      selectEmployee, toggleHistory, reviewSelected, reviewSelectedAndClose, openEditDrawer, openCompensationQueue, closeDrawers,
       loadEmployees, refreshEmployees, goToPage, currentPage, totalPages, totalEmployees, uiPageSize,
-      saveProfile, savePayrollRow, submitReview, approvePeriod, returnPeriod, lockPeriod, createRevision, printPreview, printEmployee,
+      savePayrollRow, submitReview, approvePeriod, returnPeriod, lockPeriod, createRevision, printPreview, printEmployee,
     };
   },
 });

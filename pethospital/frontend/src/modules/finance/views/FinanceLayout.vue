@@ -25,6 +25,20 @@
           </svg>
           工资管理
         </RouterLink>
+        <RouterLink class="saas-nav__item" :to="`${routePrefix}/compensation`">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M20 7h-9" />
+            <path d="M14 17H5" />
+            <circle cx="17" cy="17" r="3" />
+            <circle cx="7" cy="7" r="3" />
+          </svg>
+          薪资配置激活
+        </RouterLink>
       </nav>
 
       <button
@@ -76,7 +90,8 @@ export default defineComponent({
   setup() {
     const store = useStore(storeKey);
     const router = useRouter();
-    const { showBossReturn, returnLabel, returnToBossPortal } = useBossPortalReturn(router);
+    const { showBossReturn, returnLabel, returnToBossPortal } =
+      useBossPortalReturn(router);
 
     onMounted(() => {
       startFinanceSessionGuard(store, router);

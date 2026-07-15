@@ -22,6 +22,20 @@
           </svg>
           股份概览
         </RouterLink>
+        <RouterLink class="saas-nav__item" :to="`${routePrefix}/approvals`">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M9 11l3 3L22 4" />
+            <path
+              d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"
+            />
+          </svg>
+          任职与薪酬审批
+        </RouterLink>
       </nav>
 
       <section class="switcher">
@@ -114,7 +128,7 @@ export default defineComponent({
       {
         key: "personnel",
         label: "进入人事端",
-        hint: "打开权限授予与岗位管理界面",
+        hint: "打开任职派岗、生命周期与薪酬交接界面",
         userType: 5,
         userRole: "人事经理",
         path: "/personnel/access",

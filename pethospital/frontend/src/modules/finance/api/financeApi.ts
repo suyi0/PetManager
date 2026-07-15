@@ -1,5 +1,14 @@
 import http from "@/api/http";
 import { unwrapList } from "@/api/response";
+import { unwrapPagedList } from "@/shared/utils/pagedList";
+import {
+  CompensationProposal,
+  WorkflowPage,
+} from "@/shared/types/employmentWorkflow";
+import {
+  normalizeCompensationProposal,
+  workflowPayloadOf,
+} from "@/shared/utils/employmentWorkflow";
 import {
   ChangeSalaryPayload,
   FinanceHomeData,
@@ -144,7 +153,9 @@ export const financeApi = {
             reviewNote: payload.period.reviewNote ?? "",
             submittedBy: Number(payload.period.submittedBy ?? 0),
             submittedAt: payload.period.submittedAt ?? "",
-            supervisorReviewedBy: Number(payload.period.supervisorReviewedBy ?? 0),
+            supervisorReviewedBy: Number(
+              payload.period.supervisorReviewedBy ?? 0
+            ),
             supervisorReviewedAt: payload.period.supervisorReviewedAt ?? "",
             supervisorDecision: payload.period.supervisorDecision ?? "",
             supervisorNote: payload.period.supervisorNote ?? "",
@@ -219,42 +230,98 @@ export const financeApi = {
     });
   },
 
-  async saveSalaryProfile(payload: SalaryProfilePayload): Promise<void> {
-    await http.post(`/api/finance/employees/${payload.userId}/salary-profile`, payload);
-  },
-
   async getSalaryProfile(userId: number): Promise<SalaryProfilePayload | null> {
-    const { data } = await http.get(`/api/finance/employees/${userId}/salary-profile`);
+    const { data } = await http.get(
+      `/api/finance/employees/${userId}/salary-profile`
+    );
     const payload = data?.data ?? data;
     if (!payload) return null;
     return {
       userId,
       pay_type: payload.pay_type === "hourly" ? "hourly" : "monthly",
-      base_salary: payload.base_salary == null ? null : Number(payload.base_salary),
-      hourly_rate: payload.hourly_rate == null ? null : Number(payload.hourly_rate),
-      social_insurance_housing_fund: Number(payload.social_insurance_housing_fund ?? 0),
-      effective_from: payload.effective_from ?? new Date().toISOString().slice(0, 10),
+      base_salary:
+        payload.base_salary == null ? null : Number(payload.base_salary),
+      hourly_rate:
+        payload.hourly_rate == null ? null : Number(payload.hourly_rate),
+      social_insurance_housing_fund: Number(
+        payload.social_insurance_housing_fund ?? 0
+      ),
+      effective_from:
+        payload.effective_from ?? new Date().toISOString().slice(0, 10),
     };
   },
 
-  async updatePayrollRow(userId: number, payload: PayrollRowPayload): Promise<void> {
+  async listCompensationActivations(
+    params: {
+      status?: string;
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<WorkflowPage<CompensationProposal>> {
+    const fallback = {
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 50,
+    };
+    const { data } = await http.get("/api/finance/compensation-activations", {
+      params: { status: params.status ?? "management_approved", ...fallback },
+    });
+    const page = unwrapPagedList<unknown>(data, fallback);
+    return { ...page, items: page.items.map(normalizeCompensationProposal) };
+  },
+
+  async confirmCompensationActivation(
+    proposalId: number,
+    expectedRowVersion: number,
+    reason: string
+  ): Promise<CompensationProposal> {
+    const { data } = await http.post(
+      `/api/finance/compensation-activations/${proposalId}/confirm`,
+      { expectedRowVersion, reason }
+    );
+    return normalizeCompensationProposal(workflowPayloadOf(data));
+  },
+
+  async returnCompensationActivation(
+    proposalId: number,
+    expectedRowVersion: number,
+    reason: string
+  ): Promise<CompensationProposal> {
+    const { data } = await http.post(
+      `/api/finance/compensation-activations/${proposalId}/return`,
+      { expectedRowVersion, reason }
+    );
+    return normalizeCompensationProposal(workflowPayloadOf(data));
+  },
+
+  async updatePayrollRow(
+    userId: number,
+    payload: PayrollRowPayload
+  ): Promise<void> {
     await http.post(`/api/finance/employee-salaries/${userId}`, payload);
   },
 
-  async getSalaryChangeHistory(salaryId: number): Promise<SalaryChangeRecord[]> {
-    const { data } = await http.get(`/api/finance/salary-records/${salaryId}/change-history`);
+  async getSalaryChangeHistory(
+    salaryId: number
+  ): Promise<SalaryChangeRecord[]> {
+    const { data } = await http.get(
+      `/api/finance/salary-records/${salaryId}/change-history`
+    );
     const payload = data?.data ?? data;
     return unwrapList<SalaryChangeRecord>(payload?.items);
   },
 
   async reviewPayrollEmployee(userId: number): Promise<void> {
-    await http.post(`/api/finance/payroll-periods/current/employees/${userId}/first-review`);
+    await http.post(
+      `/api/finance/payroll-periods/current/employees/${userId}/first-review`
+    );
   },
 
-  async submitPayrollReview(payload: {
-    reviewNote?: string;
-    expectedRowVersion?: number;
-  } = {}): Promise<void> {
+  async submitPayrollReview(
+    payload: {
+      reviewNote?: string;
+      expectedRowVersion?: number;
+    } = {}
+  ): Promise<void> {
     await http.post("/api/finance/payroll-periods/current/submit-review", {
       reviewNote: payload.reviewNote ?? "",
       expectedRowVersion: payload.expectedRowVersion,
@@ -268,7 +335,10 @@ export const financeApi = {
     returnAll?: boolean;
     expectedRowVersion?: number;
   }): Promise<void> {
-    await http.post("/api/finance/payroll-periods/current/supervisor-review", payload);
+    await http.post(
+      "/api/finance/payroll-periods/current/supervisor-review",
+      payload
+    );
   },
 
   async lockPayroll(expectedRowVersion?: number): Promise<void> {
@@ -282,7 +352,9 @@ export const financeApi = {
   },
 
   async getPayrollAuditEvents(): Promise<PayrollAuditEvent[]> {
-    const { data } = await http.get("/api/finance/payroll-periods/current/audit-events");
+    const { data } = await http.get(
+      "/api/finance/payroll-periods/current/audit-events"
+    );
     const payload = data?.data ?? data;
     return unwrapList<PayrollAuditEvent>(payload?.items);
   },

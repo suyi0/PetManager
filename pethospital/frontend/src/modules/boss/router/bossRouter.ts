@@ -19,6 +19,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import("../views/pages/BossOverview.vue"),
       },
       {
+        path: "approvals",
+        name: "bossApprovals",
+        component: () => import("../views/pages/BossApprovals.vue"),
+      },
+      {
         path: "personal",
         name: "bossPersonal",
         component: () =>
