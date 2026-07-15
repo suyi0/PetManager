@@ -245,5 +245,107 @@ void personnelRoutes::setupPersonnelRoutes(CrowApp &app, std::shared_ptr<Databas
                                                       userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
+    // v6: POST /api/personnel/employees/<int>/regularization（无 -requests 别名）
+    CROW_ROUTE(app, "/api/personnel/employees/<int>/regularization")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int employeeId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPersonnelToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "人事", "转正");
+                        return;
+                    }
+                    if (!PersonnelAccess::canPerformAssignmentAction(
+                            dbManager, userId, PersonnelAccess::AssignmentAction::Regularize))
+                    {
+                        res = ResponseHelper::permission_denied(req, "缺少转正权限");
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "人事", "转正");
+                        OperationLogger::FinishSensitiveRoute(
+                            dbManager, req, res, "人事", "转正",
+                            Permissions::kEmploymentRegularize, userId);
+                        return;
+                    }
+
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (!jsonOpt)
+                    {
+                        // 由 FinishSensitiveRoute 收尾
+                    }
+                    else
+                    {
+                        personnelHandler handler(dbManager);
+                        crow::response response =
+                            handler.createRegularization(req, userId, employeeId, *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "人事", "转正", "route exception",
+                                                           userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "人事", "转正",
+                    Permissions::kEmploymentRegularize,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    // v6: POST /api/personnel/employees/<int>/offboarding（无 -requests 别名）
+    CROW_ROUTE(app, "/api/personnel/employees/<int>/offboarding")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int employeeId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPersonnelToken(req, res, dbManager);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "人事", "离职");
+                        return;
+                    }
+                    if (!PersonnelAccess::canPerformAssignmentAction(
+                            dbManager, userId, PersonnelAccess::AssignmentAction::Offboard))
+                    {
+                        res = ResponseHelper::permission_denied(req, "缺少离职权限");
+                        OperationLogger::FinishAuthorizationFailure(dbManager, req, res, "人事", "离职");
+                        OperationLogger::FinishSensitiveRoute(
+                            dbManager, req, res, "人事", "离职",
+                            Permissions::kEmploymentOffboard, userId);
+                        return;
+                    }
+
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (!jsonOpt)
+                    {
+                        // 由 FinishSensitiveRoute 收尾
+                    }
+                    else
+                    {
+                        personnelHandler handler(dbManager);
+                        crow::response response =
+                            handler.createOffboarding(req, userId, employeeId, *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(dbManager, req, "人事", "离职", "route exception",
+                                                           userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "人事", "离职",
+                    Permissions::kEmploymentOffboard,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
     routes_setup = true;
 }

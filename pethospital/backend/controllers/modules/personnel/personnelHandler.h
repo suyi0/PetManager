@@ -21,6 +21,9 @@ public:
     crow::response listDepartments(const crow::request &req, int operatorUserId);
     crow::response listPositions(const crow::request &req, int operatorUserId, const nlohmann::json &query);
     crow::response updateEmployeeAssignment(const crow::request &req, int operatorUserId, int employeeId, const nlohmann::json &body);
+    // v6: POST .../regularization、.../offboarding
+    crow::response createRegularization(const crow::request &req, int operatorUserId, int employeeId, const nlohmann::json &body);
+    crow::response createOffboarding(const crow::request &req, int operatorUserId, int employeeId, const nlohmann::json &body);
 };
 
 #endif

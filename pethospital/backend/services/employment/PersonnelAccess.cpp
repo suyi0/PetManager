@@ -34,6 +34,7 @@ bool parseAssignmentAction(const std::string &action, AssignmentAction &out)
         out = AssignmentAction::Offboard;
         return true;
     }
+    // regularize 不进入 assignment PUT
     return false;
 }
 
@@ -49,6 +50,8 @@ const char *permissionKeyForAction(AssignmentAction action)
         return Permissions::kEmploymentAssign;
     case AssignmentAction::Offboard:
         return Permissions::kEmploymentOffboard;
+    case AssignmentAction::Regularize:
+        return Permissions::kEmploymentRegularize;
     }
     return Permissions::kEmploymentRead;
 }

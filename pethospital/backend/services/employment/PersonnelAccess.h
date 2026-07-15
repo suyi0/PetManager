@@ -17,10 +17,11 @@ enum class AssignmentAction
     Onboard,
     Transfer,
     Offboard,
+    Regularize,
 };
 
 // 将 HTTP action 字符串映射到动作；未知返回 false。
-// regularize 不在本接口；调用方应拒绝。
+// regularize 不在 assignment PUT 接口；parse 时拒绝，走独立 regularization 路由。
 bool parseAssignmentAction(const std::string &action, AssignmentAction &out);
 
 const char *permissionKeyForAction(AssignmentAction action);

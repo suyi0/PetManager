@@ -1,6 +1,8 @@
 #include <cmath>
 #include <vector>
 #include "bossHandler.h"
+#include "../../../services/employment/EmploymentAssignmentService.h"
+#include "../../../utils/requestUtils/RequestUtils.h"
 
 namespace
 {
@@ -401,6 +403,180 @@ crow::response bossHandler::getStock(const crow::request &req)
         response["dividendStocks"] = buildStockDistribution(*session, kDividendShareType);
 
         return ResponseHelper::success(req, response);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+namespace
+{
+crow::response decisionResultToResponse(
+    const crow::request &req,
+    const EmploymentAssignmentService::DecisionResult &result)
+{
+    if (!result.ok)
+    {
+        if (result.httpStatus == 404)
+        {
+            return ResponseHelper::notFound(req, result.message);
+        }
+        if (result.httpStatus == 403)
+        {
+            return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+        }
+        if (result.httpStatus == 409)
+        {
+            return ResponseHelper::fail(
+                req, 409, ResponseCode::BusinessConflict, result.message,
+                ResponseErrorType::BusinessConflict,
+                result.errorCode.empty() ? result.message : result.errorCode);
+        }
+        if (result.httpStatus >= 500)
+        {
+            return ResponseHelper::system_error(req, result.message);
+        }
+        return ResponseHelper::validation(req, result.message);
+    }
+
+    return ResponseHelper::success(req, {
+        {"request_id", result.requestId},
+        {"employment_id", result.employmentId},
+        {"assignment_status", result.assignmentStatus},
+        {"action", result.decisionAction},
+        {"message", result.message},
+    });
+}
+}
+
+crow::response bossHandler::listEmploymentAssignmentApprovals(
+    const crow::request &req,
+    int operatorUserId)
+{
+    try
+    {
+        EmploymentAssignmentService::ListRequestsQuery query;
+        query.operatorUserId = operatorUserId;
+
+        if (const char *status = req.url_params.get("status"))
+        {
+            query.status = status;
+        }
+        int page = 1;
+        int pageSize = 20;
+        if (const char *pageRaw = req.url_params.get("page"))
+        {
+            try
+            {
+                page = std::stoi(pageRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        if (const char *sizeRaw = req.url_params.get("pageSize"))
+        {
+            try
+            {
+                pageSize = std::stoi(sizeRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        query.page = RequestUtils::normalizePage(page);
+        query.pageSize = RequestUtils::normalizePageSize(pageSize, 20, 100);
+
+        const auto result = EmploymentAssignmentService::listRequests(dbManager, query);
+        if (!result.ok)
+        {
+            if (result.httpStatus == 403)
+            {
+                return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+            }
+            if (result.httpStatus >= 500)
+            {
+                return ResponseHelper::system_error(req, result.message);
+            }
+            return ResponseHelper::validation(req, result.message);
+        }
+
+        return ResponseHelper::success(req, {
+            {"items", result.items},
+            {"total", result.total},
+            {"page", result.page},
+            {"pageSize", result.pageSize},
+        });
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response bossHandler::decideEmploymentAssignmentApproval(
+    const crow::request &req,
+    int operatorUserId,
+    long long requestId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (requestId <= 0)
+        {
+            return ResponseHelper::notFound(req, "申请不存在");
+        }
+
+        // decision body 必须显式包含 action=approve|reject、reason、expectedRowVersion；
+        // 不得从字段缺失或布尔值推断。
+        if (!body.contains("action") || body["action"].is_null() ||
+            (body["action"].is_string() && body["action"].get<std::string>().empty()))
+        {
+            return ResponseHelper::validation(req, "action 必填");
+        }
+        if (!body["action"].is_string())
+        {
+            return ResponseHelper::validation(req, "action 取值不合法");
+        }
+        const std::string actionStr = body["action"].get<std::string>();
+
+        EmploymentAssignmentService::DecisionRequest decisionReq;
+        decisionReq.operatorUserId = operatorUserId;
+        decisionReq.requestId = requestId;
+        if (actionStr == "approve")
+        {
+            decisionReq.action = EmploymentAssignmentService::DecisionAction::Approve;
+        }
+        else if (actionStr == "reject")
+        {
+            decisionReq.action = EmploymentAssignmentService::DecisionAction::Reject;
+        }
+        else
+        {
+            // 未知动作 fail closed
+            return ResponseHelper::validation(req, "action 取值不合法");
+        }
+
+        decisionReq.reason = RequestUtils::getJsonString(body, "reason");
+        if (decisionReq.reason.empty())
+        {
+            return ResponseHelper::validation(req, "reason 不能为空");
+        }
+
+        if (!body.contains("expectedRowVersion") || body["expectedRowVersion"].is_null())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必填");
+        }
+        if (!body["expectedRowVersion"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必须是整数");
+        }
+        decisionReq.expectedRowVersion = body["expectedRowVersion"].get<int>();
+        decisionReq.hasExpectedRowVersion = true;
+
+        const auto result = EmploymentAssignmentService::decide(dbManager, decisionReq);
+        return decisionResultToResponse(req, result);
     }
     catch (const std::exception &e)
     {

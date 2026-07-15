@@ -651,3 +651,124 @@ crow::response personnelHandler::updateEmployeeAssignment(
         return ResponseHelper::system_error(req, e.what());
     }
 }
+
+namespace
+{
+// 转正/离职共用：校验 expected_current_position_id + reason，解析可选 break_glass。
+bool parseLifecycleRequestBody(
+    const crow::request &req,
+    const nlohmann::json &body,
+    EmploymentAssignmentService::AssignRequest &assignReq,
+    crow::response &errorOut)
+{
+    assignReq.reason = getJsonString(body, "reason");
+    if (assignReq.reason.empty())
+    {
+        errorOut = ResponseHelper::validation(req, "reason 不能为空");
+        return false;
+    }
+    assignReq.effectiveFrom = getJsonString(body, "effective_from");
+
+    if (!body.contains("expected_current_position_id") || body["expected_current_position_id"].is_null())
+    {
+        errorOut = ResponseHelper::validation(req, "expected_current_position_id 必填");
+        return false;
+    }
+    if (!body["expected_current_position_id"].is_number_integer())
+    {
+        errorOut = ResponseHelper::validation(req, "expected_current_position_id 必须是整数");
+        return false;
+    }
+    assignReq.expectedCurrentPositionId = body["expected_current_position_id"].get<int>();
+    assignReq.hasExpectedCurrentPosition = true;
+
+    // 显式 break-glass：action 必须为 "break_glass"；缺省/未知 fail closed 为普通审批流。
+    if (body.contains("action") && !body["action"].is_null())
+    {
+        if (!body["action"].is_string())
+        {
+            errorOut = ResponseHelper::validation(req, "action 取值不合法");
+            return false;
+        }
+        const std::string actionStr = body["action"].get<std::string>();
+        if (actionStr == "break_glass")
+        {
+            assignReq.explicitBreakGlass = true;
+        }
+        else if (!actionStr.empty())
+        {
+            errorOut = ResponseHelper::validation(req, "action 取值不合法");
+            return false;
+        }
+    }
+    return true;
+}
+}
+
+crow::response personnelHandler::createRegularization(
+    const crow::request &req,
+    int operatorUserId,
+    int employeeId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (employeeId <= 0)
+        {
+            return ResponseHelper::notFound(req, "用户不存在");
+        }
+
+        EmploymentAssignmentService::AssignRequest assignReq;
+        assignReq.operatorUserId = operatorUserId;
+        assignReq.targetUserId = employeeId;
+        assignReq.mode = EmploymentAssignmentService::ActorMode::Personnel;
+        assignReq.action = EmploymentAssignmentService::Action::Regularize;
+
+        crow::response err;
+        if (!parseLifecycleRequestBody(req, body, assignReq, err))
+        {
+            return err;
+        }
+
+        const auto result = EmploymentAssignmentService::assign(dbManager, assignReq);
+        return assignmentResultToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response personnelHandler::createOffboarding(
+    const crow::request &req,
+    int operatorUserId,
+    int employeeId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (employeeId <= 0)
+        {
+            return ResponseHelper::notFound(req, "用户不存在");
+        }
+
+        EmploymentAssignmentService::AssignRequest assignReq;
+        assignReq.operatorUserId = operatorUserId;
+        assignReq.targetUserId = employeeId;
+        assignReq.mode = EmploymentAssignmentService::ActorMode::Personnel;
+        assignReq.action = EmploymentAssignmentService::Action::Offboard;
+
+        crow::response err;
+        if (!parseLifecycleRequestBody(req, body, assignReq, err))
+        {
+            return err;
+        }
+
+        const auto result = EmploymentAssignmentService::assign(dbManager, assignReq);
+        return assignmentResultToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}

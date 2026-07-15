@@ -822,6 +822,8 @@ crow::response updateUserPosition(
     {
         return ResponseHelper::validation(req, "reason 不能为空");
     }
+    // Admin 任职入口即 break-glass 直派（仍须 rbac:manage + reason）。
+    assignReq.explicitBreakGlass = true;
     assignReq.effectiveFrom = jsonString(body, "effective_from");
 
     if (!body.contains("expected_current_position_id") ||

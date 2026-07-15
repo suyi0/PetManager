@@ -590,6 +590,9 @@ if(BUILD_TESTING)
         PERSONNEL_ACCESS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/employment/PersonnelAccess.cpp"
         EMPLOYMENT_OUTBOX_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/employment/EmploymentOutboxDispatcher.cpp"
         DATABASE_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/DatabaseMigrations.cpp"
+        BOSS_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/bossRoutes/bossRoutes.cpp"
+        BOSS_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/boss/bossHandler.cpp"
+        ADMIN_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/adminRoutes/adminRoutes.cpp"
     )
     add_test(NAME employment_assignment_contract_tests COMMAND employment_assignment_contract_tests)
 

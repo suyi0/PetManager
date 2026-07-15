@@ -22,6 +22,15 @@ bool applyPayload(
     const std::string &eventType,
     const nlohmann::json &payload)
 {
+    // 副作用门控只认显式布尔 side_effects_required。
+    // pending/reject 写 false；effective 写 true。禁止再按 assignment_status/decision 字符串推断。
+    // 缺省 true：主干/升级前生成的有效 payload 无此字段，须继续执行 AccessRevocation/DevicePersonSync；
+    // 仅新 pending/reject 显式 false 才跳过副作用。
+    if (!payload.value("side_effects_required", true))
+    {
+        return true;
+    }
+
     AccessRevocation::onUserAccessChanged(userId);
 
     const bool separated = eventType == "employment_separated" ||
