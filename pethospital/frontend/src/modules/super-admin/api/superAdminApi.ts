@@ -439,9 +439,23 @@ export const superAdminApi = {
     );
   },
 
-  async updateUserPosition(userId: number, positionId: number | null) {
+  async updateUserPosition(
+    userId: number,
+    positionId: number | null,
+    options: {
+      expectedCurrentPositionId: number | null;
+      reason: string;
+      effectiveFrom?: string;
+    }
+  ) {
+    // 与 EmploymentAssignmentService 统一入口契约对齐：缺 reason / expected 会 400。
     await http.put(`/api/admin/users/${userId}/position`, {
       position_id: positionId,
+      expected_current_position_id: options.expectedCurrentPositionId,
+      reason: options.reason,
+      ...(options.effectiveFrom
+        ? { effective_from: options.effectiveFrom }
+        : {}),
     });
   },
 

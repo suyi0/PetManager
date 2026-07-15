@@ -661,25 +661,37 @@ crow::response updatePositionPermissions(const crow::request &req, const std::sh
 
 crow::response getUserPermissions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager, int userId)
 {
+    // LEFT JOIN：普通用户尚未派岗时仍可加载个人授权页，不能误报“用户不存在”。
     mysqlx::Row user = dbManager->getSession()->sql(
-        "SELECT u.position_id, p.name, COALESCE(d.name, '') FROM users u "
-        "JOIN positions p ON p.id=u.position_id LEFT JOIN departments d ON d.id=p.department_id "
+        "SELECT u.position_id, COALESCE(p.name, ''), COALESCE(d.name, '') FROM users u "
+        "LEFT JOIN positions p ON p.id=u.position_id LEFT JOIN departments d ON d.id=p.department_id "
         "WHERE u.id=? AND u.is_deleted=0 LIMIT 1").bind(userId).execute().fetchOne();
     if (!user) return ResponseHelper::notFound(req, "用户不存在");
-    const int positionId = user[0].get<int>();
-    nlohmann::json positionPermissions = RbacService::loadPermissionsForPosition(dbManager, positionId);
+    const int positionId = user[0].isNull() ? 0 : user[0].get<int>();
+    nlohmann::json positionPermissions = nlohmann::json::array();
+    if (positionId > 0)
+    {
+        positionPermissions = RbacService::loadPermissionsForPosition(dbManager, positionId);
+    }
     nlohmann::json personalPermissions = nlohmann::json::array();
     mysqlx::SqlResult personal = dbManager->getSession()->sql(
         "SELECT permission_key FROM user_permissions WHERE user_id=? ORDER BY permission_key").bind(userId).execute();
     for (mysqlx::Row row = personal.fetchOne(); row; row = personal.fetchOne())
         if (!row[0].isNull() && Permissions::isKnownPermissionKey(row[0].get<std::string>())) personalPermissions.push_back(row[0].get<std::string>());
     nlohmann::json grantableKeys = nlohmann::json::array();
-    const auto allowed = RbacService::allowedDomainsForPosition(dbManager, positionId);
-    for (const auto &key : Permissions::grantablePermissionKeys())
-        if (allowed.count(Permissions::domainOfPermission(key))) grantableKeys.push_back(key);
-    return ResponseHelper::success(req, {{"positionId", positionId}, {"positionName", user[1].get<std::string>()},
-        {"departmentName", user[2].get<std::string>()}, {"positionPermissions", positionPermissions},
-        {"personalPermissions", personalPermissions}, {"grantableKeys", grantableKeys}});
+    if (positionId > 0)
+    {
+        const auto allowed = RbacService::allowedDomainsForPosition(dbManager, positionId);
+        for (const auto &key : Permissions::grantablePermissionKeys())
+            if (allowed.count(Permissions::domainOfPermission(key))) grantableKeys.push_back(key);
+    }
+    return ResponseHelper::success(req, {
+        {"positionId", positionId > 0 ? nlohmann::json(positionId) : nlohmann::json(nullptr)},
+        {"positionName", user[1].get<std::string>()},
+        {"departmentName", user[2].get<std::string>()},
+        {"positionPermissions", positionPermissions},
+        {"personalPermissions", personalPermissions},
+        {"grantableKeys", grantableKeys}});
 }
 
 crow::response updateUserPermissions(const crow::request &req, const std::shared_ptr<DatabaseManagerInterface> &dbManager,

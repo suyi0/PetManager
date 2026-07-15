@@ -115,6 +115,10 @@ int main()
     assertContains(migrations, "employment_separated");
     assertContains(migrations, "\"employment_workflow_audit\"");
     assertContains(migrations, "CREATE TABLE employment_workflow_audit");
+    assertContains(migrations, "ensureWorkflowAuditImmutability");
+    assertContains(migrations, "trg_workflow_audit_no_update");
+    assertContains(migrations, "trg_workflow_audit_no_delete");
+    assertContains(migrations, "SIGNAL SQLSTATE '45000'");
     assertContains(migrations, "Legacy employment import");
 
     assertContains(migrations, "\"position_permissions\"");

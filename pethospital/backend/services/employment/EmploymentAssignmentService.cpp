@@ -150,8 +150,9 @@ void ensureDoctorOnlineRow(mysqlx::Session &session, int userId)
                                      .execute();
     if (existing.count() == 0)
     {
+        // onlineDoctors.check_in_time/check_out_time 为 NOT NULL；入职初始化只建离线占位行。
         session.sql("INSERT INTO onlineDoctors (doctor_id, date, check_in_time, check_out_time, status) "
-                    "VALUES (?, ?, NULL, NULL, 'offline')")
+                    "VALUES (?, ?, '00:00:00', '00:00:00', 'offline')")
             .bind(userId, todayDate)
             .execute();
     }

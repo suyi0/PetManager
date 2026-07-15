@@ -55,6 +55,33 @@ namespace
         std::cout << table << "." << column << " role snapshot column aligned." << std::endl;
     }
 
+    void ensureWorkflowAuditImmutability(DatabaseManagerInterface &, mysqlx::Session &session)
+    {
+        const auto ensureTrigger = [&](const std::string &triggerName, const std::string &event,
+                                       const std::string &message)
+        {
+            auto existing = session.sql(
+                "SELECT TRIGGER_NAME FROM information_schema.TRIGGERS "
+                "WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = ?")
+                .bind(triggerName)
+                .execute();
+            if (existing.fetchOne())
+            {
+                return;
+            }
+
+            session.sql("CREATE TRIGGER " + triggerName + " BEFORE " + event +
+                        " ON employment_workflow_audit FOR EACH ROW "
+                        "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '" + message + "'")
+                .execute();
+        };
+
+        ensureTrigger("trg_workflow_audit_no_update", "UPDATE",
+                      "employment_workflow_audit is append-only");
+        ensureTrigger("trg_workflow_audit_no_delete", "DELETE",
+                      "employment_workflow_audit is append-only");
+    }
+
     struct TableSpec
     {
         const char *name;
@@ -1156,8 +1183,8 @@ namespace
                 INDEX idx_workflow_audit_operator (operator_id, created_at),
                 CONSTRAINT fk_workflow_audit_operator FOREIGN KEY (operator_id) REFERENCES users(id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
-            nullptr,
-            nullptr,
+            ensureWorkflowAuditImmutability,
+            ensureWorkflowAuditImmutability,
         },
         {
             "user_scopes",
