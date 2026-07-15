@@ -1,11 +1,13 @@
 #include "personnelHandler.h"
 #include "../user/userPhoneSync/userPhoneSync.h"
+#include "../../../services/employment/CompensationWorkflowService.h"
 #include "../../../services/employment/EmploymentAssignmentService.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/rbac/RbacService.h"
 #include "../../../utils/permissions/Permissions.h"
 #include "../../../utils/requestUtils/RequestUtils.h"
 
+#include <optional>
 #include <sstream>
 
 namespace
@@ -314,17 +316,21 @@ crow::response personnelHandler::searchEmployees(
 
         const std::string hideHigh = highPrivilegeExcludeSql("u", "pos");
 
+        // employment 1:1 by user_id；仅元数据，不含任何薪资字段。
         auto listQuery = dbManager->getSession()
                              ->sql(std::string(
                                        "SELECT u.id, COALESCE(u.position_id, 0), "
                                        "CASE WHEN u.account_type = 'customer' THEN '普通用户' ELSE COALESCE(pos.name, '') END, "
                                        "u.name, ph.phone, u.email, "
                                        "COALESCE(pos.staff_kind, ''), COALESCE(pos.assignment_policy, ''), "
-                                       "COALESCE(d.name, ''), COALESCE(u.account_type, '') "
+                                       "COALESCE(d.name, ''), COALESCE(u.account_type, ''), "
+                                       "e.id, COALESCE(e.status, ''), e.row_version, "
+                                       "CAST(e.hire_date AS CHAR), COALESCE(e.probation_waived, 0) "
                                        "FROM users u "
                                        "LEFT JOIN positions pos ON pos.id = u.position_id "
                                        "LEFT JOIN departments d ON d.id = pos.department_id "
                                        "LEFT JOIN phones ph ON ph.user_id = u.id "
+                                       "LEFT JOIN employment e ON e.user_id = u.id "
                                        "WHERE 1=1 ") +
                                    hideHigh + scopeFilter +
                                    " AND (? = '' OR COALESCE(u.name, '') LIKE ? OR COALESCE(ph.phone, '') LIKE ? "
@@ -361,6 +367,13 @@ crow::response personnelHandler::searchEmployees(
                 {"assignment_policy", row[7].isNull() ? "" : row[7].get<std::string>()},
                 {"department_name", row[8].isNull() ? "" : row[8].get<std::string>()},
                 {"account_type", row[9].isNull() ? "" : row[9].get<std::string>()},
+                {"employment_id", row[10].isNull() ? nlohmann::json(nullptr)
+                                                   : nlohmann::json(row[10].get<int64_t>())},
+                {"employment_status", row[11].isNull() ? "" : row[11].get<std::string>()},
+                {"employment_row_version", row[12].isNull() ? nlohmann::json(nullptr)
+                                                            : nlohmann::json(row[12].get<int>())},
+                {"hire_date", row[13].isNull() ? "" : row[13].get<std::string>()},
+                {"probation_waived", !row[14].isNull() && row[14].get<int>() != 0},
             });
         }
 
@@ -408,6 +421,7 @@ crow::response personnelHandler::getEmployee(
                             joinIds(scope.departmentIds) + ") ";
         }
 
+        // employment 1:1 by user_id；仅元数据，不含任何薪资字段。
         mysqlx::Row row = dbManager->getSession()
                               ->sql(std::string(
                                         "SELECT u.id, COALESCE(u.position_id, 0), "
@@ -415,11 +429,14 @@ crow::response personnelHandler::getEmployee(
                                         "u.name, ph.phone, u.email, "
                                         "COALESCE(pos.staff_kind, ''), COALESCE(pos.assignment_policy, ''), "
                                         "COALESCE(d.name, ''), COALESCE(u.account_type, ''), "
-                                        "COALESCE(pos.status, ''), COALESCE(d.id, 0) "
+                                        "COALESCE(pos.status, ''), COALESCE(d.id, 0), "
+                                        "e.id, COALESCE(e.status, ''), e.row_version, "
+                                        "CAST(e.hire_date AS CHAR), COALESCE(e.probation_waived, 0) "
                                         "FROM users u "
                                         "LEFT JOIN positions pos ON pos.id = u.position_id "
                                         "LEFT JOIN departments d ON d.id = pos.department_id "
                                         "LEFT JOIN phones ph ON ph.user_id = u.id "
+                                        "LEFT JOIN employment e ON e.user_id = u.id "
                                         "WHERE u.id = ? ") +
                                     hideHigh + visibleFilter + " LIMIT 1")
                               .bind(employeeId)
@@ -447,6 +464,13 @@ crow::response personnelHandler::getEmployee(
             {"department_id", row[11].isNull() || row[11].get<int>() == 0
                                   ? nlohmann::json(nullptr)
                                   : nlohmann::json(row[11].get<int>())},
+            {"employment_id", row[12].isNull() ? nlohmann::json(nullptr)
+                                               : nlohmann::json(row[12].get<int64_t>())},
+            {"employment_status", row[13].isNull() ? "" : row[13].get<std::string>()},
+            {"employment_row_version", row[14].isNull() ? nlohmann::json(nullptr)
+                                                        : nlohmann::json(row[14].get<int>())},
+            {"hire_date", row[15].isNull() ? "" : row[15].get<std::string>()},
+            {"probation_waived", !row[16].isNull() && row[16].get<int>() != 0},
         };
 
         // 权限摘要只读
@@ -766,6 +790,303 @@ crow::response personnelHandler::createOffboarding(
 
         const auto result = EmploymentAssignmentService::assign(dbManager, assignReq);
         return assignmentResultToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+namespace
+{
+crow::response compensationOpToResponse(
+    const crow::request &req,
+    const CompensationWorkflowService::OpResult &result)
+{
+    if (!result.ok)
+    {
+        if (result.httpStatus == 404)
+        {
+            return ResponseHelper::notFound(req, result.message);
+        }
+        if (result.httpStatus == 403)
+        {
+            return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+        }
+        if (result.httpStatus == 409)
+        {
+            return ResponseHelper::fail(
+                req, 409, ResponseCode::BusinessConflict, result.message,
+                ResponseErrorType::BusinessConflict,
+                result.errorCode.empty() ? result.message : result.errorCode);
+        }
+        if (result.httpStatus >= 500)
+        {
+            return ResponseHelper::system_error(req, result.message);
+        }
+        return ResponseHelper::validation(req, result.message);
+    }
+    if (result.httpStatus == 201)
+    {
+        return ResponseHelper::created(req, result.data);
+    }
+    return ResponseHelper::success(req, result.data);
+}
+
+std::optional<double> optionalJsonDouble(const nlohmann::json &body, const char *camel, const char *snake)
+{
+    if (body.contains(camel) && !body[camel].is_null() && body[camel].is_number())
+    {
+        return body[camel].get<double>();
+    }
+    if (body.contains(snake) && !body[snake].is_null() && body[snake].is_number())
+    {
+        return body[snake].get<double>();
+    }
+    return std::nullopt;
+}
+}
+
+crow::response personnelHandler::listCompensationProposals(
+    const crow::request &req,
+    int operatorUserId)
+{
+    try
+    {
+        CompensationWorkflowService::ListQuery query;
+        query.operatorUserId = operatorUserId;
+        query.audience = "personnel";
+        if (const char *status = req.url_params.get("status"))
+        {
+            query.status = status;
+        }
+        if (const char *phase = req.url_params.get("phase"))
+        {
+            query.phase = phase;
+        }
+        int page = 1;
+        int pageSize = 20;
+        if (const char *pageRaw = req.url_params.get("page"))
+        {
+            try
+            {
+                page = std::stoi(pageRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        if (const char *sizeRaw = req.url_params.get("pageSize"))
+        {
+            try
+            {
+                pageSize = std::stoi(sizeRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        query.page = RequestUtils::normalizePage(page);
+        query.pageSize = RequestUtils::normalizePageSize(pageSize, 20, 100);
+
+        const auto result = CompensationWorkflowService::listProposals(dbManager, query);
+        if (!result.ok)
+        {
+            if (result.httpStatus == 403)
+            {
+                return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+            }
+            if (result.httpStatus >= 500)
+            {
+                return ResponseHelper::system_error(req, result.message);
+            }
+            return ResponseHelper::validation(req, result.message);
+        }
+        return ResponseHelper::success(req, {
+            {"items", result.items},
+            {"total", result.total},
+            {"page", result.page},
+            {"pageSize", result.pageSize},
+        });
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response personnelHandler::createCompensationProposal(
+    const crow::request &req,
+    int operatorUserId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        CompensationWorkflowService::CreateRequest createReq;
+        createReq.operatorUserId = operatorUserId;
+        createReq.employmentId = body.value("employmentId", body.value("employment_id", 0LL));
+        createReq.phase = RequestUtils::getJsonString(body, "phase");
+        createReq.payType = RequestUtils::getJsonString(body, "payType");
+        if (createReq.payType.empty())
+        {
+            createReq.payType = RequestUtils::getJsonString(body, "pay_type");
+        }
+        createReq.baseSalary = optionalJsonDouble(body, "baseSalary", "base_salary");
+        createReq.hourlyRate = optionalJsonDouble(body, "hourlyRate", "hourly_rate");
+        if (body.contains("socialInsuranceHousingFund") || body.contains("social_insurance_housing_fund"))
+        {
+            createReq.socialInsuranceHousingFund =
+                body.value("socialInsuranceHousingFund",
+                           body.value("social_insurance_housing_fund", 0.0));
+        }
+        createReq.effectiveFrom = RequestUtils::getJsonString(body, "effectiveFrom");
+        if (createReq.effectiveFrom.empty())
+        {
+            createReq.effectiveFrom = RequestUtils::getJsonString(body, "effective_from");
+        }
+        createReq.note = RequestUtils::getJsonString(body, "note");
+        createReq.assigneeUserId =
+            body.value("assigneeUserId", body.value("assignee_user_id", 0));
+
+        const auto result = CompensationWorkflowService::createProposal(dbManager, createReq);
+        return compensationOpToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response personnelHandler::updateCompensationProposal(
+    const crow::request &req,
+    int operatorUserId,
+    long long proposalId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (proposalId <= 0)
+        {
+            return ResponseHelper::notFound(req, "提案不存在");
+        }
+        CompensationWorkflowService::UpdateRequest updateReq;
+        updateReq.operatorUserId = operatorUserId;
+        updateReq.proposalId = proposalId;
+        updateReq.payType = RequestUtils::getJsonString(body, "payType");
+        if (updateReq.payType.empty())
+        {
+            updateReq.payType = RequestUtils::getJsonString(body, "pay_type");
+        }
+        updateReq.baseSalary = optionalJsonDouble(body, "baseSalary", "base_salary");
+        updateReq.hourlyRate = optionalJsonDouble(body, "hourlyRate", "hourly_rate");
+        if (body.contains("socialInsuranceHousingFund") || body.contains("social_insurance_housing_fund"))
+        {
+            updateReq.hasSocial = true;
+            updateReq.socialInsuranceHousingFund =
+                body.value("socialInsuranceHousingFund",
+                           body.value("social_insurance_housing_fund", 0.0));
+        }
+        updateReq.effectiveFrom = RequestUtils::getJsonString(body, "effectiveFrom");
+        if (updateReq.effectiveFrom.empty())
+        {
+            updateReq.effectiveFrom = RequestUtils::getJsonString(body, "effective_from");
+        }
+        if (body.contains("note"))
+        {
+            updateReq.hasNote = true;
+            updateReq.note = RequestUtils::getJsonString(body, "note");
+        }
+        if (!body.contains("expectedRowVersion") || body["expectedRowVersion"].is_null())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必填");
+        }
+        if (!body["expectedRowVersion"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必须是整数");
+        }
+        updateReq.expectedRowVersion = body["expectedRowVersion"].get<int>();
+        updateReq.hasExpectedRowVersion = true;
+
+        const auto result = CompensationWorkflowService::updateProposal(dbManager, updateReq);
+        return compensationOpToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response personnelHandler::submitCompensationProposal(
+    const crow::request &req,
+    int operatorUserId,
+    long long proposalId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (proposalId <= 0)
+        {
+            return ResponseHelper::notFound(req, "提案不存在");
+        }
+        CompensationWorkflowService::IdVersionRequest submitReq;
+        submitReq.operatorUserId = operatorUserId;
+        submitReq.proposalId = proposalId;
+        submitReq.reason = RequestUtils::getJsonString(body, "reason");
+        if (!body.contains("expectedRowVersion") || body["expectedRowVersion"].is_null())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必填");
+        }
+        if (!body["expectedRowVersion"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必须是整数");
+        }
+        submitReq.expectedRowVersion = body["expectedRowVersion"].get<int>();
+        submitReq.hasExpectedRowVersion = true;
+
+        const auto result = CompensationWorkflowService::submitProposal(dbManager, submitReq);
+        return compensationOpToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response personnelHandler::reassignCompensationProposal(
+    const crow::request &req,
+    int operatorUserId,
+    long long proposalId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (proposalId <= 0)
+        {
+            return ResponseHelper::notFound(req, "提案不存在");
+        }
+        CompensationWorkflowService::ReassignRequest reassignReq;
+        reassignReq.operatorUserId = operatorUserId;
+        reassignReq.proposalId = proposalId;
+        reassignReq.targetAssigneeUserId =
+            body.value("assigneeUserId", body.value("assignee_user_id", 0));
+        reassignReq.reason = RequestUtils::getJsonString(body, "reason");
+        if (reassignReq.reason.empty())
+        {
+            return ResponseHelper::validation(req, "reason 不能为空");
+        }
+        if (!body.contains("expectedRowVersion") || body["expectedRowVersion"].is_null())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必填");
+        }
+        if (!body["expectedRowVersion"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必须是整数");
+        }
+        reassignReq.expectedRowVersion = body["expectedRowVersion"].get<int>();
+        reassignReq.hasExpectedRowVersion = true;
+
+        const auto result = CompensationWorkflowService::reassignProposal(dbManager, reassignReq);
+        return compensationOpToResponse(req, result);
     }
     catch (const std::exception &e)
     {

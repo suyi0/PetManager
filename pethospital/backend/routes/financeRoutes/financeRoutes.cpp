@@ -129,9 +129,10 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
         .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
             [dbManager](const crow::request &req, crow::response &res, int goalUserId)
             {
+                // GET 保留 salary:read；POST 硬切退役，不再走 saveSalaryProfile 写金额。
                 const bool isWrite = req.method == crow::HTTPMethod::Post;
-                const std::string permission = isWrite ? Permissions::kSalaryWrite : Permissions::kSalaryRead;
-                const std::string action = isWrite ? "保存员工薪资配置" : "获取员工薪资配置";
+                const std::string permission = Permissions::kSalaryRead;
+                const std::string action = isWrite ? "保存员工薪资配置(已退役)" : "获取员工薪资配置";
                 int userId = -1;
                 try
                 {
@@ -153,6 +154,115 @@ void financeRoutes::setupFinanceRoutes(CrowApp &app, std::shared_ptr<DatabaseMan
                     res = ResponseHelper::system_error(req);
                 }
                 OperationLogger::FinishSensitiveRoute(dbManager, req, res, "财务", action, permission, userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    // v6 财务激活：精确 salary-profile:activate
+    CROW_ROUTE(app, "/api/finance/compensation-activations")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kSalaryProfileActivate);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "财务", "薪酬激活列表");
+                        return;
+                    }
+                    financeHandler handler(dbManager);
+                    crow::response response = handler.listCompensationActivations(req, userId);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "财务", "薪酬激活列表", e.what(),
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "财务", "薪酬激活列表",
+                    Permissions::kSalaryProfileActivate,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/finance/compensation-activations/<int>/confirm")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int proposalId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kSalaryProfileActivate);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "财务", "确认薪酬激活");
+                        return;
+                    }
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (jsonOpt)
+                    {
+                        financeHandler handler(dbManager);
+                        crow::response response = handler.confirmCompensationActivation(
+                            req, userId, static_cast<long long>(proposalId), *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "财务", "确认薪酬激活", e.what(),
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "财务", "确认薪酬激活",
+                    Permissions::kSalaryProfileActivate,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/finance/compensation-activations/<int>/return")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int proposalId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kSalaryProfileActivate);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "财务", "退回薪酬激活");
+                        return;
+                    }
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (jsonOpt)
+                    {
+                        financeHandler handler(dbManager);
+                        crow::response response = handler.returnCompensationActivation(
+                            req, userId, static_cast<long long>(proposalId), *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "财务", "退回薪酬激活", e.what(),
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "财务", "退回薪酬激活",
+                    Permissions::kSalaryProfileActivate,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 
     CROW_ROUTE(app, "/api/finance/payroll-periods/current/employees/<int>/first-review")

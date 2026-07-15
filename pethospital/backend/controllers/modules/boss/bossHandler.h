@@ -25,5 +25,13 @@ public:
         int operatorUserId,
         long long requestId,
         const nlohmann::json &body);
+
+    // 薪酬管理审批（role-owned，精确 compensation:approve）
+    crow::response listCompensationApprovals(const crow::request &req, int operatorUserId);
+    crow::response decideCompensationApproval(
+        const crow::request &req,
+        int operatorUserId,
+        long long proposalId,
+        const nlohmann::json &body);
 };
 #endif

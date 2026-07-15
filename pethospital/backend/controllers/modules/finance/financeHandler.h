@@ -41,9 +41,16 @@ public:
 
     crow::response getPayrollEmployees(const crow::request &req, const nlohmann::json &requestBody);
     crow::response savePayrollEmployee(const crow::request &req, int goalUserId);
+    // 旧 POST 旁路已退役：不得再写 salaryProfile 金额；请走 compensation 激活闭环。
     crow::response saveSalaryProfile(const crow::request &req, int goalUserId);
     crow::response getSalaryChangeHistory(const crow::request &req, long long salaryId);
     crow::response getSalaryProfile(const crow::request &req, int goalUserId);
+    // v6 财务激活（精确 salary-profile:activate）
+    crow::response listCompensationActivations(const crow::request &req, int operatorUserId);
+    crow::response confirmCompensationActivation(
+        const crow::request &req, int operatorUserId, long long proposalId, const nlohmann::json &body);
+    crow::response returnCompensationActivation(
+        const crow::request &req, int operatorUserId, long long proposalId, const nlohmann::json &body);
     crow::response reviewPayrollEmployee(const crow::request &req, int goalUserId);
     crow::response submitPayrollReview(const crow::request &req);
     crow::response supervisorReviewPayroll(const crow::request &req);

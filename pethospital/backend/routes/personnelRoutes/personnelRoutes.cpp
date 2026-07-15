@@ -2,6 +2,7 @@
 #include "../../controllers/modules/personnel/personnelHandler.h"
 #include "../../services/employment/PersonnelAccess.h"
 #include "../../services/logger/operationLogger.h"
+#include "../../services/rbac/RbacService.h"
 #include "../../utils/permissions/Permissions.h"
 
 namespace
@@ -21,6 +22,33 @@ int requirePersonnelRead(
         res = ResponseHelper::permission_denied(req, "缺少任职管理权限");
         return -1;
     }
+    return userId;
+}
+
+// GET 列表：人事门户 + (propose OR reassign-case)。范围/金额仍由 service 强制。
+// outAuditPermission 记录实际解锁权限，避免 reassign-only 被记成 propose 写权限。
+int requireCompensationListAccess(
+    const crow::request &req,
+    crow::response &res,
+    const std::shared_ptr<DatabaseManagerInterface> &dbManager,
+    std::string &outAuditPermission)
+{
+    int userId = isValidPersonnelToken(req, res, dbManager);
+    if (res.code != 200 || userId == -1)
+    {
+        return -1;
+    }
+    const bool canPropose =
+        RbacService::userHasPermission(dbManager, userId, Permissions::kCompensationPropose);
+    const bool canReassign =
+        RbacService::userHasPermission(dbManager, userId, Permissions::kCompensationReassignCase);
+    if (!canPropose && !canReassign)
+    {
+        res = ResponseHelper::permission_denied(req, "缺少薪酬提案读取或改派管理权限");
+        return -1;
+    }
+    outAuditPermission = canPropose ? Permissions::kCompensationPropose
+                                    : Permissions::kCompensationReassignCase;
     return userId;
 }
 }
@@ -344,6 +372,181 @@ void personnelRoutes::setupPersonnelRoutes(CrowApp &app, std::shared_ptr<Databas
                 OperationLogger::FinishSensitiveRoute(
                     dbManager, req, res, "人事", "离职",
                     Permissions::kEmploymentOffboard,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    // v6 薪酬提案：POST 精确 compensation:propose；GET 为 propose 或 reassign-case（人事门户）。
+    CROW_ROUTE(app, "/api/personnel/compensation-proposals")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                const bool isWrite = req.method == crow::HTTPMethod::Post;
+                const std::string action =
+                    isWrite ? "创建薪酬提案" : "提案读取/改派管理";
+                std::string auditPermission = Permissions::kCompensationPropose;
+                try
+                {
+                    if (isWrite)
+                    {
+                        // POST 仍必须精确 propose，不得被 reassign-case 放行。
+                        userId = isValidPermissionToken(
+                            req, res, dbManager, Permissions::kCompensationPropose);
+                        auditPermission = Permissions::kCompensationPropose;
+                    }
+                    else
+                    {
+                        userId = requireCompensationListAccess(
+                            req, res, dbManager, auditPermission);
+                    }
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "人事", action);
+                        return;
+                    }
+                    personnelHandler handler(dbManager);
+                    if (isWrite)
+                    {
+                        BaseHandler parser(dbManager);
+                        auto jsonOpt = parser.parseJson(req, res);
+                        if (jsonOpt)
+                        {
+                            crow::response response =
+                                handler.createCompensationProposal(req, userId, *jsonOpt);
+                            ProcessHandlerResponse(req, res, response);
+                        }
+                    }
+                    else
+                    {
+                        crow::response response = handler.listCompensationProposals(req, userId);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "人事", action,
+                        "route exception",
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "人事", action, auditPermission,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/personnel/compensation-proposals/<int>")
+        .methods(crow::HTTPMethod::Put, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int proposalId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kCompensationPropose);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "人事", "更新薪酬提案");
+                        return;
+                    }
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (jsonOpt)
+                    {
+                        personnelHandler handler(dbManager);
+                        crow::response response = handler.updateCompensationProposal(
+                            req, userId, static_cast<long long>(proposalId), *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "人事", "更新薪酬提案", "route exception",
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "人事", "更新薪酬提案",
+                    Permissions::kCompensationPropose,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/personnel/compensation-proposals/<int>/submit")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int proposalId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kCompensationPropose);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "人事", "提交薪酬提案");
+                        return;
+                    }
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (jsonOpt)
+                    {
+                        personnelHandler handler(dbManager);
+                        crow::response response = handler.submitCompensationProposal(
+                            req, userId, static_cast<long long>(proposalId), *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "人事", "提交薪酬提案", "route exception",
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "人事", "提交薪酬提案",
+                    Permissions::kCompensationPropose,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/personnel/compensation-proposals/<int>/reassign")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int proposalId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kCompensationReassignCase);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "人事", "改派薪酬案件");
+                        return;
+                    }
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (jsonOpt)
+                    {
+                        personnelHandler handler(dbManager);
+                        crow::response response = handler.reassignCompensationProposal(
+                            req, userId, static_cast<long long>(proposalId), *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "人事", "改派薪酬案件", "route exception",
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "人事", "改派薪酬案件",
+                    Permissions::kCompensationReassignCase,
                     userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
 

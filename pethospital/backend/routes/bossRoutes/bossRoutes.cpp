@@ -191,4 +191,77 @@ void bossRoutes::setupBossRoutes(CrowApp &app, std::shared_ptr<DatabaseManagerIn
                     Permissions::kEmploymentAssignmentApprove,
                     userId > 0 ? std::optional<int>(userId) : std::nullopt);
             });
+
+    // v6 薪酬管理审批：精确 compensation:approve
+    CROW_ROUTE(app, "/api/bosses/compensation-approvals")
+        .methods(crow::HTTPMethod::Get, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kCompensationApprove);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "boss", "薪酬审批列表");
+                        return;
+                    }
+
+                    bossHandler handler(dbManager);
+                    crow::response response = handler.listCompensationApprovals(req, userId);
+                    ProcessHandlerResponse(req, res, response);
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "boss", "薪酬审批列表", e.what(),
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "boss", "薪酬审批列表",
+                    Permissions::kCompensationApprove,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
+
+    CROW_ROUTE(app, "/api/bosses/compensation-approvals/<int>/decision")
+        .methods(crow::HTTPMethod::Post, crow::HTTPMethod::Options)(
+            [dbManager](const crow::request &req, crow::response &res, int proposalId)
+            {
+                int userId = -1;
+                try
+                {
+                    userId = isValidPermissionToken(
+                        req, res, dbManager, Permissions::kCompensationApprove);
+                    if (res.code != 200 || userId == -1)
+                    {
+                        OperationLogger::FinishAuthorizationFailure(
+                            dbManager, req, res, "boss", "薪酬审批决策");
+                        return;
+                    }
+
+                    BaseHandler parser(dbManager);
+                    auto jsonOpt = parser.parseJson(req, res);
+                    if (jsonOpt)
+                    {
+                        bossHandler handler(dbManager);
+                        crow::response response = handler.decideCompensationApproval(
+                            req, userId, static_cast<long long>(proposalId), *jsonOpt);
+                        ProcessHandlerResponse(req, res, response);
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    OperationLogger::LogExceptionOperation(
+                        dbManager, req, "boss", "薪酬审批决策", e.what(),
+                        userId > 0 ? std::optional<int>(userId) : std::nullopt);
+                    res = ResponseHelper::system_error(req);
+                }
+                OperationLogger::FinishSensitiveRoute(
+                    dbManager, req, res, "boss", "薪酬审批决策",
+                    Permissions::kCompensationApprove,
+                    userId > 0 ? std::optional<int>(userId) : std::nullopt);
+            });
 }

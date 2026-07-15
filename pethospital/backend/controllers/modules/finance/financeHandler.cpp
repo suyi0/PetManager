@@ -1,4 +1,5 @@
 #include "financeHandler.h"
+#include "../../../services/employment/CompensationWorkflowService.h"
 #include "../../../services/realtime/adminBroadcaster/adminHomeDataBroadcaster.h"
 #include "../../../services/realtime/financeBroadcaster/financeHomeDataBroadcaster.h"
 #include "../../../services/rbac/RbacService.h"
@@ -1157,83 +1158,16 @@ crow::response financeHandler::savePayrollEmployee(const crow::request &req, int
 
 crow::response financeHandler::saveSalaryProfile(const crow::request &req, int goalUserId)
 {
-    try
-    {
-        crow::response res;
-        auto body = validateRequest(req, res);
-        if (!body) return res;
-        if (goalUserId <= 0) return ResponseHelper::validation(req, "无效的用户ID");
-
-        const std::string payType = body->value("pay_type", body->value("payType", "monthly"));
-        const double base = getRequestDoubleWithFallback(*body, "base_salary", "baseSalary", 0.0);
-        const double hourly = getRequestDoubleWithFallback(*body, "hourly_rate", "hourlyRate", 0.0);
-        const double social = getRequestDoubleWithFallback(*body, "social_insurance_housing_fund", "socialInsuranceHousingFund", 0.0);
-        const std::string effectiveFrom = body->value("effective_from", body->value("effectiveFrom", std::string{}));
-        bool validEffectiveDate = true;
-        try
-        {
-            validEffectiveDate = boost::gregorian::to_iso_extended_string(
-                                     boost::gregorian::from_simple_string(effectiveFrom)) == effectiveFrom;
-        }
-        catch (const std::exception &)
-        {
-            validEffectiveDate = false;
-        }
-        if ((payType != "monthly" && payType != "hourly") || !validEffectiveDate || effectiveFrom.size() != 10 ||
-            effectiveFrom[4] != '-' || effectiveFrom[7] != '-' || !std::isfinite(base) || !std::isfinite(hourly) ||
-            !std::isfinite(social) || base < 0 || hourly < 0 || social < 0)
-        {
-            return ResponseHelper::validation(req, "薪资配置字段值无效");
-        }
-
-        auto session = dbManager->getSession();
-        session->sql("START TRANSACTION").execute();
-        const std::string scopeFilter = orgScopeCondition(req, dbManager, "pos.department_id");
-        const auto employee = session->sql(
-            "SELECT u.id FROM users u LEFT JOIN positions pos ON pos.id=u.position_id "
-            "WHERE u.id=? AND u.is_deleted=0 AND u.account_type='staff' " + scopeFilter + " LIMIT 1 FOR UPDATE")
-            .bind(goalUserId).execute().fetchOne();
-        if (!employee)
-        {
-            rollbackTransactionQuietly(*session);
-            return ResponseHelper::notFound(req, "员工不存在");
-        }
-
-        session->sql("SELECT id FROM salaryProfile WHERE user_id=? FOR UPDATE").bind(goalUserId).execute();
-        session->sql(
-            "INSERT INTO salaryProfile (user_id,pay_type,base_salary,hourly_rate,social_insurance_housing_fund,effective_from) "
-            "VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE pay_type=VALUES(pay_type),base_salary=VALUES(base_salary),"
-            "hourly_rate=VALUES(hourly_rate),social_insurance_housing_fund=VALUES(social_insurance_housing_fund)")
-            .bind(goalUserId, payType,
-                  payType == "monthly" ? mysqlx::Value(base) : mysqlx::Value(),
-                  payType == "hourly" ? mysqlx::Value(hourly) : mysqlx::Value(), social, effectiveFrom)
-            .execute();
-
-        std::vector<std::pair<int, std::string>> profiles;
-        auto profileRows = session->sql(
-            "SELECT id,CAST(effective_from AS CHAR) FROM salaryProfile WHERE user_id=? "
-            "ORDER BY effective_from ASC,id ASC FOR UPDATE").bind(goalUserId).execute();
-        for (auto row : profileRows)
-        {
-            profiles.emplace_back(row[0].get<int>(), row[1].get<std::string>());
-        }
-        for (std::size_t i = 0; i < profiles.size(); ++i)
-        {
-            if (i + 1 < profiles.size())
-            {
-                session->sql("UPDATE salaryProfile SET effective_to=DATE_SUB(?,INTERVAL 1 DAY) WHERE id=?")
-                    .bind(profiles[i + 1].second, profiles[i].first).execute();
-            }
-            else
-            {
-                session->sql("UPDATE salaryProfile SET effective_to=NULL WHERE id=?")
-                    .bind(profiles[i].first).execute();
-            }
-        }
-        session->sql("COMMIT").execute();
-        return ResponseHelper::success(req, "薪资配置已保存，不影响已有工资快照");
-    }
-    catch (const std::exception &e) { return ResponseHelper::system_error(req, e.what()); }
+    // v6 硬切：POST 旁路退役，禁止 salary:write 写 salaryProfile 金额。
+    // 请走人事薪酬提案 → 管理批准 → 财务激活（salary-profile:activate）。
+    (void)goalUserId;
+    return ResponseHelper::fail(
+        req,
+        410,
+        ResponseCode::BusinessConflict,
+        "直接保存薪资配置已退役，请通过薪酬提案审批闭环激活",
+        ResponseErrorType::BusinessConflict,
+        "SALARY_PROFILE_WRITE_RETIRED");
 }
 
 crow::response financeHandler::getSalaryProfile(const crow::request &req, int goalUserId)
@@ -1790,4 +1724,201 @@ crow::response financeHandler::getPayrollAuditEvents(const crow::request &req)
         return ResponseHelper::success(req, {{"periodId", periodId}, {"items", items}});
     }
     catch (const std::exception &e) { return ResponseHelper::system_error(req, e.what()); }
+}
+
+namespace
+{
+crow::response compensationOpToResponse(
+    const crow::request &req,
+    const CompensationWorkflowService::OpResult &result)
+{
+    if (!result.ok)
+    {
+        if (result.httpStatus == 404)
+        {
+            return ResponseHelper::notFound(req, result.message);
+        }
+        if (result.httpStatus == 403)
+        {
+            return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+        }
+        if (result.httpStatus == 409)
+        {
+            return ResponseHelper::fail(
+                req, 409, ResponseCode::BusinessConflict, result.message,
+                ResponseErrorType::BusinessConflict,
+                result.errorCode.empty() ? result.message : result.errorCode);
+        }
+        if (result.httpStatus >= 500)
+        {
+            return ResponseHelper::system_error(req, result.message);
+        }
+        return ResponseHelper::validation(req, result.message);
+    }
+    return ResponseHelper::success(req, result.data);
+}
+}
+
+crow::response financeHandler::listCompensationActivations(
+    const crow::request &req,
+    int operatorUserId)
+{
+    try
+    {
+        CompensationWorkflowService::ListQuery query;
+        query.operatorUserId = operatorUserId;
+        query.audience = "finance";
+        if (const char *status = req.url_params.get("status"))
+        {
+            query.status = status;
+        }
+        else
+        {
+            query.status = "management_approved";
+        }
+        int page = 1;
+        int pageSize = 20;
+        if (const char *pageRaw = req.url_params.get("page"))
+        {
+            try
+            {
+                page = std::stoi(pageRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        if (const char *sizeRaw = req.url_params.get("pageSize"))
+        {
+            try
+            {
+                pageSize = std::stoi(sizeRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        query.page = RequestUtils::normalizePage(page);
+        query.pageSize = RequestUtils::normalizePageSize(pageSize, 20, 100);
+
+        const auto result = CompensationWorkflowService::listProposals(dbManager, query);
+        if (!result.ok)
+        {
+            if (result.httpStatus == 403)
+            {
+                return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+            }
+            if (result.httpStatus >= 500)
+            {
+                return ResponseHelper::system_error(req, result.message);
+            }
+            return ResponseHelper::validation(req, result.message);
+        }
+        return ResponseHelper::success(req, {
+            {"items", result.items},
+            {"total", result.total},
+            {"page", result.page},
+            {"pageSize", result.pageSize},
+        });
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response financeHandler::confirmCompensationActivation(
+    const crow::request &req,
+    int operatorUserId,
+    long long proposalId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (proposalId <= 0)
+        {
+            return ResponseHelper::notFound(req, "提案不存在");
+        }
+        // confirm body 只允许 expectedRowVersion、reason/核对意见，不允许改金额
+        for (auto it = body.begin(); it != body.end(); ++it)
+        {
+            const std::string key = it.key();
+            if (key == "expectedRowVersion" || key == "reason" || key == "note" ||
+                key == "reviewNote" || key == "review_note")
+            {
+                continue;
+            }
+            return ResponseHelper::validation(req, "财务确认不允许修改金额字段，发现问题请 return");
+        }
+
+        CompensationWorkflowService::FinanceConfirmRequest confirmReq;
+        confirmReq.operatorUserId = operatorUserId;
+        confirmReq.proposalId = proposalId;
+        confirmReq.reason = RequestUtils::getJsonString(body, "reason");
+        if (confirmReq.reason.empty())
+        {
+            confirmReq.reason = RequestUtils::getJsonString(body, "note");
+        }
+        if (confirmReq.reason.empty())
+        {
+            confirmReq.reason = RequestUtils::getJsonString(body, "reviewNote");
+        }
+        if (!body.contains("expectedRowVersion") || body["expectedRowVersion"].is_null())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必填");
+        }
+        if (!body["expectedRowVersion"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必须是整数");
+        }
+        confirmReq.expectedRowVersion = body["expectedRowVersion"].get<int>();
+        confirmReq.hasExpectedRowVersion = true;
+
+        const auto result = CompensationWorkflowService::confirmActivation(dbManager, confirmReq);
+        return compensationOpToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response financeHandler::returnCompensationActivation(
+    const crow::request &req,
+    int operatorUserId,
+    long long proposalId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (proposalId <= 0)
+        {
+            return ResponseHelper::notFound(req, "提案不存在");
+        }
+        CompensationWorkflowService::FinanceConfirmRequest returnReq;
+        returnReq.operatorUserId = operatorUserId;
+        returnReq.proposalId = proposalId;
+        returnReq.reason = RequestUtils::getJsonString(body, "reason");
+        if (returnReq.reason.empty())
+        {
+            return ResponseHelper::validation(req, "reason 不能为空");
+        }
+        if (!body.contains("expectedRowVersion") || body["expectedRowVersion"].is_null())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必填");
+        }
+        if (!body["expectedRowVersion"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必须是整数");
+        }
+        returnReq.expectedRowVersion = body["expectedRowVersion"].get<int>();
+        returnReq.hasExpectedRowVersion = true;
+
+        const auto result = CompensationWorkflowService::returnActivation(dbManager, returnReq);
+        return compensationOpToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
 }

@@ -1408,6 +1408,159 @@ namespace
             nullptr,
         },
         {
+            // v6 薪酬提案：人事拟案 → 管理批准 → 财务激活；不改写存量 salaryProfile 金额。
+            "compensation_proposal",
+            R"SQL(CREATE TABLE compensation_proposal (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                employment_id BIGINT NOT NULL,
+                branch_id INT NOT NULL COMMENT '创建时组织快照',
+                department_id INT NOT NULL COMMENT '创建时组织快照',
+                phase ENUM('probation','regular','adjustment') NOT NULL,
+                pay_type ENUM('monthly','hourly') NOT NULL,
+                base_salary DECIMAL(18, 2) NULL,
+                hourly_rate DECIMAL(18, 2) NULL,
+                social_insurance_housing_fund DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
+                effective_from DATE NOT NULL,
+                status ENUM(
+                    'draft','submitted','management_approved','returned',
+                    'finance_confirmed','active','cancelled'
+                ) NOT NULL DEFAULT 'draft',
+                assignee_user_id INT NOT NULL,
+                proposed_by INT NOT NULL,
+                submitted_by INT NULL,
+                submitted_at DATETIME NULL,
+                approved_by INT NULL,
+                approved_at DATETIME NULL,
+                finance_confirmed_by INT NULL,
+                finance_confirmed_at DATETIME NULL,
+                salary_profile_id INT NULL,
+                note VARCHAR(1000) NOT NULL DEFAULT '',
+                expected_employment_row_version INT NULL,
+                row_version INT NOT NULL DEFAULT 1,
+                open_slot TINYINT GENERATED ALWAYS AS (
+                    CASE WHEN status IN (
+                        'draft','submitted','management_approved','returned','finance_confirmed'
+                    ) THEN 1 ELSE NULL END
+                ) STORED,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_compensation_proposal_open (employment_id, phase, open_slot),
+                INDEX idx_cp_status (status, created_at),
+                INDEX idx_cp_assignee (assignee_user_id, status),
+                INDEX idx_cp_scope_status (branch_id, department_id, status),
+                INDEX idx_cp_employment (employment_id, phase, status),
+                CONSTRAINT fk_cp_employment FOREIGN KEY (employment_id) REFERENCES employment(id) ON DELETE CASCADE,
+                CONSTRAINT fk_cp_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
+                CONSTRAINT fk_cp_department FOREIGN KEY (department_id) REFERENCES departments(id),
+                CONSTRAINT fk_cp_assignee FOREIGN KEY (assignee_user_id) REFERENCES users(id),
+                CONSTRAINT fk_cp_proposed_by FOREIGN KEY (proposed_by) REFERENCES users(id),
+                CONSTRAINT fk_cp_submitted_by FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_cp_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_cp_finance_by FOREIGN KEY (finance_confirmed_by) REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT fk_cp_salary_profile FOREIGN KEY (salary_profile_id) REFERENCES salaryProfile(id) ON DELETE SET NULL,
+                CONSTRAINT chk_cp_pay_basis CHECK (
+                    (pay_type = 'monthly' AND base_salary IS NOT NULL AND base_salary >= 0 AND hourly_rate IS NULL) OR
+                    (pay_type = 'hourly' AND hourly_rate IS NOT NULL AND hourly_rate >= 0 AND base_salary IS NULL)
+                ),
+                CONSTRAINT chk_cp_social_insurance CHECK (social_insurance_housing_fund >= 0),
+                CONSTRAINT chk_cp_row_version CHECK (row_version > 0),
+                CONSTRAINT chk_cp_sod_propose_approve CHECK (
+                    approved_by IS NULL OR proposed_by IS NULL OR approved_by <> proposed_by
+                ),
+                CONSTRAINT chk_cp_sod_approve_finance CHECK (
+                    finance_confirmed_by IS NULL OR approved_by IS NULL OR finance_confirmed_by <> approved_by
+                ),
+                CONSTRAINT chk_cp_sod_propose_finance CHECK (
+                    finance_confirmed_by IS NULL OR proposed_by IS NULL OR finance_confirmed_by <> proposed_by
+                )
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4)SQL",
+            nullptr,
+            [](DatabaseManagerInterface &dbManager, mysqlx::Session &session) {
+                // 增量对齐 open_slot：v6 开放案件含 finance_confirmed，避免遗留行绕过唯一约束。
+                // 安全/并发不变量：失败必须抛出阻断启动，禁止 catch-and-skip 永久丢掉唯一性保护。
+                mysqlx::Row exprRow =
+                    session
+                        .sql("SELECT GENERATION_EXPRESSION FROM information_schema.COLUMNS "
+                             "WHERE TABLE_SCHEMA = DATABASE() "
+                             "AND TABLE_NAME = 'compensation_proposal' "
+                             "AND COLUMN_NAME = 'open_slot' LIMIT 1")
+                        .execute()
+                        .fetchOne();
+                if (!exprRow || exprRow[0].isNull())
+                {
+                    return;
+                }
+                const std::string expr = exprRow[0].get<std::string>();
+                if (expr.find("finance_confirmed") != std::string::npos)
+                {
+                    return;
+                }
+
+                // 预检：新 open-status 集合下 (employment_id, phase) 不得有多条开放案件。
+                // 若存在重复，原子 ALTER 加唯一索引也会失败；此处显式 fail-closed 给出可操作错误。
+                mysqlx::Row dupRow =
+                    session
+                        .sql(R"SQL(
+                            SELECT employment_id, phase, COUNT(*) AS cnt
+                            FROM compensation_proposal
+                            WHERE status IN (
+                                'draft','submitted','management_approved','returned','finance_confirmed'
+                            )
+                            GROUP BY employment_id, phase
+                            HAVING cnt > 1
+                            LIMIT 1
+                        )SQL")
+                        .execute()
+                        .fetchOne();
+                if (dupRow)
+                {
+                    throw std::runtime_error(
+                        "compensation_proposal.open_slot align aborted: duplicate open "
+                        "(employment_id, phase) rows under v6 open-status set; resolve before upgrade");
+                }
+
+                // 单条原子 ALTER：DROP/ADD 同语句，避免先丢唯一索引再失败留下 fail-open 窗口。
+                // 分 index-present / index-absent 两条路径，各自仍是一条 ALTER。
+                const bool hasOpenIndex = Common::indexExists(
+                    dbManager, "compensation_proposal", "uq_compensation_proposal_open");
+                if (hasOpenIndex)
+                {
+                    session
+                        .sql(R"SQL(
+                            ALTER TABLE compensation_proposal
+                            DROP INDEX uq_compensation_proposal_open,
+                            DROP COLUMN open_slot,
+                            ADD COLUMN open_slot TINYINT GENERATED ALWAYS AS (
+                                CASE WHEN status IN (
+                                    'draft','submitted','management_approved','returned','finance_confirmed'
+                                ) THEN 1 ELSE NULL END
+                            ) STORED,
+                            ADD UNIQUE KEY uq_compensation_proposal_open
+                                (employment_id, phase, open_slot)
+                        )SQL")
+                        .execute();
+                }
+                else
+                {
+                    session
+                        .sql(R"SQL(
+                            ALTER TABLE compensation_proposal
+                            DROP COLUMN open_slot,
+                            ADD COLUMN open_slot TINYINT GENERATED ALWAYS AS (
+                                CASE WHEN status IN (
+                                    'draft','submitted','management_approved','returned','finance_confirmed'
+                                ) THEN 1 ELSE NULL END
+                            ) STORED,
+                            ADD UNIQUE KEY uq_compensation_proposal_open
+                                (employment_id, phase, open_slot)
+                        )SQL")
+                        .execute();
+                }
+                std::cout << "compensation_proposal.open_slot aligned to include finance_confirmed."
+                          << std::endl;
+            },
+        },
+        {
             "payrollPeriod",
             R"SQL(CREATE TABLE payrollPeriod (
                 id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,

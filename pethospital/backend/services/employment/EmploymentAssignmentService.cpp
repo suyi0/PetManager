@@ -1544,16 +1544,23 @@ ListRequestsResult listRequests(
             result.total = countRow && !countRow[0].isNull() ? countRow[0].get<int>() : 0;
         }
 
+        // 展示名由快照 ID LEFT JOIN 解析；授权/范围仍只用 ea.department_id 快照。
         std::string listSql =
             "SELECT ea.id, ea.employment_id, e.user_id, "
             "COALESCE(u.name, ''), ea.branch_id, ea.department_id, "
             "ea.from_position_id, ea.to_position_id, ea.action, ea.status, "
             "ea.effective_from, ea.reason, ea.requested_by, ea.reviewed_by, "
             "ea.expected_employment_row_version, ea.row_version, ea.created_at, "
-            "e.status, COALESCE(u.position_id, 0) "
+            "e.status, COALESCE(u.position_id, 0), "
+            "COALESCE(b.name, ''), COALESCE(d.name, ''), "
+            "COALESCE(fp.name, ''), COALESCE(tp.name, '') "
             "FROM employment_assignment ea "
             "JOIN employment e ON e.id = ea.employment_id "
-            "JOIN users u ON u.id = e.user_id " +
+            "JOIN users u ON u.id = e.user_id "
+            "LEFT JOIN branches b ON b.id = ea.branch_id "
+            "LEFT JOIN departments d ON d.id = ea.department_id "
+            "LEFT JOIN positions fp ON fp.id = ea.from_position_id "
+            "LEFT JOIN positions tp ON tp.id = ea.to_position_id " +
             where +
             " ORDER BY ea.created_at DESC, ea.id DESC "
             "LIMIT ? OFFSET ?";
@@ -1587,6 +1594,10 @@ ListRequestsResult listRequests(
                 {"created_at", row[16].isNull() ? "" : row[16].get<std::string>()},
                 {"employment_status", row[17].isNull() ? "" : row[17].get<std::string>()},
                 {"current_position_id", row[18].isNull() ? 0 : row[18].get<int>()},
+                {"branch_name", row[19].isNull() ? "" : row[19].get<std::string>()},
+                {"department_name", row[20].isNull() ? "" : row[20].get<std::string>()},
+                {"from_position_name", row[21].isNull() ? "" : row[21].get<std::string>()},
+                {"to_position_name", row[22].isNull() ? "" : row[22].get<std::string>()},
             };
             result.items.push_back(std::move(item));
         }

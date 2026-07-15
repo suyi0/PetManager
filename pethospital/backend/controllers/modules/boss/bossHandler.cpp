@@ -1,6 +1,7 @@
 #include <cmath>
 #include <vector>
 #include "bossHandler.h"
+#include "../../../services/employment/CompensationWorkflowService.h"
 #include "../../../services/employment/EmploymentAssignmentService.h"
 #include "../../../utils/requestUtils/RequestUtils.h"
 
@@ -577,6 +578,172 @@ crow::response bossHandler::decideEmploymentAssignmentApproval(
 
         const auto result = EmploymentAssignmentService::decide(dbManager, decisionReq);
         return decisionResultToResponse(req, result);
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+namespace
+{
+crow::response compensationOpToResponse(
+    const crow::request &req,
+    const CompensationWorkflowService::OpResult &result)
+{
+    if (!result.ok)
+    {
+        if (result.httpStatus == 404)
+        {
+            return ResponseHelper::notFound(req, result.message);
+        }
+        if (result.httpStatus == 403)
+        {
+            return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+        }
+        if (result.httpStatus == 409)
+        {
+            return ResponseHelper::fail(
+                req, 409, ResponseCode::BusinessConflict, result.message,
+                ResponseErrorType::BusinessConflict,
+                result.errorCode.empty() ? result.message : result.errorCode);
+        }
+        if (result.httpStatus >= 500)
+        {
+            return ResponseHelper::system_error(req, result.message);
+        }
+        return ResponseHelper::validation(req, result.message);
+    }
+    return ResponseHelper::success(req, result.data);
+}
+}
+
+crow::response bossHandler::listCompensationApprovals(
+    const crow::request &req,
+    int operatorUserId)
+{
+    try
+    {
+        CompensationWorkflowService::ListQuery query;
+        query.operatorUserId = operatorUserId;
+        query.audience = "boss";
+        if (const char *status = req.url_params.get("status"))
+        {
+            query.status = status;
+        }
+        else
+        {
+            query.status = "submitted";
+        }
+        int page = 1;
+        int pageSize = 20;
+        if (const char *pageRaw = req.url_params.get("page"))
+        {
+            try
+            {
+                page = std::stoi(pageRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        if (const char *sizeRaw = req.url_params.get("pageSize"))
+        {
+            try
+            {
+                pageSize = std::stoi(sizeRaw);
+            }
+            catch (...)
+            {
+            }
+        }
+        query.page = RequestUtils::normalizePage(page);
+        query.pageSize = RequestUtils::normalizePageSize(pageSize, 20, 100);
+
+        const auto result = CompensationWorkflowService::listProposals(dbManager, query);
+        if (!result.ok)
+        {
+            if (result.httpStatus == 403)
+            {
+                return ResponseHelper::permission_denied(req, result.message, result.errorCode);
+            }
+            if (result.httpStatus >= 500)
+            {
+                return ResponseHelper::system_error(req, result.message);
+            }
+            return ResponseHelper::validation(req, result.message);
+        }
+        return ResponseHelper::success(req, {
+            {"items", result.items},
+            {"total", result.total},
+            {"page", result.page},
+            {"pageSize", result.pageSize},
+        });
+    }
+    catch (const std::exception &e)
+    {
+        return ResponseHelper::system_error(req, e.what());
+    }
+}
+
+crow::response bossHandler::decideCompensationApproval(
+    const crow::request &req,
+    int operatorUserId,
+    long long proposalId,
+    const nlohmann::json &body)
+{
+    try
+    {
+        if (proposalId <= 0)
+        {
+            return ResponseHelper::notFound(req, "提案不存在");
+        }
+        if (!body.contains("action") || body["action"].is_null() ||
+            (body["action"].is_string() && body["action"].get<std::string>().empty()))
+        {
+            return ResponseHelper::validation(req, "action 必填");
+        }
+        if (!body["action"].is_string())
+        {
+            return ResponseHelper::validation(req, "action 取值不合法");
+        }
+        const std::string actionStr = body["action"].get<std::string>();
+
+        CompensationWorkflowService::DecisionRequest decisionReq;
+        decisionReq.operatorUserId = operatorUserId;
+        decisionReq.proposalId = proposalId;
+        if (actionStr == "approve")
+        {
+            decisionReq.action = CompensationWorkflowService::DecisionAction::Approve;
+        }
+        else if (actionStr == "return")
+        {
+            decisionReq.action = CompensationWorkflowService::DecisionAction::Return;
+        }
+        else
+        {
+            // 未知动作 fail closed
+            return ResponseHelper::validation(req, "action 取值不合法");
+        }
+
+        decisionReq.reason = RequestUtils::getJsonString(body, "reason");
+        if (decisionReq.reason.empty())
+        {
+            return ResponseHelper::validation(req, "reason 不能为空");
+        }
+        if (!body.contains("expectedRowVersion") || body["expectedRowVersion"].is_null())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必填");
+        }
+        if (!body["expectedRowVersion"].is_number_integer())
+        {
+            return ResponseHelper::validation(req, "expectedRowVersion 必须是整数");
+        }
+        decisionReq.expectedRowVersion = body["expectedRowVersion"].get<int>();
+        decisionReq.hasExpectedRowVersion = true;
+
+        const auto result = CompensationWorkflowService::decideProposal(dbManager, decisionReq);
+        return compensationOpToResponse(req, result);
     }
     catch (const std::exception &e)
     {

@@ -596,6 +596,22 @@ if(BUILD_TESTING)
     )
     add_test(NAME employment_assignment_contract_tests COMMAND employment_assignment_contract_tests)
 
+    add_executable(compensation_workflow_contract_tests
+        tests/compensation_workflow_contract_tests.cpp
+    )
+    target_compile_definitions(compensation_workflow_contract_tests PRIVATE
+        COMPENSATION_WORKFLOW_SERVICE_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/services/employment/CompensationWorkflowService.cpp"
+        DATABASE_MIGRATIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/database/DatabaseMigrations.cpp"
+        PERSONNEL_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/personnelRoutes/personnelRoutes.cpp"
+        PERSONNEL_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/personnel/personnelHandler.cpp"
+        BOSS_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/bossRoutes/bossRoutes.cpp"
+        BOSS_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/boss/bossHandler.cpp"
+        FINANCE_ROUTES_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/routes/financeRoutes/financeRoutes.cpp"
+        FINANCE_HANDLER_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/controllers/modules/finance/financeHandler.cpp"
+        PERMISSIONS_SOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/utils/permissions/Permissions.cpp"
+    )
+    add_test(NAME compensation_workflow_contract_tests COMMAND compensation_workflow_contract_tests)
+
     add_executable(personnel_access_tests
         tests/personnel_access_tests.cpp
         services/employment/PersonnelAccess.cpp

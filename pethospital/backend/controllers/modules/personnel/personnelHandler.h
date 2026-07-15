@@ -24,6 +24,16 @@ public:
     // v6: POST .../regularization、.../offboarding
     crow::response createRegularization(const crow::request &req, int operatorUserId, int employeeId, const nlohmann::json &body);
     crow::response createOffboarding(const crow::request &req, int operatorUserId, int employeeId, const nlohmann::json &body);
+
+    // v6 薪酬提案（compensation:propose / compensation:reassign-case）
+    crow::response listCompensationProposals(const crow::request &req, int operatorUserId);
+    crow::response createCompensationProposal(const crow::request &req, int operatorUserId, const nlohmann::json &body);
+    crow::response updateCompensationProposal(
+        const crow::request &req, int operatorUserId, long long proposalId, const nlohmann::json &body);
+    crow::response submitCompensationProposal(
+        const crow::request &req, int operatorUserId, long long proposalId, const nlohmann::json &body);
+    crow::response reassignCompensationProposal(
+        const crow::request &req, int operatorUserId, long long proposalId, const nlohmann::json &body);
 };
 
 #endif

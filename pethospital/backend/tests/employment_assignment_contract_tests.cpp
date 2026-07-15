@@ -245,6 +245,21 @@ int main()
     contains(service, "assignment_rejected");
     contains(service, "assignment_break_glass_effective");
 
+    // 审批列表展示字段：快照 org/职位名；范围仍用 ea.department_id
+    {
+        const std::string listFn =
+            extractFunction(service, "ListRequestsResult listRequests");
+        contains(listFn, "\"branch_name\"");
+        contains(listFn, "\"department_name\"");
+        contains(listFn, "\"from_position_name\"");
+        contains(listFn, "\"to_position_name\"");
+        contains(listFn, "LEFT JOIN branches b ON b.id = ea.branch_id");
+        contains(listFn, "LEFT JOIN departments d ON d.id = ea.department_id");
+        contains(listFn, "LEFT JOIN positions fp ON fp.id = ea.from_position_id");
+        contains(listFn, "LEFT JOIN positions tp ON tp.id = ea.to_position_id");
+        contains(listFn, "ea.department_id IN (");
+    }
+
     // ---- B2: 生命周期状态机（函数体结构断言，不只是存在性）----
     const std::string regularizableFn =
         extractFunction(service, "bool isRegularizableEmployment");

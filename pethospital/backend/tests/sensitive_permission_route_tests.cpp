@@ -207,7 +207,10 @@ int main()
     assertNotContains(financeHomeSection, "isValidPermissionToken(");
     assertContains(setRoutes, "financeRoutes::setupFinanceRoutes(*app_ptr_, DatabaseManager::getInstance())");
     assertContains(salaryWriteSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryWrite)");
-    assertContains(salaryProfileWriteSection, "isWrite ? Permissions::kSalaryWrite : Permissions::kSalaryRead");
+    // v6: POST salary-profile 旁路退役；路由只认 salary:read，写金额改走 compensation 激活。
+    assertContains(salaryProfileWriteSection, "Permissions::kSalaryRead");
+    assertNotContains(salaryProfileWriteSection, "isWrite ? Permissions::kSalaryWrite : Permissions::kSalaryRead");
+    assertContains(salaryProfileWriteSection, "handler.saveSalaryProfile");
     assertContains(salaryFirstReviewSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryReview)");
     assertContains(salarySummarySection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
     assertContains(salarySearchSection, "isValidPermissionToken(req, res, dbManager, Permissions::kSalaryRead)");
@@ -313,10 +316,76 @@ int main()
     const std::string assignmentSection = sectionBetween(
         personnelRoutes,
         "CROW_ROUTE(app, \"/api/personnel/employees/<int>/assignment\")",
-        "routes_setup = true;");
+        "CROW_ROUTE(app, \"/api/personnel/employees/<int>/regularization\")");
     assertContains(assignmentSection, "FinishSensitiveRoute");
     assertContains(assignmentSection, "permissionKeyForAction");
     assertContains(assignmentSection, "action 必填");
+
+    // v6 薪酬提案列表：POST 精确 propose；GET 为人事门户 + (propose OR reassign-case)。
+    // 不得把 GET 伪装成仅 propose 写权限，也不得扩成任意管理端访问。
+    const std::string compensationListHelper = sectionBetween(
+        personnelRoutes,
+        "int requireCompensationListAccess(",
+        "void personnelRoutes::setupPersonnelRoutes");
+    assertContains(compensationListHelper, "isValidPersonnelToken");
+    assertContains(compensationListHelper, "RbacService::userHasPermission");
+    assertContains(compensationListHelper, "Permissions::kCompensationPropose");
+    assertContains(compensationListHelper, "Permissions::kCompensationReassignCase");
+    // fail-closed：两权限皆无 → permission_denied
+    assertContains(compensationListHelper, "!canPropose && !canReassign");
+    assertContains(compensationListHelper, "permission_denied");
+    // 不得用管理端/超管门户放行
+    assertNotContains(compensationListHelper, "isValidManagementToken(");
+    assertNotContains(compensationListHelper, "isValidSuperAdminPortalToken(");
+
+    const std::string compensationListSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/compensation-proposals\")",
+        "CROW_ROUTE(app, \"/api/personnel/compensation-proposals/<int>\")");
+    assertContains(compensationListSection, "const bool isWrite = req.method == crow::HTTPMethod::Post");
+    // POST：精确 isValidPermissionToken(propose)；GET：requireCompensationListAccess
+    assertContains(compensationListSection, "if (isWrite)");
+    assertContains(compensationListSection, "isValidPermissionToken(");
+    assertContains(compensationListSection, "Permissions::kCompensationPropose");
+    assertContains(compensationListSection, "requireCompensationListAccess");
+    assertContains(compensationListSection, "提案读取/改派管理");
+    assertContains(compensationListSection, "创建薪酬提案");
+    assertContains(compensationListSection, "FinishSensitiveRoute");
+    assertContains(compensationListSection, "auditPermission");
+    // GET 不得在列表路由里只绑 propose 后直接 list（必须走 OR 辅助函数）
+    assertContains(compensationListSection, "handler.listCompensationProposals");
+    assertContains(compensationListSection, "handler.createCompensationProposal");
+    assertNotContains(compensationListSection, "isValidManagementToken(");
+    assertNotContains(compensationListSection, "isValidSuperAdminPortalToken(");
+    assertNotContains(compensationListSection, "isValidFinancePortalToken(");
+    assertNotContains(compensationListSection, "isValidBossPortalToken(");
+
+    const std::string compensationUpdateSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/compensation-proposals/<int>\")",
+        "CROW_ROUTE(app, \"/api/personnel/compensation-proposals/<int>/submit\")");
+    assertContains(compensationUpdateSection, "Permissions::kCompensationPropose");
+    assertContains(compensationUpdateSection, "isValidPermissionToken(");
+    assertSensitiveAudit(compensationUpdateSection, "Permissions::kCompensationPropose");
+    assertNotContains(compensationUpdateSection, "kCompensationReassignCase");
+
+    const std::string compensationSubmitSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/compensation-proposals/<int>/submit\")",
+        "CROW_ROUTE(app, \"/api/personnel/compensation-proposals/<int>/reassign\")");
+    assertContains(compensationSubmitSection, "Permissions::kCompensationPropose");
+    assertContains(compensationSubmitSection, "isValidPermissionToken(");
+    assertSensitiveAudit(compensationSubmitSection, "Permissions::kCompensationPropose");
+    assertNotContains(compensationSubmitSection, "kCompensationReassignCase");
+
+    const std::string compensationReassignSection = sectionBetween(
+        personnelRoutes,
+        "CROW_ROUTE(app, \"/api/personnel/compensation-proposals/<int>/reassign\")",
+        "routes_setup = true;");
+    assertContains(compensationReassignSection, "Permissions::kCompensationReassignCase");
+    assertContains(compensationReassignSection, "isValidPermissionToken(");
+    assertSensitiveAudit(compensationReassignSection, "Permissions::kCompensationReassignCase");
+    assertNotContains(compensationReassignSection, "kCompensationPropose");
 
     const std::string doctorOrderRecordSection = sectionBetween(
         doctorRoutes,
