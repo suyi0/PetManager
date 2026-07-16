@@ -53,7 +53,7 @@ export const getHomeRouteByAccess = (
     return "/finance/salary";
   }
   if (hasPermission(access, PORTAL_PERMISSIONS.personnel)) {
-    return "/personnel/access";
+    return "/personnel/employment";
   }
   if (hasPermission(access, PORTAL_PERMISSIONS.warehouse)) {
     return "/warehouse-admin/dashboard";

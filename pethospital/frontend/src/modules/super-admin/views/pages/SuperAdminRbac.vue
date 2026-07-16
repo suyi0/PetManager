@@ -165,7 +165,7 @@
       <router-link class="entry-card" to="/super-admin/rbac/positions">
         <span class="entry-card__index">01</span>
         <div>
-          <h3>职位权限管理</h3>
+          <h3>职位权限 management</h3>
           <p>维护职位默认最低权限，影响该职位所有职工</p>
         </div>
         <b>进入管理 →</b>

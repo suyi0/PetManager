@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宠物医院用户端界面美化方案预览 - 北欧温情风格</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ==========================================
+       1. THEME VARIABLES (NORDIC WARM & HEALING)
+       ========================================== */
+    :root {
+      --transition-speed: 0.3s;
+      --transition-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+      
+      --bg-app: linear-gradient(180deg, #fdfbf7 0%, #f2f7f4 100%);
+      --bg-sidebar: #ffffff;
+      --sidebar-border: 1px solid #efe7dc;
+      --color-text-main: #1f3a36;
+      --color-text-muted: #6b7d77;
+      --color-text-faint: #94a3b8;
+      
+      /* Hospital Theme Colors */
+      --color-accent: #2f9e8f; /* Brand Teal */
+      --color-accent-hover: #1f7a6c;
+      --color-accent-bg: #e7f5f1;
+      --color-warm: #c2671b; /* Brand Orange */
+      --color-warm-bg: #ffe8d2;
+      
+      --card-bg: #ffffff;
+      --card-border: 1px solid #efe7dc;
+      --card-radius: 24px;
+      --card-shadow: 0 10px 30px rgba(47, 158, 143, 0.04);
+      --card-shadow-hover: 0 20px 40px rgba(47, 158, 143, 0.09);
+      --welcome-bg: linear-gradient(135deg, #fff4e6 0%, #eafaf5 100%);
+      --welcome-border: 1px solid #efe7dc;
+      --font-family: 'Quicksand', 'Noto Sans SC', sans-serif;
+      --btn-radius: 14px;
+      --avatar-bg: #ffe8d2;
+      
+      --badge-ok-bg: #ecfdf5;
+      --badge-ok-color: #047857;
+      --badge-warn-bg: #fff4e6;
+      --badge-warn-color: #b45309;
+      --badge-bad-bg: #fdeef0;
+      --badge-bad-color: #be4b5b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 100%;
+      min-height: 100vh;
+      overflow-x: hidden;
+      font-family: var(--font-family);
+      background: var(--bg-app);
+      color: var(--color-text-main);
+    }
+
+    /* APP CONTAINER */
+    .user-shell {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* ==========================================
+       2. SIDEBAR STYLES
+       ========================================== */
+    .user-side {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 16px;
+      background: var(--bg-sidebar);
+      border-right: var(--sidebar-border);
+      z-index: 10;
+    }
+
+    .side-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px 24px;
+    }
+
+    .side-brand__logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--color-accent), var(--color-warm));
+      font-size: 20px;
+      transition: transform var(--transition-speed) var(--transition-bounce);
+    }
+    .side-brand:hover .side-brand__logo {
+      transform: rotate(10deg) scale(1.05);
+    }
+
+    .side-brand b {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--color-text-main);
+      display: block;
+    }
+
+    .side-brand small {
+      display: block;
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+
+    .side-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .side-nav__link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 46px;
+      padding: 0 16px;
+      border-radius: var(--btn-radius);
+      color: var(--color-text-muted);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+
+    .side-nav__link:hover {
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+      transform: translateX(4px);
+    }
+
+    .side-nav__link--active {
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+      border: 1px solid rgba(47, 158, 143, 0.15);
+      font-weight: 700;
+    }
+
+    .side-nav__ic {
+      font-size: 16px;
+    }
+
+    .side-foot {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .side-return {
+      height: 40px;
+      border: 1px solid var(--color-accent);
+      border-radius: var(--btn-radius);
+      background: transparent;
+      color: var(--color-accent);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .side-return:hover {
+      background: var(--color-accent);
+      color: #ffffff;
+    }
+
+    .portal-account {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.02);
+      border-radius: var(--btn-radius);
+      border: 1px solid rgba(0,0,0,0.04);
+      margin-top: 10px;
+    }
+
+    .portal-account__avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--avatar-bg);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: var(--color-warm);
+    }
+
+    .portal-account__info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .portal-account__name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-main);
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .portal-account__role {
+      font-size: 11px;
+      color: var(--color-text-muted);
+    }
+
+    /* ==========================================
+       3. STAGE CONTENT CONTROLLER (TABS)
+       ========================================== */
+    .user-stage {
+      padding: 28px 36px 36px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .tab-content {
+      display: none;
+      flex-direction: column;
+      gap: 24px;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    .tab-content.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ==========================================
+       4. COMMON COMPONENTS STYLES
+       ========================================== */
+    /* WELCOME BANNER */
+    .welcome {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 24px 28px;
+      border-radius: var(--card-radius);
+      background: var(--welcome-bg);
+      border: var(--welcome-border);
+      box-shadow: var(--card-shadow);
+      transition: all var(--transition-speed) ease;
+    }
+
+    .welcome__av {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 26px;
+      font-weight: 800;
+      background: var(--avatar-bg);
+      color: var(--color-warm);
+      border: 2px solid #ffffff;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    .welcome__txt h2 {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .welcome__txt p {
+      font-size: 14px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    .welcome__cta {
+      margin-left: auto;
+      display: flex;
+      gap: 12px;
+    }
+
+    /* BUTTONS */
+    .btn {
+      border: none;
+      cursor: pointer;
+      border-radius: var(--btn-radius);
+      font-weight: 700;
+      font-size: 14px;
+      padding: 12px 22px;
+      background: var(--color-accent);
+      color: #ffffff;
+      transition: all 0.25s var(--transition-bounce);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn:hover {
+      background: var(--color-accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(47, 158, 143, 0.2);
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn--ghost {
+      background: transparent;
+      color: var(--color-accent);
+      border: 1.5px solid var(--color-accent);
+    }
+    .btn--ghost:hover {
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+    }
+    .btn--orange {
+      background: var(--color-warm);
+    }
+    .btn--orange:hover {
+      background: #a95612;
+      box-shadow: 0 8px 20px rgba(194, 103, 27, 0.2);
+    }
+
+    /* CARDS */
+    .card {
+      background: var(--card-bg);
+      border: var(--card-border);
+      border-radius: var(--card-radius);
+      box-shadow: var(--card-shadow);
+      transition: all var(--transition-speed) ease;
+      overflow: hidden;
+    }
+
+    .card__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 12px;
+    }
+
+    .card__head b {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--color-text-main);
+    }
+
+    .link {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-accent);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .link:hover {
+      color: var(--color-accent-hover);
+      text-decoration: underline;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .pill--ok { background: var(--badge-ok-bg); color: var(--badge-ok-color); }
+    .pill--warn { background: var(--badge-warn-bg); color: var(--badge-warn-color); }
+    .pill--bad { background: var(--badge-bad-bg); color: var(--badge-bad-color); }
+
+    /* ==========================================
+       5. TAB 1: HOME (DASHBOARD) CONTENTS
+       ========================================== */
+    .quick {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .qc {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+      text-align: left;
+      background: var(--card-bg);
+      border: var(--card-border);
+      border-radius: var(--card-radius);
+      box-shadow: var(--card-shadow);
+      transition: all var(--transition-speed) var(--transition-bounce);
+    }
+
+    .qc:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--card-shadow-hover);
+      border-color: var(--color-accent);
+    }
+
+    .qc__ic {
+      width: 44px;
+      height: 44px;
+      border-radius: calc(var(--card-radius) - 8px);
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+      transition: transform 0.3s ease;
+    }
+    .qc:hover .qc__ic {
+      transform: scale(1.1) rotate(5deg);
+    }
+    .qc--orange .qc__ic {
+      background: var(--color-warm-bg);
+      color: var(--color-warm);
+    }
+
+    .qc b {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .qc small {
+      color: var(--color-text-muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .cols {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .col {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Appointment row */
+    .appt {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 0 20px 20px;
+      padding: 16px;
+      border-radius: calc(var(--card-radius) - 6px);
+      background: var(--color-accent-bg);
+      border: 1px solid rgba(47, 158, 143, 0.08);
+      transition: all 0.3s ease;
+    }
+
+    .appt__day {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 58px;
+      height: 58px;
+      border-radius: calc(var(--card-radius) - 10px);
+      background: #ffffff;
+      color: var(--color-accent-hover);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    }
+
+    .appt__day b {
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .appt__day small {
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .appt__meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .appt__meta b {
+      font-size: 15px;
+      font-weight: 700;
+      display: block;
+    }
+
+    .appt__meta p {
+      margin-top: 4px;
+      color: var(--color-text-muted);
+      font-size: 13px;
+    }
+
+    /* Orders row */
+    .order-row {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 80px 1.2fr 1fr 100px 80px;
+      align-items: center;
+      padding: 14px 24px;
+      border: 0;
+      border-top: 1px solid rgba(239, 231, 220, 0.4);
+      background: transparent;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--color-text-main);
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+    .order-row:hover {
+      background: rgba(0, 0, 0, 0.015);
+    }
+
+    .order-row__id {
+      font-weight: 700;
+      color: var(--color-text-muted);
+    }
+    .order-row__type { font-weight: 600; }
+    .order-row__pet { color: var(--color-text-muted); }
+    .order-row__price { font-weight: 700; color: var(--color-warm); }
+    .order-row .pill { justify-self: end; }
+
+    /* Entry side cards */
+    .entry {
+      padding: 20px 24px;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      border: var(--card-border);
+      font-family: inherit;
+    }
+    .entry:hover {
+      border-color: var(--color-accent);
+      transform: translateY(-3px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .entry__row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .entry__ic {
+      width: 48px;
+      height: 48px;
+      border-radius: calc(var(--card-radius) - 10px);
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+    }
+    .entry__ic--pet { background: var(--color-warm-bg); color: var(--color-warm); }
+
+    .entry__row b {
+      font-size: 15px;
+      font-weight: 700;
+      display: block;
+    }
+
+    .entry__row small {
+      display: block;
+      color: var(--color-text-muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .entry__go {
+      margin-left: auto;
+      font-size: 18px;
+      color: var(--color-text-faint);
+      transition: transform 0.2s ease;
+    }
+    .entry:hover .entry__go {
+      transform: translateX(4px);
+      color: var(--color-accent);
+    }
+
+    .intro {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--welcome-bg);
+      border: var(--welcome-border);
+    }
+
+    .intro b {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .intro p {
+      color: var(--color-text-muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .intro .btn--ghost {
+      align-self: flex-start;
+      margin-top: 4px;
+    }
+
+    /* ==========================================
+       6. TAB 2: SERVICE BOOKING CONTENTS
+       ========================================== */
+    .booking-layout {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 20px;
+    }
+
+    .booking-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .booking-card {
+      padding: 24px;
+      background: #ffffff;
+      border: var(--card-border);
+      border-radius: var(--card-radius);
+      box-shadow: var(--card-shadow);
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.3s var(--transition-bounce);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .booking-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--card-shadow-hover);
+      border-color: var(--color-accent);
+    }
+    .booking-card--active {
+      border-color: var(--color-accent);
+      background: var(--color-accent-bg);
+      box-shadow: inset 0 0 0 1px var(--color-accent);
+    }
+
+    .booking-card__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--color-accent-bg);
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      color: var(--color-accent);
+    }
+    .booking-card--active .booking-card__icon {
+      background: #ffffff;
+    }
+
+    .booking-card b {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .booking-card p {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+    }
+
+    .booking-card__price {
+      margin-top: auto;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--color-warm);
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 10px 0 6px;
+      color: var(--color-text-main);
+    }
+
+    .doctors-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .doctor-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: #ffffff;
+      border: var(--card-border);
+      border-radius: calc(var(--card-radius) - 4px);
+      cursor: pointer;
+      transition: all 0.25s;
+    }
+    .doctor-card:hover {
+      border-color: var(--color-accent);
+      background: var(--color-accent-bg);
+    }
+    .doctor-card--active {
+      border-color: var(--color-accent);
+      background: var(--color-accent-bg);
+      box-shadow: inset 0 0 0 1px var(--color-accent);
+    }
+
+    .doctor-card__avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--color-text-muted);
+      border: 2px solid #ffffff;
+    }
+
+    .doctor-card__meta {
+      flex: 1;
+    }
+    .doctor-card__name {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .doctor-card__rating {
+      font-size: 12px;
+      color: #eab308;
+      font-weight: 600;
+    }
+    .doctor-card__desc {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    /* Right calendar card */
+    .calendar-card {
+      padding: 24px;
+    }
+    
+    .calendar-widget {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    .calendar-widget th {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      font-weight: 700;
+      text-align: center;
+      padding: 6px 0;
+    }
+    .calendar-widget td {
+      padding: 8px 0;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .calendar-day {
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .calendar-day:hover {
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+    }
+    .calendar-day--active {
+      background: var(--color-accent) !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 10px rgba(47, 158, 143, 0.2);
+    }
+    .calendar-day--has-dot::after {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 4px;
+      background: var(--color-accent);
+      border-radius: 50%;
+      position: absolute;
+      bottom: 2px;
+    }
+
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .slot-btn {
+      height: 38px;
+      border: 1px solid var(--sidebar-border);
+      border-radius: 10px;
+      background: #ffffff;
+      color: var(--color-text-main);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .slot-btn:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+    .slot-btn--active {
+      background: var(--color-accent-bg);
+      border-color: var(--color-accent);
+      color: var(--color-accent-hover);
+      font-weight: 700;
+    }
+
+    /* ==========================================
+       7. TAB 3: PET PROFILES CONTENTS
+       ========================================== */
+    .pets-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .pets-header h2 {
+      font-size: 24px;
+      font-weight: 800;
+    }
+    .pets-header p {
+      font-size: 14px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+
+    .pets-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .pet-card {
+      padding: 28px;
+      background: #ffffff;
+      border: var(--card-border);
+      border-radius: var(--card-radius);
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: all var(--transition-speed) ease;
+    }
+    .pet-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .pet-card__main {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .pet-card__photo {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      border: 3px solid #ffffff;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      font-size: 36px;
+    }
+
+    .pet-card__meta {
+      flex: 1;
+    }
+    .pet-card__name {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--color-text-main);
+    }
+    .pet-card__breed {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+    .pet-card__tags {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .pet-card__appt {
+      font-size: 13px;
+      border-top: 1px solid rgba(239, 231, 220, 0.5);
+      padding-top: 14px;
+      color: var(--color-text-main);
+    }
+    .pet-card__appt b {
+      color: var(--color-accent-hover);
+    }
+
+    .pet-card__details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .pet-subcard {
+      background: #fbfaf7;
+      padding: 14px 16px;
+      border-radius: calc(var(--card-radius) - 8px);
+      border: 1px solid #f4f1ec;
+    }
+    .pet-subcard b {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      display: block;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .pet-subcard__item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    /* RESPONSIVE DESIGN */
+    @media (max-width: 1024px) {
+      .user-shell { grid-template-columns: 1fr; }
+      .user-side {
+        height: auto;
+        position: static;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        border-right: none;
+        border-bottom: var(--sidebar-border);
+      }
+      .side-brand { padding-bottom: 0; }
+      .side-nav { flex-direction: row; margin-top: 0; }
+      .side-foot { flex-direction: row; margin-top: 0; }
+      .user-stage { height: auto; padding: 20px; }
+      .quick { grid-template-columns: repeat(2, 1fr); }
+      .cols { grid-template-columns: 1fr; }
+      .booking-layout { grid-template-columns: 1fr; }
+      .pets-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="user-shell">
+    
+    <!-- LEFT SIDEBAR -->
+    <aside class="user-side">
+      <div class="side-brand" onclick="switchTab('home')">
+        <div class="side-brand__logo">宠</div>
+        <div>
+          <b>宠物医院</b>
+          <small>用户端</small>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <div id="nav-home" class="side-nav__link side-nav__link--active" onclick="switchTab('home')">
+          <span class="side-nav__ic">🏠</span>
+          首页
+        </div>
+        <div id="nav-booking" class="side-nav__link" onclick="switchTab('booking')">
+          <span class="side-nav__ic">📅</span>
+          服务预约
+        </div>
+        <div id="nav-pets" class="side-nav__link" onclick="switchTab('pets')">
+          <span class="side-nav__ic">🐶</span>
+          宠物档案
+        </div>
+        <div id="nav-orders" class="side-nav__link" onclick="switchTab('home')">
+          <span class="side-nav__ic">🧾</span>
+          我的订单
+        </div>
+      </nav>
+
+      <div class="side-foot">
+        <button class="side-return">
+          ← 返回超级管理员
+        </button>
+
+        <div class="portal-account">
+          <div class="portal-account__avatar">S</div>
+          <div class="portal-account__info">
+            <span class="portal-account__name">Sarah Jenkins</span>
+            <span class="portal-account__role">宠主账号</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN VIEW AREA -->
+    <main class="user-stage">
+      
+      <!-- ==========================================
+           TAB 1: HOME (DASHBOARD)
+           ========================================== -->
+      <div id="tab-home" class="tab-content active">
+        <!-- Welcome Banner -->
+        <div class="welcome">
+          <div class="welcome__av">S</div>
+          <div class="welcome__txt">
+            <h2>欢迎回来，Sarah Jenkins</h2>
+            <p>今天也照顾好毛孩子 🐾</p>
+          </div>
+          <div class="welcome__cta">
+            <button class="btn btn--orange" onclick="switchTab('booking')">立即预约</button>
+            <button class="btn btn--ghost" onclick="switchTab('pets')">我的宠物</button>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick">
+          <div class="qc" onclick="switchTab('booking')">
+            <span class="qc__ic">📅</span>
+            <b>服务预约</b>
+            <small>选医生 · 选时段</small>
+          </div>
+          <div class="qc" onclick="switchTab('home')">
+            <span class="qc__ic">🧾</span>
+            <b>我的订单</b>
+            <small>订单与预约记录</small>
+          </div>
+          <div class="qc qc--orange" onclick="switchTab('pets')">
+            <span class="qc__ic">🐶</span>
+            <b>宠物档案</b>
+            <small>资料与护理备注</small>
+          </div>
+          <div class="qc">
+            <span class="qc__ic">👤</span>
+            <b>个人资料</b>
+            <small>地址 · 手机 · 邮箱</small>
+          </div>
+        </div>
+
+        <!-- Content Columns -->
+        <div class="cols">
+          <!-- Left Column -->
+          <div class="col">
+            <!-- Upcoming Appointment -->
+            <section class="card">
+              <div class="card__head">
+                <b>下个预约</b>
+                <a class="link" onclick="switchTab('booking')">修改预约 →</a>
+              </div>
+              
+              <div class="appt">
+                <div class="appt__day">
+                  <b>12</b>
+                  <small>10月</small>
+                </div>
+                <div class="appt__meta">
+                  <b>常规诊疗 · 门诊问诊</b>
+                  <p>2026-10-12 10:00-10:30 · 宠物: Buddy (金毛)</p>
+                </div>
+                <span class="pill pill--ok">预约成功</span>
+              </div>
+            </section>
+
+            <!-- Recent Orders -->
+            <section class="card">
+              <div class="card__head">
+                <b>最近订单</b>
+                <a class="link">全部 →</a>
+              </div>
+              
+              <div class="order-row">
+                <span class="order-row__id">#7841</span>
+                <span class="order-row__type">牙齿清洁</span>
+                <span class="order-row__pet">Buddy</span>
+                <span class="order-row__price">¥245.00</span>
+                <span class="pill pill--ok">已付款</span>
+              </div>
+              <div class="order-row">
+                <span class="order-row__id">#7790</span>
+                <span class="order-row__type">消炎药物</span>
+                <span class="order-row__pet">Luna (猫)</span>
+                <span class="order-row__price">¥89.50</span>
+                <span class="pill pill--ok">已完成</span>
+              </div>
+              <div class="order-row">
+                <span class="order-row__id">#7712</span>
+                <span class="order-row__type">日常体检</span>
+                <span class="order-row__pet">Buddy</span>
+                <span class="order-row__price">¥165.00</span>
+                <span class="pill pill--warn">待支付</span>
+              </div>
+            </section>
+          </div>
+
+          <!-- Right Column -->
+          <div class="col">
+            <button class="card entry" onclick="switchTab('pets')">
+              <div class="entry__row">
+                <span class="entry__ic entry__ic--pet">🐶</span>
+                <div>
+                  <b>宠物档案</b>
+                  <small>维护宠物资料与护理备注</small>
+                </div>
+                <span class="entry__go">→</span>
+              </div>
+            </button>
+
+            <button class="card entry">
+              <div class="entry__row">
+                <span class="entry__ic">👤</span>
+                <div>
+                  <b>个人资料</b>
+                  <small>地址 · 手机号 · 邮箱</small>
+                </div>
+                <span class="entry__go">→</span>
+              </div>
+            </button>
+
+            <!-- Introduction Card -->
+            <section class="card intro">
+              <b>了解医院</b>
+              <p>我们配备了先进的核磁共振(MRI)、数字X光(DR)、高清超声设备，并拥有一支由资深宠物医生领衔的专业团队，致力于为毛孩子提供最洁净、最安全的诊疗与SPA护理环境。</p>
+              <button class="btn btn--ghost" onclick="switchTab('booking')">查看环境与服务</button>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           TAB 2: SERVICE BOOKING
+           ========================================== -->
+      <div id="tab-booking" class="tab-content">
+        <div class="welcome" style="background: linear-gradient(135deg, #eafaf5 0%, #fdfbf7 100%)">
+          <div class="welcome__av" style="background: var(--color-accent-bg); color: var(--color-accent)">📅</div>
+          <div class="welcome__txt">
+            <h2>服务预约 (北欧温情版)</h2>
+            <p>选服务 → 选医生 → 选时段，为您和爱宠预留最安全洁净的诊疗时间。</p>
+          </div>
+        </div>
+
+        <div class="booking-layout">
+          <div class="col">
+            <div class="section-title">选择预约项目</div>
+            <div class="booking-grid">
+              <div class="booking-card booking-card--active">
+                <div class="booking-card__icon">🐱🐶</div>
+                <b>宠物医治 (门诊)</b>
+                <p>适合常规问诊、复诊跟进与症状检查。</p>
+                <div class="booking-card__price">¥80.00</div>
+              </div>
+              <div class="booking-card">
+                <div class="booking-card__icon" style="color: #bf5b04; background: #fff4e6;">✂️</div>
+                <b>宠物美容 (护理)</b>
+                <p>用于基础清洁、剪指、造型修剪预约。</p>
+                <div class="booking-card__price">¥95.00</div>
+              </div>
+              <div class="booking-card">
+                <div class="booking-card__icon" style="color: #be4b5b; background: #fdeef0;">🩹</div>
+                <b>宠物绝育 (外科)</b>
+                <p>围绕术前沟通、手术安排与恢复观察展开。</p>
+                <div class="booking-card__price">¥350.00+</div>
+              </div>
+              <div class="booking-card">
+                <div class="booking-card__icon" style="color: #6366f1; background: #eef2ff;">🛁</div>
+                <b>宠物 SPA (舒缓)</b>
+                <p>提供舒缓按摩、药浴与深层滋养服务。</p>
+                <div class="booking-card__price">¥120.00</div>
+              </div>
+            </div>
+
+            <div class="section-title">选择主治医师</div>
+            <div class="doctors-list">
+              <div class="doctor-card doctor-card--active">
+                <div class="doctor-card__avatar" style="background: #fed7aa; color: #c2410c;">A</div>
+                <div class="doctor-card__meta">
+                  <div class="doctor-card__name">
+                    Dr. Anya Lindgren
+                    <span class="doctor-card__rating">⭐ 4.9/5</span>
+                  </div>
+                  <div class="doctor-card__desc">外科专家 · 擅长骨科、微创结扎手术与术后复杂监护。</div>
+                </div>
+              </div>
+              <div class="doctor-card">
+                <div class="doctor-card__avatar" style="background: #bfdbfe; color: #1d4ed8;">E</div>
+                <div class="doctor-card__meta">
+                  <div class="doctor-card__name">
+                    Dr. Elias Berg
+                    <span class="doctor-card__rating">⭐ 4.8/5</span>
+                  </div>
+                  <div class="doctor-card__desc">全科医生 · 擅长犬猫内科健康诊断、疫苗接种与老龄犬管理。</div>
+                </div>
+              </div>
+              <div class="doctor-card">
+                <div class="doctor-card__avatar" style="background: #bbf7d0; color: #15803d;">F</div>
+                <div class="doctor-card__meta">
+                  <div class="doctor-card__name">
+                    Dr. Freya Holm
+                    <span class="doctor-card__rating">⭐ 4.8/5</span>
+                  </div>
+                  <div class="doctor-card__desc">中兽医与理疗师 · 擅长中兽药调理、针灸舒缓以及宠物SPA康复。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Calendar Panel -->
+          <div class="col">
+            <div class="section-title">选择预约日期 & 时段</div>
+            <div class="card calendar-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 12px;">
+                <span>2026年 10月</span>
+                <span style="color: var(--color-accent); cursor: pointer;">下一个月 &gt;</span>
+              </div>
+              
+              <table class="calendar-widget">
+                <thead>
+                  <tr>
+                    <th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="calendar-day" style="color: var(--color-text-faint)">27</span></td>
+                    <td><span class="calendar-day" style="color: var(--color-text-faint)">28</span></td>
+                    <td><span class="calendar-day" style="color: var(--color-text-faint)">29</span></td>
+                    <td><span class="calendar-day" style="color: var(--color-text-faint)">30</span></td>
+                    <td><span class="calendar-day">1</span></td>
+                    <td><span class="calendar-day">2</span></td>
+                    <td><span class="calendar-day">3</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="calendar-day">4</span></td>
+                    <td><span class="calendar-day">5</span></td>
+                    <td><span class="calendar-day">6</span></td>
+                    <td><span class="calendar-day">7</span></td>
+                    <td><span class="calendar-day">8</span></td>
+                    <td><span class="calendar-day">9</span></td>
+                    <td><span class="calendar-day">10</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="calendar-day">11</span></td>
+                    <td><span class="calendar-day calendar-day--active">12</span></td>
+                    <td><span class="calendar-day">13</span></td>
+                    <td><span class="calendar-day">14</span></td>
+                    <td><span class="calendar-day">15</span></td>
+                    <td><span class="calendar-day">16</span></td>
+                    <td><span class="calendar-day">17</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="calendar-day">18</span></td>
+                    <td><span class="calendar-day">19</span></td>
+                    <td><span class="calendar-day">20</span></td>
+                    <td><span class="calendar-day">21</span></td>
+                    <td><span class="calendar-day">22</span></td>
+                    <td><span class="calendar-day">23</span></td>
+                    <td><span class="calendar-day">24</span></td>
+                  </tr>
+                  <tr>
+                    <td><span class="calendar-day">25</span></td>
+                    <td><span class="calendar-day">26</span></td>
+                    <td><span class="calendar-day">27</span></td>
+                    <td><span class="calendar-day">28</span></td>
+                    <td><span class="calendar-day">29</span></td>
+                    <td><span class="calendar-day">30</span></td>
+                    <td><span class="calendar-day">31</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style="border-top: 1px solid rgba(239,231,220,0.5); margin-top: 18px; padding-top: 14px;">
+                <div style="font-size: 13px; font-weight: 700; color: var(--color-text-muted);">可选预约时段</div>
+                <div class="slots-grid">
+                  <button class="slot-btn slot-btn--active">09:30 - 10:00</button>
+                  <button class="slot-btn">11:00 - 11:30</button>
+                  <button class="slot-btn">14:15 - 14:45</button>
+                  <button class="slot-btn">16:00 - 16:30</button>
+                </div>
+              </div>
+
+              <div style="margin-top: 20px;">
+                <button class="btn btn--orange" style="width: 100%; justify-content: center; height: 46px;">
+                  确认预约 · 费用 ¥80.00
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==========================================
+           TAB 3: PET PROFILES
+           ========================================== -->
+      <div id="tab-pets" class="tab-content">
+        <div class="pets-header">
+          <div>
+            <h2>我的宠物档案</h2>
+            <p>维护宠物的重要健康日志、用药情况及疫苗信息。</p>
+          </div>
+          <button class="btn btn--orange">+ 添加宠物档案</button>
+        </div>
+
+        <div class="pets-grid">
+          <!-- Pet 1 (Buddy) -->
+          <div class="pet-card">
+            <div class="pet-card__main">
+              <div class="pet-card__photo" style="background-color: #fef3c7;">🐶</div>
+              <div class="pet-card__meta">
+                <div class="pet-card__name">Buddy</div>
+                <div class="pet-card__breed">金毛犬 · 雄性 · 5岁 (出生于 2018-06-10)</div>
+                <div class="pet-card__tags">
+                  <span class="pill pill--ok">疫苗已接种</span>
+                  <span class="pill pill--ok">状态良好</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pet-card__appt">
+              📅 下次预约：<b>常规诊疗 - 10月12日 10:00</b> (主治医生：Dr. Anya Lindgren)
+            </div>
+
+            <div class="pet-card__details">
+              <div class="pet-subcard">
+                <b>🏥 医疗纪要</b>
+                <div class="pet-subcard__item">💉 狂犬疫苗：已接种 (有效至2027年)</div>
+                <div class="pet-subcard__item">🩺 年度体检：已完成 (2026-03)</div>
+              </div>
+              <div class="pet-subcard">
+                <b>🍖 饮食与护理提醒</b>
+                <div class="pet-subcard__item">🥣 处方主粮：每天 250g (金毛专用)</div>
+                <div class="pet-subcard__item">💊 关节养护药：每天 8:00AM 服用</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pet 2 (Luna) -->
+          <div class="pet-card">
+            <div class="pet-card__main">
+              <div class="pet-card__photo" style="background-color: #e0f2fe;">🐱</div>
+              <div class="pet-card__meta">
+                <div class="pet-card__name">Luna</div>
+                <div class="pet-card__breed">暹罗猫 · 雌性 · 3岁 (出生于 2020-08-22)</div>
+                <div class="pet-card__tags">
+                  <span class="pill pill--ok">体内驱虫已做</span>
+                  <span class="pill pill--warn">待打猫三联</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pet-card__appt">
+              📅 下次预约：暂无预约预约
+            </div>
+
+            <div class="pet-card__details">
+              <div class="pet-subcard">
+                <b>🏥 医疗纪要</b>
+                <div class="pet-subcard__item">🦷 洗牙护理：已完成 (2026-05)</div>
+                <div class="pet-subcard__item">💉 猫三联疫苗：2026-11 需加强针</div>
+              </div>
+              <div class="pet-subcard">
+                <b>🍖 饮食与护理提醒</b>
+                <div class="pet-subcard__item">🥣 猫罐头补水：早晚各一罐</div>
+                <div class="pet-subcard__item">🧴 毛发护理：每周六梳毛排毛球</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    function switchTab(tabName) {
+      // 1. Update navigation active state
+      const navLinks = document.querySelectorAll('.side-nav__link');
+      navLinks.forEach(link => link.classList.remove('side-nav__link--active'));
+      
+      const activeNav = document.getElementById('nav-' + tabName);
+      if (activeNav) {
+        activeNav.classList.add('side-nav__link--active');
+      }
+
+      // 2. Switch tab content
+      const tabContents = document.querySelectorAll('.tab-content');
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      const activeContent = document.getElementById('tab-' + tabName);
+      if (activeContent) {
+        activeContent.classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>

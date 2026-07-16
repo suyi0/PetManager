@@ -11,12 +11,22 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       {
         path: "",
-        redirect: "/personnel/access",
+        redirect: "/personnel/employment",
       },
       {
+        // 兼容旧入口「任职与薪酬」合并页
         path: "access",
-        name: "personnelAccess",
-        component: () => import("../views/pages/PersonnelRoleAccess.vue"),
+        redirect: "/personnel/employment",
+      },
+      {
+        path: "employment",
+        name: "personnelEmployment",
+        component: () => import("../views/pages/PersonnelEmployment.vue"),
+      },
+      {
+        path: "compensation",
+        name: "personnelCompensation",
+        component: () => import("../views/pages/PersonnelCompensation.vue"),
       },
       {
         path: "personal",

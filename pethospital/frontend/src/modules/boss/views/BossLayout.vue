@@ -131,7 +131,7 @@ export default defineComponent({
         hint: "打开任职派岗、生命周期与薪酬交接界面",
         userType: 5,
         userRole: "人事经理",
-        path: "/personnel/access",
+        path: "/personnel/employment",
         profile: {
           userName: "人事经理 许知夏",
           userPhone: "13600136001",

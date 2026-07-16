@@ -10,7 +10,7 @@
       </div>
 
       <nav class="nav">
-        <RouterLink class="nav__item" :to="`${routePrefix}/access`">
+        <RouterLink class="nav__item" :to="`${routePrefix}/employment`">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -22,7 +22,20 @@
             <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
-          任职与薪酬
+          职位任职
+        </RouterLink>
+        <RouterLink class="nav__item" :to="`${routePrefix}/compensation`">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <path d="M2 10h20" />
+            <path d="M6 15h4" />
+          </svg>
+          薪资管理
         </RouterLink>
       </nav>
 

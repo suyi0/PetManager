@@ -194,7 +194,7 @@ interface PortalEntry {
 }
 const INSPECTION_PORTALS: PortalEntry[] = [
   { key: "doctor", label: "医生端", hint: "工作台 / 候诊队列 / 开单", perm: "portal:medical", path: "/doctor/home" },
-  { key: "personnel", label: "人事端", hint: "权限授予 / 岗位管理", perm: "portal:personnel", path: "/personnel/access" },
+  { key: "personnel", label: "人事端", hint: "职位任职 / 薪资管理", perm: "portal:personnel", path: "/personnel/employment" },
   { key: "warehouse", label: "仓库端", hint: "库存 / 预警 / 出入库", perm: "portal:warehouse", path: "/warehouse-admin/dashboard" },
   { key: "finance", label: "财务端", hint: "薪资 / 财务报表", perm: "portal:finance", path: "/finance/salary" },
   { key: "user", label: "用户端", hint: "首页 / 服务预约 / 个人资料", perm: "portal:user", path: "/user/home" },
